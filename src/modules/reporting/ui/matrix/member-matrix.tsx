@@ -253,6 +253,7 @@ function LineItem({
       {line.reason === "TRACKED_AT_FUND_LEVEL" ? (
         <Link
           href={fundHref}
+          replace
           className="inline-flex min-h-11 items-center self-start font-semibold text-accent"
         >
           {t("matrix.toFund")}

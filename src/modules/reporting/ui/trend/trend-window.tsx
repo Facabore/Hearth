@@ -23,6 +23,7 @@ export function TrendWindow({
         <Link
           key={count}
           href={`${viewHref(space, "trend", end)}${end ? "&" : "?"}periods=${count}`}
+          replace
           aria-current={count === periods ? "page" : undefined}
           className={chipClass(count === periods)}
         >

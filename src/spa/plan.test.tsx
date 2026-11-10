@@ -90,6 +90,31 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     expect(problems()).toEqual([]);
   });
 
+  it("moves between the Plan views and periods without a history step of its own, so Back leaves the Plan (P318)", async () => {
+    const october = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
+    const spa = renderSpa(`${PERSONAL}/plan?period=2026-11`, {
+      ...server(),
+      "GET /api/v1/spaces/{spaceId}/periods": (request) => {
+        const from = new URL(request.url).searchParams.get("from");
+        return jsonResponse({ items: [from !== null && from < "2026-11-01" ? october : NOVEMBER] });
+      },
+    });
+    const tabs = await screen.findByRole("navigation", { name: es.reports.tabs.label }, { timeout: 5_000 });
+    const steps = spa.router.history.length;
+    await userEvent.click(within(tabs).getByRole("link", { name: es.reports.view.groups }));
+    await waitFor(() => expect(spa.location()).toBe(`${PERSONAL}/plan/groups?period=2026-11`));
+    await userEvent.click(
+      within(await screen.findByRole("navigation", { name: es.reports.tabs.label })).getByRole("link", {
+        name: es.reports.view.lines,
+      }),
+    );
+    await waitFor(() => expect(spa.location()).toBe(`${PERSONAL}/plan?period=2026-11`));
+    await userEvent.click(await screen.findByRole("link", { name: es.common.previousPeriod }));
+    await waitFor(() => expect(spa.location()).toBe(`${PERSONAL}/plan?period=2026-10`));
+    // The owner, 2026-11-09: Back walked through every view and period before it left the Plan.
+    expect(spa.router.history.length).toBe(steps);
+  });
+
   it("opens the personal space's Plan tab on Rubros, with its views in U3's order and no Mi consumo (ruling P267)", async () => {
     const spa = renderSpa(`${PERSONAL}/plan?period=2026-11`, server());
     const tabs = await screen.findByRole("navigation", { name: es.reports.tabs.label }, { timeout: 5_000 });
