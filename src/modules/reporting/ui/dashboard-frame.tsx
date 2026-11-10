@@ -94,7 +94,7 @@ export function DashboardFrame({
           {previousHref === null ? (
             <span className="size-11 shrink-0" />
           ) : (
-            <Link href={previousHref} className={BOX}>
+            <Link href={previousHref} replace className={BOX}>
               <Icon name="back" />
               <VisuallyHidden>{tc("previousPeriod")}</VisuallyHidden>
             </Link>
@@ -115,7 +115,7 @@ export function DashboardFrame({
           {nextHref === null ? (
             <span className="size-11 shrink-0" />
           ) : (
-            <Link href={nextHref} className={BOX}>
+            <Link href={nextHref} replace className={BOX}>
               <Icon name="chevronRight" />
               <VisuallyHidden>{tc("nextPeriod")}</VisuallyHidden>
             </Link>

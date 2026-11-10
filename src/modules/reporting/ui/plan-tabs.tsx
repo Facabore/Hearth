@@ -31,6 +31,8 @@ export function PlanTabs({
         <Link
           key={item}
           href={viewHref(space, item, period)}
+          // P318: a view of the Plan replaces the one shown, so Back leaves the Plan instead of walking its views.
+          replace
           aria-current={item === view ? "page" : undefined}
           className={chipClass(item === view)}
         >

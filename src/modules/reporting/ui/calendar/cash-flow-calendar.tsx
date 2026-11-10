@@ -48,6 +48,7 @@ export function CashFlowCalendar({
           <Link
             key={days}
             href={calendarHref(space, days)}
+            replace
             aria-current={days === flow.days ? "page" : undefined}
             className={chipClass(days === flow.days)}
           >

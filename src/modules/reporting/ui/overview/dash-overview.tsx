@@ -99,7 +99,7 @@ function GroupsPanel({
           </li>
         ))}
       </ul>
-      <Link href={viewHref(space, "groups", groups.period.label)} className={LINK}>
+      <Link href={viewHref(space, "groups", groups.period.label)} replace className={LINK}>
         {t("overview.toGroups")}
       </Link>
     </Panel>
@@ -216,7 +216,7 @@ function TrendPanel({
           );
         })}
       </ul>
-      <Link href={viewHref(space, "trend", trend.periods.at(-1)?.label)} className={LINK}>
+      <Link href={viewHref(space, "trend", trend.periods.at(-1)?.label)} replace className={LINK}>
         {t("overview.toTrend")}
       </Link>
     </Panel>
