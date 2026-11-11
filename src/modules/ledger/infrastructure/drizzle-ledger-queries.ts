@@ -15,6 +15,7 @@ import {
   or,
   sql,
   type AnyColumn,
+  type SQL,
 } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
@@ -27,6 +28,8 @@ import type {
   TransactionFilter,
   TransactionPosition,
   TransactionQuery,
+  TransactionsAcrossFilter,
+  TransactionsAcrossQuery,
 } from "../application/ports";
 import type { Transaction } from "../domain/transaction";
 import { payments, shares, transactions } from "./ledger.schema";
@@ -41,6 +44,20 @@ const negatedSumAsText = (column: AnyColumn) => sql<string>`(-sum(${column}))::t
 // HU-E4-14, ruling P43: untimed rows sort as the earliest time of their day, so they come last in DESC order.
 // The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
 const listTime = sql`coalesce(${transactions.occurredAt}, '-infinity'::timestamptz)`;
+
+/** Ruling P43: the list order, newest first. */
+const listOrder = [
+  desc(transactions.date),
+  desc(listTime),
+  desc(transactions.createdAt),
+  desc(transactions.id),
+] as const;
+
+/** Ruling P43: the rows strictly after `after` in the list order; no condition for the first page. */
+const pastPosition = (after: TransactionPosition | null) =>
+  after === null
+    ? undefined
+    : sql`(${transactions.date}, ${listTime}, ${transactions.createdAt}, ${transactions.id}) < (${after.date}::date, ${after.occurredAt?.toISOString() ?? "-infinity"}::timestamptz, ${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`;
 
 /** Inclusive dates, as `between` reads them. */
 interface DateRange {
@@ -59,7 +76,7 @@ const rangeRows = (ranges: readonly DateRange[]) =>
 const literalLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
-export class DrizzleLedgerQueries implements TransactionQuery {
+export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcrossQuery {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async list(
@@ -71,17 +88,60 @@ export class DrizzleLedgerQueries implements TransactionQuery {
     const rows = await db
       .select()
       .from(transactions)
-      .where(
-        and(
-          this.matching(filter),
-          after === null
-            ? undefined
-            : sql`(${transactions.date}, ${listTime}, ${transactions.createdAt}, ${transactions.id}) < (${after.date}::date, ${after.occurredAt?.toISOString() ?? "-infinity"}::timestamptz, ${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`,
-        ),
-      )
-      .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
+      .where(and(this.matching(filter), pastPosition(after)))
+      .orderBy(...listOrder)
       .limit(limit);
     return loadTransactions(db, rows);
+  }
+
+  /** Ruling P319: `list` over several spaces in one order; `[]` without valid space ids. */
+  async listAcross(
+    filter: TransactionsAcrossFilter,
+    after: TransactionPosition | null,
+    limit: number,
+  ): Promise<Transaction[]> {
+    const spaceIds = filter.spaceIds.filter(isUuid);
+    if (spaceIds.length === 0) return [];
+    const db = this.tm.executor();
+    const rows = await db
+      .select()
+      .from(transactions)
+      .where(and(this.matchingIn(inArray(transactions.spaceId, spaceIds), filter), pastPosition(after)))
+      .orderBy(...listOrder)
+      .limit(limit);
+    return loadTransactions(db, rows);
+  }
+
+  /**
+   * Ruling P319: the members' shares of the matching expenses and the matching incomes they received, in one
+   * statement. Only an expense joins its members' shares, so every income is read once.
+   */
+  async memberTotalsAcross(
+    filter: TransactionsAcrossFilter,
+    memberIds: readonly string[],
+  ): Promise<{ share: bigint; income: bigint }> {
+    const spaceIds = filter.spaceIds.filter(isUuid);
+    const members = memberIds.filter(isUuid);
+    if (spaceIds.length === 0 || members.length === 0) return { share: 0n, income: 0n };
+    // Aliased, so the filter's own subqueries on `shares` never read the joined rows.
+    const theirs = alias(shares, "their_shares");
+    const [row] = await this.tm
+      .executor()
+      .select({
+        share: sql<string>`coalesce(sum(${theirs.amount}), 0)::text`,
+        income: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.type} = 'INCOME' and ${inArray(transactions.receivingMemberId, members)}), 0)::text`,
+      })
+      .from(transactions)
+      .leftJoin(
+        theirs,
+        and(
+          eq(theirs.transactionId, transactions.id),
+          eq(transactions.type, "EXPENSE"),
+          inArray(theirs.memberId, members),
+        ),
+      )
+      .where(this.matchingIn(inArray(transactions.spaceId, spaceIds), filter));
+    return { share: BigInt(row?.share ?? "0"), income: BigInt(row?.income ?? "0") };
   }
 
   /** Ruling P306: the live transactions of several spaces from `from`, in `list`'s order; `[]` without valid ids. */
@@ -105,7 +165,7 @@ export class DrizzleLedgerQueries implements TransactionQuery {
           to === undefined ? undefined : lte(transactions.date, to),
         ),
       )
-      .orderBy(desc(transactions.date), desc(listTime), desc(transactions.createdAt), desc(transactions.id))
+      .orderBy(...listOrder)
       .limit(limit);
     return loadTransactions(db, rows);
   }
@@ -635,9 +695,14 @@ export class DrizzleLedgerQueries implements TransactionQuery {
   }
 
   private matching(f: TransactionFilter) {
+    return this.matchingIn(eq(transactions.spaceId, f.spaceId), f);
+  }
+
+  /** The list's conditions (HU-E4-05, P277) within `spaces`: one space's, or several (ruling P319). */
+  private matchingIn(spaces: SQL, f: Omit<TransactionFilter, "spaceId">) {
     const db = this.tm.executor();
     return and(
-      eq(transactions.spaceId, f.spaceId),
+      spaces,
       isNull(transactions.deletedAt),
       between(transactions.date, f.from, f.to),
       f.type === undefined ? undefined : eq(transactions.type, f.type),

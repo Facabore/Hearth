@@ -32,6 +32,8 @@ export type {
   TransactionPosition,
   TransactionQuery,
   TransactionRepository,
+  TransactionsAcrossFilter,
+  TransactionsAcrossQuery,
 } from "./ports";
 export {
   createRecordExpense,
@@ -171,3 +173,10 @@ export {
   type MyActivityDeps,
   type RecentTransactions,
 } from "./list-my-activity";
+export {
+  createListMyTransactions,
+  type ListMyTransactions,
+  type MyTransactionPage,
+  type MyTransactionsDeps,
+  type MyTransactionsInput,
+} from "./list-my-transactions";

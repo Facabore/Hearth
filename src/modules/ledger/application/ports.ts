@@ -123,6 +123,29 @@ export interface TransactionQuery {
   totals(filter: TransactionFilter): Promise<{ expenses: bigint; income: bigint }>;
 }
 
+/** Ruling P319: the list's filter (P277) over several spaces at once, as the personal Movimientos reads them. */
+export interface TransactionsAcrossFilter extends Omit<TransactionFilter, "spaceId"> {
+  readonly spaceIds: readonly string[];
+}
+
+/** Ruling P319 (#294): the personal Movimientos, one list over several spaces. */
+export interface TransactionsAcrossQuery {
+  /** Live matching transactions of every space, newest first in the list order (P43), strictly after `after`. */
+  listAcross(
+    filter: TransactionsAcrossFilter,
+    after: TransactionPosition | null,
+    limit: number,
+  ): Promise<Transaction[]>;
+  /**
+   * Over every live matching transaction: Σ the shares of `memberIds` in the expenses, and Σ the incomes one of
+   * `memberIds` received.
+   */
+  memberTotalsAcross(
+    filter: TransactionsAcrossFilter,
+    memberIds: readonly string[],
+  ): Promise<{ share: bigint; income: bigint }>;
+}
+
 /**
  * HU-E5-01 (E5 balance rule): per-member sums of one space's live, member-paid expenses and its
  * settlements. Fund-paid expenses and every transfer, fund contributions included, create no debt (D5).

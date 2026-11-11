@@ -32,6 +32,7 @@ import type {
   ConvertedTransaction,
   EditChanges,
   LedgerWarning,
+  MyTransactionPage,
   PaymentInput,
   RecordedExpense,
   RecordExpenseInput,
@@ -738,7 +739,65 @@ export const activityItemDto = (item: ActivityItem): z.infer<typeof ActivityItem
   };
 };
 
+/**
+ * Ruling P319 (#294): the personal Movimientos across every current space of the caller. The filters are the space
+ * list's (P277) without the member ones, plus `spaceId`; `period` is a label of the caller's personal space.
+ */
+export const MyTransactionsQuerySchema = PaginationQuerySchema.extend({
+  period: ListTransactionsQuerySchema.shape.period,
+  spaceId: z
+    .uuid()
+    .optional()
+    .describe("Ruling P319: only this space, one of the caller's current spaces; another answers 404."),
+  categoryIds: ListTransactionsQuerySchema.shape.categoryIds,
+  type: ListTransactionsQuerySchema.shape.type,
+  accountId: ListTransactionsQuerySchema.shape.accountId,
+  search: ListTransactionsQuerySchema.shape.search,
+});
+
+export const MyTransactionsResponseSchema = z.object({
+  /** The personal space's period listed. */
+  period: PeriodSchema,
+  /**
+   * In the personal space's currency, over the whole filtered period: the caller's share of the expenses and the
+   * incomes the caller received. Spaces in another currency are listed but left out of both (P37).
+   */
+  totals: z.object({ share: MoneySchema, income: MoneySchema }),
+  items: z.array(ActivityItemSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const myTransactionPageDto = (
+  page: MyTransactionPage,
+): z.infer<typeof MyTransactionsResponseSchema> => ({
+  period: periodDto(page.period),
+  totals: {
+    share: { amount: page.totals.share.toString(), currency: page.currency },
+    income: { amount: page.totals.income.toString(), currency: page.currency },
+  },
+  items: page.items.map(activityItemDto),
+  nextCursor: page.nextPosition ? encodeCursor(cursorOf(page.nextPosition)) : null,
+});
+
 export const ledgerPaths: ZodOpenApiPathsObject = {
+  "/api/v1/me/transactions": {
+    get: {
+      operationId: "listMyTransactions",
+      summary: "The caller's movements in every current space, one period, newest first, with their totals",
+      description:
+        "Ruling P319 (#294): the personal Movimientos. The live movements of the caller's personal space and of every shared and direct space they currently belong to (archived spaces left out), within one period of the personal space, in Movimientos' order, each with its space, who recorded it and the caller's part of it.",
+      ...securedByUser,
+      requestParams: { query: MyTransactionsQuerySchema },
+      responses: {
+        "200": { description: "One page of the period", content: jsonContent(MyTransactionsResponseSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "422": "ValidationFailed, InvalidCursor, InvalidPeriodLabel",
+        }),
+      },
+    },
+  },
   "/api/v1/me/activity": {
     get: {
       operationId: "listMyActivity",
