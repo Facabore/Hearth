@@ -436,7 +436,12 @@
       "empty": "No hay movimientos en este período.",
       "loadMore": "Cargar más",
       "paidBy": "Pagó",
-      "anyone": "Todos"
+      "anyone": "Todos",
+      "everySpace": "Todos tus espacios, con tu parte de cada movimiento",
+      "share": "Tu parte <b>{amount}</b>",
+      "allSpaces": "Todos los espacios",
+      "spacesTitle": "Ver movimientos de",
+      "onlyYou": "solo tú"
     },
     "day": {
       "today": "Hoy",

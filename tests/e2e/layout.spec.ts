@@ -245,7 +245,11 @@ const HISTORY_GUEST = "Carlos Alberto Rodríguez Hernández de la Vega";
 const editPathOf = async (page: Page, spaceId: string) => {
   await page.goto(`/spaces/${spaceId}/transactions`);
   await settle(page);
-  await page.getByRole("link", { name: /Mercado semanal/ }).click();
+  // Ruling P319: a personal Movimientos also lists the household's long expense; this one is the space's own row.
+  await page
+    .locator(`a[href^="/spaces/${spaceId}/transactions?tx="]`)
+    .filter({ hasText: /Mercado semanal/ })
+    .click();
   const href = await page.getByRole("link", { name: es.ledger.detail.edit }).getAttribute("href");
   expect(href, "the sheet offers Editar").toContain(`/spaces/${spaceId}/transactions/`);
   return href!;

@@ -5,6 +5,7 @@ import { es } from "@/i18n/messages/full";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
+  activityItemDto,
   householdSpace,
   meDto,
   octoberPage,
@@ -33,6 +34,23 @@ const deferred = () => {
 };
 
 /**
+ * Ruling P319: Ana has Household too, so her Movimientos reads every space; her personal movements as it lists them.
+ */
+const mine = (items: readonly TransactionDto[], nextCursor: string | null = null) => ({
+  period: octoberPage.period,
+  totals: { share: octoberPage.totals.expenses, income: octoberPage.totals.income },
+  items: items.map((tx) =>
+    activityItemDto({
+      space: { id: "sp-personal", name: "Personal", kind: "PERSONAL", color: "PINE" },
+      transaction: tx,
+      recordedBy: { name: null, you: true },
+      you: { memberIds: [], share: null, paid: null },
+    }),
+  ),
+  nextCursor,
+});
+
+/**
  * Ana's personal space over a fake /api/v1 that keeps its movements, so a read after a write returns what the server
  * would. `hold` makes the named reads hang from then on: whatever shows meanwhile came from the cache.
  */
@@ -48,6 +66,7 @@ const ledgerServer = (writes: Record<string, FakeHandler> = {}) => {
     "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace()] }),
     "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "open" }),
     "GET /api/v1/spaces/{spaceId}/transactions": held("page", () => jsonResponse({ ...octoberPage, items })),
+    "GET /api/v1/me/transactions": held("page", () => jsonResponse(mine(items))),
     [`GET ${ONE}`]: held("transaction", (_, { transactionId }) => {
       const tx = items.find((item) => item.id === transactionId);
       return tx ? jsonResponse(tx) : problemResponse(404, "TransactionNotFound");
@@ -291,10 +310,10 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     };
     let second = [older];
     const { routes } = ledgerServer({
-      "GET /api/v1/spaces/{spaceId}/transactions": (request) =>
+      "GET /api/v1/me/transactions": (request) =>
         new URL(request.url).searchParams.has("cursor")
-          ? jsonResponse({ ...octoberPage, items: second, nextCursor: null })
-          : jsonResponse({ ...octoberPage, nextCursor: "page-2" }),
+          ? jsonResponse(mine(second))
+          : jsonResponse(mine(octoberPage.items, "page-2")),
       [`GET ${ONE}`]: (_, { transactionId }) =>
         jsonResponse([...octoberPage.items, ...second].find((item) => item.id === transactionId)),
       [`DELETE ${ONE}`]: () => {

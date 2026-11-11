@@ -69,6 +69,7 @@ export function ActivityRow({
   viewerZone,
   today,
   money,
+  card = false,
 }: {
   readonly item: ActivityItemDto;
   readonly formats: Formats;
@@ -76,6 +77,8 @@ export function ActivityRow({
   readonly today: string;
   /** Inicio's money formatter, from the person's formats. */
   readonly money: (amount: MoneyDto) => string;
+  /** Ruling P319: a row of the personal Movimientos, inside its day's card, padded as that list's own rows are. */
+  readonly card?: boolean;
 }) {
   const t = useTranslations("home.feed");
   const ledger = useTranslations("ledger");
@@ -133,7 +136,7 @@ export function ActivityRow({
     <li data-activity-row>
       <Link
         href={withTx(`/spaces/${item.space.id}`, tx.id)}
-        className="flex min-h-row-lg items-center gap-3 rounded-xl py-1.5"
+        className={`flex min-h-row-lg items-center gap-3 rounded-xl ${card ? "px-3 py-3" : "py-1.5"}`}
       >
         <span className="shrink-0 overflow-hidden rounded-full">{icon}</span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">

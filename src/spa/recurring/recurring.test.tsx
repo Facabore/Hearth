@@ -42,6 +42,14 @@ const server = (recurrences: RecurrenceDto[] = []) => {
       jsonResponse({ items: [spaceDto(), householdSpace({ name: "Hogar", role: "VIEWER" })] }),
     "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "open" }),
     "GET /api/v1/spaces/{spaceId}/transactions": () => jsonResponse(octoberPage),
+    // Ruling P319: the person has another space, so her personal Movimientos reads every space.
+    "GET /api/v1/me/transactions": () =>
+      jsonResponse({
+        period: octoberPage.period,
+        totals: { share: octoberPage.totals.expenses, income: octoberPage.totals.income },
+        items: [],
+        nextCursor: null,
+      }),
     "GET /api/v1/spaces/{spaceId}/accounts": () =>
       jsonResponse({ items: [accountDto({ id: "a-bank", name: "Bancolombia" })] }),
     "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: groups }),

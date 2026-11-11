@@ -1,5 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { HomeSummary, TransactionList } from "@/modules/ledger/ui";
+import {
+  EverySpaceList,
+  HomeSummary,
+  TransactionList,
+  type ListFilter,
+  type ListSpace,
+} from "@/modules/ledger/ui";
+import type { SpaceDto } from "@/shared/ui/api/dto";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { nowIn } from "@/shared/ui/time/when";
@@ -7,8 +14,8 @@ import { useApis } from "../api";
 import { memberNamesOf, movedOf, rowContextOf } from "../ledger/hooks";
 import { recentPeriodsQuery } from "../ledger/list-hooks";
 import { listFilterOf } from "../ledger/list-search";
-import { homeRowsOf, listQueryOf, pageQuery } from "../ledger/queries";
-import { sharedSpace, type Viewer } from "../load";
+import { homeRowsOf, listQueryOf, myListQueryOf, myPageQuery, pageQuery } from "../ledger/queries";
+import { sharedSpace, showsUnifiedMonth, type Viewer } from "../load";
 import { accountListQuery, categoriesQuery, membersQuery, netBalancesQuery, periodQuery } from "../reads";
 import { pendingOccurrencesQuery } from "../recurring-pending/queries";
 // Inicio's and Movimientos' own route modules, so their components stay in those routes' chunks: the backdrop loads the
@@ -80,10 +87,65 @@ function ListBehind({
   readonly viewer: Viewer;
   readonly search: Record<string, string>;
 }) {
+  const filter = listFilterOf(search);
+  return showsUnifiedMonth(viewer) ? (
+    <EverySpaceBehind viewer={viewer} filter={filter} />
+  ) : (
+    <SpaceListBehind viewer={viewer} filter={filter} />
+  );
+}
+
+/**
+ * Ruling P319: the personal Movimientos across every space, as its screen left it in the cache. Another space's
+ * categories and accounts are optional there too: one the cache lacks only leaves its filters out.
+ */
+function EverySpaceBehind({ viewer, filter }: { readonly viewer: Viewer; readonly filter: ListFilter }) {
   const { api } = useApis();
   const cache = useQueryClient();
   const { me, space } = viewer;
-  const filter = listFilterOf(search);
+  const today = nowIn(new Date(), me.timezone).date;
+  const page = cache.getQueryData(myPageQuery(api, space.id, myListQueryOf(filter)).queryKey);
+  const groups = cache.getQueryData(categoriesQuery(api, space.id, "all").queryKey);
+  const accounts = cache.getQueryData(accountListQuery(api, space.id, "all").queryKey)?.items;
+  if (!page || !groups || !accounts) return null;
+  const { startDate, endDate } = page.period;
+  const period = (date: string) => cache.getQueryData(periodQuery(api, space.id, date).queryKey) ?? null;
+  const pending = cache.getQueryData(pendingOccurrencesQuery(api, space.id).queryKey) ?? [];
+  const spaceOf = (s: SpaceDto): ListSpace => ({
+    id: s.id,
+    name: s.name,
+    kind: s.kind,
+    color: s.color ?? "GRAPHITE",
+    groups:
+      s.id === space.id ? groups : (cache.getQueryData(categoriesQuery(api, s.id, "all").queryKey) ?? []),
+    accounts:
+      s.id === space.id
+        ? accounts
+        : (cache.getQueryData(accountListQuery(api, s.id, "all").queryKey)?.items ?? []),
+  });
+  return (
+    <EverySpaceList
+      spaceId={space.id}
+      page={page}
+      context={rowContextOf(me, groups, accounts)}
+      today={today}
+      filter={filter}
+      spaces={[spaceOf(space), ...viewer.spaces.filter((s) => s.id !== space.id).map(spaceOf)]}
+      periodPolicy={space.periodPolicy}
+      previous={period(addDays(startDate as LocalDate, -1))}
+      next={period(addDays(endDate as LocalDate, 1))}
+      periods={cache.getQueryData(recentPeriodsQuery(api, space.id, today).queryKey)}
+      pendingCount={pending.length}
+      pendingNames={pending.map((occurrence) => occurrence.description)}
+    />
+  );
+}
+
+/** A space's own Movimientos (and a personal one with no other space), as its loader left it in the cache. */
+function SpaceListBehind({ viewer, filter }: { readonly viewer: Viewer; readonly filter: ListFilter }) {
+  const { api } = useApis();
+  const cache = useQueryClient();
+  const { me, space } = viewer;
   const today = nowIn(new Date(), me.timezone).date;
   const page = cache.getQueryData(pageQuery(api, space.id, listQueryOf(filter)).queryKey);
   const accounts = cache.getQueryData(accountListQuery(api, space.id, "all").queryKey)?.items;

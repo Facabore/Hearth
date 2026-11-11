@@ -312,6 +312,34 @@ Then(/^the headline's "Con otros" opens to "([^"]+)"$/, async ({ page, world }, 
   await expect(summary.locator("[data-space-chip]")).toHaveText(space);
 });
 
+When(/^"[^"]+" opens her personal Movimientos$/, async ({ page, world }) => {
+  await page.goto(`/spaces/${world.user!.spaceId}/transactions`);
+  await expect(page.getByText(world.t("ledger.list.everySpace"))).toBeVisible();
+});
+
+Then(
+  /^her Movimientos shows "([^"]+)" tagged "([^"]+)" reading "([^"]+)"$/,
+  async ({ page }, description: string, space: string, detail: string) => {
+    // Ruling P319: another space's movement in the personal Movimientos reads as on Inicio, with its chip and her part.
+    const row = page.locator("[data-activity-row]").filter({ hasText: description });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator("[data-space-chip]")).toHaveText(space);
+    expect(norm(await row.textContent())).toContain(detail);
+  },
+);
+
+When(/^she shows only "Personal" movements$/, async ({ page, world }) => {
+  // Ruling P319: the space chip's sheet narrows the list to one space; a filter replaces the entry (N8).
+  await page.getByRole("button", { name: world.t("ledger.list.allSpaces") }).click();
+  const sheet = page.getByRole("dialog", { name: world.t("ledger.list.spacesTitle") });
+  await sheet.getByRole("button", { name: /Personal/ }).click();
+  await expect(page).toHaveURL(/[?&]space=/);
+});
+
+Then(/^her Movimientos no longer shows "([^"]+)"$/, async ({ page }, description: string) => {
+  await expect(page.locator("[data-activity-row]").filter({ hasText: description })).toHaveCount(0);
+});
+
 When(/^she opens "([^"]+)" from the headline's "Con otros"$/, async ({ page, world }, space: string) => {
   // Ruling P310: each "Con otros" row opens its space's movements of the period.
   const summary = page.getByRole("region", { name: world.t("home.summary") });

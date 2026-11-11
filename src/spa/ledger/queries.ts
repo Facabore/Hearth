@@ -5,7 +5,7 @@ import type { ListFilter } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { Api } from "@/shared/ui/api/client";
-import type { TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { MyTransactionPageDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { outcomeOf } from "@/shared/ui/api/readers";
 import { nowIn } from "@/shared/ui/time/when";
@@ -54,6 +54,11 @@ export const ledgerKeys = {
   transaction: (spaceId: string, id: string) => ["ledger", spaceId, "transaction", id] as const,
   /** How many movements of the space the app has written: no read, a counter the writes bump (`writes.ts`). */
   writes: (spaceId: string) => ["ledger", spaceId, "writes"] as const,
+  /**
+   * Ruling P319: the personal Movimientos' pages across every space, under the personal space's reports (as Inicio's
+   * feed, P306), so a movement in any of the person's spaces reads them again.
+   */
+  mine: (personalSpaceId: string) => ["reports", personalSpaceId, "my-transactions"] as const,
 };
 
 /**
@@ -86,6 +91,39 @@ export const listQueryOf = (filter: ListFilter): PageQuery => ({
   search: filter.search,
   limit: PAGE_SIZE,
 });
+
+/** Ruling P319: one page of the personal Movimientos across every space, or the one `spaceId` names. */
+export interface MyPageQuery {
+  readonly period?: string | undefined;
+  readonly spaceId?: string | undefined;
+  readonly categoryIds?: string | undefined;
+  readonly accountId?: string | undefined;
+  readonly type?: ListFilter["type"];
+  readonly search?: string | undefined;
+  readonly limit: number;
+}
+
+export const myListQueryOf = (filter: ListFilter): MyPageQuery => ({
+  period: filter.period,
+  spaceId: filter.spaceId,
+  categoryIds: filter.categoryId,
+  accountId: filter.accountId,
+  type: filter.type,
+  search: filter.search,
+  limit: PAGE_SIZE,
+});
+
+/** Ruling P319: the personal Movimientos' page; a personal space's writes move its personal rows (`writes.ts`). */
+export const myPageQuery = (api: Api, personalSpaceId: string, query: MyPageQuery) =>
+  queryOptions<MyTransactionPageDto>({
+    ...LOADER_OWNED,
+    // The query without its absent parts, so the key reads the same however the filter was built.
+    queryKey: [
+      ...ledgerKeys.mine(personalSpaceId),
+      Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined)) as MyPageQuery,
+    ] as const,
+    queryFn: () => read(api.GET("/api/v1/me/transactions", { params: { query } })),
+  });
 
 /** The transaction behind `?tx=` or an edit, or what the API said instead: the sheet shows a missing one (P189). */
 export interface TransactionRead {
@@ -211,18 +249,37 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
 
 /**
  * HU-E9-03's list: the page, every category and account, a shared space's members and the neighbouring periods. A
- * shared space's balances say who has movements for the payer filter (#217); they never fail the list.
+ * shared space's balances say who has movements for the payer filter (#217); they never fail the list. Ruling P319:
+ * the personal list of someone with other spaces reads them all, and their categories and accounts for its filters,
+ * which never fail it either.
  */
 export const loadList = async (load: Load, spaceId: string, filter: ListFilter, transactionId?: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
   const viewer = viewerOf(load, spaceId);
+  // Either list's page: the loader only needs its period, for the neighbours.
+  const page = viewer.then((v): Promise<{ readonly period: TransactionPageDto["period"] }> =>
+    v && showsUnifiedMonth(v)
+      ? ensure(myPageQuery(api, spaceId, myListQueryOf(filter)))
+      : ensure(pageQuery(api, spaceId, listQueryOf(filter))),
+  );
+  const others = viewer.then((v) =>
+    v && showsUnifiedMonth(v) ? v.spaces.filter((s) => s.id !== spaceId) : [],
+  );
   await Promise.all([
-    ensure(pageQuery(api, spaceId, listQueryOf(filter))).then(({ period }) =>
+    page.then(({ period }) =>
       Promise.all(neighboursOf(api, spaceId, period).map((query) => settled(ensure(query)))),
     ),
     ensure(categoriesQuery(api, spaceId, "all")),
     ensure(accountsQuery(api, spaceId, "all")),
+    others.then((spaces) =>
+      Promise.all(
+        spaces.flatMap((s) => [
+          settled(ensure(categoriesQuery(api, s.id, "all"))),
+          settled(ensure(accountsQuery(api, s.id, "all"))),
+        ]),
+      ),
+    ),
     viewer.then((v) => (v && sharedSpace(v.space) ? ensure(membersQuery(api, spaceId)) : undefined)),
     viewer.then((v) =>
       v && sharedSpace(v.space) ? settled(ensure(netBalancesQuery(api, spaceId))) : undefined,

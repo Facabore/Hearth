@@ -63,11 +63,14 @@ function RecordFormScreen({
   // It draws only what the cache already holds, so a cold load (a deep link, a reload) holds no movements of the space
   // and downloads none of the backdrop's chunks (ADR 0004's budget for this route).
   const cache = useQueryClient();
+  // Ruling P319: the personal Movimientos across every space keeps its pages under a key of its own.
   const [cached] = useState(() =>
-    cache
-      .getQueryCache()
-      .findAll({ queryKey: ledgerKeys.pages(spaceId) })
-      .some((query) => query.state.data !== undefined),
+    [ledgerKeys.pages(spaceId), ledgerKeys.mine(spaceId)].some((queryKey) =>
+      cache
+        .getQueryCache()
+        .findAll({ queryKey })
+        .some((query) => query.state.data !== undefined),
+    ),
   );
   return (
     <div className="mx-auto max-w-[560px]">
