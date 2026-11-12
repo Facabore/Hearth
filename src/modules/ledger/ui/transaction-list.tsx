@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { Button, Icon, ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
-import { formatDate, formatMoney, formatSignedMoney } from "@/shared/ui/format/formatters";
-import { groupByDay } from "./day-groups";
+import type { Problem } from "@/shared/ui/api/problem";
+import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
+import { groupByDay, type DayGroup } from "./day-groups";
 import type { TransactionDetail } from "./detail/transaction-detail";
 import { TransactionSheetHost } from "./detail/transaction-sheet-host";
 import { withTx } from "./detail/tx-href";
@@ -69,7 +70,6 @@ export function TransactionList({
   readonly api?: Api;
 }) {
   const t = useTranslations("ledger");
-  const recurring = useTranslations("recurrences");
   const listHref = hrefOf(spaceId, filter);
   const more = useLoadMore({ spaceId, query: listQueryOf(filter), cursor: page.nextCursor, api });
   const days = groupByDay([...page.items, ...more.rows], today);
@@ -80,20 +80,7 @@ export function TransactionList({
   );
   return (
     <div className="flex flex-col gap-3 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <header className="flex min-w-0 flex-col gap-0.5">
-          <h1 className="text-[26px] leading-tight font-bold tracking-tight text-ink">{t("list.title")}</h1>
-          {spaceName ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{spaceName}</p> : null}
-        </header>
-        {/* P270: the space's recurring movements, two taps from the bottom bar, in every space. */}
-        <Link
-          href={`/spaces/${spaceId}/recurrences`}
-          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[15px] font-semibold text-ink"
-        >
-          <Icon name="calendar" size={18} />
-          {recurring("pill")}
-        </Link>
-      </div>
+      <ListHeader spaceId={spaceId} subtitle={spaceName} />
       {pendingCount > 0 ? (
         <PendingBanner spaceId={spaceId} count={pendingCount} names={pendingNames} />
       ) : null}
@@ -134,32 +121,104 @@ export function TransactionList({
           b: figure(page.totals.income, true),
         })}
       </section>
+      <DayCards
+        days={days}
+        formats={context.formats}
+        row={(tx) => (
+          <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} card />
+        )}
+      />
+      <MoreFooter more={more} />
+      {/* The origin is the list without `tx`: closing never re-shows a dismissed notice. */}
+      {detail ? (
+        <TransactionSheetHost spaceId={spaceId} detail={detail} context={context} origin={listHref} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Movimientos' title, a line under it (a shared space's name, U7; the personal list's every space, P319) and the
+ * space's recurring movements beside it, two taps from the bottom bar, in every space (P270).
+ */
+export function ListHeader({
+  spaceId,
+  subtitle,
+}: {
+  readonly spaceId: string;
+  readonly subtitle?: string | undefined;
+}) {
+  const t = useTranslations("ledger");
+  const recurring = useTranslations("recurrences");
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <header className="flex min-w-0 flex-col gap-0.5">
+        <h1 className="text-[26px] leading-tight font-bold tracking-tight text-ink">{t("list.title")}</h1>
+        {subtitle ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{subtitle}</p> : null}
+      </header>
+      <Link
+        href={`/spaces/${spaceId}/recurrences`}
+        className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[15px] font-semibold text-ink"
+      >
+        <Icon name="calendar" size={18} />
+        {recurring("pill")}
+      </Link>
+    </div>
+  );
+}
+
+/** Board E9-09 00 (P284): each day headed by its date alone, its rows in one card with dividers; or the empty line. */
+export function DayCards<T>({
+  days,
+  formats,
+  row,
+}: {
+  readonly days: readonly DayGroup<T>[];
+  readonly formats: Formats;
+  /** One row of the day, with its key. */
+  readonly row: (item: T) => ReactNode;
+}) {
+  const t = useTranslations("ledger");
+  return (
+    <>
       {days.length === 0 ? <p className="text-muted">{t("list.empty")}</p> : null}
       {days.map((day) => {
-        const date = formatDate(day.date, context.formats);
+        const date = formatDate(day.date, formats);
         return (
           <section key={day.date} aria-labelledby={`day-${day.date}`} className="flex flex-col gap-2">
             <h2 id={`day-${day.date}`} className="px-1 pt-1 text-sm font-semibold text-muted">
               {day.relative ? `${t(`day.${day.relative}`)} · ${date}` : date}
             </h2>
             <ol className="divide-y divide-line rounded-2xl border border-line bg-surface">
-              {day.items.map((tx) => (
-                <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} card />
-              ))}
+              {day.items.map(row)}
             </ol>
           </section>
         );
       })}
+    </>
+  );
+}
+
+/** "Cargar más" while the API has a next page, and what went wrong with the last one. */
+export function MoreFooter({
+  more,
+}: {
+  readonly more: {
+    readonly next: string | null;
+    readonly problem: Problem | null;
+    readonly pending: boolean;
+    readonly more: () => Promise<void>;
+  };
+}) {
+  const t = useTranslations("ledger");
+  return (
+    <>
       {more.problem ? <ProblemNotice problem={more.problem} /> : null}
       {more.next ? (
         <Button variant="secondary" disabled={more.pending} onClick={() => void more.more()}>
           {t("list.loadMore")}
         </Button>
       ) : null}
-      {/* The origin is the list without `tx`: closing never re-shows a dismissed notice. */}
-      {detail ? (
-        <TransactionSheetHost spaceId={spaceId} detail={detail} context={context} origin={listHref} />
-      ) : null}
-    </div>
+    </>
   );
 }

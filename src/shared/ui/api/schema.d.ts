@@ -658,6 +658,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's movements in every current space, one period, newest first, with their totals
+         * @description Ruling P319 (#294): the personal Movimientos. The live movements of the caller's personal space and of every shared and direct space they currently belong to (archived spaces left out), within one period of the personal space, in Movimientos' order, each with its space, who recorded it and the caller's part of it.
+         */
+        get: operations["listMyTransactions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/activity": {
         parameters: {
             query?: never;
@@ -4951,6 +4971,107 @@ export interface operations {
             };
             /** @description SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listMyTransactions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                period?: string;
+                /** @description Ruling P319: only this space, one of the caller's current spaces; another answers 404. */
+                spaceId?: string;
+                categoryIds?: string;
+                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                accountId?: string;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the period */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        period: components["schemas"]["Period"];
+                        totals: {
+                            share: components["schemas"]["MoneyOutput"];
+                            income: components["schemas"]["MoneyOutput"];
+                        };
+                        items: {
+                            space: {
+                                id: string;
+                                name: string;
+                                /** @enum {string} */
+                                kind: "PERSONAL" | "SHARED" | "DIRECT";
+                                /** @enum {string} */
+                                color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
+                            };
+                            transaction: components["schemas"]["Transaction"];
+                            recordedBy: {
+                                name: string | null;
+                                you: boolean;
+                            };
+                            you: {
+                                memberIds: string[];
+                                share: components["schemas"]["MoneyOutput"] | null;
+                                paid: components["schemas"]["MoneyOutput"] | null;
+                            };
+                            memberNames: {
+                                [key: string]: string;
+                            };
+                            category: {
+                                name: string;
+                                path: string;
+                                icon: ({
+                                    /** @constant */
+                                    kind: "SYMBOL";
+                                    name: string;
+                                } | {
+                                    /** @constant */
+                                    kind: "EMOJI";
+                                    value: string;
+                                }) | null;
+                                color: ("PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE") | null;
+                            } | null;
+                        }[];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidCursor, InvalidPeriodLabel */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -24,6 +24,7 @@ export const withoutTx = (href: string): string => {
 export const hrefOf = (spaceId: string, filter: ListFilter) => {
   const query = new URLSearchParams();
   if (filter.period) query.set("period", filter.period);
+  if (filter.spaceId) query.set("space", filter.spaceId);
   if (filter.categoryId) query.set("category", filter.categoryId);
   if (filter.payerMemberId) query.set("payer", filter.payerMemberId);
   if (filter.accountId) query.set("acct", filter.accountId);

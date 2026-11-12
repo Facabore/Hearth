@@ -149,6 +149,8 @@ import {
   type ListTransactions,
   type ListMyActivity,
   createListMyActivity,
+  type ListMyTransactions,
+  createListMyTransactions,
   type RecordExpense,
   type RecordedExpense,
   type RecordFundContribution,
@@ -361,6 +363,8 @@ export interface Container extends RouteDeps {
     readonly listTransactions: ListTransactions;
     /** Ruling P306: the personal Inicio's feed of the caller's shared and direct spaces. */
     readonly listMyActivity: ListMyActivity;
+    /** Ruling P319: the personal Movimientos, the caller's movements in every current space. */
+    readonly listMyTransactions: ListMyTransactions;
     readonly getTransaction: GetTransaction;
     readonly editTransaction: EditTransaction;
     readonly deleteTransaction: DeleteTransaction;
@@ -1029,6 +1033,18 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         recent: ledgerQueries,
         categories: categoryRepository,
+      }),
+      listMyTransactions: createListMyTransactions({
+        spaces: spaceRepository,
+        places: spaceRepository,
+        members: spaceRepository,
+        categories: categoryRepository,
+        categoryTree: ledgerDeps.categories,
+        access,
+        storedPeriods,
+        clock,
+        userTimeZones: ledgerDeps.userTimeZones,
+        query: ledgerQueries,
       }),
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),

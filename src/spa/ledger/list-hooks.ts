@@ -1,8 +1,8 @@
-import { queryOptions, useQuery, useSuspenseQueries } from "@tanstack/react-query";
-import type { ListFilter } from "@/modules/ledger/ui";
+import { queryOptions, useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import type { ListFilter, ListSpace } from "@/modules/ledger/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { Api } from "@/shared/ui/api/client";
-import type { PeriodDto } from "@/shared/ui/api/dto";
+import type { PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import {
@@ -16,7 +16,7 @@ import {
 import { sharedSpace, type Viewer } from "../load";
 import { read } from "../read";
 import { movedOf, rowContextOf } from "./hooks";
-import { listQueryOf, pageQuery } from "./queries";
+import { listQueryOf, myListQueryOf, myPageQuery, pageQuery } from "./queries";
 
 /**
  * Movimientos' own hooks, apart from `hooks.ts`: Inicio loads that module too, and the list's filters and period chip
@@ -65,19 +65,57 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
   // #217 (P263): the payer filter leaves out members no movement touched. The balances are optional: until they are
   // read, or when they cannot be, every member is offered.
   const balances = useQuery({ ...netBalancesQuery(api, spaceId), enabled: shared });
-  const { period } = page.data;
-  const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)));
-  const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)));
-  // Ruling P277: the period chip's choices; its sheet offers the neighbours until they are read, or when they cannot be.
-  const periods = useQuery(recentPeriodsQuery(api, spaceId, nowIn(new Date(), viewer.me.timezone).date));
   const memberNames = Object.fromEntries((members[0]?.data ?? []).map((m) => [m.id, m.displayName]));
   return {
     page: page.data,
     accounts: accounts.data,
     context: rowContextOf(viewer.me, groups.data, accounts.data, memberNames),
-    previous: previous.data ?? null,
-    next: next.data ?? null,
-    periods: periods.data,
+    ...usePeriods(viewer, page.data.period),
     movedMemberIds: movedOf(balances.data?.members),
+  };
+};
+
+/** Ruling P277: the shown period's neighbours and the space's recent periods, for the period chip. */
+const usePeriods = (viewer: Viewer, period: PeriodDto) => {
+  const { api } = useApis();
+  const spaceId = viewer.space.id;
+  const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)));
+  const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)));
+  // Ruling P277: the period chip's choices; its sheet offers the neighbours until they are read, or when they cannot be.
+  const periods = useQuery(recentPeriodsQuery(api, spaceId, nowIn(new Date(), viewer.me.timezone).date));
+  return { previous: previous.data ?? null, next: next.data ?? null, periods: periods.data };
+};
+
+/**
+ * Ruling P319: the personal Movimientos of someone with other spaces, across all of them. The page and the personal
+ * space's categories and accounts hold the screen; the other spaces' only fill the filters, so one that cannot be read
+ * leaves its categories and accounts out, never the list.
+ */
+export const useEverySpaceList = (viewer: Viewer, filter: ListFilter) => {
+  const { api } = useApis();
+  const spaceId = viewer.space.id;
+  const [page, groups, accounts] = useSuspenseQueries({
+    queries: [
+      myPageQuery(api, spaceId, myListQueryOf(filter)),
+      categoriesQuery(api, spaceId, "all"),
+      accountsQuery(api, spaceId, "all"),
+    ],
+  });
+  const others = viewer.spaces.filter((s) => s.id !== spaceId);
+  const otherGroups = useQueries({ queries: others.map((s) => categoriesQuery(api, s.id, "all")) });
+  const otherAccounts = useQueries({ queries: others.map((s) => accountsQuery(api, s.id, "all")) });
+  const spaceOf = (space: SpaceDto, i: number): ListSpace => ({
+    id: space.id,
+    name: space.name,
+    kind: space.kind,
+    color: space.color ?? "GRAPHITE",
+    groups: i < 0 ? groups.data : (otherGroups[i]?.data ?? []),
+    accounts: i < 0 ? accounts.data : (otherAccounts[i]?.data ?? []),
+  });
+  return {
+    page: page.data,
+    context: rowContextOf(viewer.me, groups.data, accounts.data),
+    spaces: [spaceOf(viewer.space, -1), ...others.map(spaceOf)],
+    ...usePeriods(viewer, page.data.period),
   };
 };

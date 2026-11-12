@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { categoryPath } from "@/modules/categories/ui";
+import { categoryPath, findCategory } from "@/modules/categories/ui";
 import { Button, Icon, usePeriodText } from "@/shared/ui";
 import type { AccountDto, CategoryGroupDto, PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
-import { hrefOf, type ListFilter, type TransactionKind } from "./list-href";
+import { hrefOf, type ListFilter, type ListSpace, type TransactionKind } from "./list-href";
 import type { ListSheet } from "./list-sheets";
 
 // Ruling P277: the chips' sheets load on the first tap, so the list's script stays within its budget (ADR 0004).
@@ -23,7 +23,8 @@ const CHIP = "flex h-11 shrink-0 items-center gap-1 rounded-full px-4 text-sm fo
 /**
  * HU-E9-03, board B1 06 (ruling P277): the search, then the period chip and the Categoría, Cuenta and Tipo filters. N8:
  * a period is a place, so choosing one pushes; a filter only narrows the place, so it replaces the entry. A chosen
- * filter reads as a pressed chip that removes it.
+ * filter reads as a pressed chip that removes it. Ruling P319: the personal Movimientos across every space adds the
+ * space chip after the period's, and no payer row.
  */
 export function ListFilters({
   spaceId,
@@ -40,6 +41,7 @@ export function ListFilters({
   formats,
   memberNames = {},
   movedMemberIds,
+  spaces,
 }: {
   readonly spaceId: string;
   readonly period: PeriodDto;
@@ -62,6 +64,12 @@ export function ListFilters({
    * chosen; without it every member is offered.
    */
   readonly movedMemberIds?: readonly string[] | undefined;
+  /**
+   * Ruling P319: the person's current spaces, personal first, when the list gathers them all: the space chip offers
+   * them, Tipo offers payments between members, and Categoría groups its categories by space while several are shown.
+   * `groups` and `accounts` are then the shown spaces' own.
+   */
+  readonly spaces?: readonly ListSpace[] | undefined;
 }) {
   const t = useTranslations("ledger");
   const periodText = usePeriodText();
@@ -76,7 +84,8 @@ export function ListFilters({
   const narrow = (change: Partial<ListFilter>) => router.replace(hrefOf(spaceId, { ...filter, ...change }));
   const nameOf = (p: PeriodDto) =>
     periodPolicy ? periodText(p, periodPolicy, formats) : t("list.period", { label: p.label });
-  const shared = Object.keys(memberNames).length > 0;
+  const shown = spaces?.filter((s) => filter.spaceId === undefined || s.id === filter.spaceId) ?? [];
+  const shared = Object.keys(memberNames).length > 0 || shown.some((s) => s.kind !== "PERSONAL");
   const kinds: TransactionKind[] = [
     "EXPENSE",
     "INCOME",
@@ -116,6 +125,17 @@ export function ListFilters({
         {name}
       </Button>
     );
+  // Ruling P319: another space keeps the category and the account chosen only when they are its own.
+  const toSpace = (space: ListSpace | undefined): Partial<ListFilter> => {
+    const kept = space ?? { groups, accounts };
+    const category = filter.categoryId?.split(",")[0];
+    return {
+      spaceId: space?.id,
+      categoryId: category && findCategory(kept.groups, category) ? filter.categoryId : undefined,
+      accountId: kept.accounts.some((a) => a.id === filter.accountId) ? filter.accountId : undefined,
+    };
+  };
+  const chosenSpace = spaces?.find((s) => s.id === filter.spaceId);
   // Ruling P310: Inicio opens a category with its subcategories ("id,sub,…"); the chip names the first, the category.
   const category = filter.categoryId ? categoryPath(groups, filter.categoryId.split(",")[0]!) : null;
   return (
@@ -136,6 +156,9 @@ export function ListFilters({
           <span className="inline-block first-letter:uppercase">{nameOf(period)}</span>
           <Icon name="chevronDown" size={18} />
         </button>
+        {spaces
+          ? chip(t("list.allSpaces"), open("space"), chosenSpace?.name ?? null, { spaceId: undefined })
+          : null}
         {chip(t("list.filterCategory"), open("category"), category, { categoryId: undefined })}
         {live.length > 0 || filter.accountId
           ? chip(
@@ -179,6 +202,14 @@ export function ListFilters({
             current: p.label === period.label,
           }))}
           groups={groups}
+          {...(shown.length > 1 ? { categorySpaces: shown } : {})}
+          {...(spaces
+            ? {
+                spaces,
+                spaceId: filter.spaceId,
+                onSpace: (id: string | undefined) => narrow(toSpace(spaces.find((s) => s.id === id))),
+              }
+            : {})}
           accounts={live.map((a) => [a.id, a.name] as const)}
           kinds={kinds.map((kind) => [kind, t(`type.${kind}`)] as const)}
           onNarrow={narrow}

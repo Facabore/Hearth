@@ -6,12 +6,13 @@ const KINDS: readonly string[] = ["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]
 
 /**
  * HU-E9-03 and ruling P277: Movimientos' filter as its address writes it: `?period=`, `?category=`, `?payer=` (#148),
- * `?acct=`, `?type=` and `?q=`. A type the API does not know is no filter, and neither is a blank search.
+ * `?acct=`, `?type=` and `?q=`; ruling P319 adds the personal list's `?space=`. A type the API does not know is no filter, and neither is a blank search.
  */
 export const listFilterOf = (search: Readonly<Record<string, unknown>>): ListFilter => {
   const type = textParam(search.type);
   return {
     period: textParam(search.period),
+    spaceId: textParam(search.space),
     categoryId: textParam(search.category),
     payerMemberId: textParam(search.payer),
     accountId: textParam(search.acct),

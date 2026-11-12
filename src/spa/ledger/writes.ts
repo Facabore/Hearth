@@ -1,9 +1,9 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
-import type { SpaceDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type { MyTransactionPageDto, SpaceDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { queryKeys } from "../queries";
 import { moduleKeys } from "../reads";
 import type { WritePlan, WritePlanner } from "../write-plan";
-import { ledgerKeys, type PageQuery, type TransactionRead } from "./queries";
+import { ledgerKeys, type MyPageQuery, type PageQuery, type TransactionRead } from "./queries";
 
 /**
  * The API's order of a page (P43): newest day first, then the newest time with untimed rows last, then the newest
@@ -49,29 +49,75 @@ const withChangedRow = (
     : withRow(page, query, tx);
 
 type Pages = [QueryKey, TransactionPageDto | undefined][];
+type MyPages = [QueryKey, MyTransactionPageDto | undefined][];
+type Edit = (page: TransactionPageDto, query: PageQuery) => TransactionPageDto;
 
 const pagesOf = (queryClient: QueryClient, spaceId: string): Pages =>
   queryClient.getQueriesData<TransactionPageDto>({ queryKey: ledgerKeys.pages(spaceId) });
 
 const queryOf = (key: QueryKey): PageQuery => key[3] as PageQuery;
 
-const editPages = (
-  queryClient: QueryClient,
+const personalOf = (queryClient: QueryClient): SpaceDto | undefined =>
+  (queryClient.getQueryData<SpaceDto[]>(queryKeys.spaces) ?? []).find((space) => space.kind === "PERSONAL");
+
+/** Ruling P319: the personal Movimientos' pages across every space, keyed by the personal space alone. */
+const myPagesOf = (queryClient: QueryClient, spaceId: string): MyPages =>
+  queryClient.getQueriesData<MyTransactionPageDto>({ queryKey: ledgerKeys.mine(spaceId) });
+
+/**
+ * Ruling P319: a personal space page's edit made on the personal Movimientos across every space. Its rows are read as
+ * one page of transactions, in the API's order, so a personal row lands, leaves or changes where the space's list would
+ * put it; a list narrowed to another space never shows one. The rows of the other spaces only move with the next read.
+ */
+const editMine = (
   spaceId: string,
-  edit: (page: TransactionPageDto, query: PageQuery) => TransactionPageDto,
-): void => {
+  page: MyTransactionPageDto,
+  query: MyPageQuery,
+  edit: Edit,
+): MyTransactionPageDto => {
+  if (query.spaceId && query.spaceId !== spaceId) return page;
+  const items = new Map(page.items.map((item) => [item.transaction.id, item]));
+  const edited = edit(
+    {
+      ...page,
+      totals: { expenses: page.totals.share, income: page.totals.income },
+      items: page.items.map((i) => i.transaction),
+    },
+    query,
+  );
+  return {
+    ...page,
+    items: edited.items.map((tx) => {
+      const item = items.get(tx.id);
+      return item
+        ? { ...item, transaction: tx }
+        : {
+            // A personal row draws as the personal list's own (`FeedRow`): its space only needs to be the personal one.
+            space: { id: spaceId, name: "", kind: "PERSONAL" as const, color: "GRAPHITE" as const },
+            transaction: tx,
+            recordedBy: { name: null, you: true },
+            you: { memberIds: [], share: null, paid: null },
+            memberNames: {},
+            category: null,
+          };
+    }),
+  };
+};
+
+const editPages = (queryClient: QueryClient, spaceId: string, edit: Edit): void => {
   for (const [key, page] of pagesOf(queryClient, spaceId))
     if (page) queryClient.setQueryData(key, edit(page, queryOf(key)));
+  for (const [key, page] of myPagesOf(queryClient, spaceId))
+    if (page) queryClient.setQueryData(key, editMine(spaceId, page, key[3] as MyPageQuery, edit));
 };
 
 /** Moves rows before the API answers, cancelling the reads that would overwrite them; the undo puts the pages back. */
-const optimistically = async (
-  queryClient: QueryClient,
-  spaceId: string,
-  edit: (page: TransactionPageDto, query: PageQuery) => TransactionPageDto,
-): Promise<() => void> => {
-  await queryClient.cancelQueries({ queryKey: ledgerKeys.pages(spaceId) });
-  const snapshot = pagesOf(queryClient, spaceId);
+const optimistically = async (queryClient: QueryClient, spaceId: string, edit: Edit): Promise<() => void> => {
+  await Promise.all([
+    queryClient.cancelQueries({ queryKey: ledgerKeys.pages(spaceId) }),
+    queryClient.cancelQueries({ queryKey: ledgerKeys.mine(spaceId) }),
+  ]);
+  const snapshot = [...pagesOf(queryClient, spaceId), ...myPagesOf(queryClient, spaceId)];
   editPages(queryClient, spaceId, edit);
   return () => {
     for (const [key, page] of snapshot) queryClient.setQueryData(key, page);
@@ -93,8 +139,7 @@ const invalidateMovement = (queryClient: QueryClient, spaceId: string): void => 
     moduleKeys.reports(spaceId),
     moduleKeys.balances(spaceId),
   ];
-  const spaces = queryClient.getQueryData<SpaceDto[]>(queryKeys.spaces) ?? [];
-  const personal = spaces.find((space) => space.kind === "PERSONAL");
+  const personal = personalOf(queryClient);
   // From a shared space, the person's own accounts may pay, and My spending counts their share (D11).
   if (personal && personal.id !== spaceId)
     keys.push(moduleKeys.accounts(personal.id), moduleKeys.reports(personal.id));

@@ -18,6 +18,8 @@ import type {
   TransactionPosition,
   TransactionQuery,
   TransactionRepository,
+  TransactionsAcrossFilter,
+  TransactionsAcrossQuery,
   Transfer,
 } from "@/modules/ledger/application";
 import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
@@ -131,7 +133,9 @@ export const listOrder = (a: Ordered, b: Ordered): number => {
 };
 
 /** Repository and query side over one array; mirrors the SQL semantics pinned in Tasks 20–21. */
-export class InMemoryTransactions implements TransactionRepository, TransactionQuery {
+export class InMemoryTransactions
+  implements TransactionRepository, TransactionQuery, TransactionsAcrossQuery
+{
   rows: Transaction[] = [];
 
   async add(transaction: Transaction) {
@@ -164,6 +168,25 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
     const total = (type: Transaction["type"]) =>
       rows.filter((t) => t.type === type).reduce((sum, t) => sum + t.amount, 0n);
     return { expenses: total("EXPENSE"), income: total("INCOME") };
+  }
+
+  /** Ruling P319: `list` over several spaces, as DrizzleLedgerQueries.listAcross reads them. */
+  async listAcross(filter: TransactionsAcrossFilter, after: TransactionPosition | null, limit: number) {
+    return this.matchingIn(filter.spaceIds, filter)
+      .filter((t) => after === null || listOrder(t, after) > 0)
+      .slice(0, limit);
+  }
+
+  /** Ruling P319: the members' shares of the expenses and the incomes they received, as the PostgreSQL query sums them. */
+  async memberTotalsAcross(filter: TransactionsAcrossFilter, memberIds: readonly string[]) {
+    let share = 0n;
+    let income = 0n;
+    for (const t of this.matchingIn(filter.spaceIds, filter)) {
+      if (t.type === "EXPENSE")
+        for (const s of t.shares) if (memberIds.includes(s.memberId)) share += s.amount;
+      if (t.type === "INCOME" && memberIds.includes(t.receivingMemberId)) income += t.amount;
+    }
+    return { share, income };
   }
 
   /** Net movements of one account over live transactions, like DrizzleLedgerQueries.netMovements. */
@@ -259,8 +282,15 @@ export class InMemoryTransactions implements TransactionRepository, TransactionQ
   }
 
   private matching(f: TransactionFilter): Transaction[] {
+    return this.matchingIn([f.spaceId], f);
+  }
+
+  /** The list's conditions over the given spaces (ruling P319), as DrizzleLedgerQueries applies them. */
+  private matchingIn(spaceIds: readonly string[], f: Omit<TransactionFilter, "spaceId">): Transaction[] {
     return this.rows
-      .filter((t) => t.spaceId === f.spaceId && t.deletedAt === null && t.date >= f.from && t.date <= f.to)
+      .filter(
+        (t) => spaceIds.includes(t.spaceId) && t.deletedAt === null && t.date >= f.from && t.date <= f.to,
+      )
       .filter((t) => f.type === undefined || t.type === f.type)
       .filter(
         (t) => !f.categoryIds?.length || (t.categoryId !== null && f.categoryIds.includes(t.categoryId)),

@@ -436,7 +436,12 @@
       "empty": "There are no transactions in this period.",
       "loadMore": "Load more",
       "paidBy": "Paid by",
-      "anyone": "Everyone"
+      "anyone": "Everyone",
+      "everySpace": "All your spaces, with your share of each movement",
+      "share": "Your share <b>{amount}</b>",
+      "allSpaces": "All spaces",
+      "spacesTitle": "Show movements from",
+      "onlyYou": "just you"
     },
     "day": {
       "today": "Today",

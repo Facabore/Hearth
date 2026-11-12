@@ -6,6 +6,14 @@ export type FeedEntry =
   | { readonly kind: "own"; readonly tx: TransactionDto }
   | { readonly kind: "group"; readonly item: ActivityItemDto };
 
+/** Ruling P319: an item of the personal Movimientos, her own when it is her personal space's, else her space's. */
+export const entryOf = (item: ActivityItemDto): FeedEntry =>
+  item.space.kind === "PERSONAL" ? { kind: "own", tx: item.transaction } : { kind: "group", item };
+
+/** The date a row is listed under. */
+export const dateOf = (entry: FeedEntry): string =>
+  entry.kind === "own" ? entry.tx.date : entry.item.transaction.date;
+
 /** Ruling P306: one part of the month, "Solo tú" (her categories) or "Con otros" (her groups). */
 export interface MonthPart {
   readonly amount: MoneyDto;

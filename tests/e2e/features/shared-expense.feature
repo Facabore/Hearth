@@ -33,6 +33,14 @@ Feature: Shared expense form
     And the headline's "Con otros" opens to "Household"
 
   @e2e
+  Scenario: The personal Movimientos lists every space with Ana's part, and narrows to one (P319)
+    Given "Ana" recorded "Groceries" in "Household" for 300,000 COP paid from "Bancolombia", split equally between "Ana" and "Juan"
+    When "Ana" opens her personal Movimientos
+    Then her Movimientos shows "Groceries" tagged "Household" reading "Registraste tú · pagaste $ 300.000 · tu parte $ 150.000"
+    When she shows only "Personal" movements
+    Then her Movimientos no longer shows "Groceries"
+
+  @e2e
   Scenario: The personal home's part opens its space's movements, and Inicio leads back home (P310)
     Given "Ana" recorded "Groceries" in "Household" for 300,000 COP paid from "Bancolombia", split equally between "Ana" and "Juan"
     When "Ana" opens her personal home

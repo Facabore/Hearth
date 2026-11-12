@@ -7,9 +7,11 @@ import {
   accountDto,
   activityItemDto,
   categoryDto,
+  cop,
   householdSpace,
   meDto,
   memberDto,
+  normalized,
   octoberPage,
   rowContext,
   spaceDto,
@@ -24,6 +26,21 @@ import { moduleKeys } from "../reads";
 /** A request the API never answers: whatever shows meanwhile came from the cache. */
 const never = (): Promise<Response> => new Promise<Response>(() => undefined);
 
+/** Ruling P319: October's personal page as the personal Movimientos reads it beside her other spaces. */
+const myOctober = {
+  period: octoberPage.period,
+  totals: { share: octoberPage.totals.expenses, income: octoberPage.totals.income },
+  items: octoberPage.items.map((tx) =>
+    activityItemDto({
+      space: { id: "sp-personal", name: "Personal", kind: "PERSONAL", color: "PINE" },
+      transaction: tx,
+      recordedBy: { name: null, you: true },
+      you: { memberIds: [], share: null, paid: null },
+    }),
+  ),
+  nextCursor: null,
+};
+
 /** Ana's personal space and Household over a fake /api/v1; `hold` makes the named reads hang from then on. */
 const ledgerApi = (overrides: Record<string, FakeHandler> = {}) => {
   const hold = new Set<string>();
@@ -36,6 +53,7 @@ const ledgerApi = (overrides: Record<string, FakeHandler> = {}) => {
     "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace()] }),
     "GET /api/v1/auth/sign-up": () => jsonResponse({ signUp: "open" }),
     "GET /api/v1/spaces/{spaceId}/transactions": held("page", () => jsonResponse(octoberPage)),
+    "GET /api/v1/me/transactions": held("page", () => jsonResponse(myOctober)),
     "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": held(
       "transaction",
       (_, { transactionId }) => {
@@ -198,8 +216,9 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(
       calls(spa.requests, "GET", /\/transactions\?period=2026-10&categoryIds=c-dining&limit=50$/),
     ).toHaveLength(1);
-    // Every category and account, archived ones too: old rows keep their names (ruling P130).
-    expect(calls(spa.requests, "GET", /\/categories\?archived=true$/)).toHaveLength(1);
+    // Every category and account, archived ones too: old rows keep their names (ruling P130). Ruling P319: Household's
+    // are read too, for the filters of a personal list that gathers every space.
+    expect(calls(spa.requests, "GET", /\/sp-personal\/categories\?archived=true$/)).toHaveLength(1);
     expect(document.title).toBe(`${es.ledger.list.title} · Hearth`);
   });
 
@@ -467,6 +486,97 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     renderSpa("/spaces/sp-personal/transactions", routes);
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(nav()).toBeInTheDocument();
+  });
+});
+
+describe("the personal Movimientos gathers every space (ruling P319, #294)", () => {
+  const household = { id: "sp-household", name: "Household", kind: "SHARED", color: "SKY" } as const;
+  const market = activityItemDto({
+    space: household,
+    transaction: transactionDto({
+      id: "t-household",
+      description: "Mercado del mes",
+      amount: cop(180_000),
+      date: "2026-10-30",
+    }),
+    you: { memberIds: ["m-ana"], share: cop(90_000), paid: null },
+  });
+  const everySpace = () =>
+    ledgerApi({
+      "GET /api/v1/me/transactions": () =>
+        jsonResponse({ ...myOctober, items: [market, ...myOctober.items] }),
+    });
+
+  it("lists the movements of every space through the personal endpoint, each other space's with its chip", async () => {
+    const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", everySpace().routes);
+    const row = await screen.findByRole("link", { name: /Mercado del mes/ });
+    expect(row).toHaveAttribute("href", "/spaces/sp-household?tx=t-household");
+    expect(within(row).getByText("Household")).toHaveAttribute("data-space-chip");
+    expect(normalized(row.textContent)).toContain("tu parte $ 90.000 de $ 180.000");
+    expect(screen.getByRole("link", { name: /Salary/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/transactions?period=2026-10&tx=t-salary",
+    );
+    expect(screen.getByText(es.ledger.list.everySpace)).toBeVisible();
+    expect(calls(spa.requests, "GET", /^\/api\/v1\/me\/transactions\?period=2026-10&limit=50$/)).toHaveLength(
+      1,
+    );
+    expect(calls(spa.requests, "GET", /\/spaces\/[^/]+\/transactions\?/)).toHaveLength(0);
+    // The filters offer the other spaces' categories and accounts too.
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/categories\?archived=true$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/accounts\?archived=true$/)).toHaveLength(1);
+  });
+
+  it("narrows the list to the space chosen in its sheet, in the address and in what it asks", async () => {
+    const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", everySpace().routes);
+    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.allSpaces }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.list.spacesTitle });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Household" }));
+    await waitFor(() =>
+      expect(spa.location()).toBe("/spaces/sp-personal/transactions?period=2026-10&space=sp-household"),
+    );
+    await waitFor(() =>
+      expect(
+        calls(spa.requests, "GET", /\/me\/transactions\?period=2026-10&spaceId=sp-household&limit=50$/),
+      ).toHaveLength(1),
+    );
+    expect(await screen.findByRole("button", { name: "Quitar el filtro Household" })).toBeVisible();
+  });
+
+  it("ignores a `?space=` that is none of the person's spaces", async () => {
+    const spa = renderSpa(
+      "/spaces/sp-personal/transactions?period=2026-10&space=sp-stranger",
+      everySpace().routes,
+    );
+    await screen.findByRole("link", { name: /Mercado del mes/ });
+    expect(calls(spa.requests, "GET", /spaceId=/)).toHaveLength(0);
+  });
+
+  it("keeps a shared space's Movimientos to that space, as before (S6)", async () => {
+    const spa = renderSpa("/spaces/sp-household/transactions?period=2026-10", everySpace().routes);
+    expect(await screen.findByText("Salary")).toBeVisible();
+    expect(
+      calls(spa.requests, "GET", /\/spaces\/sp-household\/transactions\?period=2026-10&limit=50$/),
+    ).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/transactions/)).toHaveLength(0);
+    expect(screen.queryByText(es.ledger.list.everySpace)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: es.ledger.list.allSpaces })).not.toBeInTheDocument();
+  });
+
+  it("keeps today's list for a person with only her personal space (S6)", async () => {
+    const { routes } = ledgerApi({ "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto()] }) });
+    const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", routes);
+    expect(await screen.findByText("Salary")).toBeVisible();
+    expect(
+      calls(spa.requests, "GET", /\/spaces\/sp-personal\/transactions\?period=2026-10&limit=50$/),
+    ).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/me\/transactions/)).toHaveLength(0);
+    const title = screen.getByRole("heading", { level: 1, name: es.ledger.list.title });
+    expect(title.nextElementSibling).toBeNull();
+    expect(screen.queryByRole("button", { name: es.ledger.list.allSpaces })).not.toBeInTheDocument();
+    expect(normalized(screen.getByRole("region", { name: es.ledger.list.totals }).textContent)).toContain(
+      "Gastos $ 245.000",
+    );
   });
 });
 
