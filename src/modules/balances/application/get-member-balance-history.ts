@@ -13,6 +13,13 @@ export interface BalanceEntry {
   readonly description: string;
   readonly change: bigint;
   readonly balance: bigint;
+  /** Ruling P322: a SETTLEMENT's reason and parties, and the member it was paid for (whose change is 0). */
+  readonly settlementReason?: "PAYMENT" | "GIFT" | "FORGIVENESS";
+  readonly payerMemberId?: string;
+  readonly receivingMemberId?: string;
+  readonly onBehalfOfMemberId?: string | null;
+  /** Ruling P322: the other half of a gift; null otherwise. */
+  readonly linkedTransactionId?: string | null;
 }
 
 /** The ledger's history of one member's net (one SQL window function, D7); bound by the composition root. */

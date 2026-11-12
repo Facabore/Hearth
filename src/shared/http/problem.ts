@@ -8,6 +8,10 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["Unauthenticated", 401],
   ["InvalidCredentials", 401],
   ["InsufficientRole", 403],
+  // Ruling P322: the request's own mistakes and the forgiveness permission; the default would be 409.
+  ["GiftRequiresOnBehalfOf", 422],
+  ["ForgivenessHasNoAccounts", 422],
+  ["ForgivenessNotAllowed", 403],
   ["ValidationFailed", 422],
   ["NotASpaceMember", 422],
   ["UnknownCurrency", 422],

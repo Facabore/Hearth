@@ -100,6 +100,15 @@ export const TransactionSchema = z.object({
   receivingMemberId: z.string().nullable(),
   /** The contributor of a TRANSFER into the shared fund (HU-E4-09) or the payer of a SETTLEMENT (HU-E5-02). */
   payerMemberId: z.string().nullable(),
+  /**
+   * Ruling P322: why a SETTLEMENT was recorded: PAYMENT (money moved), GIFT (the payer forgave what the member they paid
+   * for owed them back) or FORGIVENESS (a creditor forgave a debt; no money moved). Absent on every other type.
+   */
+  settlementReason: z.enum(["PAYMENT", "GIFT", "FORGIVENESS"]).optional(),
+  /** Ruling P322: the member whose debt a SETTLEMENT paid, when the payer paid it for them; null otherwise. */
+  onBehalfOfMemberId: z.string().nullable().optional(),
+  /** Ruling P322: the other half of a gift: a payment for someone and the GIFT that clears what they owed the payer. */
+  linkedTransactionId: z.string().nullable().optional(),
   createdBy: z.string(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -311,6 +320,18 @@ export const RecordSettlementBodySchema = z.object({
   receivingMemberId: IdSchema,
   sourceAccountId: IdSchema.nullable().optional(),
   destinationAccountId: IdSchema.nullable().optional(),
+  /**
+   * Ruling P322: the member whose debt this payment pays (neither the payer nor the receiver). Balances then make that
+   * member owe the payer, unless `gift` is true.
+   */
+  onBehalfOfMemberId: IdSchema.optional(),
+  /** Ruling P322: with `onBehalfOfMemberId`, the payer gives it away: a linked GIFT clears what that member owes them. */
+  gift: z.boolean().optional(),
+  /**
+   * Ruling P322: FORGIVENESS records that the receiver forgave the payer's debt; no money moves, so no account is named.
+   * Only the receiver may record it, or an OWNER or ADMIN when the receiver is a guest. PAYMENT when absent.
+   */
+  reason: z.enum(["PAYMENT", "FORGIVENESS"]).optional(),
 });
 
 /** A validated body as RecordSettlement input; fails only for impossible dates and unknown currencies. */
@@ -329,6 +350,9 @@ export const settlementFromBody = (
     receivingMemberId: body.receivingMemberId,
     sourceAccountId: body.sourceAccountId ?? null,
     destinationAccountId: body.destinationAccountId ?? null,
+    onBehalfOfMemberId: body.onBehalfOfMemberId ?? null,
+    gift: body.gift ?? false,
+    reason: body.reason ?? "PAYMENT",
   });
 };
 
@@ -359,6 +383,14 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
     receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
     payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
+    // Ruling P322: only a settlement carries them; every other type answers exactly as before.
+    ...(tx.type === "SETTLEMENT"
+      ? {
+          settlementReason: tx.reason,
+          onBehalfOfMemberId: tx.onBehalfOfMemberId,
+          linkedTransactionId: tx.linkedTransactionId,
+        }
+      : {}),
     createdBy: tx.createdBy,
     createdAt: tx.createdAt.toISOString(),
     updatedAt: tx.updatedAt.toISOString(),
@@ -862,7 +894,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
-      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "403": "InsufficientRole, ForgivenessNotAllowed",
+      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transactions": {

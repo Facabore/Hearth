@@ -2,6 +2,7 @@ import { domainError, err, ok, type Result } from "@/shared/kernel";
 import { canModify, restorationChanges, restore, type Transaction } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { followLinkedHalf } from "./linked-half";
 import { conversionStands } from "./undo-conversion";
 
 export type RestoreTransaction = (input: {
@@ -50,5 +51,13 @@ export const createRestoreTransaction =
         at: now,
         changes: restorationChanges(current),
       });
-      return ok({ ...restored, version: current.version + 1 });
+      // Ruling P322: a gift comes back whole; an error here rolls the whole restore back.
+      const other = await followLinkedHalf(deps, membership.value.spaceId, current, {
+        action: "RESTORED",
+        actorUserId: input.userId,
+        at: now,
+        apply: restore,
+        changes: restorationChanges,
+      });
+      return other.ok ? ok({ ...restored, version: current.version + 1 }) : other;
     });

@@ -99,3 +99,127 @@ describe("RecordSettlement (HU-E5-02)", () => {
     expect(codeOf(await record(settle({ userId: "u-marta" })))).toBe("SpaceNotFound");
   });
 });
+
+/** Ruling P322: Juan pays Ana what Luis owes her; Ana forgives Luis; Juan as ADMIN forgives for the guest Pedro. */
+describe("RecordSettlement for someone else and forgiveness (ruling P322)", () => {
+  const forLuis = (overrides: Partial<RecordSettlementInput> = {}) =>
+    settle({ onBehalfOfMemberId: "member-luis", ...overrides });
+  const forgive = (overrides: Partial<RecordSettlementInput> = {}) =>
+    settle({
+      userId: "u-ana",
+      payerMemberId: "member-luis",
+      receivingMemberId: "member-ana",
+      reason: "FORGIVENESS",
+      ...overrides,
+    });
+
+  it("records a plain settlement as a PAYMENT for nobody, linked to nothing", async () => {
+    const { deps } = householdLedger();
+    expect(unwrap(await createRecordSettlement(deps)(settle()))).toMatchObject({
+      reason: "PAYMENT",
+      onBehalfOfMemberId: null,
+      linkedTransactionId: null,
+    });
+  });
+
+  it("records one PAYMENT on Luis's behalf when Luis owes it back (Me lo debe)", async () => {
+    const { deps, store } = householdLedger();
+    const recorded = unwrap(await createRecordSettlement(deps)(forLuis()));
+    expect(recorded).toMatchObject({
+      type: "SETTLEMENT",
+      reason: "PAYMENT",
+      payerMemberId: "member-juan",
+      receivingMemberId: "member-ana",
+      onBehalfOfMemberId: "member-luis",
+      linkedTransactionId: null,
+    });
+    expect(store.rows.map((tx) => tx.id)).toEqual([recorded.id]);
+  });
+
+  it("records a gift as the payment plus a linked GIFT from Luis to Juan without accounts (Se lo regalo)", async () => {
+    const { deps, store } = householdLedger();
+    const record = createRecordSettlement(deps);
+    const payment = unwrap(await record(forLuis({ gift: true, sourceAccountId: ACCOUNTS.davivienda.id })));
+    expect(store.rows).toHaveLength(2);
+    const gift = store.rows.find((tx) => tx.id !== payment.id)!;
+    expect(payment).toMatchObject({
+      reason: "PAYMENT",
+      onBehalfOfMemberId: "member-luis",
+      linkedTransactionId: gift.id,
+    });
+    expect(gift).toMatchObject({
+      type: "SETTLEMENT",
+      reason: "GIFT",
+      payerMemberId: "member-luis",
+      receivingMemberId: "member-juan",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      onBehalfOfMemberId: null,
+      linkedTransactionId: payment.id,
+      amount: payment.amount,
+      date: payment.date,
+      occurredAt: payment.occurredAt,
+      timeZone: payment.timeZone,
+      createdBy: "u-juan",
+    });
+  });
+
+  it("refuses an on-behalf member who is not a member, the payer or the receiver, and a gift for nobody", async () => {
+    const { deps, store } = householdLedger();
+    const record = createRecordSettlement(deps);
+    for (const member of ["member-marta", "not-a-uuid", "member-juan", "member-ana"]) {
+      expect(codeOf(await record(forLuis({ onBehalfOfMemberId: member })))).toBe("InvalidOnBehalfOf");
+    }
+    expect(codeOf(await record(settle({ gift: true })))).toBe("GiftRequiresOnBehalfOf");
+    expect(store.rows).toEqual([]);
+  });
+
+  it("records Ana's forgiveness of Luis's debt as a FORGIVENESS from Luis to Ana without accounts", async () => {
+    const { deps } = householdLedger();
+    expect(unwrap(await createRecordSettlement(deps)(forgive()))).toMatchObject({
+      reason: "FORGIVENESS",
+      payerMemberId: "member-luis",
+      receivingMemberId: "member-ana",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      onBehalfOfMemberId: null,
+      linkedTransactionId: null,
+      createdBy: "u-ana",
+    });
+  });
+
+  it("lets only the receiver forgive, or an OWNER or ADMIN when the receiver is a guest", async () => {
+    const { deps, store } = householdLedger();
+    const record = createRecordSettlement(deps);
+    expect(codeOf(await record(forgive({ userId: "u-luis" })))).toBe("ForgivenessNotAllowed");
+    expect(codeOf(await record(forgive({ userId: "u-juan" })))).toBe("ForgivenessNotAllowed");
+    const forPedro = { receivingMemberId: "member-pedro" };
+    expect(codeOf(await record(forgive({ ...forPedro, userId: "u-luis" })))).toBe("ForgivenessNotAllowed");
+    expect(store.rows).toEqual([]);
+    expect(codeOf(await record(forgive({ ...forPedro, userId: "u-juan" })))).toBe("ok");
+    expect(codeOf(await record(forgive({ ...forPedro, userId: "u-ana" })))).toBe("ok");
+    expect(store.rows).toHaveLength(2);
+  });
+
+  it("refuses accounts, an on-behalf member and a gift on a forgiveness", async () => {
+    const { deps, store } = householdLedger();
+    const record = createRecordSettlement(deps);
+    expect(codeOf(await record(forgive({ destinationAccountId: ACCOUNTS.bancolombia.id })))).toBe(
+      "ForgivenessHasNoAccounts",
+    );
+    expect(
+      codeOf(
+        await record(
+          forgive({
+            userId: "u-juan",
+            payerMemberId: "member-juan",
+            sourceAccountId: ACCOUNTS.davivienda.id,
+          }),
+        ),
+      ),
+    ).toBe("ForgivenessHasNoAccounts");
+    expect(codeOf(await record(forgive({ onBehalfOfMemberId: "member-juan" })))).toBe("InvalidOnBehalfOf");
+    expect(codeOf(await record(forgive({ gift: true })))).toBe("GiftRequiresOnBehalfOf");
+    expect(store.rows).toEqual([]);
+  });
+});

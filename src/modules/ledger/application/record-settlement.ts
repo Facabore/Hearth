@@ -1,5 +1,12 @@
 import type { Money, Result } from "@/shared/kernel";
-import { positiveAmount, recordSettlement, type Settlement } from "../domain/transaction";
+import { domainError, err, ok } from "@/shared/kernel";
+import {
+  giveAway,
+  mayForgive,
+  positiveAmount,
+  recordSettlement,
+  type Settlement,
+} from "../domain/transaction";
 import { authorizeWriter, inSpaceCurrency, openPeriod, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
 import { whenOf, type WhenInput } from "./when";
@@ -17,11 +24,20 @@ export interface RecordSettlementInput extends Omit<WhenInput, "userId"> {
   readonly sourceAccountId?: string | null;
   /** Optional: the receiving member's own account; never for a guest. */
   readonly destinationAccountId?: string | null;
+  /** Ruling P322: the member whose debt the payer paid; a current member who is neither party. */
+  readonly onBehalfOfMemberId?: string | null;
+  /** Ruling P322: with `onBehalfOfMemberId`, the payer gives the payment away (a linked GIFT). */
+  readonly gift?: boolean;
+  /** Ruling P322: FORGIVENESS when the receiver forgives the payer's debt; PAYMENT when absent. */
+  readonly reason?: "PAYMENT" | "FORGIVENESS";
 }
 
 export type RecordSettlement = (input: RecordSettlementInput) => Promise<Result<Settlement>>;
 
-/** HU-E5-02: any member who records money may record a settlement, also on a guest's behalf (D15). */
+/**
+ * HU-E5-02: any member who records money may record a settlement, also on a guest's behalf (D15). Ruling P322: also a
+ * payment of a third member's debt, given away or not, and the receiver's forgiveness of a debt.
+ */
 export const createRecordSettlement =
   (deps: LedgerDeps): RecordSettlement =>
   (input) =>
@@ -69,8 +85,28 @@ export const createRecordSettlement =
         receivingMemberId: input.receivingMemberId,
         sourceAccountId: source.value,
         destinationAccountId: destination.value,
+        reason: input.reason,
+        onBehalfOfMemberId: input.onBehalfOfMemberId,
+        gift: input.gift,
       });
       if (!settlement.ok) return settlement;
-      await deps.transactions.add(settlement.value);
-      return settlement;
+      const { onBehalfOfMemberId, reason } = settlement.value;
+      if (onBehalfOfMemberId !== null && !members.some((m) => m.id === onBehalfOfMemberId)) {
+        return err(domainError("InvalidOnBehalfOf"));
+      }
+      if (reason === "FORGIVENESS") {
+        const receiver = members.find((m) => m.id === input.receivingMemberId)!;
+        if (!mayForgive(receiver, { userId: input.userId, role: space.role })) {
+          return err(domainError("ForgivenessNotAllowed"));
+        }
+      }
+      if (input.gift !== true) {
+        await deps.transactions.add(settlement.value);
+        return settlement;
+      }
+      // Ruling P322: both halves of a gift in one statement, so neither is ever stored alone.
+      const halves = giveAway(settlement.value, deps.ids.next<"Transaction">());
+      if (!halves.ok) return halves;
+      await deps.transactions.add(...halves.value);
+      return ok(halves.value[0]);
     });

@@ -76,7 +76,13 @@ const namedMembers = (tx: Transaction): string[] => {
       ...tx.shares.map((s) => s.memberId),
     ];
   if (tx.type === "INCOME") return [tx.receivingMemberId];
-  if (tx.type === "SETTLEMENT") return [tx.payerMemberId, tx.receivingMemberId];
+  // Ruling P322: and the member a payment was made for, so the activity can say whose debt it paid.
+  if (tx.type === "SETTLEMENT")
+    return [
+      tx.payerMemberId,
+      tx.receivingMemberId,
+      ...(tx.onBehalfOfMemberId ? [tx.onBehalfOfMemberId] : []),
+    ];
   return tx.payerMemberId ? [tx.payerMemberId] : [];
 };
 

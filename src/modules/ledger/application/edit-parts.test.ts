@@ -171,6 +171,28 @@ describe("EditTransaction changes accounts and who paid (ruling P186)", () => {
     }
   });
 
+  it("refuses a new amount or date on either half of a gift, which would no longer match the other (P322)", async () => {
+    const { change, store } = personal();
+    const gift = aSettlement("2026-10-28", 450_000n, {
+      spaceId: "space-ana",
+      reason: "GIFT",
+      linkedTransactionId: "tx-paid-for" as never,
+    });
+    store.rows.push(gift);
+    for (const [changes, field] of [
+      [{ amount: money(100_000n) }, "amount"],
+      [{ date: "2026-10-29" }, "date"],
+    ] as const) {
+      const result = await change(gift.id, changes as never);
+      expect(result.ok ? null : [result.error.code, result.error.details?.field]).toEqual([
+        "FieldNotEditable",
+        field,
+      ]);
+    }
+    // Its description is still the person's own words to edit.
+    expect((await change(gift.id, { description: "Por la cena" })).ok).toBe(true);
+  });
+
   it("changes who paid a shared expense: the recorder, a guest or the fund; never another member's account", async () => {
     const { change, shared } = household();
     const amount = money(3_000_000n);

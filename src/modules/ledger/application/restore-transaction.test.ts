@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { codeOf, unwrap } from "../../../../tests/support/fakes";
+import type { LocalDate } from "@/shared/kernel";
+import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
 import { anExpense, householdLedger, ledgerFixture } from "../../../../tests/support/in-memory-ledger";
 import { createDeleteTransaction } from "./delete-transaction";
 import { createListAudit } from "./list-audit";
 import { createListTransactions } from "./list-transactions";
+import { createRecordSettlement } from "./record-settlement";
 import { createRestoreTransaction } from "./restore-transaction";
 
 const asAna = { spaceId: "space-ana", userId: "u-ana" };
@@ -114,5 +116,58 @@ describe("RestoreTransaction (ruling P185)", () => {
     });
     expect(codeOf(result)).toBe("NotASpaceMember");
     expect(store.rows[0]!.deletedAt).not.toBeNull();
+  });
+});
+
+describe("a gift's two halves (ruling P322)", () => {
+  const asJuan = { spaceId: "space-household", userId: "u-juan" };
+  const giftPair = async () => {
+    const fixture = householdLedger();
+    const payment = unwrap(
+      await createRecordSettlement(fixture.deps)({
+        ...asJuan,
+        date: "2026-10-30" as LocalDate,
+        amount: money(450_000n),
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        onBehalfOfMemberId: "member-luis",
+        gift: true,
+      }),
+    );
+    const giftId = payment.type === "SETTLEMENT" ? payment.linkedTransactionId! : "";
+    return { ...fixture, payment, giftId };
+  };
+  const live = (rows: readonly { id: string; deletedAt: Date | null }[]) =>
+    rows.filter((tx) => tx.deletedAt === null).map((tx) => tx.id);
+
+  it("deletes the other half with either one, each with its own DELETED audit", async () => {
+    for (const half of ["payment", "gift"] as const) {
+      const { deps, store, audit, payment, giftId } = await giftPair();
+      const id = half === "payment" ? payment.id : giftId;
+      unwrap(await createDeleteTransaction(deps)({ ...asJuan, transactionId: id }));
+      expect(live(store.rows)).toEqual([]);
+      expect(audit.entries.map((e) => [e.transactionId, e.action]).sort()).toEqual(
+        [
+          [payment.id, "DELETED"],
+          [giftId, "DELETED"],
+        ].sort(),
+      );
+    }
+  });
+
+  it("restores the other half with either one, each with its own RESTORED audit", async () => {
+    for (const half of ["payment", "gift"] as const) {
+      const { deps, store, audit, payment, giftId } = await giftPair();
+      unwrap(await createDeleteTransaction(deps)({ ...asJuan, transactionId: payment.id }));
+      const id = half === "payment" ? payment.id : giftId;
+      unwrap(await createRestoreTransaction(deps)({ ...asJuan, transactionId: id }));
+      expect(live(store.rows).sort()).toEqual([payment.id, giftId].sort());
+      expect(
+        audit.entries
+          .filter((e) => e.action === "RESTORED")
+          .map((e) => e.transactionId)
+          .sort(),
+      ).toEqual([payment.id, giftId].sort());
+    }
   });
 });

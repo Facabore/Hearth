@@ -1790,6 +1790,10 @@ export interface components {
             destinationAccountId: string | null;
             receivingMemberId: string | null;
             payerMemberId: string | null;
+            /** @enum {string} */
+            settlementReason?: "PAYMENT" | "GIFT" | "FORGIVENESS";
+            onBehalfOfMemberId?: string | null;
+            linkedTransactionId?: string | null;
             createdBy: string;
             /** Format: date-time */
             createdAt: string;
@@ -1904,6 +1908,10 @@ export interface components {
             destinationAccountId: string | null;
             receivingMemberId: string | null;
             payerMemberId: string | null;
+            /** @enum {string} */
+            settlementReason?: "PAYMENT" | "GIFT" | "FORGIVENESS";
+            onBehalfOfMemberId?: string | null;
+            linkedTransactionId?: string | null;
             createdBy: string;
             /** Format: date-time */
             createdAt: string;
@@ -2104,6 +2112,10 @@ export interface components {
             destinationAccountId: string | null;
             receivingMemberId: string | null;
             payerMemberId: string | null;
+            /** @enum {string} */
+            settlementReason?: "PAYMENT" | "GIFT" | "FORGIVENESS";
+            onBehalfOfMemberId?: string | null;
+            linkedTransactionId?: string | null;
             createdBy: string;
             /** Format: date-time */
             createdAt: string;
@@ -5548,6 +5560,10 @@ export interface operations {
                     receivingMemberId: string;
                     sourceAccountId?: string | null;
                     destinationAccountId?: string | null;
+                    onBehalfOfMemberId?: string;
+                    gift?: boolean;
+                    /** @enum {string} */
+                    reason?: "PAYMENT" | "FORGIVENESS";
                 };
             };
         };
@@ -5570,7 +5586,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InsufficientRole */
+            /** @description InsufficientRole, ForgivenessNotAllowed */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5597,7 +5613,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7392,6 +7408,12 @@ export interface operations {
                             description: string;
                             change: components["schemas"]["MoneyOutput"];
                             balance: components["schemas"]["MoneyOutput"];
+                            /** @enum {string} */
+                            settlementReason?: "PAYMENT" | "GIFT" | "FORGIVENESS";
+                            payerMemberId?: string;
+                            receivingMemberId?: string;
+                            onBehalfOfMemberId?: string | null;
+                            linkedTransactionId?: string | null;
                         }[];
                     };
                 };

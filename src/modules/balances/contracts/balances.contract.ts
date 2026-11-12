@@ -115,6 +115,18 @@ export const BalanceHistorySchema = z.object({
       change: MoneySchema,
       /** The member's net after it. */
       balance: MoneySchema,
+      /** Ruling P322: a SETTLEMENT's reason (PAYMENT, GIFT or FORGIVENESS); absent on an EXPENSE. */
+      settlementReason: z.enum(["PAYMENT", "GIFT", "FORGIVENESS"]).optional(),
+      /** Ruling P322: a SETTLEMENT's payer and receiver, so the screen can say who paid whom. */
+      payerMemberId: z.string().optional(),
+      receivingMemberId: z.string().optional(),
+      /**
+       * Ruling P322: the member a payment was made for. Their history lists it with a change of 0: the debt only moved
+       * to the payer.
+       */
+      onBehalfOfMemberId: z.string().nullable().optional(),
+      /** Ruling P322: the other half of a gift, so the screen pairs the payment for the member with its GIFT. */
+      linkedTransactionId: z.string().nullable().optional(),
     }),
   ),
 });
@@ -136,6 +148,16 @@ export const balanceHistoryDto = (
       description: entry.description,
       change: money(entry.change),
       balance: money(entry.balance),
+      // Ruling P322: present on a settlement only, so an expense entry answers as before.
+      ...(entry.settlementReason === undefined
+        ? {}
+        : {
+            settlementReason: entry.settlementReason,
+            payerMemberId: entry.payerMemberId,
+            receivingMemberId: entry.receivingMemberId,
+            onBehalfOfMemberId: entry.onBehalfOfMemberId ?? null,
+            linkedTransactionId: entry.linkedTransactionId ?? null,
+          }),
     })),
   };
 };

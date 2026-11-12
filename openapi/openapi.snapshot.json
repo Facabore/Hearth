@@ -6872,6 +6872,21 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "onBehalfOfMemberId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "gift": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "PAYMENT",
+                      "FORGIVENESS"
+                    ]
                   }
                 },
                 "required": [
@@ -6905,7 +6920,7 @@
             }
           },
           "403": {
-            "description": "InsufficientRole",
+            "description": "InsufficientRole, ForgivenessNotAllowed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -6935,7 +6950,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10583,6 +10598,32 @@
                           },
                           "balance": {
                             "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "settlementReason": {
+                            "type": "string",
+                            "enum": [
+                              "PAYMENT",
+                              "GIFT",
+                              "FORGIVENESS"
+                            ]
+                          },
+                          "payerMemberId": {
+                            "type": "string"
+                          },
+                          "receivingMemberId": {
+                            "type": "string"
+                          },
+                          "onBehalfOfMemberId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "linkedTransactionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           }
                         },
                         "required": [
@@ -16006,6 +16047,26 @@
               "null"
             ]
           },
+          "settlementReason": {
+            "type": "string",
+            "enum": [
+              "PAYMENT",
+              "GIFT",
+              "FORGIVENESS"
+            ]
+          },
+          "onBehalfOfMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkedTransactionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdBy": {
             "type": "string"
           },
@@ -16520,6 +16581,26 @@
             ]
           },
           "payerMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settlementReason": {
+            "type": "string",
+            "enum": [
+              "PAYMENT",
+              "GIFT",
+              "FORGIVENESS"
+            ]
+          },
+          "onBehalfOfMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkedTransactionId": {
             "type": [
               "string",
               "null"
@@ -17608,6 +17689,26 @@
             ]
           },
           "payerMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "settlementReason": {
+            "type": "string",
+            "enum": [
+              "PAYMENT",
+              "GIFT",
+              "FORGIVENESS"
+            ]
+          },
+          "onBehalfOfMemberId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "linkedTransactionId": {
             "type": [
               "string",
               "null"

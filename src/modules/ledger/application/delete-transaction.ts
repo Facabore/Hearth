@@ -1,7 +1,8 @@
-import { domainError, err, ok, type Result } from "@/shared/kernel";
+import { domainError, err, type Result } from "@/shared/kernel";
 import { canModify, deletionChanges, softDelete } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { followLinkedHalf } from "./linked-half";
 
 export type DeleteTransaction = (input: {
   spaceId: string;
@@ -40,5 +41,12 @@ export const createDeleteTransaction =
         at: now,
         changes: deletionChanges(current),
       });
-      return ok(undefined);
+      // Ruling P322: a gift never loses one half; an error here rolls the whole deletion back.
+      return followLinkedHalf(deps, membership.value.spaceId, current, {
+        action: "DELETED",
+        actorUserId: input.userId,
+        at: now,
+        apply: softDelete,
+        changes: deletionChanges,
+      });
     });
