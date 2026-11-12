@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -145,6 +145,18 @@ describe("scripts/staging-update.sh (ADR 0008)", () => {
     const again = rerun();
     expect(again.ups).toHaveLength(1);
     expect(logEvents(again.stdout)).toEqual([expect.objectContaining({ event: "staging_updated" })]);
+  });
+
+  it("removes the images a failed update replaced once the retried up succeeds", () => {
+    const first = run({ running: "", new_web: "", up_fails: "" });
+    expect(first.calls.filter((c) => c.startsWith("image rm"))).toEqual([]);
+    // A minute later the web image is already the new one, so this run pulls nothing new, yet the old one still goes.
+    rmSync(join(state, "up_fails"));
+    rmSync(join(state, "new_web"));
+    const again = rerun();
+    expect(again.ups).toHaveLength(1);
+    expect(again.calls.filter((c) => c.startsWith("image rm"))).toEqual(["image rm sha256:web"]);
+    expect(existsSync(join(state, ".update.pending"))).toBe(false);
   });
 
   it("removes only the images the update left behind, never another project's", () => {
