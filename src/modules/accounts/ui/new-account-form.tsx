@@ -74,7 +74,10 @@ export function NewAccountForm({
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const formId = useId();
-  const [type, setType] = useState<AccountType | "">("");
+  // Ruling P320 (HU-E2-02): a shared space holds only shared funds, so its form starts on the fund and asks no type;
+  // every personal type would be refused on save (PersonalAccountRequiresPersonalSpace).
+  const fundOnly = space.kind === "SHARED";
+  const [type, setType] = useState<AccountType | "">(fundOnly ? "SHARED_FUND" : "");
   const [name, setName] = useState("");
   const [opening, setOpening] = useState("");
   const [fields, setFields] = useState<Partial<Record<AccountField, string>>>({});
@@ -83,7 +86,7 @@ export function NewAccountForm({
   const [pending, setPending] = useState(false);
   const { problem, setProblem, setUnreadable, where, errorOf, clear } = useAccountErrors(formats);
   const typed =
-    type !== "" ||
+    (type !== "" && !fundOnly) ||
     name !== "" ||
     opening !== "" ||
     Object.values(fields).some(Boolean) ||
@@ -102,8 +105,6 @@ export function NewAccountForm({
   };
 
   const currency = currencyOf(space.currency);
-  const types: readonly AccountType[] =
-    space.kind === "SHARED" ? [...PERSONAL_TYPES, "SHARED_FUND"] : PERSONAL_TYPES;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -140,7 +141,7 @@ export function NewAccountForm({
         onOpenChange={(open) => {
           if (!open) void close();
         }}
-        title={t("newTitle")}
+        title={fundOnly ? t("newFund") : t("newTitle")}
         closeButton={false}
         historyEntry={false}
         footer={
@@ -151,26 +152,28 @@ export function NewAccountForm({
       >
         <form
           id={formId}
-          aria-label={t("newTitle")}
+          aria-label={fundOnly ? t("newFund") : t("newTitle")}
           onSubmit={(event) => void submit(event)}
           noValidate
           className="flex flex-col gap-3"
         >
-          <ChoiceGroup
-            label={t("field.type")}
-            layout="grid"
-            value={type}
-            onValueChange={(next) => setType(next)}
-            options={types.map((v) => ({
-              value: v,
-              label: (
-                <span data-icon={TYPE_ICONS[v]} className="flex flex-col items-center gap-1 py-2">
-                  <SymbolIcon name={TYPE_ICONS[v]} size={22} />
-                  <span className="text-xs">{t(`type.${v}`)}</span>
-                </span>
-              ),
-            }))}
-          />
+          {fundOnly ? null : (
+            <ChoiceGroup
+              label={t("field.type")}
+              layout="grid"
+              value={type}
+              onValueChange={(next) => setType(next)}
+              options={PERSONAL_TYPES.map((v) => ({
+                value: v,
+                label: (
+                  <span data-icon={TYPE_ICONS[v]} className="flex flex-col items-center gap-1 py-2">
+                    <SymbolIcon name={TYPE_ICONS[v]} size={22} />
+                    <span className="text-xs">{t(`type.${v}`)}</span>
+                  </span>
+                ),
+              }))}
+            />
+          )}
           {type ? (
             <>
               <TextField

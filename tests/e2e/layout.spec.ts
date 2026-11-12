@@ -1975,6 +1975,37 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
     await expect(dialog.getByRole("heading", { name: es.ledger.when.title })).toBeInViewport();
   });
 
+  test("the scrollbar of a sheet's body runs along the sheet's edge, never over its fields (P320)", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 600 });
+    const { spaceId } = await session(page, "sheet-scrollbar");
+    await page.goto(`/spaces/${spaceId}/accounts/new`);
+    const dialog = page.getByRole("dialog", { name: es.accounts.newTitle });
+    await dialog.getByRole("radio", { name: es.accounts.type.BANK }).click();
+    const box = await dialog.evaluate((el) => {
+      const body = [...el.querySelectorAll<HTMLElement>("*")].find(
+        (child) => getComputedStyle(child).overflowY === "auto",
+      )!;
+      const r = body.getBoundingClientRect();
+      const content = body.firstElementChild!.getBoundingClientRect();
+      const title = el.querySelector("h2")!.getBoundingClientRect();
+      return {
+        scrolls: body.scrollHeight > body.clientHeight,
+        // Where a scrollbar starts: the end of the body's client area, overlay or classic alike.
+        room: r.left + body.clientWidth - content.right,
+        contentLeft: content.left,
+        titleLeft: title.left,
+      };
+    });
+    expect(box.scrolls, "the body scrolls at this height").toBe(true);
+    expect(box.room, "the fields stop before the scrollbar's lane").toBeGreaterThanOrEqual(12);
+    expect(
+      Math.abs(box.contentLeft - box.titleLeft),
+      "the fields line up with the title",
+    ).toBeLessThanOrEqual(1);
+  });
+
   test("the sheet is capped in dvh, with a fallback", async ({ page }) => {
     const { spaceId } = await session(page, "dvh");
     await page.goto(`/spaces/${spaceId}`);

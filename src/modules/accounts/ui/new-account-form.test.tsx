@@ -224,11 +224,27 @@ describe("new account form (HU-E9-03)", () => {
   });
 
   it("offers a shared fund only in a shared space", () => {
-    const { unmount } = renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} />);
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} />);
     expect(screen.queryByRole("radio", { name: "Fondo compartido" })).toBeNull();
-    unmount();
-    renderWithIntl(<NewAccountForm space={spaceDto({ kind: "SHARED" })} formats={BUILT_IN_FORMATS} />);
-    expect(screen.getByRole("radio", { name: "Fondo compartido" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Banco" })).toBeInTheDocument();
+  });
+
+  it("in a shared space creates only a fund: no personal type to pick, the fund already chosen (P320)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () =>
+        jsonResponse(accountDto({ name: "We stay together", type: "SHARED_FUND" }), 201),
+    });
+    renderWithIntl(
+      <NewAccountForm space={spaceDto({ kind: "SHARED" })} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    // A shared space holds only shared funds (HU-E2-02): every personal type would fail on save.
+    expect(screen.getByRole("dialog", { name: "Nuevo fondo" })).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup")).toBeNull();
+    expect(screen.queryByRole("radio", { name: "Banco" })).toBeNull();
+    await userEvent.type(screen.getByLabelText("Nombre"), "We stay together");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(await requests[0]!.json()).toMatchObject({ type: "SHARED_FUND", name: "We stay together" });
   });
 });
 
