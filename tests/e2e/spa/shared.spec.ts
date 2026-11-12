@@ -125,4 +125,51 @@ test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
 
     expect(errors).toEqual([]);
   });
+
+  test("a fund is created as one and fed from the person's own account, never as an income (P320, P321)", async ({
+    page,
+  }) => {
+    const ip = `10.${randomInt(256)}.${randomInt(256)}.${randomInt(1, 255)}`;
+    const personal = await signUp(page, "spa-fund-ana", ip);
+    await post(page, `/api/v1/spaces/${personal}/accounts`, {
+      name: "Bancolombia",
+      type: "BANK",
+      openingBalance: cop(1_000_000),
+    });
+    const space = (await post(page, "/api/v1/spaces", {
+      kind: "SHARED",
+      name: "Household",
+      currency: "COP",
+    })) as {
+      id: string;
+    };
+
+    // P320: a shared space's form creates only a fund, with no type to pick.
+    await page.goto(`/spaces/${space.id}/accounts/new`);
+    const sheet = page.getByRole("dialog", { name: es.accounts.newFund });
+    await expect(sheet.getByRole("radiogroup")).toHaveCount(0);
+    await sheet.getByLabel(es.accounts.field.name).fill("Fondo Hogar");
+    await sheet.getByRole("button", { name: es.accounts.create }).click();
+    await expect(page.getByText("Fondo Hogar").first()).toBeVisible();
+
+    // P321: Registrar offers the expense and a contribution from her own account into the fund, never an income.
+    await page.goto(`/spaces/${space.id}/new`);
+    await expect(page.getByRole("tab", { name: es.ledger.type.INCOME })).toHaveCount(0);
+    await page.getByRole("tab", { name: es.ledger.type.TRANSFER }).click();
+    // Desde offers her own accounts (her starter accounts and Bancolombia), never the fund.
+    await page.getByRole("button", { name: /Desde/ }).click();
+    const from = page.getByRole("dialog", { name: es.ledger.form.from });
+    await expect(from.getByRole("radio", { name: /Fondo Hogar/ })).toHaveCount(0);
+    await from.getByRole("radio", { name: /Bancolombia/ }).click();
+    await expect(page.getByRole("button", { name: /Desde/ })).toContainText("Bancolombia");
+    await expect(page.getByRole("button", { name: /Hacia/ })).toContainText("Fondo Hogar");
+    await page.getByLabel(es.ledger.form.amount).pressSequentially("100000");
+    await page.getByRole("button", { name: es.ledger.form.save.TRANSFER }).click();
+    await expect(page).not.toHaveURL(/\/new/);
+
+    const { items } = (await get(page, `/api/v1/spaces/${space.id}/accounts`)) as {
+      items: { name: string; balance: { amount: string } }[];
+    };
+    expect(items.find((a) => a.name === "Fondo Hogar")?.balance.amount).toBe(cop(100_000).amount);
+  });
 });

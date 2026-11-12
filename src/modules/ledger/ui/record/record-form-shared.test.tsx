@@ -404,23 +404,56 @@ describe("shared expense (HU-E9-06)", () => {
     ]);
   });
 
-  it("keeps an income on the single account picker in a shared space", () => {
-    const { api } = fakeApi({});
+  // D25 (owner's ruling, 2026-10-27): a shared space holds only its fund, so it records expenses and contributions to
+  // the fund, never an income or a transfer between its own accounts (ruling P321 for the record sheet).
+  const FUND = accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND", ownerUserId: null });
+  const withFund = (api: Api, initialKind: "EXPENSE" | "INCOME" | "TRANSFER", funds = [FUND]) =>
     renderWithIntl(
       <RecordForm
         space={HOUSEHOLD}
-        accounts={[BANK]}
+        accounts={funds}
         groups={groups}
         formats={BUILT_IN_FORMATS}
-        initialKind="INCOME"
+        initialKind={initialKind}
         initialNow="2026-11-01T04:30:00.000Z"
         timeZone="America/Bogota"
-        shared={context()}
+        shared={context(MEMBERS, funds)}
         api={api}
       />,
     );
-    expect(screen.getByRole("button", { name: /Cuenta que recibe/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Pagas tú|Pagó/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /División/ })).not.toBeInTheDocument();
+
+  it("offers a shared space an expense and a contribution to its fund, never an income (D25, P321)", () => {
+    withFund(fakeApi({}).api, "INCOME");
+    expect(screen.getByRole("tab", { name: "Gasto" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Transferencia" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Ingreso" })).toBeNull();
+  });
+
+  it("records a transfer as a contribution from the recorder's own account into the fund (P321)", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/fund-contributions": () =>
+        jsonResponse(transactionDto({ id: "t-new", type: "TRANSFER", payerMemberId: "m-ana" }), 201),
+    });
+    withFund(api, "EXPENSE");
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    // Desde lists the recorder's own accounts, Hacia the space's fund (its only one, already chosen).
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
+    expect(screen.getByRole("button", { name: /Hacia/ })).toHaveTextContent("Fondo Hogar");
+    await userEvent.type(screen.getByLabelText("Monto"), "100000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar transferencia" }));
+    await waitFor(() => expect(requests.some((r) => r.method === "POST")).toBe(true));
+    const post = requests.find((r) => r.method === "POST")!;
+    expect(new URL(post.url).pathname).toBe(`/api/v1/spaces/${HOUSEHOLD.id}/fund-contributions`);
+    expect(await post.json()).toMatchObject({
+      sourceAccountId: "a-bank",
+      fundAccountId: "a-fund",
+      amount: { amount: "10000000", currency: "COP" },
+    });
+  });
+
+  it("offers a shared space without a fund only the expense (P321)", () => {
+    withFund(fakeApi({}).api, "TRANSFER", []);
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeInTheDocument();
   });
 });

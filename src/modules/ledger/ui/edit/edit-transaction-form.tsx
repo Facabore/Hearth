@@ -11,7 +11,13 @@ import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { RecordForm } from "../record/record-form";
-import { afterSaveUrl, fundWentNegative, requestOf, type RecordKind } from "../record/record-request";
+import {
+  afterSaveUrl,
+  contributionBodyOf,
+  fundWentNegative,
+  requestOf,
+  type RecordKind,
+} from "../record/record-request";
 import type { When } from "../record/when-label";
 import type { SharedExpenseContext } from "../split/shared-context";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
@@ -42,8 +48,7 @@ const conversionBodyOf = (
   built: { kind: RecordKind; body: Record<string, unknown> },
 ): Record<string, unknown> => {
   if (space.kind === "PERSONAL" || built.kind !== "TRANSFER") return { type: built.kind, ...built.body };
-  const { destinationAccountId, ...rest } = built.body;
-  return { type: "FUND_CONTRIBUTION", ...rest, fundAccountId: destinationAccountId };
+  return { type: "FUND_CONTRIBUTION", ...contributionBodyOf(built.body) };
 };
 
 /**

@@ -57,9 +57,11 @@ import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
 import {
   afterSaveUrl,
   movementUrl,
+  contributionBodyOf,
   fundWentNegative,
   recordFieldOf,
   requestOf,
+  sharedKindsOf,
   type RecordField,
   type RecordKind,
 } from "./record-request";
@@ -266,10 +268,15 @@ export function RecordForm({
   const start = client?.now ?? nowIn(new Date(initialNow), serverZone);
   const today = start.date;
 
-  const [kind, setKind] = useState<RecordKind>(edit?.initial.kind ?? carried?.kind ?? initialKind);
-  const kindTabs = !edit || edit.kinds !== undefined;
-  // Issue #195: a shared space's transfer goes from the recorder's own account into its fund.
-  const fundTransfer = edit !== undefined && shared !== undefined && kind === "TRANSFER";
+  // D25, ruling P321: a shared space records an expense and, with a fund, a contribution to it, never an income.
+  const kindsOffered = edit ? edit.kinds : shared ? sharedKindsOf(shared.funds) : undefined;
+  const [kind, setKind] = useState<RecordKind>(() => {
+    const wanted = edit?.initial.kind ?? carried?.kind ?? initialKind;
+    return edit || !kindsOffered || kindsOffered.includes(wanted) ? wanted : "EXPENSE";
+  });
+  const kindTabs = edit ? edit.kinds !== undefined : kindsOffered === undefined || kindsOffered.length > 1;
+  // Issue #195, ruling P321: a shared space's transfer goes from the recorder's own account into its fund.
+  const fundTransfer = shared !== undefined && kind === "TRANSFER";
   const fromAccounts = fundTransfer ? shared.myAccounts : accounts;
   const toAccounts = fundTransfer ? shared.funds : accounts;
   // Issue #173: this browser's recent categories for the kind, read after mount so the server render never differs.
@@ -284,10 +291,12 @@ export function RecordForm({
   const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
   const changeKind = (nextKind: RecordKind) => {
     setKind(nextKind);
-    if (edit && shared && nextKind === "TRANSFER") {
+    if (shared && nextKind === "TRANSFER") {
       // A fund that paid is never the source of a contribution, and only a fund receives one.
       if (!shared.myAccounts.some((a) => a.id === accountId)) setAccountId(shared.myAccounts[0]?.id ?? null);
-      if (!shared.funds.some((a) => a.id === toAccountId)) setToAccountId(null);
+      // Ruling P321: a space's only fund is the one a contribution goes to.
+      if (!shared.funds.some((a) => a.id === toAccountId))
+        setToAccountId(shared.funds.length === 1 ? shared.funds[0]!.id : null);
     }
     // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
     const offered =
@@ -308,9 +317,14 @@ export function RecordForm({
     if (kind === "EXPENSE" && paidFrom) rememberLastAccount(paidFrom);
   };
   const [accountId, setAccountId] = useState<string | null>(() =>
-    edit ? edit.initial.accountId : preferredAccountId(accounts, readLastAccount()),
+    edit
+      ? edit.initial.accountId
+      : preferredAccountId(fundTransfer ? shared.myAccounts : accounts, readLastAccount()),
   );
-  const [toAccountId, setToAccountId] = useState<string | null>(edit?.initial.toAccountId ?? null);
+  const [toAccountId, setToAccountId] = useState<string | null>(
+    () =>
+      edit?.initial.toAccountId ?? (fundTransfer && shared.funds.length === 1 ? shared.funds[0]!.id : null),
+  );
   const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? carried?.when ?? null);
   const [spaceOpened, setSpaceOpened] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -496,11 +510,16 @@ export function RecordForm({
         body: built.body as never,
       };
       const { data, error, response } =
-        built.kind === "EXPENSE"
-          ? await api.POST("/api/v1/spaces/{spaceId}/expenses", options)
-          : built.kind === "INCOME"
-            ? await api.POST("/api/v1/spaces/{spaceId}/incomes", options)
-            : await api.POST("/api/v1/spaces/{spaceId}/transfers", options);
+        built.kind === "TRANSFER" && fundTransfer
+          ? await api.POST("/api/v1/spaces/{spaceId}/fund-contributions", {
+              ...options,
+              body: contributionBodyOf(built.body) as never,
+            })
+          : built.kind === "EXPENSE"
+            ? await api.POST("/api/v1/spaces/{spaceId}/expenses", options)
+            : built.kind === "INCOME"
+              ? await api.POST("/api/v1/spaces/{spaceId}/incomes", options)
+              : await api.POST("/api/v1/spaces/{spaceId}/transfers", options);
       if (response.ok) {
         renew();
         remember();
@@ -597,7 +616,7 @@ export function RecordForm({
             value={kind}
             onChange={changeKind}
             labelOf={(k) => t(`type.${k}`)}
-            {...(edit?.kinds ? { kinds: edit.kinds } : {})}
+            {...(kindsOffered ? { kinds: kindsOffered } : {})}
           />
         ) : (
           <p className="text-sm text-muted">{t("edit.kind", { type: t(`type.${kind}`) })}</p>
