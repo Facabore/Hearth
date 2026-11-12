@@ -313,6 +313,32 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     await waitFor(() => expect(list()).toBe(2));
   });
 
+  it("still revalidates a screen tapped while its hover prefetch is in flight (#302)", async () => {
+    const { routes } = ledgerApi();
+    // The prefetch's one missing read hangs until released, so the tap lands while it is in flight.
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const page = routes["GET /api/v1/me/transactions"]!;
+    routes["GET /api/v1/me/transactions"] = async (request, params) => {
+      await gate;
+      return page(request, params);
+    };
+    const spa = renderSpa("/spaces/sp-personal", routes);
+    await screen.findByRole("heading", { name: es.home.recent });
+    await settled(spa);
+    const categories = () => calls(spa.requests, "GET", /\/spaces\/sp-personal\/categories/).length;
+    const before = categories();
+    expect(before).toBeGreaterThan(0);
+
+    const link = within(nav()).getByRole("link", { name: es.shell.nav.transactions });
+    await userEvent.hover(link);
+    await userEvent.click(link);
+    release();
+    await screen.findByText("Salary");
+    // A tap is a visit: what the cache already held (Inicio's categories) is read again, prefetch or not (ADR 0006).
+    await waitFor(() => expect(categories()).toBeGreaterThan(before));
+  });
+
   it("prefetches a row's detail on intent, so tapping it opens the sheet without waiting on the API", async () => {
     const { routes, hold } = ledgerApi();
     const spa = renderSpa("/spaces/sp-personal/transactions", routes);

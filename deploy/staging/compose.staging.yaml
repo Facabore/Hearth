@@ -1,0 +1,14 @@
+# ADR 0008: the staging site, which follows `development`. Copy it beside compose.yaml in /home/hearth-deploy/hearth-staging and run
+# `docker compose -f compose.yaml -f compose.staging.yaml …` (scripts/staging-update.sh does, every minute).
+#
+# A project of its own: its own containers, network and database volume, so nothing of production's `hearth` project
+# changes. The host Caddy proxies the staging domain to these loopback ports (docs/operations/deploy.md, Staging).
+name: hearth-staging
+
+services:
+  app:
+    ports: ["127.0.0.1:5310:3000"]
+  web:
+    ports: ["127.0.0.1:5311:8080"]
+  caddy:
+    profiles: [bundled-proxy]

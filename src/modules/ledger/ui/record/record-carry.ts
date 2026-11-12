@@ -7,6 +7,11 @@ export interface RecordCarry {
   readonly amount: string;
   readonly description: string;
   readonly when: When | null;
+  /**
+   * Ruling P321: the account chosen in Desde, handed over only when the form comes back to the same space (Crear un
+   * fondo). The form restores it only while it is still one it offers, so another space's account never is.
+   */
+  readonly accountId?: string;
 }
 
 /**
