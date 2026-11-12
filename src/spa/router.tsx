@@ -20,14 +20,26 @@ function AppNotFound() {
  * with a loader gets it here. A tap still refreshes the screen: the navigation itself is an "enter".
  */
 const reloadOnEnter = (route: AnyRoute): void => {
-  if (route.options.loader && route.options.shouldReload === undefined)
-    route.update({ shouldReload: ({ cause }: { readonly cause: string }) => cause === "enter" } as never);
+  type LoaderContext = { readonly preload: boolean; readonly cause: string };
+  const loader = route.options.loader as ((context: LoaderContext) => unknown) | undefined;
+  if (loader && route.options.shouldReload === undefined)
+    route.update({
+      shouldReload: ({ cause }: { readonly cause: string }) => cause === "enter",
+      // Issue #302: which screens last loaded for a prefetch rather than a visit (see createSpaRouter).
+      loader: (context: LoaderContext) => {
+        // The first load after a prefetch that is not one is the visit the prefetch stood in for (createSpaRouter).
+        const visit = !context.preload && lastLoadPrefetched.get(route.id) === true;
+        lastLoadPrefetched.set(route.id, context.preload);
+        return loader(visit ? { ...context, cause: "enter" } : context);
+      },
+    } as never);
   for (const child of (route.children as readonly AnyRoute[] | undefined) ?? []) reloadOnEnter(child);
 };
+const lastLoadPrefetched = new Map<string, boolean>();
 reloadOnEnter(routeTree);
 
-export const createSpaRouter = (context: RouterContext, history?: RouterHistory) =>
-  createRouter({
+export const createSpaRouter = (context: RouterContext, history?: RouterHistory) => {
+  const router = createRouter({
     routeTree,
     context,
     history,
@@ -40,6 +52,18 @@ export const createSpaRouter = (context: RouterContext, history?: RouterHistory)
     defaultNotFoundComponent: AppNotFound,
     defaultErrorComponent: AppError,
   });
+  // Issue #302: a tap that lands while its hover's prefetch is still in flight joins that prefetch instead of running
+  // its loader as a visit, and a prefetch reads only what the cache lacks, so the screen kept what the cache held before
+  // (a category created since, say). A screen shown whose last load was a prefetch is loaded once more, as the visit it
+  // is, which revalidates its reads in the background (ADR 0006).
+  router.subscribe("onResolved", () => {
+    const prefetched = new Set(
+      router.state.matches.filter((match) => lastLoadPrefetched.get(match.routeId)).map((match) => match.id),
+    );
+    if (prefetched.size > 0) void router.invalidate({ filter: (match) => prefetched.has(match.id) });
+  });
+  return router;
+};
 
 declare module "@tanstack/react-router" {
   interface Register {
