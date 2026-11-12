@@ -1,6 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
+import { QueryClient } from "@tanstack/react-query";
+import { ledgerWrites } from "./writes";
 import { es } from "@/i18n/messages/full";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import {
@@ -330,5 +332,15 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
 
     await waitFor(() => expect(listRow(/Bakery/)).toBeNull(), SAVE_LANDS);
     expect(screen.getByRole("button", { name: es.ledger.list.loadMore, hidden: true })).toBeInTheDocument();
+  });
+});
+
+describe("the ledger's write planner (ruling P321)", () => {
+  it("shows a contribution to a shared fund at once, as it does an expense, an income and a transfer", () => {
+    const queryClient = new QueryClient();
+    const planOf = (path: string) =>
+      ledgerWrites({ method: "POST", path, params: { spaceId: "s-home" }, body: {} }, queryClient);
+    for (const kind of ["expenses", "incomes", "transfers", "fund-contributions"])
+      expect(planOf(`/api/v1/spaces/{spaceId}/${kind}`), kind).not.toBeNull();
   });
 });

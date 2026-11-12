@@ -381,7 +381,9 @@
       "title": "Editar cuenta"
     },
     "picker": {
-      "empty": "No hay cuentas para elegir. Crea una nueva."
+      "empty": "No hay cuentas para elegir. Crea una nueva.",
+      "noFund": "Este espacio aún no tiene un fondo. Crea uno para recibir los aportes.",
+      "noFundAsk": "Este espacio aún no tiene un fondo. Pídele a quien lo administra que cree uno."
     },
     "createFund": "Crear un fondo",
     "fundsNote": "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.",

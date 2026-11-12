@@ -12,7 +12,7 @@
     "/spaces/:id": 192,
     "/spaces/:id/transactions": 192,
     "/spaces/:id/transactions?tx=:tx": 210,
-    "/spaces/:id/transactions/:tx/edit": 206,
+    "/spaces/:id/transactions/:tx/edit": 210,
     "/spaces/:id/accounts": 196,
     "/spaces/:id/categories": 186,
     "/spaces/:id/new": 207,

@@ -99,7 +99,9 @@ export function SheetPanel({
               {description}
             </Dialog.Description>
           ) : null}
-          <div className="mt-2 min-h-0 overflow-y-auto overscroll-contain">{children}</div>
+          {/* Ruling P320: the body reaches the sheet's edges and pads its content back, so its scrollbar runs along the
+              sheet's edge instead of over the fields' right border; the content stays lined up with the title. */}
+          <div className="-mx-4 mt-2 min-h-0 overflow-y-auto overscroll-contain px-4">{children}</div>
           {footer ? <div className="mt-3">{footer}</div> : null}
         </Dialog.Content>
       </Dialog.Portal>

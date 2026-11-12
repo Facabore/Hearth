@@ -158,7 +158,8 @@ const saved = (queryClient: QueryClient, spaceId: string, tx: TransactionDto): v
   invalidateMovement(queryClient, spaceId);
 };
 
-const RECORD = /^\/api\/v1\/spaces\/\{spaceId\}\/(expenses|incomes|transfers)$/;
+// Ruling P321: a contribution to a shared fund is recorded from the same sheet, and shows at once the same way.
+const RECORD = /^\/api\/v1\/spaces\/\{spaceId\}\/(expenses|incomes|transfers|fund-contributions)$/;
 const ONE = "/api/v1/spaces/{spaceId}/transactions/{transactionId}";
 
 /** Issue #195: what each conversion became, per app, so its undo can take that row away again. */

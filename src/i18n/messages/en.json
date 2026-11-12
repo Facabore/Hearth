@@ -381,7 +381,9 @@
       "title": "Edit account"
     },
     "picker": {
-      "empty": "There are no accounts to choose from. Create a new one."
+      "empty": "There are no accounts to choose from. Create a new one.",
+      "noFund": "This space has no fund yet. Create one to receive contributions.",
+      "noFundAsk": "This space has no fund yet. Ask whoever manages it to create one."
     },
     "createFund": "Create a fund",
     "fundsNote": "Everyone pays from their personal accounts; only the space's funds live here.",

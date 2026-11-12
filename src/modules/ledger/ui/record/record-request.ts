@@ -10,6 +10,20 @@ import type { When } from "./when-label";
 
 export type RecordKind = "EXPENSE" | "INCOME" | "TRANSFER";
 
+/**
+ * D25 (the owner's ruling, 2026-10-27) and ruling P321: a shared space holds only its fund, so it records an expense
+ * and a contribution to its fund (one it still has to create included), never an income or a transfer between its own
+ * accounts; a direct space holds no account at all, so it records only the expense.
+ */
+export const sharedKindsOf = (kind: "PERSONAL" | "SHARED" | "DIRECT"): readonly RecordKind[] =>
+  kind === "SHARED" ? ["EXPENSE", "TRANSFER"] : ["EXPENSE"];
+
+/** HU-E4-09: a shared space's transfer is a fund contribution, the same fields with the fund as `fundAccountId`. */
+export const contributionBodyOf = (body: Record<string, unknown>): Record<string, unknown> => {
+  const { destinationAccountId, ...rest } = body;
+  return { ...rest, fundAccountId: destinationAccountId };
+};
+
 export interface RecordDraft {
   readonly kind: RecordKind;
   readonly amount: string;
