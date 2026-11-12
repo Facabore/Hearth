@@ -111,15 +111,15 @@ Set the image tags back to the previous SHA and run `docker compose up -d`. Roll
 ADR 0008: `development` deploys itself to a staging site, so changes can be tried before they go through `main`. Production is not involved.
 
 - Every push to `development` runs `.github/workflows/staging.yml`: typecheck and the tests that need no database, then the app, migrator and web images are pushed as `:development` and `:<sha>`. A newer push cancels an older run.
-- On the VPS, `scripts/staging-update.sh` runs every minute from `hearth-deploy`'s cron. It pulls the `:development` images and runs `up -d` (migrations first) only when one of them changed or the app is not running. It logs one JSON line per update or failure to `/opt/hearth-staging/update.log`.
+- On the VPS, `scripts/staging-update.sh` runs every minute from `hearth-deploy`'s cron. It pulls the `:development` images and runs `up -d` (migrations first) only when one of them changed or the app is not running. It logs one JSON line per update or failure to `/home/hearth-deploy/hearth-staging/update.log`.
 
 ### Setting it up once
 
 As `hearth-deploy` on the VPS:
 
-1. Create `/opt/hearth-staging` with `compose.yaml`, `scripts/` and `deploy/staging/compose.staging.yaml` (saved there as `compose.staging.yaml`) from the repository. The override names the project `hearth-staging`, so its containers, network and database volume are its own, and publishes the app on 127.0.0.1:5310 and the web service on 127.0.0.1:5311.
+1. Create `/home/hearth-deploy/hearth-staging` with `compose.yaml`, `scripts/` and `deploy/staging/compose.staging.yaml` (saved there as `compose.staging.yaml`) from the repository. The override names the project `hearth-staging`, so its containers, network and database volume are its own, and publishes the app on 127.0.0.1:5310 and the web service on 127.0.0.1:5311.
 2. Write its `.env` (mode 600) on the VPS: `HEARTH_DOMAIN` (the staging name), a new `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` (`openssl rand -hex 32` each, never production's), `HEARTH_APP_IMAGE=ghcr.io/facabore/hearth:development`, `HEARTH_MIGRATOR_IMAGE=ghcr.io/facabore/hearth-migrator:development`, `HEARTH_WEB_IMAGE=ghcr.io/facabore/hearth-web:development` and `APP_TIMEZONE=America/Bogota`.
-3. Add the cron line: `* * * * * sh /opt/hearth-staging/scripts/staging-update.sh >> /opt/hearth-staging/update.log 2>&1`.
+3. Add the cron line: `* * * * * sh /home/hearth-deploy/hearth-staging/scripts/staging-update.sh >> /home/hearth-deploy/hearth-staging/update.log 2>&1`.
 
 As the owner of the DNS name and of the host proxy:
 
@@ -139,7 +139,7 @@ As the owner of the DNS name and of the host proxy:
    }
    ```
 
-Staging's database starts empty and keeps what is entered there; to start it afresh, run `docker compose -f compose.yaml -f compose.staging.yaml down -v` in `/opt/hearth-staging` and let the next minute bring it up again.
+Staging's database starts empty and keeps what is entered there; to start it afresh, run `docker compose -f compose.yaml -f compose.staging.yaml down -v` in `/home/hearth-deploy/hearth-staging` and let the next minute bring it up again.
 
 ## Backups
 

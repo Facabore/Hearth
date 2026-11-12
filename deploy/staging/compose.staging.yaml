@@ -1,4 +1,4 @@
-# ADR 0008: the staging site, which follows `development`. Copy it beside compose.yaml in /opt/hearth-staging and run
+# ADR 0008: the staging site, which follows `development`. Copy it beside compose.yaml in /home/hearth-deploy/hearth-staging and run
 # `docker compose -f compose.yaml -f compose.staging.yaml …` (scripts/staging-update.sh does, every minute).
 #
 # A project of its own: its own containers, network and database volume, so nothing of production's `hearth` project

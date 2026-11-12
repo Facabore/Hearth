@@ -1,13 +1,13 @@
 #!/bin/sh
 # ADR 0008: keeps the staging stack on the newest `:development` images. hearth-deploy's cron runs it every minute:
-#   * * * * * sh /opt/hearth-staging/scripts/staging-update.sh >> /opt/hearth-staging/update.log 2>&1
+#   * * * * * sh /home/hearth-deploy/hearth-staging/scripts/staging-update.sh >> /home/hearth-deploy/hearth-staging/update.log 2>&1
 # It pulls the images and runs `up -d` (migrate first, as compose.yaml orders it) only when one of them changed, the
 # app is not running, or the last up failed. It logs one JSON line per update or failure and nothing on a quiet minute.
 # After an update it removes only the images it replaced, never another project's on this shared VPS. It holds no
 # secret: the images are public and the stack's .env never leaves the VPS.
 set -u
 
-STACK_DIR="${STACK_DIR:-/opt/hearth-staging}"
+STACK_DIR="${STACK_DIR:-$HOME/hearth-staging}"
 cd "$STACK_DIR" || exit 1
 
 log() {
