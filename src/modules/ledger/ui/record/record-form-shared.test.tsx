@@ -451,8 +451,54 @@ describe("shared expense (HU-E9-06)", () => {
     });
   });
 
-  it("offers a shared space without a fund only the expense (P321)", () => {
-    withFund(fakeApi({}).api, "TRANSFER", []);
+  it("offers a shared space without a fund the contribution too, and Hacia creates the fund and comes back (P321)", async () => {
+    withFund(fakeApi({}).api, "EXPENSE", []);
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    const to = await screen.findByRole("dialog", { name: "Hacia" });
+    expect(to).toHaveTextContent("Este espacio aún no tiene un fondo. Crea uno para recibir los aportes.");
+    const create = within(to).getByRole("link", { name: "Crear un fondo" });
+    const back = new URL(create.getAttribute("href")!, "http://hearth.test");
+    expect(back.pathname).toBe("/spaces/sp-household/accounts/new");
+    expect(back.searchParams.get("returnTo")).toBe("/spaces/sp-household/new?type=transfer");
+  });
+
+  it("tells a member without a fund who creates one, with no link they could not use (P321)", async () => {
+    renderWithIntl(
+      <RecordForm
+        space={householdSpace({ role: "MEMBER" })}
+        accounts={[]}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="TRANSFER"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        shared={context(MEMBERS, [])}
+        api={fakeApi({}).api}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    const to = await screen.findByRole("dialog", { name: "Hacia" });
+    expect(to).toHaveTextContent(
+      "Este espacio aún no tiene un fondo. Pídele a quien lo administra que cree uno.",
+    );
+    expect(within(to).queryByRole("link")).toBeNull();
+  });
+
+  it("offers a direct space only the expense: it holds no accounts (P321)", () => {
+    renderWithIntl(
+      <RecordForm
+        space={householdSpace({ kind: "DIRECT", name: "Ana & Pedro" })}
+        accounts={[]}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="TRANSFER"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        shared={context(MEMBERS, [])}
+        api={fakeApi({}).api}
+      />,
+    );
     expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeInTheDocument();
   });

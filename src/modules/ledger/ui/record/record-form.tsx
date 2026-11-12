@@ -15,6 +15,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AccountPicker } from "@/modules/accounts/ui";
+import { controlsFor } from "@/modules/spaces/ui";
 import { activeTree, categoryPath, groupsForKind, type CategoryChoice } from "@/modules/categories/ui";
 import { Button, Icon, ProblemNotice, ScreenHeader, SymbolIcon } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
@@ -65,7 +66,7 @@ import {
   type RecordField,
   type RecordKind,
 } from "./record-request";
-import { heldFor, release } from "./record-carry";
+import { handOver, heldFor, release } from "./record-carry";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { whenLabel, type When } from "./when-label";
 
@@ -226,6 +227,7 @@ export function RecordForm({
 }: RecordFormProps) {
   const t = useTranslations("ledger");
   const errors = useTranslations("errors");
+  const tAccounts = useTranslations("accounts");
   // P305: what the form of another space handed over when the person moved it here; never in an edit.
   const [carried] = useState(() => (edit ? null : heldFor(space.id)));
   useEffect(release, []);
@@ -269,7 +271,7 @@ export function RecordForm({
   const today = start.date;
 
   // D25, ruling P321: a shared space records an expense and, with a fund, a contribution to it, never an income.
-  const kindsOffered = edit ? edit.kinds : shared ? sharedKindsOf(shared.funds) : undefined;
+  const kindsOffered = edit ? edit.kinds : shared ? sharedKindsOf(space.kind) : undefined;
   const [kind, setKind] = useState<RecordKind>(() => {
     const wanted = edit?.initial.kind ?? carried?.kind ?? initialKind;
     return edit || !kindsOffered || kindsOffered.includes(wanted) ? wanted : "EXPENSE";
@@ -418,6 +420,16 @@ export function RecordForm({
           returnTo,
         ),
       );
+  // Ruling P321: a contribution with no fund to receive it offers to create one, to whoever may (OWNER, ADMIN), and comes
+  // back to this form on the transfer with what was typed; anyone else is told who creates it.
+  const createsFund =
+    fundTransfer && shared.funds.length === 0 && controlsFor(space.role, space.kind).manageFunds;
+  const newFundHref = createsFund
+    ? withReturnTo(
+        `/spaces/${space.id}/accounts/new`,
+        withReturnTo(`/spaces/${space.id}/new?type=transfer`, returnTo),
+      )
+    : undefined;
   const found = problem ? recordFieldOf(problem) : null;
   // In a shared expense the account an API problem names is the payer's.
   const where = sharedExpense && found === "account" ? "payer" : found;
@@ -888,7 +900,18 @@ export function RecordForm({
         open={sheet === "toAccount"}
         onOpenChange={(open) => setSheet(open ? "toAccount" : null)}
         accounts={toAccounts.filter((a) => a.id !== accountId)}
-        newAccountHref={newAccountHref}
+        {...(fundTransfer
+          ? {
+              ...(newFundHref
+                ? {
+                    newAccountHref: newFundHref,
+                    newLabel: tAccounts("createFund"),
+                    onNew: () => handOver(space.id, { kind, amount, description, when: chosenWhen }),
+                  }
+                : {}),
+              emptyText: tAccounts(newFundHref ? "picker.noFund" : "picker.noFundAsk"),
+            }
+          : { newAccountHref })}
         value={toAccountId}
         onChoose={(id) => {
           setToAccountId(id);

@@ -144,18 +144,27 @@ test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
       id: string;
     };
 
+    // P321: Registrar offers the expense and a contribution to the fund, never an income, even before a fund exists;
+    // Hacia then offers to create the fund and comes back to the transfer with the amount typed.
+    await page.goto(`/spaces/${space.id}/new`);
+    await expect(page.getByRole("tab", { name: es.ledger.type.INCOME })).toHaveCount(0);
+    await page.getByRole("tab", { name: es.ledger.type.TRANSFER }).click();
+    await page.getByLabel(es.ledger.form.amount).pressSequentially("100000");
+    await page.getByRole("button", { name: /Hacia/ }).click();
+    await page
+      .getByRole("dialog", { name: es.ledger.form.to })
+      .getByRole("link", { name: es.accounts.createFund })
+      .click();
+
     // P320: a shared space's form creates only a fund, with no type to pick.
-    await page.goto(`/spaces/${space.id}/accounts/new`);
     const sheet = page.getByRole("dialog", { name: es.accounts.newFund });
     await expect(sheet.getByRole("radiogroup")).toHaveCount(0);
     await sheet.getByLabel(es.accounts.field.name).fill("Fondo Hogar");
     await sheet.getByRole("button", { name: es.accounts.create }).click();
-    await expect(page.getByText("Fondo Hogar").first()).toBeVisible();
-
-    // P321: Registrar offers the expense and a contribution from her own account into the fund, never an income.
-    await page.goto(`/spaces/${space.id}/new`);
-    await expect(page.getByRole("tab", { name: es.ledger.type.INCOME })).toHaveCount(0);
-    await page.getByRole("tab", { name: es.ledger.type.TRANSFER }).click();
+    await expect(page).toHaveURL(
+      (url) => url.pathname === `/spaces/${space.id}/new` && url.searchParams.get("type") === "transfer",
+    );
+    await expect(page.getByLabel(es.ledger.form.amount)).toHaveValue("100.000");
     // Desde offers her own accounts (her starter accounts and Bancolombia), never the fund.
     await page.getByRole("button", { name: /Desde/ }).click();
     const from = page.getByRole("dialog", { name: es.ledger.form.from });
@@ -163,7 +172,6 @@ test.describe("shared spaces (slice 4 of #199, ADR 0006)", () => {
     await from.getByRole("radio", { name: /Bancolombia/ }).click();
     await expect(page.getByRole("button", { name: /Desde/ })).toContainText("Bancolombia");
     await expect(page.getByRole("button", { name: /Hacia/ })).toContainText("Fondo Hogar");
-    await page.getByLabel(es.ledger.form.amount).pressSequentially("100000");
     await page.getByRole("button", { name: es.ledger.form.save.TRANSFER }).click();
     await expect(page).not.toHaveURL(/\/new/);
 

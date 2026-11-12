@@ -20,6 +20,9 @@ export function AccountPicker({
   onChoose,
   label,
   newAccountHref,
+  newLabel,
+  emptyText,
+  onNew,
 }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -28,6 +31,12 @@ export function AccountPicker({
   readonly onChoose: (accountId: string) => void;
   readonly label: string;
   readonly newAccountHref?: string;
+  /** Ruling P321: what the New link says, "Crear un fondo" for a shared fund; "Nueva cuenta" by default. */
+  readonly newLabel?: string;
+  /** Ruling P321: what an empty list says; by default it asks to create an account. */
+  readonly emptyText?: string;
+  /** Ruling P321: runs as the New link is followed, so the form can keep what was typed for its return. */
+  readonly onNew?: () => void;
 }) {
   const t = useTranslations("accounts");
   const live = accounts.filter((a) => a.archivedAt === null);
@@ -40,7 +49,7 @@ export function AccountPicker({
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={label}>
       {live.length === 0 ? (
-        <p className="mb-2 rounded-2xl bg-track p-3 text-sm text-ink">{t("picker.empty")}</p>
+        <p className="mb-2 rounded-2xl bg-track p-3 text-sm text-ink">{emptyText ?? t("picker.empty")}</p>
       ) : (
         <div onClick={tapped}>
           <ChoiceGroup
@@ -72,11 +81,16 @@ export function AccountPicker({
       {newAccountHref ? (
         <Link
           href={newAccountHref}
-          onClick={() => onOpenChange(false)}
+          // Ruling P321: a form that hands over what was typed is replaced, so leaving it does not ask (#215, as P305).
+          replace={onNew !== undefined}
+          onClick={() => {
+            onNew?.();
+            onOpenChange(false);
+          }}
           className="mt-2 flex min-h-14 items-center gap-3 rounded-xl px-2 font-medium text-accent"
         >
           <Icon name="plus" />
-          {t("new")}
+          {newLabel ?? t("new")}
         </Link>
       ) : null}
     </Sheet>
