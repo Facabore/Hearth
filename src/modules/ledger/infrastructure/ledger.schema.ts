@@ -12,6 +12,7 @@ import {
   smallint,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -27,6 +28,9 @@ const money = (name: string) => bigint(name, { mode: "bigint" });
 // #249, M1-9: the domain's SplitMethod and the audit actions (ports.ts), also the contract's enums; a CHECK keeps each.
 const SPLIT_METHODS = ["EQUAL", "PERCENT", "EXACT", "SHARES", "BY_ALLOCATION"] as const;
 const AUDIT_ACTIONS = ["UPDATED", "DELETED", "RESTORED"] as const;
+// Ruling P322: why a SETTLEMENT was recorded; null on every other type and on settlements recorded before 0029,
+// which read as PAYMENT.
+const SETTLEMENT_REASONS = ["PAYMENT", "GIFT", "FORGIVENESS"] as const;
 
 export const transactions = pgTable(
   "transactions",
@@ -51,6 +55,11 @@ export const transactions = pgTable(
     receivingMemberId: uuid("receiving_member_id"),
     // HU-E4-09: the contributor of a TRANSFER into the shared fund; HU-E5-02: the payer of a SETTLEMENT.
     payerMemberId: uuid("payer_member_id"),
+    // Ruling P322: a SETTLEMENT's reason, the member a payment was made for and the other half of a gift; the last
+    // two belong to the transaction's space too (composite keys below, P288).
+    settlementReason: text("settlement_reason", { enum: SETTLEMENT_REASONS }),
+    onBehalfOfMemberId: uuid("on_behalf_of_member_id"),
+    linkedTransactionId: uuid("linked_transaction_id"),
     createdBy: text("created_by").notNull(),
     createdAt: tz("created_at").notNull(),
     updatedAt: tz("updated_at").notNull(),
@@ -85,6 +94,18 @@ export const transactions = pgTable(
       columns: [t.payerMemberId, t.spaceId],
       foreignColumns: [spaceMembers.id, spaceMembers.spaceId],
     }),
+    // Ruling P322: the key a gift's link points at, so both halves live in one space.
+    unique("transactions_id_space_uq").on(t.id, t.spaceId),
+    foreignKey({
+      name: "transactions_on_behalf_of_member_space_fk",
+      columns: [t.onBehalfOfMemberId, t.spaceId],
+      foreignColumns: [spaceMembers.id, spaceMembers.spaceId],
+    }),
+    foreignKey({
+      name: "transactions_linked_transaction_space_fk",
+      columns: [t.linkedTransactionId, t.spaceId],
+      foreignColumns: [t.id, t.spaceId],
+    }),
     check("transactions_amount_positive", sql`${t.amount} > 0`),
     check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose
@@ -100,6 +121,21 @@ export const transactions = pgTable(
     check(
       "transactions_settlement_parties",
       sql`${t.type} <> 'SETTLEMENT' OR ${t.payerMemberId} <> ${t.receivingMemberId}`,
+    ),
+    // Ruling P322: only a settlement has a reason; a GIFT or a FORGIVENESS moves no money, so it names no account.
+    check(
+      "transactions_settlement_reason",
+      sql`${t.settlementReason} IS NULL OR (${t.type} = 'SETTLEMENT' AND ${oneOf(t.settlementReason, SETTLEMENT_REASONS)}
+        AND (${t.settlementReason} = 'PAYMENT' OR (${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NULL)))`,
+    ),
+    // Ruling P322: a payment for someone names a third member; a gift's link is a settlement pointing elsewhere.
+    check(
+      "transactions_on_behalf_of",
+      sql`${t.onBehalfOfMemberId} IS NULL OR (${t.type} = 'SETTLEMENT' AND ${t.onBehalfOfMemberId} <> ${t.payerMemberId} AND ${t.onBehalfOfMemberId} <> ${t.receivingMemberId})`,
+    ),
+    check(
+      "transactions_linked_transaction",
+      sql`${t.linkedTransactionId} IS NULL OR (${t.type} = 'SETTLEMENT' AND ${t.linkedTransactionId} <> ${t.id})`,
     ),
   ],
 );

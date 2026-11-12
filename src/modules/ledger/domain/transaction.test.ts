@@ -348,6 +348,10 @@ describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
       receivingMemberId: "member-ana",
       sourceAccountId: null,
       destinationAccountId: null,
+      // Ruling P322: a plain settlement is a PAYMENT for nobody, linked to nothing.
+      reason: "PAYMENT",
+      onBehalfOfMemberId: null,
+      linkedTransactionId: null,
       createdBy: "u-ana",
       createdAt: now,
       updatedAt: now,

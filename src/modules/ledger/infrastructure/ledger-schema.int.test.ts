@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { testDatabase } from "../../../../tests/support/database";
-import { sharedLedgerFixture, type SharedLedgerFixture } from "../../../../tests/support/fixtures";
+import {
+  guestMemberFixture,
+  sharedLedgerFixture,
+  type SharedLedgerFixture,
+} from "../../../../tests/support/fixtures";
 
 const { db, pool } = testDatabase();
 let w: SharedLedgerFixture;
@@ -101,5 +105,89 @@ describe("transactions shape for fund contributions (HU-E4-09)", () => {
         payerMemberId: ana,
       }),
     ).rejects.toThrow(/transactions_shape/);
+  });
+});
+
+/** A SETTLEMENT of `spaceId` (Household unless given) from Pedro to Ana, with the P322 columns given. */
+interface SettlementRow {
+  readonly id?: string;
+  readonly spaceId?: string;
+  readonly payerMemberId?: string;
+  readonly receivingMemberId?: string;
+  readonly sourceAccountId?: string;
+  readonly reason?: string;
+  readonly onBehalfOfMemberId?: string;
+  readonly linkedTransactionId?: string;
+}
+const settlementRow = async (row: SettlementRow) => {
+  const id = row.id ?? randomUUID();
+  await pool.query(
+    `INSERT INTO transactions (id, space_id, type, description, date, amount, currency, payer_member_id,
+       receiving_member_id, source_account_id, settlement_reason, on_behalf_of_member_id, linked_transaction_id,
+       created_by, created_at, updated_at)
+     VALUES ($1, $2, 'SETTLEMENT', '', '2026-10-05', 100, 'COP', $3, $4, $5, $6, $7, $8, $9, now(), now())`,
+    [
+      id,
+      row.spaceId ?? w.household.spaceId,
+      row.payerMemberId ?? w.pedro,
+      row.receivingMemberId ?? w.household.memberId,
+      row.sourceAccountId ?? null,
+      row.reason ?? null,
+      row.onBehalfOfMemberId ?? null,
+      row.linkedTransactionId ?? null,
+      w.household.userId,
+    ],
+  );
+  return id;
+};
+
+describe("transactions shape for payments for someone, gifts and forgiveness (ruling P322)", () => {
+  it("accepts each reason, a third member paid for and a link to a settlement of the same space", async () => {
+    const third = await guestMemberFixture(pool, w.household, "Benekin");
+    for (const reason of ["PAYMENT", "GIFT", "FORGIVENESS"]) {
+      await expect(settlementRow({ reason })).resolves.toBeDefined();
+    }
+    const payment = await settlementRow({ reason: "PAYMENT", onBehalfOfMemberId: third });
+    await expect(settlementRow({ reason: "GIFT", linkedTransactionId: payment })).resolves.toBeDefined();
+  });
+
+  it("rejects an unknown reason, a reason off a settlement and accounts on a GIFT or a FORGIVENESS", async () => {
+    await expect(settlementRow({ reason: "LOAN" })).rejects.toThrow(/transactions_settlement_reason/);
+    await expect(
+      pool.query(
+        `INSERT INTO transactions (id, space_id, type, description, date, category_id, amount, currency, created_by,
+           created_at, updated_at, settlement_reason)
+         VALUES ($1, $2, 'EXPENSE', '', '2026-10-05', $3, 100, 'COP', $4, now(), now(), 'PAYMENT')`,
+        [randomUUID(), w.household.spaceId, w.groceries, w.household.userId],
+      ),
+    ).rejects.toThrow(/transactions_settlement_reason/);
+    for (const reason of ["GIFT", "FORGIVENESS"]) {
+      const fromAna = {
+        payerMemberId: w.household.memberId,
+        receivingMemberId: w.pedro,
+        sourceAccountId: w.bank,
+      };
+      await expect(settlementRow({ ...fromAna, reason })).rejects.toThrow(/transactions_settlement_reason/);
+    }
+  });
+
+  it("rejects paying for a party, a member of another space and a link to itself or into another space", async () => {
+    await expect(settlementRow({ onBehalfOfMemberId: w.pedro })).rejects.toThrow(/transactions_on_behalf_of/);
+    const elsewhere = await sharedLedgerFixture(db, pool);
+    await expect(settlementRow({ onBehalfOfMemberId: elsewhere.pedro })).rejects.toThrow(
+      /transactions_on_behalf_of_member_space_fk/,
+    );
+    const id = randomUUID();
+    await expect(settlementRow({ id, linkedTransactionId: id })).rejects.toThrow(
+      /transactions_linked_transaction/,
+    );
+    const theirs = await settlementRow({
+      spaceId: elsewhere.household.spaceId,
+      payerMemberId: elsewhere.pedro,
+      receivingMemberId: elsewhere.household.memberId,
+    });
+    await expect(settlementRow({ linkedTransactionId: theirs })).rejects.toThrow(
+      /transactions_linked_transaction_space_fk/,
+    );
   });
 });

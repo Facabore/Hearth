@@ -7,6 +7,7 @@ import { unwrap } from "../../../../tests/support/fakes";
 import {
   accountFixture,
   categoryFixture,
+  guestMemberFixture,
   personalSpaceFixture,
   sharedLedgerFixture,
   type SpaceFixture,
@@ -14,6 +15,7 @@ import {
 import type { AuditEntry } from "../application/ports";
 import {
   changesBetween,
+  giveAway,
   recordExpense,
   recordFundContribution,
   recordIncome,
@@ -277,5 +279,42 @@ describe("transaction time (HU-E4-14)", () => {
     await expect(
       pool.query(`UPDATE transactions SET occurred_at = now() WHERE id = $1`, [market.id]),
     ).rejects.toMatchObject({ constraint: "transactions_time_zone" });
+  });
+});
+
+describe("a gift's two halves (ruling P322)", () => {
+  const giftPair = async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const juan = await guestMemberFixture(pool, w.household, "Juan");
+    const payment = unwrap(
+      recordSettlement({
+        ...common(4_500_000n),
+        spaceId: w.household.spaceId,
+        payerMemberId: w.household.memberId,
+        receivingMemberId: juan,
+        sourceAccountId: w.bank,
+        destinationAccountId: null,
+        onBehalfOfMemberId: w.pedro,
+        gift: true,
+      }),
+    );
+    return { w, halves: unwrap(giveAway(payment, randomUUID() as TransactionId)) };
+  };
+
+  it("stores both halves in one statement, each pointing at the other, and reads them back", async () => {
+    const { w, halves } = await giftPair();
+    await repo.add(...halves);
+    for (const half of halves) expect(await repo.findById(w.household.spaceId, half.id)).toEqual(half);
+  });
+
+  it("stores neither half when one of them is refused", async () => {
+    const { w, halves } = await giftPair();
+    const [payment, gift] = halves;
+    // The GIFT names a member of no space: its composite key (P288) refuses the whole statement.
+    await expect(repo.add(payment, { ...gift, payerMemberId: randomUUID() })).rejects.toMatchObject({
+      cause: { constraint: "transactions_payer_member_space_fk" },
+    });
+    expect(await repo.findById(w.household.spaceId, payment.id, true)).toBeNull();
+    expect(await repo.findById(w.household.spaceId, gift.id, true)).toBeNull();
   });
 });

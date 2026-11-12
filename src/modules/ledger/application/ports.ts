@@ -1,6 +1,6 @@
 import type { SpaceId } from "@/modules/spaces/application";
 import type { LocalDate } from "@/shared/kernel";
-import type { ChangeSet, Transaction, TransactionType } from "../domain/transaction";
+import type { ChangeSet, SettlementReason, Transaction, TransactionType } from "../domain/transaction";
 
 /** What the ledger needs to know about an account; bound to the accounts module. */
 export interface LedgerAccount {
@@ -72,7 +72,8 @@ export interface DefaultSplitSource {
 }
 
 export interface TransactionRepository {
-  add(transaction: Transaction): Promise<void>;
+  /** Ruling P322: several transactions are stored in one statement, so a gift's two halves never land alone. */
+  add(...transactions: Transaction[]): Promise<void>;
   /** A transaction of the space; soft-deleted ones only when asked; null for unknown or malformed ids. */
   findById(spaceId: string, transactionId: string, includeDeleted?: boolean): Promise<Transaction | null>;
   /** Writes `transaction` as version `expectedVersion + 1` only if the stored version is `expectedVersion`. */
@@ -170,10 +171,17 @@ export interface BalanceMovement {
   readonly type: "EXPENSE" | "SETTLEMENT";
   readonly date: LocalDate;
   readonly description: string;
-  /** What it did to the member's net: paid − share of a member-paid expense, + paid or − received of a settlement. */
+  /** What it did to the member's net: paid − share of a member-paid expense, + paid or − received of a settlement, 0 for the member it was paid for (P322). */
   readonly change: bigint;
   /** The member's net after it, over every earlier movement of the space. */
   readonly balance: bigint;
+  /** Ruling P322: a SETTLEMENT's reason, parties and the member it was paid for; absent on an EXPENSE. */
+  readonly settlementReason?: SettlementReason;
+  readonly payerMemberId?: string;
+  readonly receivingMemberId?: string;
+  readonly onBehalfOfMemberId?: string | null;
+  /** Ruling P322: the other half of a gift; null otherwise. */
+  readonly linkedTransactionId?: string | null;
 }
 
 /** HU-E5-04: the member's net before `from` and their movements within the range, by date, creation and id. */

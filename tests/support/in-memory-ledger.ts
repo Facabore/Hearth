@@ -138,8 +138,8 @@ export class InMemoryTransactions
 {
   rows: Transaction[] = [];
 
-  async add(transaction: Transaction) {
-    this.rows.push(transaction);
+  async add(...transactions: Transaction[]) {
+    this.rows.push(...transactions);
   }
 
   async findById(spaceId: string, transactionId: string, includeDeleted = false) {
@@ -264,7 +264,9 @@ export class InMemoryTransactions
     const entries: BalanceMovement[] = [];
     for (const t of live) {
       const change = changeOf(t);
-      if (change === 0n) continue;
+      // Ruling P322: a payment made for the member is listed with a change of 0.
+      const paidFor = t.type === "SETTLEMENT" && t.onBehalfOfMemberId === memberId;
+      if (change === 0n && !paidFor) continue;
       balance += change;
       if (range.from !== null && t.date < range.from) opening = balance;
       else {
@@ -275,6 +277,15 @@ export class InMemoryTransactions
           description: t.description,
           change,
           balance,
+          ...(t.type === "SETTLEMENT"
+            ? {
+                settlementReason: t.reason,
+                payerMemberId: t.payerMemberId,
+                receivingMemberId: t.receivingMemberId,
+                onBehalfOfMemberId: t.onBehalfOfMemberId,
+                linkedTransactionId: t.linkedTransactionId,
+              }
+            : {}),
         });
       }
     }
@@ -438,5 +449,8 @@ export const aSettlement = (
   receivingMemberId: "member-ana",
   sourceAccountId: null,
   destinationAccountId: null,
+  reason: "PAYMENT",
+  onBehalfOfMemberId: null,
+  linkedTransactionId: null,
   ...overrides,
 });

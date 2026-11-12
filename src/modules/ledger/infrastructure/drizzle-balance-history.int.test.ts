@@ -13,6 +13,7 @@ import {
 import { InMemoryTransactions } from "../../../../tests/support/in-memory-ledger";
 import type { HistoryRange, MemberBalanceHistory, MemberMoneyTotals } from "../application/ports";
 import {
+  giveAway,
   recordExpense,
   recordFundContribution,
   recordIncome,
@@ -476,5 +477,88 @@ describe("a member's balance history in SQL (HU-E5-04)", () => {
       await queries.memberHistory("not-a-uuid", w.pedro, open),
       await queries.memberHistory(w.household.spaceId, "not-a-uuid", open),
     ]).toEqual([nothing, nothing]);
+  });
+});
+
+describe("a payment made for someone in the history (ruling P322)", () => {
+  /**
+   * Household with Ana and the guests Pedro and Juan: Ana pays 90,000 EQUAL with Pedro (10-03); Juan pays Ana 20,000
+   * for Pedro, who owes it back (10-30), and 25,000 for Pedro as a gift, whose GIFT clears it (10-30).
+   */
+  const fixture = async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const juan = await guestMemberFixture(pool, w.household, "Juan");
+    const memory = new InMemoryTransactions();
+    const dinner = expense(w, "2026-10-03", 0, pesos(90_000n), { memberId: ana, accountId: w.bank }, [
+      ana,
+      w.pedro,
+    ]);
+    const forPedro = (minute: number, amount: bigint, gift: boolean) =>
+      unwrap(
+        recordSettlement({
+          ...base(w, "2026-10-30", minute, amount),
+          payerMemberId: juan,
+          receivingMemberId: ana,
+          sourceAccountId: null,
+          destinationAccountId: null,
+          onBehalfOfMemberId: w.pedro,
+          gift,
+        }),
+      );
+    const lent = forPedro(1, pesos(20_000n), false);
+    // Both halves share their instant; the gift's id sorts after the payment's, as UUIDv7 ids do in production.
+    const giftId = `ffffffff-${randomUUID().slice(9)}` as TransactionId;
+    const [given, gift] = unwrap(giveAway(forPedro(2, pesos(25_000n), true), giftId));
+    await storeInBoth(memory, dinner, lent);
+    await repo.add(given, gift);
+    await memory.add(given, gift);
+    return { w, ana, juan, memory, dinner, lent, given, gift };
+  };
+
+  it("lists the payments for Pedro with a change of 0 and the GIFT that clears them, as the twin does", async () => {
+    const { w, ana, juan, memory, lent, given, gift } = await fixture();
+    const pedro = await queries.memberHistory(w.household.spaceId, w.pedro, open);
+    expect(
+      pedro.entries.map((e) => [
+        e.transactionId,
+        e.change,
+        e.balance,
+        e.settlementReason,
+        e.onBehalfOfMemberId,
+      ]),
+    ).toEqual([
+      [expect.any(String), pesos(-45_000n), pesos(-45_000n), undefined, undefined],
+      [lent.id, 0n, pesos(-45_000n), "PAYMENT", w.pedro],
+      [given.id, 0n, pesos(-45_000n), "PAYMENT", w.pedro],
+      [gift.id, pesos(25_000n), pesos(-20_000n), "GIFT", null],
+    ]);
+    expect(pedro.entries.slice(1).map((e) => [e.payerMemberId, e.receivingMemberId])).toEqual([
+      [juan, ana],
+      [juan, ana],
+      [w.pedro, juan],
+    ]);
+    expect(pedro.entries.map((e) => e.linkedTransactionId)).toEqual([undefined, null, gift.id, given.id]);
+    for (const member of [ana, w.pedro, juan]) {
+      for (const range of RANGES) {
+        expect(await queries.memberHistory(w.household.spaceId, member, range)).toEqual(
+          await memory.memberHistory(w.household.spaceId, member, range),
+        );
+      }
+    }
+  });
+
+  it("reads a settlement stored before 0029, without a reason, as a PAYMENT", async () => {
+    const { w, ana } = await fixture();
+    const old = settlement(w, "2026-10-31", 9, pesos(5_000n), w.pedro, ana);
+    await repo.add(old);
+    await pool.query("UPDATE transactions SET settlement_reason = NULL WHERE id = $1", [old.id]);
+    expect(await repo.findById(w.household.spaceId, old.id)).toEqual(old);
+    const history = await queries.memberHistory(w.household.spaceId, w.pedro, open);
+    expect(history.entries.at(-1)).toMatchObject({
+      transactionId: old.id,
+      settlementReason: "PAYMENT",
+      onBehalfOfMemberId: null,
+    });
   });
 });

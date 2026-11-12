@@ -76,7 +76,16 @@ export interface Settlement extends TransactionBase {
   readonly receivingMemberId: string;
   readonly sourceAccountId: string | null;
   readonly destinationAccountId: string | null;
+  /** Ruling P322: PAYMENT moved money, GIFT gave away a payment made for someone, FORGIVENESS forgave a debt. */
+  readonly reason: SettlementReason;
+  /** Ruling P322: the member whose debt this payment paid; neither the payer nor the receiver. */
+  readonly onBehalfOfMemberId: string | null;
+  /** Ruling P322: the other half of a gift; the payment and its GIFT point at each other. */
+  readonly linkedTransactionId: TransactionId | null;
 }
+
+/** Ruling P322: why a settlement was recorded. */
+export type SettlementReason = "PAYMENT" | "GIFT" | "FORGIVENESS";
 
 export type Transaction = Expense | Income | Transfer | Settlement;
 
@@ -248,18 +257,34 @@ export const recordFundContribution = (
   });
 };
 
-/** HU-E5-02: a settlement between two different members of the space. */
+/**
+ * HU-E5-02: a settlement between two different members of the space. Ruling P322: a PAYMENT may pay a third member's
+ * debt (`onBehalfOfMemberId`, InvalidOnBehalfOf when it names a party) and only such a payment may be a `gift`
+ * (GiftRequiresOnBehalfOf); a FORGIVENESS moves no money, so it names no account (ForgivenessHasNoAccounts).
+ */
 export const recordSettlement = (
   input: NewTransaction & {
     readonly payerMemberId: string;
     readonly receivingMemberId: string;
     readonly sourceAccountId: string | null;
     readonly destinationAccountId: string | null;
+    readonly reason?: "PAYMENT" | "FORGIVENESS";
+    readonly onBehalfOfMemberId?: string | null;
+    readonly gift?: boolean;
   },
 ): Result<Settlement> => {
   const base = baseOf(input);
   if (!base.ok) return base;
   if (input.payerMemberId === input.receivingMemberId) return err(domainError("InvalidSettlementParties"));
+  const reason = input.reason ?? "PAYMENT";
+  const onBehalfOf = input.onBehalfOfMemberId ?? null;
+  if (input.gift === true && onBehalfOf === null) return err(domainError("GiftRequiresOnBehalfOf"));
+  const party = onBehalfOf === input.payerMemberId || onBehalfOf === input.receivingMemberId;
+  if (onBehalfOf !== null && (party || reason === "FORGIVENESS"))
+    return err(domainError("InvalidOnBehalfOf"));
+  if (reason === "FORGIVENESS" && (input.sourceAccountId !== null || input.destinationAccountId !== null)) {
+    return err(domainError("ForgivenessHasNoAccounts"));
+  }
   return ok({
     ...base.value,
     type: "SETTLEMENT" as const,
@@ -268,8 +293,46 @@ export const recordSettlement = (
     receivingMemberId: input.receivingMemberId,
     sourceAccountId: input.sourceAccountId,
     destinationAccountId: input.destinationAccountId,
+    reason,
+    onBehalfOfMemberId: onBehalfOf,
+    linkedTransactionId: null,
   });
 };
+
+/**
+ * Ruling P322 "Se lo regalo": the payer gives away what the member they paid for now owes them. The GIFT is a
+ * settlement from that member to the payer with no accounts, at the same moment, for the same amount and by the same
+ * recorder, and both halves point at each other.
+ */
+export const giveAway = (payment: Settlement, giftId: TransactionId): Result<[Settlement, Settlement]> => {
+  if (payment.reason !== "PAYMENT" || payment.onBehalfOfMemberId === null) {
+    return err(domainError("GiftRequiresOnBehalfOf"));
+  }
+  const gift: Settlement = {
+    ...payment,
+    id: giftId,
+    payerMemberId: payment.onBehalfOfMemberId,
+    receivingMemberId: payment.payerMemberId,
+    sourceAccountId: null,
+    destinationAccountId: null,
+    reason: "GIFT",
+    onBehalfOfMemberId: null,
+    linkedTransactionId: payment.id,
+  };
+  return ok([{ ...payment, linkedTransactionId: giftId }, gift]);
+};
+
+/**
+ * Ruling P322 "Perdonar": only the receiver's own user forgives what the receiver is owed; a guest receiver has no
+ * user, so an OWNER or ADMIN forgives for them.
+ */
+export const mayForgive = (
+  receiver: { readonly userId: string | null },
+  recorder: { readonly userId: string; readonly role: MemberRole | null },
+): boolean =>
+  receiver.userId === null
+    ? recorder.role === "OWNER" || recorder.role === "ADMIN"
+    : receiver.userId === recorder.userId;
 
 /**
  * HU-E4-06: a sole payment or share follows a new amount; otherwise the parts must still add up. Ruling P186: new

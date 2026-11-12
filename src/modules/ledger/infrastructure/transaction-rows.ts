@@ -24,6 +24,10 @@ export const transactionRow = (tx: Transaction): typeof transactions.$inferInser
   destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
   receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
   payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
+  // Ruling P322: written on every new settlement; only rows recorded before 0029 keep a null reason.
+  settlementReason: tx.type === "SETTLEMENT" ? tx.reason : null,
+  onBehalfOfMemberId: tx.type === "SETTLEMENT" ? tx.onBehalfOfMemberId : null,
+  linkedTransactionId: tx.type === "SETTLEMENT" ? tx.linkedTransactionId : null,
   createdBy: tx.createdBy,
   createdAt: tx.createdAt,
   updatedAt: tx.updatedAt,
@@ -120,6 +124,10 @@ const toTransaction = (
         receivingMemberId: row.receivingMemberId!,
         sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId,
+        // Ruling P322: a settlement recorded before 0029 has no reason; every one of them was a PAYMENT.
+        reason: row.settlementReason ?? "PAYMENT",
+        onBehalfOfMemberId: row.onBehalfOfMemberId,
+        linkedTransactionId: row.linkedTransactionId as TransactionId | null,
       };
   }
 };

@@ -10,10 +10,12 @@ import { loadTransactions, paymentRows, shareRows, transactionRow } from "./tran
 export class DrizzleTransactionRepository implements TransactionRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
-  async add(transaction: Transaction): Promise<void> {
+  /** Ruling P322: one INSERT for all of them, so a gift's halves, which point at each other, land together. */
+  async add(...all: Transaction[]): Promise<void> {
+    if (all.length === 0) return;
     const db = this.tm.executor();
-    await db.insert(transactions).values(transactionRow(transaction));
-    await this.insertParts(db, transaction);
+    await db.insert(transactions).values(all.map(transactionRow));
+    for (const transaction of all) await this.insertParts(db, transaction);
   }
 
   async findById(

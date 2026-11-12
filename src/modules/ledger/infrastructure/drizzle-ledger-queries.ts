@@ -449,12 +449,18 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
       readonly description: string;
       readonly change: string;
       readonly balance: string;
+      readonly reason: "PAYMENT" | "GIFT" | "FORGIVENESS" | null;
+      readonly payer: string | null;
+      readonly receiver: string | null;
+      readonly on_behalf_of: string | null;
+      readonly linked: string | null;
       /** The last movement before `from`, whose balance is the opening; false for every entry. */
       readonly before_range: boolean;
     }
     const { rows } = await this.tm.executor().execute(sql`
       WITH movements AS (
         SELECT t.id, t.date, t.created_at, t.type, t.description,
+          NULL::text AS reason, NULL::uuid AS payer, NULL::uuid AS receiver, NULL::uuid AS on_behalf_of, NULL::uuid AS linked,
           coalesce((SELECT sum(p.amount) FROM ${payments} p WHERE p.transaction_id = t.id AND p.member_id = ${memberId}), 0)
             - coalesce((SELECT sum(s.amount) FROM ${shares} s WHERE s.transaction_id = t.id AND s.member_id = ${memberId}), 0)
             AS change
@@ -463,18 +469,23 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
           AND NOT EXISTS (SELECT 1 FROM ${payments} f WHERE f.transaction_id = t.id AND f.member_id IS NULL)
         UNION ALL
         SELECT t.id, t.date, t.created_at, t.type, t.description,
-          CASE WHEN t.payer_member_id = ${memberId} THEN t.amount ELSE -t.amount END
+          coalesce(t.settlement_reason, 'PAYMENT'), t.payer_member_id, t.receiving_member_id, t.on_behalf_of_member_id,
+          t.linked_transaction_id,
+          CASE WHEN t.payer_member_id = ${memberId} THEN t.amount
+            WHEN t.receiving_member_id = ${memberId} THEN -t.amount ELSE 0 END
         FROM ${transactions} t
         WHERE t.space_id = ${spaceId} AND t.deleted_at IS NULL AND t.type = 'SETTLEMENT'
-          AND ${memberId} IN (t.payer_member_id, t.receiving_member_id)
+          AND ${memberId} IN (t.payer_member_id, t.receiving_member_id, t.on_behalf_of_member_id)
       ), running AS (
-        SELECT id, date, created_at, type, description, change,
+        SELECT id, date, created_at, type, description, change, reason, payer, receiver, on_behalf_of, linked,
           sum(change) OVER (ORDER BY date, created_at, id) AS balance,
           lead(date) OVER (ORDER BY date, created_at, id) AS next_date
         FROM movements
-        WHERE change <> 0 AND (${range.to}::date IS NULL OR date <= ${range.to}::date)
+        -- Ruling P322: a payment made for the member moves nothing of theirs, yet is listed with a change of 0.
+        WHERE (change <> 0 OR on_behalf_of = ${memberId}::uuid) AND (${range.to}::date IS NULL OR date <= ${range.to}::date)
       )
       SELECT id, date::text AS date, type, description, change::text AS change, balance::text AS balance,
+        reason, payer, receiver, on_behalf_of, linked,
         coalesce(date < ${range.from}::date, false) AS before_range
       FROM running
       WHERE ${range.from}::date IS NULL OR date >= ${range.from}::date
@@ -493,6 +504,16 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
           description: row.description,
           change: BigInt(row.change),
           balance: BigInt(row.balance),
+          // Ruling P322: who paid whom, why and for whom; only a settlement says it.
+          ...(row.type === "SETTLEMENT"
+            ? {
+                settlementReason: row.reason!,
+                payerMemberId: row.payer!,
+                receivingMemberId: row.receiver!,
+                onBehalfOfMemberId: row.on_behalf_of,
+                linkedTransactionId: row.linked,
+              }
+            : {}),
         })),
     };
   }

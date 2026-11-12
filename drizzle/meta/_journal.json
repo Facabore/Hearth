@@ -204,6 +204,13 @@
       "when": 1794012616753,
       "tag": "0028_space_color",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794505581875,
+      "tag": "0029_settlement_reasons",
+      "breakpoints": true
     }
   ]
 }
