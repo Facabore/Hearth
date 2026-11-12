@@ -9,6 +9,7 @@ import { writeTrail } from "@/shared/ui/navigation/history";
 import type { MemberDto, TransactionDto } from "@/shared/ui/api/dto";
 import type { TransactionDetail } from "./transaction-detail";
 import { TransactionSheet } from "./transaction-sheet";
+import { kindOf } from "../movement-kind";
 
 const mocks = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), back: vi.fn() },
@@ -380,5 +381,83 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(definition("Date and time")).toBe("31/10/2026 · 12:30");
     expect(screen.getByRole("link", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+});
+
+describe("a payment for someone else and a forgiven debt (P322)", () => {
+  const kamilox = memberDto({ id: "m-kami", userId: "u-kami", displayName: "Kamilox", role: "MEMBER" });
+  const benekin = guestDto({ id: "m-benekin", displayName: "Benekin" });
+  const camilou = guestDto({ id: "m-camilou", displayName: "Camilou" });
+  const friends = [kamilox, benekin, camilou];
+  const asKamilox = { userId: "u-kami", role: "MEMBER", memberId: "m-kami" } as const;
+  const settlement = (overrides: Partial<TransactionDto>) =>
+    transactionDto({
+      id: "t-p",
+      type: "SETTLEMENT",
+      description: "",
+      amount: cop(4_500),
+      payerMemberId: "m-kami",
+      receivingMemberId: "m-camilou",
+      settlementReason: "PAYMENT",
+      ...overrides,
+    });
+
+  it("says Pago por Benekin for a payment Kamilox lent him", () => {
+    open(detailOf(settlement({ onBehalfOfMemberId: "m-benekin" }), friends, asKamilox));
+    expect(screen.getByRole("dialog", { name: "Pago por Benekin" })).toBeInTheDocument();
+    expect(definition("Tipo")).toBe("Pago por Benekin");
+    expect(definition("Desde")).toBe("Kamilox (tú)");
+    expect(definition("Hacia")).toBe("Camilou (invitado)");
+  });
+
+  it("says Pago por Benekin · se lo regaló for both halves of a gift", () => {
+    const lent = open(
+      detailOf(
+        settlement({ onBehalfOfMemberId: "m-benekin", linkedTransactionId: "t-g" }),
+        friends,
+        asKamilox,
+      ),
+    );
+    expect(definition("Tipo")).toBe("Pago por Benekin · se lo regaló");
+    lent.unmount();
+    open(
+      detailOf(
+        settlement({
+          id: "t-g",
+          settlementReason: "GIFT",
+          payerMemberId: "m-benekin",
+          receivingMemberId: "m-kami",
+          linkedTransactionId: "t-p",
+        }),
+        friends,
+        asKamilox,
+      ),
+    );
+    expect(definition("Tipo")).toBe("Pago por Benekin · se lo regaló");
+  });
+
+  it("says Deuda perdonada for a forgiveness, in its row too", () => {
+    const forgiven = settlement({
+      settlementReason: "FORGIVENESS",
+      payerMemberId: "m-benekin",
+      receivingMemberId: "m-camilou",
+    });
+    open(detailOf(forgiven, friends, asKamilox));
+    expect(screen.getByRole("dialog", { name: "Deuda perdonada" })).toBeInTheDocument();
+    expect(definition("Tipo")).toBe("Deuda perdonada");
+    expect(kindOf(forgiven)).toBe("FORGIVENESS");
+    expect(kindOf(settlement({}))).toBe("SETTLEMENT");
+  });
+
+  it("keeps a plain settlement's type and reads in English", () => {
+    const english = open(
+      detailOf(settlement({ onBehalfOfMemberId: "m-benekin" }), friends, asKamilox),
+      ORIGIN,
+      "en",
+    );
+    expect(definition("Type")).toBe("Payment for Benekin");
+    english.unmount();
+    open(detailOf(settlement({}), friends, asKamilox));
+    expect(definition("Tipo")).toBe("Pago entre miembros");
   });
 });

@@ -65,6 +65,7 @@ export function HistoryRoute() {
         spaceId={space.id}
         spaceName={space.name}
         member={member}
+        members={list}
         period={period}
         previous={previous ?? null}
         next={next ?? null}

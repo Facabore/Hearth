@@ -127,6 +127,10 @@
     "InvalidRecurrenceTransition": "This recurring transaction cannot move to that state now.",
     "InvalidSavingsAccount": "Choose only your own savings accounts, each one once.",
     "InvalidSettlementParties": "The payer and the receiver must be different people.",
+    "InvalidOnBehalfOf": "You can only pay for another member of this space, neither the payer nor the receiver.",
+    "GiftRequiresOnBehalfOf": "Only a payment for another member can be a gift.",
+    "ForgivenessHasNoAccounts": "Forgiving a debt moves no money: remove the account.",
+    "ForgivenessNotAllowed": "Only who collects can forgive the debt; for a guest, whoever manages the space.",
     "InvalidSpaceName": "The space name must have 1 to 80 characters.",
     "InvalidSplit": "Check how the expense is split.",
     "InvalidTerm": "The loan term must be at least one month.",
@@ -455,7 +459,8 @@
       "INCOME": "Income",
       "TRANSFER": "Transfer",
       "SETTLEMENT": "Settlement",
-      "FUND_CONTRIBUTION": "Fund contribution"
+      "FUND_CONTRIBUTION": "Fund contribution",
+      "FORGIVENESS": "Debt forgiven"
     },
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",
@@ -470,6 +475,8 @@
       "noTime": "No time",
       "noDescription": "No description",
       "payerAccount": "{name}'s account",
+      "paidFor": "Payment for {name}",
+      "gaveFor": "Payment for {name} · a gift",
       "edit": "Edit",
       "delete": "Delete",
       "note": {

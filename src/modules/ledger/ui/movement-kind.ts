@@ -2,7 +2,12 @@ import type { TransactionDto } from "@/shared/ui/api/dto";
 
 /**
  * Issue #223 (ruling P283): how a movement is named. A contribution to the shared fund is a TRANSFER that names its
- * contributor (HU-E4-09), so its row and its sheet call it one; every other movement is named by its type.
+ * contributor (HU-E4-09), so its row and its sheet call it one. Ruling P322: a settlement that forgave a debt moved no
+ * money, so it is named as a forgiveness. Every other movement is named by its type.
  */
-export const kindOf = (tx: Pick<TransactionDto, "type" | "payerMemberId">) =>
-  tx.type === "TRANSFER" && tx.payerMemberId !== null ? ("FUND_CONTRIBUTION" as const) : tx.type;
+export const kindOf = (tx: Pick<TransactionDto, "type" | "payerMemberId" | "settlementReason">) =>
+  tx.type === "TRANSFER" && tx.payerMemberId !== null
+    ? ("FUND_CONTRIBUTION" as const)
+    : tx.type === "SETTLEMENT" && tx.settlementReason === "FORGIVENESS"
+      ? ("FORGIVENESS" as const)
+      : tx.type;

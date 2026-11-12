@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
-import { cop, memberDto, normalized } from "../../../../tests/support/ui/dto";
+import { cop, guestDto, memberDto, normalized } from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalanceHistory } from "./balance-history";
@@ -128,5 +128,132 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     view({ previous: null, history: { ...HISTORY, entries: [] } });
     expect(screen.getByText("Nada cambió su saldo en este período.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Período anterior" })).not.toBeInTheDocument();
+  });
+});
+
+describe("who paid for whom in the balance history (P322, boards B6 and B7)", () => {
+  const KAMILOX = memberDto({ id: "m-kami", userId: "u-kami", displayName: "Kamilox", role: "MEMBER" });
+  const BENEKIN = guestDto({ id: "m-benekin", displayName: "Benekin" });
+  const CAMILOU = guestDto({ id: "m-camilou", displayName: "Camilou" });
+  const CAMILOX = guestDto({ id: "m-camilox", displayName: "Camilox" });
+  const FRIENDS = [KAMILOX, BENEKIN, CAMILOU, CAMILOX];
+  const settlement = (overrides: Partial<(typeof HISTORY)["entries"][number]> & Record<string, unknown>) => ({
+    transactionId: "t-p",
+    type: "SETTLEMENT" as const,
+    date: "2026-11-12",
+    description: "",
+    change: cop(0),
+    balance: cop(-4_500),
+    ...overrides,
+  });
+  const PAID_FOR_BENEKIN = settlement({
+    settlementReason: "PAYMENT",
+    payerMemberId: "m-kami",
+    receivingMemberId: "m-camilou",
+    onBehalfOfMemberId: "m-benekin",
+  });
+  const GIFT_TO_BENEKIN = settlement({
+    transactionId: "t-g",
+    change: cop(4_500),
+    balance: cop(0),
+    settlementReason: "GIFT",
+    payerMemberId: "m-benekin",
+    receivingMemberId: "m-kami",
+    onBehalfOfMemberId: null,
+  });
+  const historyOf = (memberId: string, entries: unknown[]) => ({
+    ...HISTORY,
+    memberId,
+    from: "2026-11-01",
+    to: "2026-11-30",
+    opening: cop(-4_500),
+    closing: entries.length > 1 ? cop(0) : cop(-4_500),
+    entries: entries as (typeof HISTORY)["entries"],
+  });
+  const rows = () =>
+    within(screen.getByRole("region", { name: "Movimientos que cambian su saldo" }))
+      .getAllByRole("listitem")
+      .map((row) => normalized(row.textContent));
+  const benekinsView = (entries: unknown[], locale: "es" | "en" = "es") =>
+    view(
+      { member: BENEKIN, members: FRIENDS, period: NOVEMBER, history: historyOf("m-benekin", entries) },
+      locale,
+    );
+
+  it("B6: a payment Kamilox made for Benekin reads as lent to him, with a change of 0", () => {
+    benekinsView([PAID_FOR_BENEKIN]);
+    expect(rows()).toEqual([
+      "12novKamilox pagó por tiA Camilou · se lo debesle toca poner $ 4.500$ 0",
+    ]);
+  });
+
+  it("B7: a gift reads as given, in one row with its payment, and leaves Benekin al día", () => {
+    benekinsView([PAID_FOR_BENEKIN, GIFT_TO_BENEKIN]);
+    expect(rows()).toEqual(["12novKamilox pagó por tiA Camilou · te lo regalóal día+$ 4.500"]);
+  });
+
+  it("pairs a gift with its linked payment, even beside another payment for Benekin that day", () => {
+    const TO_CAMILOX = settlement({
+      ...PAID_FOR_BENEKIN,
+      transactionId: "t-p2",
+      receivingMemberId: "m-camilox",
+    });
+    // The gift sits next to the payment to Camilou, which the same-day guess would take; its link names the other one.
+    benekinsView([TO_CAMILOX, PAID_FOR_BENEKIN, { ...GIFT_TO_BENEKIN, linkedTransactionId: "t-p2" }]);
+    expect(rows()).toEqual([
+      "12novKamilox pagó por tiA Camilou · se lo debesle toca poner $ 4.500$ 0",
+      "12novKamilox pagó por tiA Camilox · te lo regalóal día+$ 4.500",
+    ]);
+  });
+
+  it("names the payment for Benekin and the gift in Kamilox's own history", () => {
+    view({
+      member: KAMILOX,
+      members: FRIENDS,
+      period: NOVEMBER,
+      history: historyOf("m-kami", [
+        settlement({ ...PAID_FOR_BENEKIN, change: cop(4_500), balance: cop(4_500) }),
+        settlement({ ...GIFT_TO_BENEKIN, change: cop(-4_500), balance: cop(0) }),
+      ]),
+    });
+    expect(rows()).toEqual([
+      "12novPago por BenekinA Camiloule toca recibir $ 4.500+$ 4.500",
+      "12novPago por Benekin · se lo regalóal día−$ 4.500",
+    ]);
+  });
+
+  it("says a forgiven debt was forgiven, and by whom", () => {
+    benekinsView([
+      settlement({
+        change: cop(4_500),
+        balance: cop(0),
+        settlementReason: "FORGIVENESS",
+        payerMemberId: "m-benekin",
+        receivingMemberId: "m-camilou",
+        onBehalfOfMemberId: null,
+      }),
+    ]);
+    expect(rows()).toEqual(["12novDeuda perdonadaCamilou te la perdonóal día+$ 4.500"]);
+  });
+
+  it("keeps an ordinary settlement as it was", () => {
+    benekinsView([
+      settlement({
+        change: cop(4_500),
+        balance: cop(0),
+        settlementReason: "PAYMENT",
+        payerMemberId: "m-benekin",
+        receivingMemberId: "m-camilou",
+        onBehalfOfMemberId: null,
+      }),
+    ]);
+    expect(rows()).toEqual(["12novPago entre miembrosal día+$ 4.500"]);
+  });
+
+  it("reads B6 and B7 in English", () => {
+    benekinsView([PAID_FOR_BENEKIN], "en");
+    expect(normalized(screen.getAllByRole("listitem")[0]!.textContent)).toContain(
+      "Kamilox paid for youTo Camilou · you owe it back",
+    );
   });
 });

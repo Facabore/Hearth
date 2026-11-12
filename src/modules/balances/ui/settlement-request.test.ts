@@ -71,6 +71,47 @@ describe("settlement request (HU-E9-07, ruling P174)", () => {
     expect(settlementFieldOf(p("IdempotencyKeyConflict"))).toBe("form");
   });
 
+  it("names whose debt a payment pays and whether it is a gift, and forgives with no account (P322)", () => {
+    const paying = settlementRequestOf(
+      draft({ onBehalfOfMemberId: "m-luis", gift: true, sourceAccountId: "a-davi" }),
+      input,
+    );
+    expect(paying.ok && paying.body).toMatchObject({
+      payerMemberId: "m-juan",
+      onBehalfOfMemberId: "m-luis",
+      gift: true,
+      sourceAccountId: "a-davi",
+    });
+    const lent = settlementRequestOf(draft({ onBehalfOfMemberId: "m-luis" }), input);
+    expect(lent.ok && lent.body).toMatchObject({ gift: false });
+    const forgiving = settlementRequestOf(
+      draft({ reason: "FORGIVENESS", sourceAccountId: "a-davi", destinationAccountId: "a-x" }),
+      input,
+    );
+    expect(forgiving).toEqual({
+      ok: true,
+      body: {
+        ...WHEN,
+        amount: { amount: "10000000", currency: "COP" },
+        payerMemberId: "m-juan",
+        receivingMemberId: "m-ana",
+        reason: "FORGIVENESS",
+      },
+    });
+    const p = (code: string, path?: string) => ({
+      code,
+      status: 422,
+      requestId: "r",
+      errors: path ? [{ path, message: "x" }] : [],
+      field: null,
+    });
+    expect(settlementFieldOf(p("InvalidOnBehalfOf"))).toBe("payer");
+    expect(settlementFieldOf(p("GiftRequiresOnBehalfOf"))).toBe("gift");
+    expect(settlementFieldOf(p("ValidationFailed", "gift"))).toBe("gift");
+    expect(settlementFieldOf(p("ForgivenessHasNoAccounts"))).toBe("form");
+    expect(settlementFieldOf(p("ForgivenessNotAllowed"))).toBe("form");
+  });
+
   it("prefills a suggestion's payer, receiver and amount in the person's format", () => {
     const suggestion = {
       payerMemberId: "m-juan",

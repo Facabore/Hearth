@@ -417,14 +417,16 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(within(dialog()).getByRole("radiogroup", { name: "Sale de (opcional)" })).toBeInTheDocument();
   });
 
-  it("opens Saldar otro monto with the viewer as the fixed receiver and everyone else as a payer (board 03)", async () => {
+  it("opens Saldar otro monto with the viewer receiving by default, and nobody fixed (board 03, amended by P322 B4)", async () => {
     screenAs("u-ana", fakeApi({}).api);
     await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     expect(within(dialog()).getByText("Viaje 2026")).toBeInTheDocument();
     expect(within(dialog()).queryByText(/prellenado/)).toBeNull();
-    expect(radioNames(payerGroup())).toEqual(["Juan", "Luis", "Pedro (invitado)"]);
+    expect(radioNames(payerGroup())).toEqual(["Tú", "Juan", "Luis", "Pedro (invitado)"]);
     expect(within(payerGroup()).queryByRole("radio", { checked: true })).toBeNull();
-    expect(normalized(receiverRow().textContent)).toBe("Recibe Ana (tú)");
+    expect(within(dialog()).queryByTestId("settle-receiver")).toBeNull();
+    const receivers = within(dialog()).getByRole("radiogroup", { name: "A quién" });
+    expect(within(receivers).getByRole("radio", { name: "Tú" })).toBeChecked();
     expect(within(dialog()).getByLabelText("Monto")).toHaveAccessibleDescription("Ej: 1.250,50");
   });
 

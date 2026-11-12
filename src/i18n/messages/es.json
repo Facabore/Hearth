@@ -127,6 +127,10 @@
     "InvalidRecurrenceTransition": "Este movimiento recurrente no puede pasar a ese estado ahora.",
     "InvalidSavingsAccount": "Elige solo tus cuentas de ahorro, cada una una sola vez.",
     "InvalidSettlementParties": "Quien paga y quien recibe deben ser personas distintas.",
+    "InvalidOnBehalfOf": "Solo puedes pagar por otro miembro de este espacio, que no sea quien paga ni quien recibe.",
+    "GiftRequiresOnBehalfOf": "Solo se regala lo que pagas por otro miembro.",
+    "ForgivenessHasNoAccounts": "Perdonar una deuda no mueve dinero: quita la cuenta.",
+    "ForgivenessNotAllowed": "Solo quien cobra puede perdonar la deuda; si es invitado, quien administra el espacio.",
     "InvalidSpaceName": "El nombre del espacio debe tener entre 1 y 80 caracteres.",
     "InvalidSplit": "Revisa cómo se divide el gasto.",
     "InvalidTerm": "El plazo del crédito debe ser de al menos un mes.",
@@ -455,7 +459,8 @@
       "INCOME": "Ingreso",
       "TRANSFER": "Transferencia",
       "SETTLEMENT": "Pago entre miembros",
-      "FUND_CONTRIBUTION": "Aporte al fondo"
+      "FUND_CONTRIBUTION": "Aporte al fondo",
+      "FORGIVENESS": "Deuda perdonada"
     },
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",
@@ -470,6 +475,8 @@
       "noTime": "Sin hora",
       "noDescription": "Sin descripción",
       "payerAccount": "Cuenta de {name}",
+      "paidFor": "Pago por {name}",
+      "gaveFor": "Pago por {name} · se lo regaló",
       "edit": "Editar",
       "delete": "Eliminar",
       "note": {

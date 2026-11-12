@@ -102,7 +102,14 @@
         "owed": "is owed",
         "settled": "settled up"
       },
-      "note": "On the right, the balance after each movement and, under it, how much it changed."
+      "note": "On the right, the balance after each movement and, under it, how much it changed.",
+      "paidForYou": "{payer} paid for you",
+      "lent": "To {receiver} · you owe it back",
+      "gave": "To {receiver} · a gift",
+      "gaveBare": "A gift",
+      "to": "To {receiver}",
+      "forgivenBy": "{receiver} forgave it",
+      "forgaveTo": "You forgave {payer}"
     },
     "record": "Settle another amount",
     "settle": {
@@ -123,10 +130,34 @@
       "optional": "(optional)",
       "none": "None",
       "payerRequired": "Choose who pays.",
-      "save": "Save payment"
+      "receiverRequired": "Choose who receives.",
+      "save": "Save payment",
+      "me": "You",
+      "iPay": "I'll pay",
+      "receiverChoice": "To whom",
+      "payBack": "Does {name} pay you back?",
+      "owesMe": "{name} owes me",
+      "giveIt": "It's a gift",
+      "recorded": "You note that {payer} paid {receiver} {amount} outside the app. Nothing leaves your accounts.",
+      "recordedFree": "You note that {payer} paid {receiver} {amount}{settles, select, yes {: both are settled up} other {}}. Both who pays and who receives are chosen; neither is fixed.",
+      "payingFor": "{settles, select, yes {You pay {receiver} {amount} for {debtor}. {receiver} is settled up and {debtor} now owes you {amount}.} other {You pay {receiver} {amount} for {debtor}, and {debtor} now owes you {amount}.}}",
+      "givingFor": "{settles, select, yes {You pay {receiver} {amount} for {debtor} as a gift. {receiver} and {debtor} are settled up; nobody owes you.} other {You pay {receiver} {amount} for {debtor} as a gift; nobody owes you.}}",
+      "payFor": "Pay for {name}",
+      "payAndGive": "Pay as a gift",
+      "forgive": "Forgive instead of collecting"
+    },
+    "forgive": {
+      "title": "Forgive {name}'s debt?",
+      "subtitle": "{space} · {debtor} owes {receiver} {amount}",
+      "receiver": "Collecting",
+      "noteGuest": "{settles, select, yes {{debtor} is settled up and {receiver} no longer gets {amount}.} other {{receiver} no longer gets {amount} from {debtor}.}} No money moves. Only who collects forgives; since {receiver} is a guest, whoever manages {space} does it.",
+      "noteMine": "{settles, select, yes {{debtor} is settled up and you no longer get {amount}.} other {You no longer get {amount} from {debtor}.}} No money moves. Only who collects forgives.",
+      "save": "Forgive {amount}",
+      "saveBare": "Forgive"
     },
     "toast": {
-      "settled": "Payment recorded"
+      "settled": "Payment recorded",
+      "forgiven": "Debt forgiven"
     }
   }
 }

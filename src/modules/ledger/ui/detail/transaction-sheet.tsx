@@ -165,9 +165,29 @@ export function TransactionSheet({
     addAccount(t("form.from"), labelOf(tx.payerMemberId));
     addAccount(t("form.to"), labelOf(tx.receivingMemberId));
   }
-  // Issue #223: a fund contribution is named as its row names it (`kindOf` in movement-kind.ts). Kept inline: importing
-  // that module would pull a whole shared chunk into this sheet's (ADR 0004).
-  const kind = tx.type === "TRANSFER" && tx.payerMemberId !== null ? "FUND_CONTRIBUTION" : tx.type;
+  // Issue #223: a fund contribution is named as its row names it (`kindOf` in movement-kind.ts), and so is a forgiven
+  // debt (P322). Kept inline: importing that module would pull a whole shared chunk into this sheet's (ADR 0004).
+  const kind =
+    tx.type === "TRANSFER" && tx.payerMemberId !== null
+      ? "FUND_CONTRIBUTION"
+      : tx.type === "SETTLEMENT" && tx.settlementReason === "FORGIVENESS"
+        ? "FORGIVENESS"
+        : tx.type;
+  // Ruling P322: a payment made for someone says for whom, and whether it was given; a GIFT is the half of a gift that
+  // the member it was made for "pays", so it names its payer.
+  const forWhom =
+    tx.type !== "SETTLEMENT"
+      ? undefined
+      : tx.settlementReason === "GIFT"
+        ? memberOf(tx.payerMemberId)
+        : tx.settlementReason !== "FORGIVENESS"
+          ? memberOf(tx.onBehalfOfMemberId ?? null)
+          : undefined;
+  const typeName = forWhom
+    ? t(tx.settlementReason === "GIFT" || tx.linkedTransactionId ? "detail.gaveFor" : "detail.paidFor", {
+        name: forWhom.displayName,
+      })
+    : t(`type.${kind}`);
   const actions = actionsFor(tx, viewer, members);
   const note = actions.note;
   const noteText = note
@@ -182,7 +202,7 @@ export function TransactionSheet({
       // Ruling P307: the sheet has an address of its own (P189), which Back already leaves.
       historyEntry={false}
       onOpenChange={close}
-      title={tx.description || t(`type.${kind}`)}
+      title={tx.description || typeName}
       description={signed}
       footer={
         actions.edit || actions.delete ? (
@@ -198,7 +218,7 @@ export function TransactionSheet({
       }
     >
       <dl className="flex flex-col gap-3 pb-1">
-        <Definition term={t("detail.type")}>{t(`type.${kind}`)}</Definition>
+        <Definition term={t("detail.type")}>{typeName}</Definition>
         <Definition term={t("detail.when")}>
           {formatDate(tx.date, formats)} · {time}
         </Definition>

@@ -6,11 +6,14 @@ import type { SettlementDraft } from "./settlement-prefill";
 
 export { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
-export type SettlementField = "payer" | "receiver" | "amount";
+export type SettlementField = "payer" | "receiver" | "amount" | "gift";
 
 /**
  * HU-E5-02, ruling P174: a settlement recorded now. An account is named only on the viewer's own side, where it is one
  * of theirs (D9: only its owner debits it); a guest pays and receives without one (D15).
+ *
+ * Ruling P322: a payment for someone else names that member and whether it is a gift; a forgiveness names no account,
+ * since no money moves. A draft with neither sends exactly the body it sent before.
  */
 export const settlementRequestOf = (
   draft: SettlementDraft,
@@ -33,6 +36,11 @@ export const settlementRequestOf = (
     payerMemberId,
     receivingMemberId,
   };
+  if (draft.reason === "FORGIVENESS") return { ok: true, body: { ...body, reason: "FORGIVENESS" } };
+  if (draft.onBehalfOfMemberId) {
+    body.onBehalfOfMemberId = draft.onBehalfOfMemberId;
+    body.gift = draft.gift === true;
+  }
   if (payerMemberId === input.meMemberId && draft.sourceAccountId)
     body.sourceAccountId = draft.sourceAccountId;
   if (receivingMemberId === input.meMemberId && draft.destinationAccountId)
@@ -48,6 +56,8 @@ const BY_CODE: Readonly<Record<string, SettlementField>> = {
   GuestHasNoAccounts: "payer",
   AccountNotOwned: "payer",
   AccountArchived: "payer",
+  InvalidOnBehalfOf: "payer",
+  GiftRequiresOnBehalfOf: "gift",
 };
 const BY_PATH: Readonly<Record<string, SettlementField>> = {
   amount: "amount",
@@ -55,6 +65,8 @@ const BY_PATH: Readonly<Record<string, SettlementField>> = {
   sourceAccountId: "payer",
   receivingMemberId: "receiver",
   destinationAccountId: "receiver",
+  onBehalfOfMemberId: "payer",
+  gift: "gift",
 };
 
 /** Ruling P118: the field an API problem belongs to, else the form. */

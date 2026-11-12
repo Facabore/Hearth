@@ -12,6 +12,12 @@ export interface SettlementDraft {
   readonly amount: string;
   readonly sourceAccountId: string | null;
   readonly destinationAccountId: string | null;
+  /** Ruling P322 ("Lo pago yo"): the member whose debt the viewer pays; absent when the payer pays their own. */
+  readonly onBehalfOfMemberId?: string | null;
+  /** Ruling P322 ("Se lo regalo"): with `onBehalfOfMemberId`, the payer gives the payment away. */
+  readonly gift?: boolean;
+  /** Ruling P322 (board B8): FORGIVENESS records that the receiver forgave the payer's debt; no money moves. */
+  readonly reason?: "PAYMENT" | "FORGIVENESS";
 }
 
 /** Ruling P175: a suggestion fills in payer, receiver and amount; otherwise the viewer receives, from `payerMemberId`. */

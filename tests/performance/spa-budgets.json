@@ -45,7 +45,7 @@
     "spaces/writes.ts": 2,
     "../modules/categories/ui/category-sheet.tsx": 16,
     "../modules/categories/ui/group-sheet.tsx": 14,
-    "routes/members.tsx": 21,
+    "routes/members.tsx": 22,
     "routes/balances.tsx": 20,
     "routes/invitation.tsx": 12,
     "routes/verify-email.tsx": 8,

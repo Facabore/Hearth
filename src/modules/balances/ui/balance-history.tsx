@@ -7,6 +7,47 @@ import { absolute, memberSentence, netState } from "./net-state";
 
 const INK = { owes: "text-owe", owed: "text-accent", settled: "text-ink" } as const;
 
+type Entry = BalanceHistoryDto["entries"][number];
+
+/**
+ * Ruling P322 (board B7): a gift is two settlements, the payment made for the member and the GIFT that clears what they
+ * owed its payer back. In the member's own history they read as one row: each GIFT the member received takes its linked
+ * payment (`linkedTransactionId`), or, from an API without the link, the payment of the same day that its giver made for
+ * them; that payment's row is left out.
+ */
+const giftPairs = (entries: readonly Entry[], memberId: string): Map<string, Entry> => {
+  const pairs = new Map<string, Entry>();
+  const taken = new Set<string>();
+  entries.forEach((gift, at) => {
+    if (gift.settlementReason !== "GIFT" || gift.payerMemberId !== memberId) return;
+    const linked = gift.linkedTransactionId
+      ? entries.find((entry) => entry.transactionId === gift.linkedTransactionId)
+      : undefined;
+    if (linked) {
+      taken.add(linked.transactionId);
+      pairs.set(gift.transactionId, linked);
+      return;
+    }
+    const candidates = entries
+      .map((entry, index) => ({ entry, distance: Math.abs(index - at) }))
+      .filter(
+        ({ entry }) =>
+          !taken.has(entry.transactionId) &&
+          entry.settlementReason !== "GIFT" &&
+          entry.onBehalfOfMemberId === memberId &&
+          entry.payerMemberId === gift.receivingMemberId &&
+          entry.date === gift.date &&
+          BigInt(entry.change.amount) === 0n,
+      )
+      .sort((a, b) => a.distance - b.distance);
+    const payment = candidates[0]?.entry;
+    if (!payment) return;
+    taken.add(payment.transactionId);
+    pairs.set(gift.transactionId, payment);
+  });
+  return pairs;
+};
+
 /**
  * HU-E9-07, the BalanceHistory artboard as `/spaces/{spaceId}/members/{memberId}/history` (ruling P176): the member's
  * net at the start and at the end of a period of the space, and each movement that changed it as the running balance
@@ -17,11 +58,16 @@ const INK = { owes: "text-owe", owed: "text-accent", settled: "text-ink" } as co
  * Ruling P272 (board 04): the period is a chip, each summary is a neutral amount followed by its state in words, and
  * each entry has a date column. The board has no row to what the member paid (issue #148), so it is gone; Movimientos'
  * payer filter still answers that.
+ *
+ * Ruling P322 (boards B6 and B7): a settlement says who paid for whom, speaking to the history's member: a payment made
+ * for them reads "Kamilox pagó por ti", lent to them (its change is 0: the debt only moved to the payer) or given, and a
+ * forgiven debt says so. The names come from `members`; one that is not a current member leaves the plain title.
  */
 export function BalanceHistory({
   spaceId,
   spaceName,
   member,
+  members = [],
   period,
   previous,
   next,
@@ -31,6 +77,8 @@ export function BalanceHistory({
   readonly spaceId: string;
   readonly spaceName: string;
   readonly member: MemberDto;
+  /** The space's current members, guests included: whose names a settlement's row says. */
+  readonly members?: readonly MemberDto[];
   readonly period: PeriodDto;
   readonly previous: PeriodDto | null;
   readonly next: PeriodDto | null;
@@ -46,6 +94,44 @@ export function BalanceHistory({
   // A positive change reads "+$ 50.000"; a negative one is written by `formatMoney` with the typographic minus.
   const changeOf = (change: MoneyDto) =>
     `${BigInt(change.amount) > 0n ? "+" : ""}${formatMoney(change, formats)}`;
+  const nameOf = (id: string | null | undefined) => members.find((one) => one.id === id)?.displayName ?? "";
+  const pairs = giftPairs(history.entries, member.id);
+  const paired = new Set([...pairs.values()].map((payment) => payment.transactionId));
+  const entries = history.entries.filter((entry) => !paired.has(entry.transactionId));
+  /** P322: a settlement's title and the line under it, or its description (else its type) when it says no more. */
+  const linesOf = (entry: Entry): { title: string; detail: string | null } => {
+    const plain = { title: entry.description || tLedger(`type.${entry.type}`), detail: null };
+    const payer = nameOf(entry.payerMemberId);
+    const receiver = nameOf(entry.receivingMemberId);
+    if (entry.type !== "SETTLEMENT" || !payer || !receiver) return plain;
+    const mine = (id: string | null | undefined) => id === member.id;
+    if (entry.settlementReason === "FORGIVENESS")
+      return {
+        title: tLedger("type.FORGIVENESS"),
+        detail: mine(entry.payerMemberId)
+          ? t("history.forgivenBy", { receiver })
+          : mine(entry.receivingMemberId)
+            ? t("history.forgaveTo", { payer })
+            : null,
+      };
+    if (entry.settlementReason === "GIFT") {
+      if (!mine(entry.payerMemberId))
+        return { title: tLedger("detail.gaveFor", { name: payer }), detail: null };
+      const paidTo = nameOf(pairs.get(entry.transactionId)?.receivingMemberId);
+      return {
+        title: t("history.paidForYou", { payer: receiver }),
+        detail: paidTo ? t("history.gave", { receiver: paidTo }) : t("history.gaveBare"),
+      };
+    }
+    const behalf = nameOf(entry.onBehalfOfMemberId);
+    if (!behalf) return plain;
+    if (mine(entry.onBehalfOfMemberId))
+      return { title: t("history.paidForYou", { payer }), detail: t("history.lent", { receiver }) };
+    return {
+      title: tLedger("detail.paidFor", { name: behalf }),
+      detail: mine(entry.payerMemberId) ? t("history.to", { receiver }) : null,
+    };
+  };
 
   return (
     <div className="flex flex-col gap-3 pb-3">
@@ -110,33 +196,37 @@ export function BalanceHistory({
         <h2 id="balance-history-entries" className="px-0.5 text-sm font-semibold text-muted">
           {t("history.entries")}
         </h2>
-        {history.entries.length === 0 ? (
+        {entries.length === 0 ? (
           <p className="rounded-2xl bg-track p-3 text-sm text-ink">{t("history.empty")}</p>
         ) : (
           <>
             <ol className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
-              {history.entries.map((entry) => (
-                <li key={entry.transactionId} className="flex min-h-row-lg items-center gap-3 px-3 py-2">
-                  {/* Board 04: a date column, the day over the short month. */}
-                  <span className="flex w-9 shrink-0 flex-col items-center tabular-nums">
-                    <span className="text-lg leading-tight font-semibold text-ink">
-                      {Number(entry.date.slice(8, 10))}
+              {entries.map((entry) => {
+                const { title, detail } = linesOf(entry);
+                return (
+                  <li key={entry.transactionId} className="flex min-h-row-lg items-center gap-3 px-3 py-2">
+                    {/* Board 04: a date column, the day over the short month. */}
+                    <span className="flex w-9 shrink-0 flex-col items-center tabular-nums">
+                      <span className="text-lg leading-tight font-semibold text-ink">
+                        {Number(entry.date.slice(8, 10))}
+                      </span>
+                      <span className="text-xs text-muted">
+                        {tCommon(`monthShort.${Number(entry.date.slice(5, 7)) as 1}`)}
+                      </span>
                     </span>
-                    <span className="text-xs text-muted">
-                      {tCommon(`monthShort.${Number(entry.date.slice(5, 7)) as 1}`)}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 [overflow-wrap:anywhere]">
+                      <span className="text-[15px] font-medium text-ink">{title}</span>
+                      {detail ? <span className="text-[13px] text-muted">{detail}</span> : null}
                     </span>
-                  </span>
-                  <span className="min-w-0 flex-1 text-[15px] font-medium text-ink [overflow-wrap:anywhere]">
-                    {entry.description || tLedger(`type.${entry.type}`)}
-                  </span>
-                  <span className="flex max-w-[55%] shrink-0 flex-col items-end gap-0.5 text-right tabular-nums [overflow-wrap:anywhere]">
-                    <span className={`text-[15px] font-semibold ${INK[netState(entry.balance)]}`}>
-                      {memberSentence(entry.balance, formats, t)}
+                    <span className="flex max-w-[55%] shrink-0 flex-col items-end gap-0.5 text-right tabular-nums [overflow-wrap:anywhere]">
+                      <span className={`text-[15px] font-semibold ${INK[netState(entry.balance)]}`}>
+                        {memberSentence(entry.balance, formats, t)}
+                      </span>
+                      <span className="text-[13px] text-muted">{changeOf(entry.change)}</span>
                     </span>
-                    <span className="text-[13px] text-muted">{changeOf(entry.change)}</span>
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
             <p className="text-[13px] text-muted">{t("history.note")}</p>
           </>

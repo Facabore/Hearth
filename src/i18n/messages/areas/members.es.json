@@ -102,7 +102,14 @@
         "owed": "le toca recibir",
         "settled": "al día"
       },
-      "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió."
+      "note": "A la derecha, el saldo después de cada movimiento y debajo cuánto cambió.",
+      "paidForYou": "{payer} pagó por ti",
+      "lent": "A {receiver} · se lo debes",
+      "gave": "A {receiver} · te lo regaló",
+      "gaveBare": "Te lo regaló",
+      "to": "A {receiver}",
+      "forgivenBy": "{receiver} te la perdonó",
+      "forgaveTo": "Se la perdonaste a {payer}"
     },
     "record": "Saldar otro monto",
     "settle": {
@@ -123,10 +130,34 @@
       "optional": "(opcional)",
       "none": "Ninguna",
       "payerRequired": "Elige quién paga.",
-      "save": "Guardar pago"
+      "receiverRequired": "Elige a quién le paga.",
+      "save": "Guardar pago",
+      "me": "Tú",
+      "iPay": "Lo pago yo",
+      "receiverChoice": "A quién",
+      "payBack": "¿{name} te lo devuelve?",
+      "owesMe": "Me lo debe",
+      "giveIt": "Se lo regalo",
+      "recorded": "Anotas que {payer} le pagó {amount} a {receiver} por fuera de la app. No sale de tus cuentas.",
+      "recordedFree": "Anotas que {payer} le pagó {amount} a {receiver}{settles, select, yes {: los dos quedan al día} other {}}. Quien paga y quien recibe se eligen; nadie queda fijo.",
+      "payingFor": "{settles, select, yes {Le pagas {amount} a {receiver} por {debtor}. {receiver} queda al día y {debtor} pasa a deberte {amount}.} other {Le pagas {amount} a {receiver} por {debtor} y {debtor} pasa a deberte {amount}.}}",
+      "givingFor": "{settles, select, yes {Le pagas {amount} a {receiver} por {debtor} y se los regalas. {receiver} y {debtor} quedan al día; nadie te debe.} other {Le pagas {amount} a {receiver} por {debtor} y se los regalas; nadie te debe.}}",
+      "payFor": "Pagar por {name}",
+      "payAndGive": "Pagar y regalar",
+      "forgive": "Perdonar en vez de cobrar"
+    },
+    "forgive": {
+      "title": "¿Perdonar la deuda de {name}?",
+      "subtitle": "{space} · {debtor} le debe {amount} a {receiver}",
+      "receiver": "Quien cobra",
+      "noteGuest": "{settles, select, yes {{debtor} queda al día y {receiver} deja de recibir {amount}.} other {{receiver} deja de recibir {amount} de {debtor}.}} No se mueve dinero. Perdona solo quien cobra; como {receiver} es invitado, lo hace quien administra {space}.",
+      "noteMine": "{settles, select, yes {{debtor} queda al día y dejas de recibir {amount}.} other {Dejas de recibir {amount} de {debtor}.}} No se mueve dinero. Perdona solo quien cobra.",
+      "save": "Perdonar {amount}",
+      "saveBare": "Perdonar"
     },
     "toast": {
-      "settled": "Pago registrado"
+      "settled": "Pago registrado",
+      "forgiven": "Deuda perdonada"
     }
   }
 }
