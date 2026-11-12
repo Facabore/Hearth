@@ -106,6 +106,41 @@ The `app` container serves the API only (`/api/*`). `HEARTH_E2E_FIXED_NOW` fixes
 
 Set the image tags back to the previous SHA and run `docker compose up -d`. Rolling back past the cut-over (#199) also needs that release's `Caddyfile` and, behind a host proxy, its host site (`/app` and `/app/*` to the web service, everything else to the app): before the cut-over the app served the screens. A release from before the web service has no `hearth-web` image: keep `HEARTH_WEB_IMAGE` at the first release that has one, or restore that release's `compose.yaml` and `Caddyfile` too. Migrations are forward-only; a release whose migration is not backward compatible must say so in its PR.
 
+## Staging
+
+ADR 0008: `development` deploys itself to a staging site, so changes can be tried before they go through `main`. Production is not involved.
+
+- Every push to `development` runs `.github/workflows/staging.yml`: typecheck and the tests that need no database, then the app, migrator and web images are pushed as `:development` and `:<sha>`. A newer push cancels an older run.
+- On the VPS, `scripts/staging-update.sh` runs every minute from `hearth-deploy`'s cron. It pulls the `:development` images and runs `up -d` (migrations first) only when one of them changed or the app is not running. It logs one JSON line per update or failure to `/opt/hearth-staging/update.log`.
+
+### Setting it up once
+
+As `hearth-deploy` on the VPS:
+
+1. Create `/opt/hearth-staging` with `compose.yaml`, `scripts/` and `deploy/staging/compose.staging.yaml` (saved there as `compose.staging.yaml`) from the repository. The override names the project `hearth-staging`, so its containers, network and database volume are its own, and publishes the app on 127.0.0.1:5310 and the web service on 127.0.0.1:5311.
+2. Write its `.env` (mode 600) on the VPS: `HEARTH_DOMAIN` (the staging name), a new `POSTGRES_PASSWORD` and `BETTER_AUTH_SECRET` (`openssl rand -hex 32` each, never production's), `HEARTH_APP_IMAGE=ghcr.io/facabore/hearth:development`, `HEARTH_MIGRATOR_IMAGE=ghcr.io/facabore/hearth-migrator:development`, `HEARTH_WEB_IMAGE=ghcr.io/facabore/hearth-web:development` and `APP_TIMEZONE=America/Bogota`.
+3. Add the cron line: `* * * * * sh /opt/hearth-staging/scripts/staging-update.sh >> /opt/hearth-staging/update.log 2>&1`.
+
+As the owner of the DNS name and of the host proxy:
+
+4. Point the staging name (for example `hearth-dev.duckdns.org`) at the VPS.
+5. Put the site in `/etc/caddy/sites/hearth-dev.caddy`, with the staging name and ports, then run `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`:
+
+   ```
+   hearth-dev.duckdns.org {
+   	encode zstd gzip
+   	@api path /api /api/*
+   	handle @api {
+   		reverse_proxy 127.0.0.1:5310
+   	}
+   	handle {
+   		reverse_proxy 127.0.0.1:5311
+   	}
+   }
+   ```
+
+Staging's database starts empty and keeps what is entered there; to start it afresh, run `docker compose -f compose.yaml -f compose.staging.yaml down -v` in `/opt/hearth-staging` and let the next minute bring it up again.
+
 ## Backups
 
 The `backup` service dumps the database every night at 02:00 (`APP_TIMEZONE`) into the `backups` volume and keeps `BACKUP_RETENTION_DAYS` (default 14) daily files. Schedule, logs, the restore drill and how to restore: [Backups and restore](backups.md).

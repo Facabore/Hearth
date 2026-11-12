@@ -1,0 +1,77 @@
+name: Staging
+
+# ADR 0008: every push to development reaches the staging site after typecheck and the tests that need no database
+# (the owner's choice, "Typecheck y unit"). The images go out as :development and :<sha>; the VPS pulls them
+# (scripts/staging-update.sh), so no secret of the server lives here. Production keeps CI's full gate on main.
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging
+  # The newest push is the one staging should show.
+  cancel-in-progress: true
+
+# Actions are pinned to commit SHAs (tag in the comment), like every other dependency.
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version-file: .nvmrc, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # The unit, component and SPA tests: none needs PostgreSQL or a browser.
+      - run: pnpm vitest run --project unit --project ui --project spa
+
+  publish:
+    needs: [checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    env:
+      APP_IMAGE: ghcr.io/facabore/hearth
+      MIGRATOR_IMAGE: ghcr.io/facabore/hearth-migrator
+      WEB_IMAGE: ghcr.io/facabore/hearth-web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push the app image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ${{ env.APP_IMAGE }}:development,${{ env.APP_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build and push the migrator image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: migrator
+          push: true
+          tags: ${{ env.MIGRATOR_IMAGE }}:development,${{ env.MIGRATOR_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+      - name: Build and push the web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: web
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:development,${{ env.WEB_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
