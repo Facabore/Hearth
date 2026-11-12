@@ -79,7 +79,6 @@ describe("scripts/staging-update.sh (ADR 0008)", () => {
   };
   /** Runs the script again on the same state directory, as the next minute's cron would. */
   const rerun = () => {
-    writeFileSync(join(state, "calls"), "");
     return exec();
   };
   const exec = () => {
@@ -95,7 +94,9 @@ describe("scripts/staging-update.sh (ADR 0008)", () => {
       "postgres:18.6-alpine",
       "sh",
       "-c",
-      "cp /state/docker /usr/local/bin/docker && chmod +x /usr/local/bin/docker && sh /hearth/staging-update.sh",
+      // Each run starts its own record of calls inside the container: on Linux the container is root, so a file it wrote
+      // is not the host user's to truncate.
+      ": > /state/calls && cp /state/docker /usr/local/bin/docker && chmod +x /usr/local/bin/docker && sh /hearth/staging-update.sh",
     );
     const calls = readFileSync(join(state, "calls"), "utf8").trim().split("\n");
     return { ...result, calls, ups: calls.filter((c) => c.includes(" up -d")) };
