@@ -31,7 +31,13 @@ images=$(compose config --images) || fail config
 ids() { for image in $images; do docker image inspect --format '{{.Id}}' "$image" 2>/dev/null || echo none; done; }
 
 before=$(ids)
-compose pull --quiet app migrate web >/dev/null || fail pull
+# Docker reports progress on stderr, which cron appends to the log every minute: keep it for a step that fails.
+quietly() {
+  out=$("$@" 2>&1) && return 0
+  printf '%s\n' "$out" >&2
+  return 1
+}
+quietly compose pull --quiet app migrate web || fail pull
 after=$(ids)
 
 if [ "$before" = "$after" ] && [ ! -f "$PENDING" ] && [ -n "$(compose ps -q app)" ]; then
@@ -41,7 +47,7 @@ fi
 # `before` alone would leave them behind.
 replaced=$( (cat "$PENDING" 2>/dev/null; echo "$before") | sort -u)
 echo "$replaced" > "$PENDING"
-compose up -d --remove-orphans >/dev/null || fail up
+quietly compose up -d --remove-orphans || fail up
 rm -f "$PENDING"
 log info staging_updated ",\"images\":\"$(echo "$images" | tr '\n' ' ' | sed 's/ $//')\""
 

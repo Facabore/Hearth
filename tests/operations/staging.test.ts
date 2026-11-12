@@ -50,11 +50,12 @@ case "$*" in
   *" config --images"*) printf 'ghcr.io/facabore/hearth:development\nghcr.io/facabore/hearth-migrator:development\nghcr.io/facabore/hearth-web:development\n' ;;
   "image inspect"*) ref=$(echo "$*" | awk '{print $NF}' | tr '/:' '__'); cat "/state/id_$ref" 2>/dev/null || exit 1 ;;
   *" pull "*)
+    echo " Image ghcr.io/facabore/hearth:development Pulled" >&2
     [ -f /state/pull_fails ] && { echo "pull access denied" >&2; exit 1; }
     [ -f /state/new_web ] && echo sha256:new-web > /state/id_ghcr.io_facabore_hearth-web_development
     exit 0 ;;
   *" ps -q app"*) [ -f /state/running ] && echo c0ffee ;;
-  *" up -d"*) [ -f /state/up_fails ] && exit 1; exit 0 ;;
+  *" up -d"*) echo " Container hearth-staging-app-1 Started" >&2; [ -f /state/up_fails ] && exit 1; exit 0 ;;
   "image rm"*) exit 0 ;;
 esac
 `;
@@ -100,11 +101,21 @@ describe("scripts/staging-update.sh (ADR 0008)", () => {
     return { ...result, calls, ups: calls.filter((c) => c.includes(" up -d")) };
   };
 
-  it("does nothing while the running stack's images are the newest", () => {
+  it("does nothing, and writes nothing to the log, while the running stack's images are the newest", () => {
     const result = run({ running: "" });
     expect(result.status).toBe(0);
     expect(result.ups).toEqual([]);
-    expect(logEvents(result.stdout)).toEqual([]);
+    // cron appends both streams to update.log every minute: a quiet minute must leave it as it was.
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
+  it("writes only its JSON line for an update, and Docker's own words only when a step fails", () => {
+    const updated = run({ running: "", new_web: "" });
+    expect(updated.stderr).toBe("");
+    expect(updated.stdout.trim().split("\n")).toHaveLength(1);
+    const failed = run({ running: "", new_web: "", pull_fails: "" });
+    expect(failed.stderr).toContain("pull access denied");
   });
 
   it("brings the stack up, migrations first, once a pull changed an image, and says which", () => {
