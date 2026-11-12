@@ -318,11 +318,13 @@ export function RecordForm({
     const paidFrom = sharedExpense ? (split?.payer.kind === "ME" ? split.payer.accountId : null) : accountId;
     if (kind === "EXPENSE" && paidFrom) rememberLastAccount(paidFrom);
   };
-  const [accountId, setAccountId] = useState<string | null>(() =>
-    edit
-      ? edit.initial.accountId
-      : preferredAccountId(fundTransfer ? shared.myAccounts : accounts, readLastAccount()),
-  );
+  const [accountId, setAccountId] = useState<string | null>(() => {
+    if (edit) return edit.initial.accountId;
+    // Ruling P321: the account handed over by Crear un fondo, while it is still one Desde offers.
+    const handed = carried?.accountId;
+    if (handed && fromAccounts.some((a) => a.id === handed)) return handed;
+    return preferredAccountId(fromAccounts, readLastAccount());
+  });
   const [toAccountId, setToAccountId] = useState<string | null>(
     () =>
       edit?.initial.toAccountId ?? (fundTransfer && shared.funds.length === 1 ? shared.funds[0]!.id : null),
@@ -906,7 +908,14 @@ export function RecordForm({
                 ? {
                     newAccountHref: newFundHref,
                     newLabel: tAccounts("createFund"),
-                    onNew: () => handOver(space.id, { kind, amount, description, when: chosenWhen }),
+                    onNew: () =>
+                      handOver(space.id, {
+                        kind,
+                        amount,
+                        description,
+                        when: chosenWhen,
+                        ...(accountId ? { accountId } : {}),
+                      }),
                   }
                 : {}),
               emptyText: tAccounts(newFundHref ? "picker.noFund" : "picker.noFundAsk"),

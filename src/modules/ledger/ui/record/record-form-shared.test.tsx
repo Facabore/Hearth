@@ -18,6 +18,7 @@ import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import type { SharedExpenseContext } from "../split/shared-context";
+import { handOver } from "./record-carry";
 import { RecordForm } from "./record-form";
 
 const router = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }));
@@ -461,6 +462,52 @@ describe("shared expense (HU-E9-06)", () => {
     const back = new URL(create.getAttribute("href")!, "http://hearth.test");
     expect(back.pathname).toBe("/spaces/sp-household/accounts/new");
     expect(back.searchParams.get("returnTo")).toBe("/spaces/sp-household/new?type=transfer");
+  });
+
+  // RDD advisory on P321: Crear un fondo hands over the account chosen in Desde, so the return starts from it.
+  const VISA = accountDto({ id: "a-visa", name: "Visa", type: "CREDIT_CARD" });
+  const contribution = (funds: AccountDto[]) =>
+    renderWithIntl(
+      <RecordForm
+        space={HOUSEHOLD}
+        accounts={funds}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="TRANSFER"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        shared={{ ...context(MEMBERS, funds), myAccounts: [BANK, VISA] }}
+        api={fakeApi({}).api}
+      />,
+    );
+
+  it("comes back from Crear un fondo with the account chosen in Desde (P321)", async () => {
+    const { unmount } = contribution([]);
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
+    await userEvent.click(screen.getByRole("button", { name: /Desde/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: /Visa/ }));
+    await userEvent.type(screen.getByLabelText("Monto"), "100000");
+    await userEvent.click(screen.getByRole("button", { name: /Hacia/ }));
+    const to = await screen.findByRole("dialog", { name: "Hacia" });
+    await userEvent.click(within(to).getByRole("link", { name: "Crear un fondo" }));
+    unmount();
+    // The fund now exists, and the form for the same space starts from what was typed and chosen.
+    contribution([FUND]);
+    expect(screen.getByLabelText("Monto")).toHaveValue("100.000");
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Visa");
+    expect(screen.getByRole("button", { name: /Hacia/ })).toHaveTextContent("Fondo Hogar");
+  });
+
+  it("never restores a handed-over account that is not one of the recorder's own (P321)", () => {
+    handOver(HOUSEHOLD.id, {
+      kind: "TRANSFER",
+      amount: "",
+      description: "",
+      when: null,
+      accountId: "a-elsewhere",
+    });
+    contribution([FUND]);
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Bancolombia");
   });
 
   it("tells a member without a fund who creates one, with no link they could not use (P321)", async () => {
