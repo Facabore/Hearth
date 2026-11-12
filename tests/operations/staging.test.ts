@@ -55,6 +55,7 @@ case "$*" in
     exit 0 ;;
   *" ps -q app"*) [ -f /state/running ] && echo c0ffee ;;
   *" up -d"*) [ -f /state/up_fails ] && exit 1; exit 0 ;;
+  "image rm"*) exit 0 ;;
 esac
 `;
 
@@ -73,6 +74,14 @@ describe("scripts/staging-update.sh (ADR 0008)", () => {
     };
     for (const [name, content] of Object.entries({ ...ids, ...files }))
       writeFileSync(join(state, name), `${content}\n`);
+    return exec();
+  };
+  /** Runs the script again on the same state directory, as the next minute's cron would. */
+  const rerun = () => {
+    writeFileSync(join(state, "calls"), "");
+    return exec();
+  };
+  const exec = () => {
     const result = docker(
       "run",
       "--rm",
@@ -123,5 +132,23 @@ describe("scripts/staging-update.sh (ADR 0008)", () => {
     expect(logEvents(result.stdout)).toEqual([
       expect.objectContaining({ level: "error", event: "staging_update_failed", step: "pull" }),
     ]);
+  });
+
+  it("tries again the next minute after an up that failed, though nothing new was pulled", () => {
+    const first = run({ running: "", new_web: "", up_fails: "" });
+    expect(logEvents(first.stdout)).toEqual([
+      expect.objectContaining({ level: "error", event: "staging_update_failed", step: "up" }),
+    ]);
+    // The same state directory, a minute later: the web image is already the new one, and up works now.
+    rmSync(join(state, "up_fails"));
+    rmSync(join(state, "new_web"));
+    const again = rerun();
+    expect(again.ups).toHaveLength(1);
+    expect(logEvents(again.stdout)).toEqual([expect.objectContaining({ event: "staging_updated" })]);
+  });
+
+  it("removes only the images the update left behind, never another project's", () => {
+    const result = run({ running: "", new_web: "" });
+    expect(result.calls.filter((c) => c.startsWith("image rm"))).toEqual(["image rm sha256:web"]);
   });
 });
