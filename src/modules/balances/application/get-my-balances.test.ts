@@ -93,6 +93,24 @@ describe("GetMyBalances (#240, P278)", () => {
     ]);
   });
 
+  it("has her pay whom a former member owed, as nobody can pay them (P323)", async () => {
+    const { ledger, getMyBalances } = world();
+    const paidFor = (payer: string, debtor: string, amount: bigint) =>
+      anExpense("2026-10-05", amount, {
+        spaceId: "space-household",
+        payments: [{ memberId: payer, accountId: null, amount }],
+        shares: [{ memberId: debtor, amount, splitMethod: "EXACT" as const }],
+      });
+    // Zed, who left, paid 40,000 for Luis; Juan paid 30,000 for Zed.
+    await ledger.add(paidFor("member-zed", "member-luis", pesos(40_000n)));
+    await ledger.add(paidFor("member-juan", "member-zed", pesos(30_000n)));
+    const [household] = unwrap(await getMyBalances("u-luis"));
+    expect(household?.payments).toEqual([
+      { receivingMemberId: "member-juan", amount: pesos(30_000n) },
+      { receivingMemberId: "member-zed", amount: pesos(10_000n) },
+    ]);
+  });
+
   it("answers 0 and no payments in a space where nothing moved", async () => {
     const { getMyBalances } = world();
     const [household] = unwrap(await getMyBalances("u-ana"));
