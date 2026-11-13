@@ -308,13 +308,11 @@ Then(
   },
 );
 
-Then(/^the headline's "Con otros" opens to "([^"]+)"$/, async ({ page, world }, space: string) => {
-  // Ruling P306: one figure, split into "Solo tú" and "Con otros"; the latter opens to her groups' chips.
+Then(/^the headline says it includes her part in "([^"]+)"$/, async ({ page, world }, space: string) => {
+  // Ruling P324: one figure with one line under it, which names the shared space her part comes from.
   const summary = page.getByRole("region", { name: world.t("home.summary") });
-  // "Solo tú" opens only when she spent something alone; here it reads $ 0, so it is text, not a button.
-  await expect(summary).toContainText(world.t("home.solo"));
-  await summary.getByRole("button", { name: new RegExp(world.t("home.withOthers")) }).click();
-  await expect(summary.locator("[data-space-chip]")).toHaveText(space);
+  // home.includes is a plural message ("Incluye tu parte en {space}."), which world.t does not expand.
+  await expect(summary).toContainText(`Incluye tu parte en ${space}`);
 });
 
 When(/^"[^"]+" opens her personal Movimientos$/, async ({ page, world }) => {
@@ -350,17 +348,34 @@ Then(/^her Movimientos no longer shows "([^"]+)"$/, async ({ page }, description
   await expect(page.locator("[data-activity-row]").filter({ hasText: description })).toHaveCount(0);
 });
 
-When(/^she opens "([^"]+)" from the headline's "Con otros"$/, async ({ page, world }, space: string) => {
-  // Ruling P310: each "Con otros" row opens its space's movements of the period.
-  const summary = page.getByRole("region", { name: world.t("home.summary") });
-  await summary.getByRole("button", { name: new RegExp(world.t("home.withOthers")) }).click();
-  await summary.getByRole("link", { name: new RegExp(space) }).click();
-});
+When(
+  /^she opens "([^"]+)"'s Movimientos from the space switcher$/,
+  async ({ page, world }, space: string) => {
+    // Ruling P324: the headline no longer breaks the month down, so another space opens from the switcher.
+    await page
+      .getByRole("button", {
+        name: new RegExp(`^${world.t("shell.space.current", { name: "" }).split(".")[0]}`),
+      })
+      .first()
+      .click();
+    await page
+      .getByRole("dialog", { name: world.t("shell.space.title") })
+      .locator("a, button")
+      .filter({ hasText: space })
+      .first()
+      .click();
+    await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)!}`));
+    await page
+      .getByRole("navigation", { name: world.t("shell.nav.main") })
+      .getByRole("link", { name: world.t("shell.nav.transactions"), exact: true })
+      .click();
+  },
+);
 
 Then(
   /^she is on "([^"]+)"'s Movimientos listing "([^"]+)"$/,
   async ({ page, world }, space: string, description: string) => {
-    await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)!}/transactions\\?period=`));
+    await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)!}/transactions`));
     await expect(page.getByRole("heading", { level: 1, name: world.t("ledger.list.title") })).toBeVisible();
     await expect(page.getByRole("link", { name: new RegExp(description) }).first()).toBeVisible();
   },

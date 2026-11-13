@@ -48,16 +48,16 @@ test("a new person sees the first steps, and recording an expense ticks its step
   await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId}(\\?|$)`));
-  const expense = card.getByRole("listitem").filter({ hasText: steps.step.expense });
-  await expect(expense.getByText(steps.done, { exact: true })).toBeVisible();
-  await expect(expense.getByRole("link")).toHaveCount(0);
-  await expect(card.getByRole("link", { name: steps.step.share })).toBeVisible();
+  // Ruling P324: once a step is done, the list shrinks to one link to the next step; nothing is ticked "Hecho".
+  await expect(card).toHaveCount(0);
+  const next = page.getByRole("link", { name: /^Te faltan 3 pasos/ });
+  await expect(next).toBeVisible();
 
   // Dismissed, it stays away for this person after a reload.
-  await card.getByRole("button", { name: steps.dismiss }).click();
-  await expect(card).toHaveCount(0);
+  await page.getByRole("button", { name: steps.dismiss }).click();
+  await expect(next).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: es.home.recent })).toBeVisible();
-  await expect(card).toHaveCount(0);
+  await expect(next).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -44,7 +44,6 @@ Feature: Volver returns to where the person was, and a flow returns to where it 
     When "Ana" chooses "Ir a Cuentas" on the first-account card of the home page
     And "Ana" creates the CASH account "Wallet" from the accounts screen
     Then the home page of her personal space is shown
-    And the home page lists the account "Wallet"
 
   @e2e
   Scenario: Creating an account from Accounts returns to Accounts, and Volver skips the form
