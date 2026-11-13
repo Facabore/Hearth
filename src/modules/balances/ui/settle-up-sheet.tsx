@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet, SymbolIcon } from "@/shared/ui";
@@ -69,6 +69,11 @@ export interface SettleUpSheetProps {
  * receiver may pay it themselves ("Lo pago yo") and say whether the debtor owes it to them or it is a gift; "Saldar
  * otro monto" chooses both who pays and who receives; and the suggestion's receiver, or an owner or admin when the
  * receiver is a guest, may forgive the debt instead, which moves no money.
+ *
+ * Ruling P324 (medium density, board "Saldar"): a suggestion with only one possible payer reads as a line, "Juan le paga
+ * a Ana", over the amount; the account is a flat two-line row that opens its chooser; "Saldar otro monto" goes to the
+ * amount, and "Perdonar en vez de cobrar" is the quiet action under the main one. The chip groups stay wherever there
+ * is a real choice. The board's date row is not drawn: a payment is always dated now, so there is no picker to open.
  */
 export function SettleUpSheet({
   open,
@@ -87,6 +92,7 @@ export function SettleUpSheet({
   api: injected,
 }: SettleUpSheetProps) {
   const t = useTranslations("balances.settle");
+  const tBalances = useTranslations("balances");
   const tForgive = useTranslations("balances.forgive");
   const form = useTranslations("ledger.form");
   const errors = useTranslations("errors");
@@ -112,6 +118,9 @@ export function SettleUpSheet({
   const [unbuilt, setUnbuilt] = useState<SettlementField | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
+  // P324: the account chooser that is open under its row, if any.
+  const [picking, setPicking] = useState<"sourceAccountId" | "destinationAccountId" | null>(null);
+  const amountInput = useRef<HTMLInputElement>(null);
 
   const currency = currencyOf(space.currency);
   const meMemberId = members.find((member) => member.userId === meUserId)?.id ?? "";
@@ -251,6 +260,14 @@ export function SettleUpSheet({
           )
           .map(chipOf);
   const receiverChoices = meFirst.filter((member) => member.id !== draft.payerMemberId).map(chipOf);
+  // P324: a suggestion only its own payer can pay leaves nothing to choose, so the sheet says who pays whom in a line.
+  const fixed =
+    suggested &&
+    !forOthers &&
+    payer !== undefined &&
+    receiver !== undefined &&
+    payerChoices.length === 1 &&
+    payerChoices[0]?.value === payer.id;
   const choosePayer = (value: string) => {
     if (forOthers) {
       const mine = value === meMemberId;
@@ -282,48 +299,76 @@ export function SettleUpSheet({
     });
   };
 
-  const accountsOf = (field: "sourceAccountId" | "destinationAccountId", label: string, visible: string) => (
-    <div className="flex flex-col gap-2">
-      <FieldLabel>
-        {visible} <span className="font-normal text-muted">{t("optional")}</span>
-      </FieldLabel>
-      <ChoiceGroup
-        label={label}
-        layout="chips"
-        value={draft[field] ?? ""}
-        onValueChange={(value) => setDraft({ ...draft, [field]: value === "" ? null : value })}
-        options={[
-          { value: "", label: wrapped(t("none")) },
-          ...accounts.map((account) => ({
-            value: account.id,
-            label: (
-              <span className="flex max-w-full items-center gap-2 py-2.5 text-left [overflow-wrap:anywhere]">
-                <SymbolIcon name="wallet" size={16} className="shrink-0" />
-                <span className="min-w-0">{account.name}</span>
-              </span>
-            ),
-          })),
-        ]}
-      />
-    </div>
-  );
+  // P324: the account is a flat two-line row, the one chosen over its term; tapping it opens the chooser under it.
+  const accountsOf = (field: "sourceAccountId" | "destinationAccountId", label: string, visible: string) => {
+    const chosen = accounts.find((account) => account.id === draft[field])?.name ?? t("none");
+    const open = picking === field;
+    const pickerId = `settle-${field}-picker`;
+    return (
+      <div className="flex flex-col">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? pickerId : undefined}
+          aria-label={t("accountRow", { term: visible, account: chosen })}
+          onClick={() => setPicking(open ? null : field)}
+          className="flex min-h-row-lg w-full items-center gap-2 border-b border-line py-1.5 text-left"
+        >
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="[overflow-wrap:anywhere] text-ink">{chosen}</span>
+            <span className="text-[13px] text-muted">{visible}</span>
+          </span>
+          <Icon name={open ? "chevronDown" : "chevronRight"} size={20} className="shrink-0 text-muted" />
+        </button>
+        {open ? (
+          <div id={pickerId} className="pt-3 pb-1">
+            <ChoiceGroup
+              label={label}
+              layout="chips"
+              value={draft[field] ?? ""}
+              onValueChange={(value) => setDraft({ ...draft, [field]: value === "" ? null : value })}
+              options={[
+                { value: "", label: wrapped(t("none")) },
+                ...accounts.map((account) => ({
+                  value: account.id,
+                  label: (
+                    <span className="flex max-w-full items-center gap-2 py-2.5 text-left [overflow-wrap:anywhere]">
+                      <SymbolIcon name="wallet" size={16} className="shrink-0" />
+                      <span className="min-w-0">{account.name}</span>
+                    </span>
+                  ),
+                })),
+              ]}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+  // P324: a fixed party is a flat row too, its name over its term; the term comes first for a screen reader.
   const fixedRow = (testId: string, term: string, member: MemberDto) => (
     <div className="flex flex-col gap-2">
       <p
         data-testid={testId}
         aria-describedby={errorOf("receiver") ? "settle-receiver-error" : undefined}
-        className="flex min-h-12 items-center gap-3 rounded-2xl bg-track px-4 py-2.5 text-ink"
+        className="flex min-h-row-lg flex-col-reverse justify-center border-b border-line py-1.5"
       >
-        <span className="text-muted">{term}</span>{" "}
-        <span className="min-w-0 font-semibold [overflow-wrap:anywhere]">
+        <span className="text-[13px] text-muted">{term}</span>{" "}
+        <span className="min-w-0 font-medium [overflow-wrap:anywhere] text-ink">
           {memberLabel(member, meUserId, names)}
         </span>
       </p>
       <FieldError id="settle-receiver-error" message={errorOf("receiver")} />
     </div>
   );
+  /** "Saldar otro monto" (P324): the amount is the field to change, so it gets the focus with its text selected. */
+  const otherAmount = () => {
+    amountInput.current?.focus();
+    amountInput.current?.select();
+  };
   const amountField = (
     <NumberField
+      ref={amountInput}
       id="settle-amount"
       label={t("amount")}
       kind="money"
@@ -377,16 +422,28 @@ export function SettleUpSheet({
             : space.name
       }
       footer={
-        <Button
-          type="submit"
-          form="settle-up-form"
-          // A label that names a member may wrap at 320 px: the button grows with it, never shorter than 56 px.
-          size={plain ? "lg" : "lgFlow"}
-          className={plain ? undefined : "min-h-14 py-3 [overflow-wrap:anywhere]"}
-          disabled={pending}
-        >
-          {footerLabel}
-        </Button>
+        <div className="flex flex-col gap-1">
+          <Button
+            type="submit"
+            form="settle-up-form"
+            // A label that names a member may wrap at 320 px: the button grows with it, never shorter than 56 px.
+            size={plain ? "lg" : "lgFlow"}
+            className={plain ? undefined : "min-h-14 py-3 [overflow-wrap:anywhere]"}
+            disabled={pending}
+          >
+            {footerLabel}
+          </Button>
+          {/* P324: forgiving is the quiet way out under the main action. */}
+          {forgivable ? (
+            <button
+              type="button"
+              onClick={startForgiving}
+              className="min-h-11 w-full rounded-[14px] px-2 py-2.5 text-base text-muted [overflow-wrap:anywhere]"
+            >
+              {t("forgive")}
+            </button>
+          ) : null}
+        </div>
       }
     >
       <form
@@ -413,19 +470,29 @@ export function SettleUpSheet({
           </>
         ) : (
           <>
-            <div className="flex flex-col gap-2">
-              <FieldLabel>{t("payer")}</FieldLabel>
-              <ChoiceGroup
-                label={t("payer")}
-                layout="chips"
-                value={draft.payerMemberId ?? ""}
-                onValueChange={choosePayer}
-                options={payerChoices}
-                describedBy={errorOf("payer") ? "settle-payer-error" : undefined}
-              />
-              <FieldError id="settle-payer-error" message={errorOf("payer")} />
-            </div>
-            {suggested ? (
+            {fixed && payer && receiver ? (
+              <div className="flex flex-col gap-1">
+                <p data-testid="settle-parties" className="text-[15px] text-muted [overflow-wrap:anywhere]">
+                  {t("parties", { payer: payer.displayName, receiver: receiver.displayName })}
+                </p>
+                <FieldError id="settle-payer-error" message={errorOf("payer")} />
+                <FieldError id="settle-receiver-error" message={errorOf("receiver")} />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <FieldLabel>{t("payer")}</FieldLabel>
+                <ChoiceGroup
+                  label={t("payer")}
+                  layout="chips"
+                  value={draft.payerMemberId ?? ""}
+                  onValueChange={choosePayer}
+                  options={payerChoices}
+                  describedBy={errorOf("payer") ? "settle-payer-error" : undefined}
+                />
+                <FieldError id="settle-payer-error" message={errorOf("payer")} />
+              </div>
+            )}
+            {fixed ? null : suggested ? (
               receiver ? (
                 fixedRow("settle-receiver", t("receiver"), receiver)
               ) : (
@@ -464,7 +531,8 @@ export function SettleUpSheet({
             ) : null}
             <div className="flex flex-col gap-1.5">
               {amountField}
-              {payer && receiver && payer.id !== receiver.id && !payingFor ? (
+              {/* P324: on a fixed suggestion the line and the amount already say it, so the sentence is not repeated. */}
+              {payer && receiver && payer.id !== receiver.id && !payingFor && !fixed ? (
                 <p className="text-[13px] text-muted tabular-nums">
                   {debt
                     ? t("debt", {
@@ -512,15 +580,15 @@ export function SettleUpSheet({
             {receiver?.id === meMemberId && myAccounts.length > 0
               ? accountsOf("destinationAccountId", t("to"), t("toName"))
               : null}
-            {forgivable ? (
+            {suggested ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="self-start"
-                onClick={startForgiving}
+                className="-ml-2 self-start"
+                onClick={otherAmount}
               >
-                {t("forgive")}
+                {tBalances("record")}
               </Button>
             ) : null}
           </>

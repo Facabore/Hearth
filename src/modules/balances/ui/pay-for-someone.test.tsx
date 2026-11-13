@@ -100,6 +100,9 @@ const radioNames = (radios: HTMLElement) =>
     .getAllByRole("radio")
     .map((radio) => normalized(radio.textContent));
 const text = () => normalized(dialog().textContent);
+/** P324: an account is a flat row ("Sale de: Nu") that opens its chooser under it. */
+const accountRow = (term: "Sale de" | "Llega a") =>
+  within(dialog()).getByRole("button", { name: new RegExp(`^${term}:`) });
 
 describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () => {
   it("B1: offers Benekin and Lo pago yo, records what Benekin paid outside the app with today's body", async () => {
@@ -137,7 +140,8 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
     const back = group("¿Benekin te lo devuelve?");
     expect(radioNames(back)).toEqual(["Me lo debe", "Se lo regalo"]);
     expect(within(back).getByRole("radio", { name: "Me lo debe" })).toBeChecked();
-    expect(within(group("Sale de (opcional)")).getByRole("radio", { name: "Nu" })).toBeChecked();
+    // P324: the account is a row naming the one chosen.
+    expect(accountRow("Sale de")).toHaveAccessibleName("Sale de: Nu");
     expect(text()).toContain(
       "Le pagas $ 4.500 a Camilou por Benekin. Camilou queda al día y Benekin pasa a deberte $ 4.500.",
     );
@@ -227,7 +231,12 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
     await userEvent.click(
       screen.getByRole("button", { name: named("Saldar: Benekin le paga $ 4.500 a Leda") }),
     );
-    expect(within(group("Quién paga")).queryByRole("radio", { name: "Lo pago yo" })).toBeNull();
+    // P324: only Benekin owes Leda, so nothing is chosen: the sheet says who pays whom in a line.
+    expect(within(dialog()).queryByRole("radiogroup", { name: "Quién paga" })).toBeNull();
+    expect(within(dialog()).queryByRole("radio", { name: "Lo pago yo" })).toBeNull();
+    expect(normalized(within(dialog()).getByTestId("settle-parties").textContent)).toBe(
+      "Benekin le paga a Leda",
+    );
   });
 
   it("shows InvalidOnBehalfOf by who pays and GiftRequiresOnBehalfOf by the gift choice", async () => {
@@ -328,12 +337,15 @@ describe("Saldar otro monto: both payer and receiver are chosen (P322, board B4)
     await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
     await userEvent.click(within(group("Quién paga")).getByRole("radio", { name: "Camilox" }));
     await userEvent.click(within(group("A quién")).getByRole("radio", { name: "Tú" }));
+    await userEvent.click(accountRow("Llega a"));
     expect(within(group("Llega a (opcional)")).getByRole("radio", { name: "Nu" })).toBeChecked();
     await userEvent.click(within(group("Quién paga")).getByRole("radio", { name: "Tú" }));
     // The receiver was the new payer: it is chosen again, never kept as the payer's own.
     expect(within(group("A quién")).queryByRole("radio", { checked: true })).toBeNull();
+    await userEvent.click(accountRow("Sale de"));
     expect(within(group("Sale de (opcional)")).getByRole("radio", { name: "Nu" })).toBeChecked();
     expect(within(dialog()).queryByRole("radiogroup", { name: /Llega a/ })).toBeNull();
+    expect(within(dialog()).queryByRole("button", { name: /^Llega a:/ })).toBeNull();
     await userEvent.click(within(group("A quién")).getByRole("radio", { name: "Benekin (invitado)" }));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "1.000");
     await userEvent.click(within(dialog()).getByRole("button", { name: "Guardar pago" }));

@@ -110,6 +110,13 @@ const radioNames = (group: HTMLElement) =>
 const receiverRow = () => within(dialog()).getByTestId("settle-receiver");
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
 const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").replace(/ /g, "\\s")}$`);
+/** P324: an account is a flat row ("Sale de: Davivienda") that opens its chooser under it. */
+const accountRow = (term: "Sale de" | "Llega a") =>
+  within(dialog()).getByRole("button", { name: new RegExp(`^${term}:`) });
+const accountGroup = async (term: "Sale de" | "Llega a") => {
+  await userEvent.click(accountRow(term));
+  return within(dialog()).getByRole("radiogroup", { name: `${term} (opcional)` });
+};
 const JUAN_PAYS = named("Saldar: Juan le paga $ 100.000 a Ana");
 const LUIS_PAYS = named("Saldar: Luis le paga $ 50.000 a Ana");
 
@@ -218,7 +225,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
     await userEvent.clear(within(dialog()).getByLabelText("Monto"));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "50.000");
-    await userEvent.click(within(dialog()).getByRole("radio", { name: "Davivienda" }));
+    await userEvent.click(within(await accountGroup("Sale de")).getByRole("radio", { name: "Davivienda" }));
     await userEvent.click(save());
     expect(await requests[0]!.json()).toMatchObject({
       amount: { amount: "5000000" },
@@ -235,7 +242,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(amount).toHaveAccessibleDescription("Ej: 1.250,50");
     await userEvent.type(amount, "5x0000");
     expect(amount).toHaveValue("50.000");
-    await userEvent.click(within(dialog()).getByRole("radio", { name: "Davivienda" }));
+    await userEvent.click(within(await accountGroup("Sale de")).getByRole("radio", { name: "Davivienda" }));
     await userEvent.click(save());
     expect(await requests[0]!.json()).toMatchObject({
       amount: { amount: "5000000" },
@@ -266,15 +273,17 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   describe("the account the payment leaves from (issue #219)", () => {
     const SAVINGS = accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS", ownerUserId: "u-juan" });
     const NEQUI = accountDto({ id: "a-nequi", name: "Nequi", type: "WALLET", ownerUserId: "u-juan" });
-    const from = () => within(dialog()).getByRole("radiogroup", { name: "Sale de (opcional)" });
+    const from = () => accountGroup("Sale de");
 
     it("starts on the account Juan last paid from, keeps Ninguna as a choice and sends that account", async () => {
       localStorage.setItem("hearth.lastAccount", "a-nequi");
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
       screenAs("u-juan", api, undefined, { myAccounts: [SAVINGS, DAVI, NEQUI] });
       await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
-      expect(within(from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
-      expect(within(from()).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
+      expect(accountRow("Sale de")).toHaveAccessibleName("Sale de: Nequi");
+      const group = await from();
+      expect(within(group).getByRole("radio", { name: "Nequi" })).toBeChecked();
+      expect(within(group).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
       await userEvent.click(save());
       expect(await requests[0]!.json()).toMatchObject({
         payerMemberId: "m-juan",
@@ -288,7 +297,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [SAVINGS, DAVI, EMPTY, NEQUI] });
       await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
       expect(
-        within(from())
+        within(await from())
           .getAllByRole("radio")
           .map((radio) => radio.getAttribute("aria-label") ?? radio.textContent),
       ).toEqual(["Ninguna", "Nequi", "Ahorros", "Davivienda", "Efectivo"]);
@@ -297,14 +306,14 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     it("starts on the first account that is not a savings account when none was paid from yet", async () => {
       screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [SAVINGS, DAVI, NEQUI] });
       await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
-      expect(within(from()).getByRole("radio", { name: "Davivienda" })).toBeChecked();
+      expect(within(await from()).getByRole("radio", { name: "Davivienda" })).toBeChecked();
     });
 
     it("skips an account last paid from that is no longer offered", async () => {
       localStorage.setItem("hearth.lastAccount", "a-archived");
       screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [SAVINGS, NEQUI] });
       await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
-      expect(within(from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
+      expect(within(await from()).getByRole("radio", { name: "Nequi" })).toBeChecked();
     });
 
     it("never sends a receiving account when the viewer pays someone else (#282)", async () => {
@@ -323,19 +332,32 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
       screenAs("u-juan", api);
       await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
-      await userEvent.click(within(from()).getByRole("radio", { name: "Ninguna" }));
+      await userEvent.click(within(await from()).getByRole("radio", { name: "Ninguna" }));
+      // The row says the choice, and the chooser stays open for the keyboard's arrows.
+      expect(accountRow("Sale de")).toHaveAccessibleName("Sale de: Ninguna");
+      expect(accountRow("Sale de")).toHaveAttribute("aria-expanded", "true");
       await userEvent.click(save());
       expect(await requests[0]!.json()).not.toHaveProperty("sourceAccountId");
     });
 
-    it("draws each account with its wallet icon and the optional mark lighter than the label (board 02)", async () => {
+    it("draws the account as a flat row, the account over its muted term, that opens the chooser with wallet icons (P324)", async () => {
       screenAs("u-juan", fakeApi({}).api, undefined, { myAccounts: [DAVI, NEQUI] });
       await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
-      for (const radio of within(from()).getAllByRole("radio").slice(1))
+      const row = accountRow("Sale de");
+      expect(row).toHaveAccessibleName("Sale de: Davivienda");
+      expect(row).toHaveAttribute("aria-expanded", "false");
+      expect(row).toHaveClass("min-h-row-lg", "border-b");
+      expect(row).not.toHaveClass("rounded-2xl");
+      expect(within(row).getByText("Sale de")).toHaveClass("text-muted");
+      expect(within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" })).toBeNull();
+      const group = await from();
+      expect(row).toHaveAttribute("aria-expanded", "true");
+      expect(row).toHaveAttribute("aria-controls", group.parentElement!.id);
+      for (const radio of within(group).getAllByRole("radio").slice(1))
         expect(radio.querySelector("svg")).not.toBeNull();
-      expect(within(dialog()).getByText("Sale de")).toHaveClass("font-semibold");
-      const optional = within(dialog()).getByText("(opcional)");
-      expect(optional).toHaveClass("font-normal", "text-muted");
+      // A second tap closes it again.
+      await userEvent.click(row);
+      expect(within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" })).toBeNull();
     });
 
     it("starts the receiving account on the one last used and sends it, so the payment lands in an account (#282)", async () => {
@@ -343,7 +365,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
       screenAs("u-ana", api);
       await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
-      const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
+      const to = await accountGroup("Llega a");
       expect(within(to).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
       expect(within(to).getByRole("radio", { name: "Ninguna" })).not.toBeChecked();
       await userEvent.click(save());
@@ -357,7 +379,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
       screenAs("u-ana", api);
       await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
-      const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
+      const to = await accountGroup("Llega a");
       await userEvent.click(within(to).getByRole("radio", { name: "Ninguna" }));
       await userEvent.click(save());
       expect(await requests[0]!.json()).not.toHaveProperty("destinationAccountId");
@@ -372,10 +394,8 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(
       within(dialog()).getByText("Pedro es invitado: pagó fuera de la app, así que no hay cuenta de origen."),
     ).toBeInTheDocument();
-    expect(
-      within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" }),
-    ).not.toBeInTheDocument();
-    expect(within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" })).toBeInTheDocument();
+    expect(within(dialog()).queryByRole("button", { name: /^Sale de:/ })).not.toBeInTheDocument();
+    expect(accountRow("Llega a")).toBeInTheDocument();
     expect(normalized(within(dialog()).getByText(/ya está al día/).textContent)).toBe(
       "Pedro ya está al día con Ana.",
     );
@@ -395,10 +415,8 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     screenAs("u-ana", api);
     await userEvent.click(screen.getByRole("button", { name: LUIS_PAYS }));
-    expect(
-      within(dialog()).queryByRole("radiogroup", { name: "Sale de (opcional)" }),
-    ).not.toBeInTheDocument();
-    const to = within(dialog()).getByRole("radiogroup", { name: "Llega a (opcional)" });
+    expect(within(dialog()).queryByRole("button", { name: /^Sale de:/ })).not.toBeInTheDocument();
+    const to = await accountGroup("Llega a");
     await userEvent.click(within(to).getByRole("radio", { name: "Bancolombia" }));
     await userEvent.click(save());
     expect(await requests[0]!.json()).toMatchObject({
@@ -411,10 +429,8 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("does not offer a receiving account when somebody else receives", async () => {
     screenAs("u-juan", fakeApi({}).api);
     await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS }));
-    expect(
-      within(dialog()).queryByRole("radiogroup", { name: "Llega a (opcional)" }),
-    ).not.toBeInTheDocument();
-    expect(within(dialog()).getByRole("radiogroup", { name: "Sale de (opcional)" })).toBeInTheDocument();
+    expect(within(dialog()).queryByRole("button", { name: /^Llega a:/ })).not.toBeInTheDocument();
+    expect(accountRow("Sale de")).toBeInTheDocument();
   });
 
   it("opens Saldar otro monto with the viewer receiving by default, and nobody fixed (board 03, amended by P322 B4)", async () => {
@@ -523,6 +539,79 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     expect(screen.queryByRole("button", { name: /Saldar/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Saldar otro monto" })).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  describe("a suggestion with nothing to choose reads as rows (P324, board Saldar)", () => {
+    const HOGAR = householdSpace({ id: "sp-hogar", name: "Hogar", role: "MEMBER" });
+    const twoOf = (meUserId: string, api: Api) =>
+      screenAs(meUserId, api, undefined, {
+        space: HOGAR,
+        members: [ANA, JUAN],
+        balances: [net("m-ana", 947_000), net("m-juan", -947_000)],
+        suggestions: [{ payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(947_000) }],
+      });
+    const JUAN_PAYS_ALL = named("Saldar: Juan le paga $ 947.000 a Ana");
+
+    it("says who pays whom in a line over the amount, with no chips, and records the same payment", async () => {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      twoOf("u-ana", api);
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS_ALL }));
+      expect(normalized(within(dialog()).getByTestId("settle-parties").textContent)).toBe(
+        "Juan le paga a Ana",
+      );
+      expect(within(dialog()).queryByRole("radiogroup", { name: "Quién paga" })).toBeNull();
+      expect(within(dialog()).queryByTestId("settle-receiver")).toBeNull();
+      expect(within(dialog()).getByLabelText("Monto")).toHaveValue("947.000");
+      // The line and the amount say it once: the debt's sentence is not repeated under them.
+      expect(within(dialog()).queryByText(/Para quedar al día/)).toBeNull();
+      expect(accountRow("Llega a")).toHaveAccessibleName("Llega a: Bancolombia");
+      // From the top: the line, the amount, the account row, then Saldar otro monto.
+      const order = [
+        within(dialog()).getByTestId("settle-parties"),
+        within(dialog()).getByLabelText("Monto"),
+        accountRow("Llega a"),
+        within(dialog()).getByRole("button", { name: "Saldar otro monto" }),
+      ];
+      for (const [index, node] of order.slice(1).entries())
+        expect(order[index]!.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).toEqual({
+        date: "2026-10-31",
+        occurredAt: "2026-10-31T17:00:00.000Z",
+        timeZone: "America/Bogota",
+        amount: { amount: "94700000", currency: "COP" },
+        payerMemberId: "m-juan",
+        receivingMemberId: "m-ana",
+        destinationAccountId: "a-bank",
+      });
+    });
+
+    it("takes Saldar otro monto to the amount, selected, to type another one", async () => {
+      const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
+      twoOf("u-juan", api);
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS_ALL }));
+      await userEvent.click(within(dialog()).getByRole("button", { name: "Saldar otro monto" }));
+      const amount = within(dialog()).getByLabelText<HTMLInputElement>("Monto");
+      expect(amount).toHaveFocus();
+      expect([amount.selectionStart, amount.selectionEnd]).toEqual([0, "947.000".length]);
+      await userEvent.keyboard("400.000");
+      await userEvent.click(save());
+      expect(await requests[0]!.json()).toMatchObject({
+        amount: { amount: "40000000" },
+        payerMemberId: "m-juan",
+      });
+    });
+
+    it("puts Perdonar en vez de cobrar under the main action, quiet, for who collects", async () => {
+      twoOf("u-ana", fakeApi({}).api);
+      await userEvent.click(screen.getByRole("button", { name: JUAN_PAYS_ALL }));
+      const forgive = within(dialog()).getByRole("button", { name: "Perdonar en vez de cobrar" });
+      expect(save().compareDocumentPosition(forgive) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(forgive).toHaveClass("text-muted", "min-h-11");
+      expect(forgive).not.toHaveClass("text-accent");
+      await userEvent.click(forgive);
+      expect(screen.getByRole("dialog", { name: "¿Perdonar la deuda de Juan?" })).toBeInTheDocument();
+    });
   });
 
   it("reads in English with no accessibility violations", async () => {

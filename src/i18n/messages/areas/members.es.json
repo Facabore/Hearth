@@ -70,16 +70,21 @@
     "title": "Saldos",
     "yours": "Tu saldo en {space}",
     "you": {
-      "owes": "Te toca poner {amount}",
-      "owed": "Te toca recibir {amount}",
-      "settled": "Estás al día"
+      "owes": "te toca poner",
+      "owed": "te toca recibir",
+      "settled": "estás al día"
+    },
+    "state": {
+      "owes": "le toca poner",
+      "owed": "le toca recibir",
+      "settled": "al día"
     },
     "suggestions": "Para quedar al día",
     "owes": "{payer} le paga {amount} a {receiver}",
     "suggestionsNote": "Cada quien le paga a quien pagó por él. Saldar solo prellena el formulario.",
     "personalNote": "{space} es solo tuyo: aquí no hay nada que saldar.",
     "allSettled": "Todos están al día en {space}.",
-    "members": "Cada miembro",
+    "members": "Por persona",
     "member": {
       "owes": "le toca poner {amount}",
       "owed": "le toca recibir {amount}",
@@ -135,6 +140,8 @@
       "me": "Tú",
       "iPay": "Lo pago yo",
       "receiverChoice": "A quién",
+      "parties": "{payer} le paga a {receiver}",
+      "accountRow": "{term}: {account}",
       "payBack": "¿{name} te lo devuelve?",
       "owesMe": "Me lo debe",
       "giveIt": "Se lo regalo",

@@ -12,7 +12,10 @@ const ANA = memberDto();
 const JUAN = memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" });
 const LUIS = memberDto({ id: "m-luis", userId: "u-luis", displayName: "Luis", role: "MEMBER" });
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
-const named = (text: string) => new RegExp(`^${text.replace(/[.()$]/g, "\\$&").replace(/ /g, "\\s")}$`);
+const named = (text: string) => new RegExp(`^${text.replace(/[.()$+]/g, "\\$&").replace(/ /g, "\\s")}$`);
+/** The hero's lines, top to bottom: its caption, the figure and the direction in words (P324). */
+const heroText = (name = "Tu saldo en Household") =>
+  [...screen.getByRole("region", { name }).children].map((line) => normalized(line.textContent));
 const net = (memberId: string, pesos: number) => ({ memberId, net: cop(pesos) });
 const view = (props: Partial<Parameters<typeof BalancesScreen>[0]> = {}, locale: "es" | "en" = "es") =>
   renderWithIntl(
@@ -32,12 +35,10 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
   it("shows Juan that he owes Ana 150,000 COP", async () => {
     const { container } = view();
     expect(screen.getByRole("heading", { level: 1, name: "Saldos" })).toBeInTheDocument();
-    expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
-      "Te toca poner $ 150.000",
-    );
+    expect(heroText()).toEqual(["Tu saldo en Household", "$ 150.000", "te toca poner"]);
     const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
     expect(normalized(suggestions.textContent)).toContain("Juan le paga $ 150.000 a Ana");
-    const members = screen.getByRole("region", { name: "Cada miembro" });
+    const members = screen.getByRole("region", { name: "Por persona" });
     expect(
       within(members).getByRole("link", { name: named("Ana: le toca recibir $ 150.000. Ver historial") }),
     ).toHaveAttribute("href", "/spaces/sp-household/members/m-ana/history");
@@ -56,34 +57,111 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       suggestions: [],
     });
     expect(screen.getByRole("heading", { level: 1, name: "Saldos" })).toBeInTheDocument();
-    expect(normalized(screen.getByRole("region", { name: "Tu saldo en Personal" }).textContent)).toContain(
-      "Estás al día",
-    );
+    expect(heroText("Tu saldo en Personal")).toEqual(["Tu saldo en Personal", "$ 0", "estás al día"]);
     expect(screen.getByText("Personal es solo tuyo: aquí no hay nada que saldar.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Para quedar al día" })).toBeNull();
-    expect(screen.queryByRole("region", { name: "Cada miembro" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Por persona" })).toBeNull();
     expect(screen.queryByRole("link")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("colors who owes and who is owed, never by the sign alone", () => {
+  it("colors who owes and who is owed, never by the colour alone", () => {
     view();
-    // P272 (board 01): the headline is ink whatever the direction; its words say who puts and who receives.
-    expect(screen.getByText(/^Te toca poner/)).toHaveClass("text-ink");
-    const members = screen.getByRole("region", { name: "Cada miembro" });
-    expect(within(members).getByText(/^le toca poner\s/)).toHaveClass("text-owe");
-    expect(within(members).getByText(/^le toca recibir\s/)).toHaveClass("text-accent");
+    // P272 (board 01): the hero's figure is ink whatever the direction; its words say who puts and who receives.
+    expect(screen.getByTestId("balances-hero-amount")).toHaveClass("text-ink");
+    const members = screen.getByRole("region", { name: "Por persona" });
+    expect(within(members).getByText(named("−$ 150.000"))).toHaveClass("text-owe");
+    expect(within(members).getByText(named("+$ 150.000"))).toHaveClass("text-accent");
+  });
+
+  it("states the viewer's figure once, in the hero, with its direction in words under it (P324)", () => {
+    view({
+      members: [ANA, JUAN],
+      meUserId: "u-ana",
+      balances: [net("m-ana", 947_000), net("m-juan", -947_000)],
+      suggestions: [{ payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(947_000) }],
+    });
+    const hero = screen.getByRole("region", { name: "Tu saldo en Household" });
+    expect(heroText()).toEqual(["Tu saldo en Household", "$ 947.000", "te toca recibir"]);
+    expect(within(hero).getAllByText(/947\.000/)).toHaveLength(1);
+    expect(screen.getByTestId("balances-hero-amount")).toHaveClass("font-semibold");
+    // The hero is no card and no sentence: the figure stands alone.
+    expect(hero).not.toHaveClass("rounded-2xl");
+    expect(normalized(hero.textContent)).not.toMatch(/Te toca recibir \$/);
+  });
+
+  it("draws each suggestion as an action line between hairlines, not as a card (P324)", () => {
+    view({
+      members: [ANA, JUAN, LUIS],
+      meUserId: "u-ana",
+      balances: [net("m-ana", 150_000), net("m-juan", -100_000), net("m-luis", -50_000)],
+      suggestions: [
+        { payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(100_000) },
+        { payerMemberId: "m-luis", receivingMemberId: "m-ana", amount: cop(50_000) },
+      ],
+    });
+    const region = screen.getByRole("region", { name: "Para quedar al día" });
+    const list = within(region).getByRole("list");
+    expect(list).toHaveClass("divide-y", "divide-line", "border-y");
+    const lines = within(list).getAllByRole("listitem");
+    expect(lines.map((line) => normalized(line.textContent))).toEqual([
+      "Juan le paga $ 100.000 a AnaSaldar",
+      "Luis le paga $ 50.000 a AnaSaldar",
+    ]);
+    for (const line of lines) {
+      expect(line).not.toHaveClass("rounded-2xl");
+      expect(line).not.toHaveClass("border");
+      expect(line).not.toHaveClass("bg-surface");
+      expect(line.querySelector("img, [data-avatar]")).toBeNull();
+      const action = within(line).getByRole("button", { name: /^Saldar:/ });
+      expect(action).toHaveClass("text-accent");
+      expect(action).not.toHaveClass("bg-accent");
+    }
+    // The note is said once, under the lines.
+    expect(
+      within(region).getAllByText("Cada quien le paga a quien pagó por él.", { exact: false }),
+    ).toHaveLength(1);
+  });
+
+  it("gives each member row a word and a signed amount, so the colour never carries the direction alone (P324)", () => {
+    view({
+      members: [ANA, JUAN, guestDto()],
+      meUserId: "u-ana",
+      balances: [net("m-ana", 947_000), net("m-juan", -947_000), net("m-pedro", 0)],
+      suggestions: [{ payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(947_000) }],
+    });
+    const members = screen.getByRole("region", { name: "Por persona" });
+    expect(within(members).getByRole("list")).not.toHaveClass("rounded-2xl");
+    expect(
+      within(members)
+        .getAllByRole("link")
+        .map((link) => normalized(link.textContent)),
+    ).toEqual([
+      "Ana (tú)te toca recibir+$ 947.000",
+      "Juanle toca poner−$ 947.000",
+      "Pedro (invitado)al día$ 0",
+    ]);
+    // An amount never breaks across lines.
+    expect(within(members).getByText(named("−$ 947.000"))).toHaveClass("whitespace-nowrap");
+    expect(within(members).getByText(named("$ 0"))).toHaveClass("text-muted");
   });
 
   it("reads the same sentences in English", () => {
     view({}, "en");
-    expect(
-      normalized(screen.getByRole("region", { name: "Your balance in Household" }).textContent),
-    ).toContain("You owe $ 150.000");
+    expect(heroText("Your balance in Household")).toEqual([
+      "Your balance in Household",
+      "$ 150.000",
+      "you owe",
+    ]);
     expect(normalized(screen.getByRole("region", { name: "To settle up" }).textContent)).toContain(
       "Juan owes Ana $ 150.000",
     );
+    const members = within(screen.getByRole("region", { name: "Per person" }));
+    expect(members.getAllByRole("link").map((link) => normalized(link.textContent))).toEqual([
+      "Anais owed+$ 150.000",
+      "Juan (you)you owe−$ 150.000",
+    ]);
   });
 
   it("lists one suggestion per payment of the trip, and the guest with its suffix", () => {
@@ -96,9 +174,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
         { payerMemberId: "m-luis", receivingMemberId: "m-ana", amount: cop(50_000) },
       ],
     });
-    expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
-      "Te toca recibir $ 150.000",
-    );
+    expect(heroText()).toEqual(["Tu saldo en Household", "$ 150.000", "te toca recibir"]);
     const suggestions = within(screen.getByRole("region", { name: "Para quedar al día" })).getAllByRole(
       "listitem",
     );
@@ -122,7 +198,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       ],
       suggestions: [],
     });
-    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    const members = within(screen.getByRole("region", { name: "Por persona" }));
     expect(members.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
       "/spaces/sp-household/members/m-ana/history",
       "/spaces/sp-household/members/m-juan/history",
@@ -140,7 +216,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       ],
       suggestions: [],
     });
-    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    const members = within(screen.getByRole("region", { name: "Por persona" }));
     expect(members.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual([
       "/spaces/sp-household/members/m-ana/history",
     ]);
@@ -152,15 +228,13 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       balances: [net("m-ana", 0), net("m-juan", 0)],
       suggestions: [],
     });
-    const members = within(screen.getByRole("region", { name: "Cada miembro" }));
+    const members = within(screen.getByRole("region", { name: "Por persona" }));
     expect(members.getAllByRole("link")).toHaveLength(3);
   });
 
   it("says when nobody owes anybody", () => {
     view({ balances: [net("m-ana", 0), net("m-juan", 0)], suggestions: [] });
-    expect(normalized(screen.getByRole("region", { name: "Tu saldo en Household" }).textContent)).toContain(
-      "Estás al día",
-    );
+    expect(heroText()).toEqual(["Tu saldo en Household", "$ 0", "estás al día"]);
     expect(screen.getByText("Todos están al día en Household.")).toBeInTheDocument();
     const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
     expect(within(suggestions).queryAllByRole("listitem")).toHaveLength(0);
@@ -173,7 +247,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(screen.getByText(`Tu saldo en ${name}`)).toHaveClass("[overflow-wrap:anywhere]");
   });
 
-  it("draws its board: one card per suggestion with a filled Saldar, a text Saldar otro monto, no Miembros button (P272)", () => {
+  it("draws its board: an ink figure, a text Saldar otro monto by Por persona, no Miembros button (P272, P324)", () => {
     view({
       members: [ANA, JUAN, LUIS],
       meUserId: "u-ana",
@@ -183,29 +257,20 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
         { payerMemberId: "m-luis", receivingMemberId: "m-ana", amount: cop(50_000) },
       ],
     });
-    const headline = screen.getByText(/^Te toca recibir/);
-    expect(headline).toHaveClass("text-ink");
-    expect(headline).not.toHaveClass("text-accent");
-    const cards = within(screen.getByRole("region", { name: "Para quedar al día" })).getAllByRole("listitem");
-    expect(cards).toHaveLength(2);
-    for (const card of cards) {
-      expect(card).toHaveClass("rounded-2xl", "border", "bg-surface");
-      expect(within(card).getByRole("button", { name: /^Saldar:/ })).toHaveClass(
-        "bg-accent",
-        "text-on-accent",
-      );
-    }
+    const figure = screen.getByTestId("balances-hero-amount");
+    expect(figure).toHaveClass("text-ink");
+    expect(figure).not.toHaveClass("text-accent");
     const other = screen.getByRole("button", { name: "Saldar otro monto" });
     expect(other).toHaveClass("text-accent");
     expect(other).not.toHaveClass("border");
     // The members stay one tap away in the profile sheet and on Inicio; the board's Saldos has no Miembros button.
     expect(screen.queryByRole("link", { name: "Miembros" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Cada miembro" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Por persona" })).toBeInTheDocument();
   });
 
   it("marks each member row with a chevron, as each one opens that member's history", () => {
     view();
-    const links = within(screen.getByRole("region", { name: "Cada miembro" })).getAllByRole("link");
+    const links = within(screen.getByRole("region", { name: "Por persona" })).getAllByRole("link");
     expect(links).toHaveLength(2);
     for (const link of links) expect(link.querySelector("svg")).not.toBeNull();
   });

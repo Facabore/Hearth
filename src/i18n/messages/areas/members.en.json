@@ -70,16 +70,21 @@
     "title": "Balances",
     "yours": "Your balance in {space}",
     "you": {
-      "owes": "You owe {amount}",
-      "owed": "You are owed {amount}",
-      "settled": "You are settled up"
+      "owes": "you owe",
+      "owed": "you are owed",
+      "settled": "you are settled up"
+    },
+    "state": {
+      "owes": "owes",
+      "owed": "is owed",
+      "settled": "settled up"
     },
     "suggestions": "To settle up",
     "owes": "{payer} owes {receiver} {amount}",
     "suggestionsNote": "Everyone pays back whoever paid for them. Settle only fills in the form.",
     "personalNote": "{space} is yours alone: there is nothing to settle here.",
     "allSettled": "Nobody owes anybody in {space}.",
-    "members": "Each member",
+    "members": "Per person",
     "member": {
       "owes": "owes {amount}",
       "owed": "is owed {amount}",
@@ -135,6 +140,8 @@
       "me": "You",
       "iPay": "I'll pay",
       "receiverChoice": "To whom",
+      "parties": "{payer} pays {receiver}",
+      "accountRow": "{term}: {account}",
       "payBack": "Does {name} pay you back?",
       "owesMe": "{name} owes me",
       "giveIt": "It's a gift",

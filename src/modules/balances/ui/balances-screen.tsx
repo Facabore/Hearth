@@ -7,10 +7,10 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { preferredAccountId, readLastAccount } from "@/modules/ledger/ui";
 import { controlsFor, memberLabel } from "@/modules/spaces/ui";
-import { Avatar, Button, Icon } from "@/shared/ui";
+import { Button, Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, BalancesDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
-import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { absolute, memberSentence, netState } from "./net-state";
 import { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
@@ -41,9 +41,13 @@ interface Settling {
  * sheet; a payment is recorded when the person saves it. `settle` (the guest sheet's link) opens the sheet for that
  * member. A viewer who cannot record money reads the balances without either control.
  *
- * Ruling P272 (board 01): each suggestion is its own card with a filled "Saldar", "Saldar otro monto" is a text link,
- * and each member row ends in a chevron. The board's strip with the viewer's balance in another space is not drawn:
- * the API answers balances one space at a time.
+ * Ruling P272 (board 01): "Saldar otro monto" is a text link and each member row ends in a chevron. The board's strip
+ * with the viewer's balance in another space is not drawn: the API answers balances one space at a time.
+ *
+ * Ruling P324 (medium density, board "Saldos"): one hero with the viewer's figure once and its direction in words under
+ * it; each suggestion is one action line between hairlines, not a card; each member is a flat row with a word for the
+ * direction and a signed amount, so the colour never carries it alone. The board's "¿Cómo se calcula?" link is not
+ * drawn: there is no help text for it to open yet.
  */
 export function BalancesScreen({
   space,
@@ -121,33 +125,39 @@ export function BalancesScreen({
   return (
     <div className="flex flex-col gap-3 pb-3">
       <h1 className="sr-only">{t("title")}</h1>
-      {/* Board 01 (P272): the viewer's net in ink, its words saying the direction. The members are one tap away in the
-          profile sheet and on Inicio, so Saldos has no Miembros button of its own. */}
-      <section aria-label={t("yours", { space: space.name })} className="flex flex-col gap-1 pt-1">
+      {/* P324: the hero states the viewer's figure once, in ink, and its direction in words under it. The members are one
+          tap away in the profile sheet and on Inicio, so Saldos has no Miembros button of its own. */}
+      <section aria-label={t("yours", { space: space.name })} className="flex flex-col pt-1">
         <span className="min-w-0 text-[15px] text-muted [overflow-wrap:anywhere]">
           {t("yours", { space: space.name })}
         </span>
-        <span className="text-[30px] leading-tight font-semibold tabular-nums text-ink">
-          {t(`you.${state}`, { amount: formatMoney(absolute(mine), formats) })}
+        <span
+          data-testid="balances-hero-amount"
+          className="text-[clamp(1.75rem,9.25vw,2.25rem)] leading-tight font-semibold tabular-nums [overflow-wrap:anywhere] text-ink"
+        >
+          {formatMoney(absolute(mine), formats)}
         </span>
+        <span className="text-[15px] text-muted">{t(`you.${state}`)}</span>
       </section>
       {personal ? (
-        <p className="rounded-2xl bg-track p-3 text-sm text-ink">
+        <p className="border-y border-line py-3 text-base text-muted">
           {t("personalNote", { space: space.name })}
         </p>
       ) : (
         <>
+          {/* P324: the suggestions are the screen's action lines, between hairlines. Their heading is for assistive
+              technology only: the board shows the lines straight under the hero. */}
           <section aria-labelledby="balances-suggestions" className="flex flex-col gap-2">
-            <h2 id="balances-suggestions" className="text-[17px] font-semibold text-ink">
+            <h2 id="balances-suggestions" className="sr-only">
               {t("suggestions")}
             </h2>
             {suggestions.length === 0 ? (
-              <p className="rounded-2xl bg-track p-3 text-sm text-ink">
+              <p className="border-y border-line py-3 text-base text-muted">
                 {t("allSettled", { space: space.name })}
               </p>
             ) : (
               <>
-                <ol className="flex flex-col gap-2">
+                <ol className="divide-y divide-line border-y border-line">
                   {suggestions.map((suggestion) => {
                     const payer = names.get(suggestion.payerMemberId) ?? "";
                     const receiver = names.get(suggestion.receivingMemberId) ?? "";
@@ -159,16 +169,16 @@ export function BalancesScreen({
                     return (
                       <li
                         key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
-                        className="flex min-h-row-lg items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-2.5"
+                        className="flex min-h-row-lg items-center gap-3 py-1.5"
                       >
-                        <Avatar name={payer} />
-                        <span className="min-w-0 flex-1 text-[15px] text-ink tabular-nums [overflow-wrap:anywhere]">
+                        <span className="min-w-0 flex-1 text-base text-ink tabular-nums [overflow-wrap:anywhere]">
                           {sentence}
                         </span>
                         {canSettle ? (
                           <Button
-                            size="chip"
-                            className="shrink-0"
+                            variant="ghost"
+                            size="compact"
+                            className="-mr-2 shrink-0"
                             aria-label={t("settle.suggestion", {
                               payer,
                               receiver,
@@ -187,43 +197,47 @@ export function BalancesScreen({
               </>
             )}
           </section>
-          <section aria-labelledby="balances-members" className="flex flex-col gap-1.5">
+          <section aria-labelledby="balances-members" className="flex flex-col">
             <div className="flex items-center justify-between gap-3">
-              <h2 id="balances-members" className="min-w-0 text-[17px] font-semibold text-ink">
+              <h2 id="balances-members" className="min-w-0 text-[15px] font-semibold text-ink">
                 {t("members")}
               </h2>
               {canSettle ? (
                 <Button
                   variant="ghost"
                   size="compact"
-                  className="shrink-0"
+                  className="-mr-2 shrink-0"
                   onClick={() => setSettling(prefill(null))}
                 >
                   {t("record")}
                 </Button>
               ) : null}
             </div>
-            <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface empty:hidden">
+            <ul className="divide-y divide-line empty:hidden">
               {listed.map((member) => {
                 const net = netOf(member.id);
                 const memberState = netState(net);
                 const sentence = memberSentence(net, formats, t);
                 const name = memberLabel(member, meUserId, tMembers);
+                // P324: the direction in words ("te toca recibir", "le toca poner") and a signed amount; the colour
+                // only repeats them.
+                const word = member.userId === meUserId ? t(`you.${memberState}`) : t(`state.${memberState}`);
                 return (
                   <li key={member.id}>
                     <Link
                       href={`/spaces/${space.id}/members/${member.id}/history`}
                       aria-label={t("member.link", { name, sentence })}
                       prefetch={false}
-                      className="flex min-h-row-lg items-center gap-2 py-1.5 pr-2.5 pl-3.5"
+                      className="flex min-h-row-lg items-center gap-2 py-1.5"
                     >
-                      <span className="min-w-0 flex-1 font-medium [overflow-wrap:anywhere] text-ink">
-                        {name}
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
+                        <span className="text-[13px] text-muted">{word}</span>
                       </span>
                       <span
-                        className={`text-[15px] font-semibold tabular-nums ${memberState === "owes" ? "text-owe" : memberState === "owed" ? "text-accent" : "text-muted"}`}
+                        className={`shrink-0 font-semibold whitespace-nowrap tabular-nums ${memberState === "owes" ? "text-owe" : memberState === "owed" ? "text-accent" : "text-muted"}`}
                       >
-                        {sentence}
+                        {formatSignedMoney(net, formats)}
                       </span>
                       {/* Board 01: the chevron says the row opens the member's history. */}
                       <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
