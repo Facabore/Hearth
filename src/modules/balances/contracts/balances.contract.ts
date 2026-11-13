@@ -201,7 +201,8 @@ export const balancesPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/balances/suggestions": {
     get: {
       operationId: "getSettlementSuggestions",
-      summary: "Payments between each pair of members, from the one who owes to the one owed; computed on read",
+      summary:
+        "Payments between each pair of members, from the one who owes to the one owed; computed on read",
       description:
         "Each suggestion has the fields of a settlement; POST it to accept it. A suggestion that names a former member (possible only after the race tracked on #89) cannot be accepted until #89 lands.",
       ...securedByUser,

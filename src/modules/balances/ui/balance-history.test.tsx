@@ -182,9 +182,7 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
 
   it("B6: a payment Kamilox made for Benekin reads as lent to him, with a change of 0", () => {
     benekinsView([PAID_FOR_BENEKIN]);
-    expect(rows()).toEqual([
-      "12novKamilox pagó por tiA Camilou · se lo debesle toca poner $ 4.500$ 0",
-    ]);
+    expect(rows()).toEqual(["12novKamilox pagó por tiA Camilou · se lo debesle toca poner $ 4.500$ 0"]);
   });
 
   it("B7: a gift reads as given, in one row with its payment, and leaves Benekin al día", () => {
