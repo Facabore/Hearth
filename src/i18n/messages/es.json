@@ -336,7 +336,14 @@
       "betweenYou": "Saldo entre ustedes",
       "settled": "{from} le pagó a {to}",
       "settledToYou": "{name} te pagó",
-      "settledByYou": "Le pagaste a {name}"
+      "settledByYou": "Le pagaste a {name}",
+      "noMoney": "No se movió dinero",
+      "forgiven": "{to} le perdonó la deuda a {from}",
+      "forgivenByYou": "Le perdonaste la deuda a {name}",
+      "forgivenToYou": "{name} te perdonó la deuda",
+      "gift": "{to} se lo regaló a {from}",
+      "giftByYou": "Se lo regalaste a {name}",
+      "giftToYou": "{name} te lo regaló"
     },
     "allTransactions": "Ver todos los movimientos",
     "allTransactionsShort": "Ver todo",

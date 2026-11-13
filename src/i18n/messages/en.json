@@ -336,7 +336,14 @@
       "betweenYou": "Settled between you",
       "settled": "{from} paid {to}",
       "settledToYou": "{name} paid you",
-      "settledByYou": "You paid {name}"
+      "settledByYou": "You paid {name}",
+      "noMoney": "No money moved",
+      "forgiven": "{to} forgave {from}'s debt",
+      "forgivenByYou": "You forgave {name}'s debt",
+      "forgivenToYou": "{name} forgave your debt",
+      "gift": "{to} gave it to {from}",
+      "giftByYou": "You gave it to {name}",
+      "giftToYou": "{name} gave it to you"
     },
     "allTransactions": "See all transactions",
     "allTransactionsShort": "See all",

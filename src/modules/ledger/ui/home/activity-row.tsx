@@ -13,13 +13,17 @@ const signed = (sign: "+" | "-" | null, amount: string) =>
   sign === "+" ? `+${amount}` : sign === "-" ? `${MINUS}${amount}` : amount;
 
 type Title =
-  | { readonly key: "settledByYou" | "settledToYou"; readonly name: string }
-  | { readonly key: "settled"; readonly from: string; readonly to: string };
+  | {
+      readonly key:
+        "settledByYou" | "settledToYou" | "forgivenByYou" | "forgivenToYou" | "giftByYou" | "giftToYou";
+      readonly name: string;
+    }
+  | { readonly key: "settled" | "forgiven" | "gift"; readonly from: string; readonly to: string };
 
 interface Part {
   readonly amount: MoneyDto;
   readonly sign: "+" | "-" | null;
-  readonly detail: "shareOf" | "paidAndShare" | "paid" | "notYou" | "betweenYou" | "recorded";
+  readonly detail: "shareOf" | "paidAndShare" | "paid" | "notYou" | "betweenYou" | "noMoney" | "recorded";
   /** A settlement without a description is named by who paid whom. */
   readonly title?: Title;
 }
@@ -38,6 +42,21 @@ const partOf = (item: ActivityItemDto): Part => {
   if (tx.type === "SETTLEMENT") {
     const out = tx.payerMemberId !== null && mine.has(tx.payerMemberId);
     const into = tx.receivingMemberId !== null && mine.has(tx.receivingMemberId);
+    // Ruling P322: a forgiven debt and a gift move no money, so they carry no sign; their words say what happened.
+    // Both run from the one let off to the one who lets them off: the debtor to the creditor, the one given to the giver.
+    if (tx.settlementReason === "FORGIVENESS" || tx.settlementReason === "GIFT") {
+      const key = tx.settlementReason === "FORGIVENESS" ? "forgiven" : "gift";
+      return {
+        amount: tx.amount,
+        sign: null,
+        detail: "noMoney",
+        title: into
+          ? ({ key: `${key}ByYou`, name: name(tx.payerMemberId) } as const)
+          : out
+            ? ({ key: `${key}ToYou`, name: name(tx.receivingMemberId) } as const)
+            : ({ key, from: name(tx.payerMemberId), to: name(tx.receivingMemberId) } as const),
+      };
+    }
     return {
       amount: tx.amount,
       sign: out ? ("-" as const) : into ? ("+" as const) : null,
@@ -104,14 +123,16 @@ export function ActivityRow({
             ? `${recorder} · ${t("notYou")}`
             : part.detail === "betweenYou"
               ? t("betweenYou")
-              : recorder;
+              : part.detail === "noMoney"
+                ? t("noMoney")
+                : recorder;
   const named = part.title;
   const title =
     tx.description ||
     (named === undefined
       ? ledger(`type.${kindOf(tx)}`)
-      : named.key === "settled"
-        ? t("settled", { from: named.from, to: named.to })
+      : "from" in named
+        ? t(named.key, { from: named.from, to: named.to })
         : t(named.key, { name: named.name }));
   const category = item.category;
   const icon =

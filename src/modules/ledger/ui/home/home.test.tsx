@@ -330,6 +330,55 @@ describe("the personal space shows everything (ruling P306)", () => {
     );
   });
 
+  it("shows a forgiven debt and a gift without a sign: no money moved (P322)", () => {
+    const between = (id: string, settlementReason: "FORGIVENESS" | "GIFT", payer: string, receiver: string) =>
+      activityItemDto({
+        transaction: transactionDto({
+          id,
+          type: "SETTLEMENT",
+          description: "",
+          date: "2026-10-29",
+          amount: cop(10_000),
+          payerMemberId: payer,
+          receivingMemberId: receiver,
+          settlementReason,
+        }),
+        memberNames: { "m-juan": "Juan", "m-ana": "Ana", "m-luis": "Luis" },
+      });
+    const feedOf = (...items: ReturnType<typeof activityItemDto>[]) =>
+      home({
+        recent: (
+          <UnifiedRecent
+            feed={items.map((item) => ({ kind: "group" as const, item }))}
+            spaceId="sp-personal"
+            context={rowContext}
+            today="2026-10-31"
+          />
+        ),
+      });
+    // Ana forgave Juan's debt; Luis forgave hers; Ana gave Juan what she paid for him; Luis gave her what he paid.
+    feedOf(
+      between("t-f1", "FORGIVENESS", "m-juan", "m-ana"),
+      between("t-f2", "FORGIVENESS", "m-ana", "m-luis"),
+      between("t-g1", "GIFT", "m-juan", "m-ana"),
+      between("t-g2", "GIFT", "m-ana", "m-luis"),
+      between("t-f3", "FORGIVENESS", "m-juan", "m-luis"),
+    );
+    const rows = within(screen.getByRole("region", { name: "Recientes" }))
+      .getAllByRole("listitem")
+      .map((row) => norm(row.textContent));
+    expect(rows).toEqual([
+      "Le perdonaste la deuda a Juan29/10/2026HogarNo se movió dinero$ 10.000",
+      "Luis te perdonó la deuda29/10/2026HogarNo se movió dinero$ 10.000",
+      "Se lo regalaste a Juan29/10/2026HogarNo se movió dinero$ 10.000",
+      "Luis te lo regaló29/10/2026HogarNo se movió dinero$ 10.000",
+      "Luis le perdonó la deuda a Juan29/10/2026HogarNo se movió dinero$ 10.000",
+    ]);
+    const first = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem")[0]!;
+    const amount = [...first.querySelectorAll("span")].find((span) => norm(span.textContent) === "$ 10.000");
+    expect(amount).toHaveClass("text-muted");
+  });
+
   it("keeps the old home without the unified month: no parts, only her own rows", () => {
     home({ summary: undefined, recent: undefined });
     expect(screen.queryByRole("button", { name: /Solo tú/ })).not.toBeInTheDocument();
