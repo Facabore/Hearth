@@ -4,6 +4,7 @@
 - **Issue:** [#308](https://github.com/Facabore/Hearth/issues/308).
 - **Boards:** Penpot file "Hearth", page "Propuesta · Densidad media (2026-11-12)". It holds 25 boards at 390 × 844.
 - **Why:** on 2026-11-12 the owner said the UX feels "demasiado saturada" and asked for examples and a direction.
+- **Owner's reaction (2026-11-13), on the boards:** "me gusta muchisimo más, es más limpio más minimalista, está muchisimo mejor". The direction is liked. Formal approval to start the code is still pending.
 
 ## What the critique found
 
