@@ -83,10 +83,10 @@ Feature: Moving between screens: every address and every flow leads somewhere
     And reloading the page leaves the settle-up sheet closed
 
   @e2e
-  Scenario: Invitar on the home of a shared space opens the invite sheet of its members screen
+  Scenario: Invitar on the members screen of a shared space opens its invite sheet (P324)
     Given "Ana" owns the shared space "Household"
-    When "Ana" opens the home page of "Household" by its URL
-    And "Ana" chooses "Invitar" on the home page
+    When "Ana" opens the members screen of "Household" by its URL
+    And "Ana" chooses "Invitar" on the members screen
     Then the invite sheet of "Household" is open on the members screen
 
   @e2e

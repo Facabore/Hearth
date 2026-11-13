@@ -75,8 +75,8 @@
       "settled": "you are settled up"
     },
     "state": {
-      "owes": "owes",
-      "owed": "is owed",
+      "owes": "pays",
+      "owed": "receives",
       "settled": "settled up"
     },
     "suggestions": "To settle up",

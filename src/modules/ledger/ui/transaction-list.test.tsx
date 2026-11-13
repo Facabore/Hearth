@@ -115,8 +115,9 @@ describe("transaction list (HU-E9-03)", () => {
       "Market",
       "Market",
     ]);
-    expect(rows[1]).toHaveTextContent("20:45");
-    // Ruling P284 (board E9-09 00): the round icon shows the category; the line keeps the time and who paid or the account.
+    // Ruling P324 (amends P284): the day's label dates the row, so its line leaves the local time to the detail sheet.
+    expect(rows[1]).not.toHaveTextContent("20:45");
+    // Ruling P284 (board E9-09 00): the round icon shows the category; the line names who paid or the account.
     expect(rows[2]).not.toHaveTextContent("Groceries");
     expect(rows[0]).not.toHaveTextContent(/\d{2}:\d{2}/);
     const totals = screen.getByRole("region", { name: "Totales del período" });
@@ -514,7 +515,7 @@ describe("the days (board E9-09 00, ruling P284)", () => {
       payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(86_400) }],
     });
     renderWithIntl(listOf({ context: shared, page: { ...page, items: [market] } }));
-    expect(screen.getByText("09:15 · pagó Ana")).toBeInTheDocument();
+    expect(screen.getByText("pagó Ana")).toBeInTheDocument();
   });
 
   it("keeps a day loaded across pages under one heading and one card", async () => {

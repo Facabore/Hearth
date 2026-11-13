@@ -109,7 +109,7 @@ describe("home (HU-E9-01)", () => {
     expect(list).not.toHaveClass("overflow-x-auto");
     for (const row of within(list).getAllByRole("listitem")) expect(row).toHaveClass("min-h-row");
     unmount();
-    // Every account at zero: no accounts block at all, and still no first-account card.
+    // Every account at zero: no rows, but the heading still leads to Cuentas (verifier B1), and no first-account card.
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
@@ -120,8 +120,11 @@ describe("home (HU-E9-01)", () => {
         context={rowContext}
       />,
     );
-    expect(screen.queryByRole("region", { name: "Cuentas" })).toBeNull();
     expect(screen.queryByText("Efectivo")).toBeNull();
+    expect(screen.getByRole("link", { name: "Ver todas las cuentas" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/accounts",
+    );
     expect(screen.queryByRole("region", { name: "Agrega tu primera cuenta" })).toBeNull();
   });
 });
@@ -328,6 +331,11 @@ describe("the personal space shows everything (ruling P306)", () => {
     );
     expect(screen.queryByText(/Incluye tu parte/)).toBeNull();
     expect(norm(screen.getByText(/^Ingresos/).textContent)).toBe("Ingresos +$ 3.200.000");
+    // Mi consumo stays one tap away even in a month she shared nothing (verifier B2).
+    expect(screen.getByRole("link", { name: /^Ingresos/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/my-consumption?period=2026-10",
+    );
   });
 
   it("speaks English in the English catalog", () => {
@@ -608,70 +616,30 @@ describe("home, first use (P148)", () => {
   });
 });
 
-describe("the home of a shared or direct space leads to its members (N10)", () => {
-  const home = (
-    kind: "PERSONAL" | "SHARED" | "DIRECT",
-    role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER" | null,
-  ) =>
-    renderWithIntl(
-      <HomeSummary
-        spaceId="sp-shared"
-        today="2026-10-31"
-        kind={kind}
-        role={role}
-        policy={{ kind: "MONTHLY", day: 1 }}
-        page={{ ...octoberPage, items: [] }}
-        accounts={[]}
-        context={rowContext}
-      />,
-    );
-
-  it("shows Miembros and Invitar to someone who may invite, and Invitar opens the invite sheet", async () => {
-    const { container } = home("SHARED", "OWNER");
-    expect(screen.getByRole("link", { name: "Miembros" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-shared/members",
-    );
-    expect(screen.getByRole("link", { name: "Invitar" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-shared/members?invite=1",
-    );
-    for (const name of ["Miembros", "Invitar"])
-      expect(screen.getByRole("link", { name })).toHaveClass("min-h-11");
-    expect(await axeViolations(container)).toEqual([]);
-  });
-
-  it("shows only Miembros to someone who may not invite, and in a direct space", () => {
+describe("the home of a shared or direct space carries no members pills (P324, supersedes N10's pills)", () => {
+  // Ruling P324: Miembros and Invitar live behind the space's ⚙ Configuración, not on Inicio.
+  it("shows no Miembros or Invitar link on any shared or direct home", () => {
     for (const [kind, role] of [
+      ["SHARED", "OWNER"],
       ["SHARED", "MEMBER"],
-      ["SHARED", "VIEWER"],
       ["DIRECT", "OWNER"],
     ] as const) {
-      const { unmount } = home(kind, role);
-      expect(screen.getByRole("link", { name: "Miembros" })).toBeInTheDocument();
+      const { unmount } = renderWithIntl(
+        <HomeSummary
+          spaceId="sp-shared"
+          today="2026-10-31"
+          kind={kind}
+          role={role}
+          policy={{ kind: "MONTHLY", day: 1 }}
+          page={{ ...octoberPage, items: [] }}
+          accounts={[]}
+          context={rowContext}
+        />,
+      );
+      expect(screen.queryByRole("link", { name: "Miembros" })).toBeNull();
       expect(screen.queryByRole("link", { name: "Invitar" })).toBeNull();
       unmount();
     }
-  });
-
-  it("tells a Lector why there is no Registrar, and no one else (#290)", () => {
-    // Audit pass 3, A16: the + and Invitar vanished for Sofi with no word about her role.
-    const viewer = home("SHARED", "VIEWER");
-    expect(
-      screen.getByText("Eres Lector aquí: ves los movimientos y los saldos, pero no registras."),
-    ).toBeInTheDocument();
-    viewer.unmount();
-    for (const role of ["OWNER", "ADMIN", "MEMBER"] as const) {
-      const { unmount } = home("SHARED", role);
-      expect(screen.queryByText(/Eres Lector aquí/)).toBeNull();
-      unmount();
-    }
-  });
-
-  it("shows neither in a personal space", () => {
-    home("PERSONAL", "OWNER");
-    expect(screen.queryByRole("link", { name: "Miembros" })).toBeNull();
-    expect(screen.queryByRole("link", { name: "Invitar" })).toBeNull();
   });
 });
 
@@ -760,7 +728,8 @@ describe("home after accepting an invitation (U6)", () => {
   });
 });
 
-describe("the home of a shared or direct space explains its funds (U1)", () => {
+describe("the home of a shared or direct space lists its funds (P324)", () => {
+  // Ruling P324: the note about funds stays on Cuentas; Inicio lists the funds that hold money and links to them all.
   const NOTE = "Cada persona paga desde sus cuentas personales; aquí solo viven los fondos del espacio.";
   const home = (
     kind: "PERSONAL" | "SHARED" | "DIRECT",
@@ -780,40 +749,41 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
       />,
     );
 
-  it("never asks a shared space for its first account: it explains, shows the period and offers a fund", async () => {
+  it("never asks a shared space for its first account, and offers a fund as a quiet link", async () => {
     const { container } = home("SHARED", "OWNER");
     expect(screen.queryByText("Agrega tu primera cuenta")).toBeNull();
-    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    expect(screen.queryByText(NOTE)).toBeNull();
     expect(screen.getByRole("region", { name: "Resumen del período" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Crear un fondo" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-shared/accounts/new?returnTo=%2Fspaces%2Fsp-shared",
-    );
+    const create = screen.getByRole("link", { name: "Crear un fondo" });
+    expect(create).toHaveAttribute("href", "/spaces/sp-shared/accounts/new?returnTo=%2Fspaces%2Fsp-shared");
+    expect(create).toHaveClass("min-h-11");
+    expect(create).not.toHaveClass("bg-accent");
     expect(await axeViolations(container)).toEqual([]);
   });
 
   it("offers no fund to someone who may not create one", () => {
     for (const role of ["MEMBER", "VIEWER"] as const) {
       const { unmount } = home("SHARED", role);
-      expect(screen.getByText(NOTE)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
       unmount();
     }
   });
 
-  it("lists the funds it has, under a title for funds, and keeps the note", () => {
+  it("lists the funds it has under a title for funds", () => {
     home("SHARED", "OWNER", [
       accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(250_000) }),
     ]);
-    expect(screen.getByText(NOTE)).toBeInTheDocument();
     expect(norm(screen.getByRole("region", { name: "Fondos" }).textContent)).toContain("Fondo Hogar");
     expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
   });
 
-  it("leaves out a fund that holds nothing, and offers no new one beside it (P324)", () => {
+  it("leaves out a fund that holds nothing, keeps the link to the funds, and offers no new one (P324)", () => {
     home("SHARED", "OWNER", [accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(0) })]);
-    expect(screen.getByText(NOTE)).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Fondos" })).toBeNull();
+    expect(screen.queryByText("Fondo Hogar")).toBeNull();
+    expect(screen.getByRole("link", { name: "Ver todos los fondos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-shared/accounts",
+    );
     expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
   });
 
@@ -828,17 +798,15 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
     expect(screen.queryByRole("link", { name: "Ver todas las cuentas" })).toBeNull();
   });
 
-  it("says a direct space holds no accounts, and offers none", () => {
+  it("offers a direct space no account", () => {
     home("DIRECT", "OWNER");
     expect(screen.queryByText("Agrega tu primera cuenta")).toBeNull();
-    expect(screen.getByText(/cada una paga desde sus cuentas personales/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
   });
 
   it("still asks a personal space for its first account", () => {
     home("PERSONAL", "OWNER");
     expect(screen.getByText("Agrega tu primera cuenta")).toBeInTheDocument();
-    expect(screen.queryByText(NOTE)).toBeNull();
   });
 });
 
@@ -908,6 +876,21 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
       date: "2026-10-31",
       amount: cop(180_000),
     };
+    it("reads 'Juan te debe $ 947.000 · Saldar' on Hogar's own Inicio, naming the figure once (P324)", async () => {
+      renderWithIntl(
+        needs({
+          here: true,
+          owed: [{ spaceId: "sp-household", space: "Hogar", amount: cop(947_000), from: "Juan" }],
+        }),
+      );
+      const card = await screen.findByRole("region", { name: "Te necesita hoy" });
+      expect(norm(within(card).getByRole("listitem").textContent)).toBe("Juan te debe $ 947.000Saldar");
+      expect(within(card).getByRole("link", { name: "Saldar con Juan en Hogar" })).toHaveAttribute(
+        "href",
+        "/spaces/sp-household/balances",
+      );
+    });
+
     const owed = [
       { spaceId: "sp-household", space: "Household", amount: cop(311_400) },
       { spaceId: "sp-direct", space: "Ana & Mateo", amount: cop(30_000) },
@@ -940,15 +923,15 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
         "href",
         "/spaces/sp-household/pending-occurrences",
       );
-      // Every action is a full 44 × 44 target, the short "Ver" included (AGENTS.md, UI).
+      // Every action is a full 44 × 44 target, the short "Saldar" included (AGENTS.md, UI).
       for (const name of [
         "Saldar con Juan en Household",
         "Revisar Energía en Household",
-        "Ver lo que te deben",
+        "Saldar lo que te deben",
       ])
         expect(within(card).getByRole("link", { name })).toHaveClass("min-h-11", "min-w-11");
       // Saldos of the space that owes her the most.
-      expect(within(card).getByRole("link", { name: "Ver lo que te deben" })).toHaveAttribute(
+      expect(within(card).getByRole("link", { name: "Saldar lo que te deben" })).toHaveAttribute(
         "href",
         "/spaces/sp-household/balances",
       );

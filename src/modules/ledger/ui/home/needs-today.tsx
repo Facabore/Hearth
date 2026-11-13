@@ -35,9 +35,11 @@ export interface OwedToday {
   readonly space: string;
   /** Positive. */
   readonly amount: MoneyDto;
+  /** Who owes her, when it can only be one person (a space of two); otherwise the line says "Te deben". */
+  readonly from?: string | undefined;
 }
 
-/** Every action is a full 44 × 44 target, the short "Ver" included (AGENTS.md, UI). */
+/** Every action is a full 44 × 44 target, the short "Saldar" and "Revisar" included (AGENTS.md, UI). */
 const ACTION = "flex min-h-11 min-w-11 shrink-0 items-center justify-end text-sm font-semibold text-accent";
 
 /** The sum of the amounts when they share one currency; null across currencies, which never add up. */
@@ -70,7 +72,10 @@ export function NeedsToday({
   owes,
   today,
   formats,
+  here = false,
 }: {
+  /** The lines are about the space on screen (a shared Inicio), so they do not name it again (P324). */
+  readonly here?: boolean;
   readonly pending: readonly PendingToday[];
   readonly owed: readonly OwedToday[];
   readonly owes: readonly Owe[];
@@ -85,7 +90,7 @@ export function NeedsToday({
   const [open, setOpen] = useState(false);
   const money = (amount: MoneyDto) => formatMoney(amount, formats);
   const total = totalOf(owed.map((o) => o.amount));
-  // "Ver" opens the Saldos of the space that owes her the most.
+  // Saldar opens the Saldos of the space that owes her the most.
   const most = owed.reduce<OwedToday | undefined>(
     (top, o) => (top === undefined || BigInt(o.amount.amount) > BigInt(top.amount.amount) ? o : top),
     undefined,
@@ -132,17 +137,33 @@ export function NeedsToday({
       ? [
           {
             key: "owed",
-            title: total ? (
+            // Board "Inicio de Hogar" (P324): "Juan te debe $ 947.000 · Saldar"; each figure is said once.
+            title: (
               <>
-                {t("owed")} <span className="whitespace-nowrap">{money(total)}</span>
+                {owed.length === 1 && most.from ? t("owedBy", { name: most.from }) : t("owed")}
+                {total ? (
+                  <>
+                    {" "}
+                    <span className="whitespace-nowrap">{money(total)}</span>
+                  </>
+                ) : null}
               </>
-            ) : (
-              t("owed")
             ),
-            detail: owed.map((o) => `${o.space} ${money(o.amount)}`).join(" · "),
+            detail:
+              owed.length === 1
+                ? here
+                  ? ""
+                  : owe("in", { space: most.space })
+                : owed.map((o) => `${o.space} ${money(o.amount)}`).join(" · "),
             action: (
-              <Link href={`/spaces/${most.spaceId}/balances`} aria-label={t("seeOwed")} className={ACTION}>
-                {t("see")}
+              <Link
+                href={`/spaces/${most.spaceId}/balances`}
+                aria-label={
+                  most.from ? owe("settleWith", { name: most.from, space: most.space }) : t("seeOwed")
+                }
+                className={ACTION}
+              >
+                {owe("settle")}
               </Link>
             ),
           },
@@ -161,7 +182,9 @@ export function NeedsToday({
           <li key={line.key} hidden={i > 0 && !open} className="flex min-h-row items-center gap-3 py-1">
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="font-medium [overflow-wrap:anywhere] text-ink">{line.title}</span>
-              <span className="text-sm [overflow-wrap:anywhere] text-muted">{line.detail}</span>
+              {line.detail ? (
+                <span className="text-sm [overflow-wrap:anywhere] text-muted">{line.detail}</span>
+              ) : null}
             </span>
             {line.action}
           </li>

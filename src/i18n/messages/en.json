@@ -355,8 +355,6 @@
     },
     "allTransactions": "See all transactions",
     "allTransactionsShort": "See all",
-    "members": "Members",
-    "invite": "Invite",
     "funds": "Funds",
     "plan": {
       "title": "Your {month} plan",
@@ -378,8 +376,8 @@
       "review": "Review",
       "reviewIn": "Review {name} in {space}",
       "owed": "You are owed",
-      "see": "See",
-      "seeOwed": "See what you are owed",
+      "owedBy": "{name} owes you",
+      "seeOwed": "Settle what you are owed",
       "more": "{count} more",
       "fewer": "Show less"
     },

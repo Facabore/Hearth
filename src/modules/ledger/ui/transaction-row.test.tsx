@@ -369,19 +369,19 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
       </ol>,
     );
 
-  it("is a flat row, no card of its own, with a round icon and the time and account on its one line", async () => {
+  it("is a flat row, no card of its own, with a round icon and the account on its one line (P324)", async () => {
     const { container } = cardRow(dinner);
     const item = screen.getByRole("listitem");
     expect(item.className).not.toMatch(/\b(bg-|border|rounded-2xl|shadow|px-3)/);
-    // Boards E9-09 00 and 12: "12:40 · Nequi"; the round icon shows the category, the line names none.
-    const line = screen.getByText("20:45 · Bancolombia");
+    // Board "Movimientos" (P324): the line names the account; the time is left to the detail sheet.
+    const line = screen.getByText("Bancolombia");
     expect(line).not.toHaveClass("truncate");
     expect(line).toHaveClass("break-words");
     expect(item.querySelector(".rounded-full > [aria-hidden='true']")).not.toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("reads its second line as the time and who paid, on one line: '9:15 · pagó Ana'", () => {
+  it("reads its second line as who paid, on one line: 'pagó Ana' (P324)", () => {
     cardRow(
       transactionDto({
         type: "EXPENSE",
@@ -393,7 +393,7 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
       { ...context, memberNames: { "m-ana": "Ana" } },
     );
     const [, line, ...rest] = screen.getByText("Mercado").parentElement!.children;
-    expect(line).toHaveTextContent(/^09:15 · pagó Ana$/);
+    expect(line).toHaveTextContent(/^pagó Ana$/);
     expect(rest).toEqual([]);
   });
 

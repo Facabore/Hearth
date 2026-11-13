@@ -58,7 +58,10 @@ export function TransactionRow({
   const day = today === undefined ? null : relativeDay(tx.date, today);
   if (today !== undefined)
     meta.push(day === "today" || day === "yesterday" ? t(`day.${day}`) : formatDate(tx.date, formats));
-  if (tx.occurredAt && tx.timeZone && (today === undefined || day === "today")) {
+  // P324 (amends P284): Movimientos (`card`) groups rows by day and keeps them to two lines, so a row there leaves its
+  // time to the detail sheet; only a record made in another zone still says when and where ("05:30 · Madrid").
+  const elsewhere = tx.timeZone !== undefined && tx.timeZone !== null && tx.timeZone !== viewerZone;
+  if (tx.occurredAt && tx.timeZone && (today === undefined || day === "today") && (!card || elsewhere)) {
     const time = formatTimeAt(tx.occurredAt, tx.timeZone, formats);
     meta.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
   }

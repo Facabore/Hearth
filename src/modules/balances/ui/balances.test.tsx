@@ -137,11 +137,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       within(members)
         .getAllByRole("link")
         .map((link) => normalized(link.textContent)),
-    ).toEqual([
-      "Ana (tú)te toca recibir+$ 947.000",
-      "Juanle toca poner−$ 947.000",
-      "Pedro (invitado)al día$ 0",
-    ]);
+    ).toEqual(["Ana (tú)recibe+$ 947.000", "Juanpaga−$ 947.000", "Pedro (invitado)al día$ 0"]);
     // An amount never breaks across lines.
     expect(within(members).getByText(named("−$ 947.000"))).toHaveClass("whitespace-nowrap");
     expect(within(members).getByText(named("$ 0"))).toHaveClass("text-muted");
@@ -159,8 +155,8 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     );
     const members = within(screen.getByRole("region", { name: "Per person" }));
     expect(members.getAllByRole("link").map((link) => normalized(link.textContent))).toEqual([
-      "Anais owed+$ 150.000",
-      "Juan (you)you owe−$ 150.000",
+      "Anareceives+$ 150.000",
+      "Juan (you)pays−$ 150.000",
     ]);
   });
 

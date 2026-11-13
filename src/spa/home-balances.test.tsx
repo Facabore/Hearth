@@ -105,7 +105,8 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     const text = card.textContent?.replace(/\s/g, " ");
     expect(text).toContain("sugerido $ 180.000");
     expect(text).toContain("Te deben $ 30.000");
-    expect(text).toContain("Viaje $ 30.000");
+    // One space owes her, so its line names it once, without repeating the figure (P324).
+    expect(text).toContain("En Viaje");
     expect(text).toContain("Te toca poner $ 120.000 a Juan");
     // Ruling P324: one action line, her turn first; the others open in place behind "2 más".
     expect(within(card).getByRole("link", { name: "Saldar con Juan en Household" })).toBeVisible();
@@ -115,7 +116,7 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
       "href",
       "/spaces/sp-household/pending-occurrences",
     );
-    expect(within(card).getByRole("link", { name: "Ver lo que te deben" })).toHaveAttribute(
+    expect(within(card).getByRole("link", { name: "Saldar lo que te deben" })).toHaveAttribute(
       "href",
       "/spaces/sp-trip/balances",
     );

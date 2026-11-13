@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
-import { Icon, SymbolIcon } from "@/shared/ui";
+import { Icon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
@@ -93,8 +93,6 @@ export function HomeSummary({
   const accountsNote = useTranslations("accounts");
   const { formats } = context;
   const period = periodName(page.period, policy);
-  const pill =
-    "flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink";
   const controls = controlsFor(role, kind);
   const personal = kind === "PERSONAL";
   const money = (amount: MoneyDto) => formatMoney(amount, formats);
@@ -117,20 +115,6 @@ export function HomeSummary({
       ) : null}
       <div className="flex min-w-0 flex-col gap-3">
         {stepper}
-        {personal ? null : (
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/spaces/${spaceId}/members`} className={pill}>
-              <SymbolIcon name="users" size={18} />
-              {t("members")}
-            </Link>
-            {controls.invite ? (
-              <Link href={`/spaces/${spaceId}/members?invite=1`} className={pill}>
-                <Icon name="userPlus" size={18} />
-                {t("invite")}
-              </Link>
-            ) : null}
-          </div>
-        )}
         {/* #290 (audit pass 3, A16): a viewer's bar has no Registrar; the home says why. */}
         {!personal && role === "VIEWER" ? <p className="text-sm text-muted">{t("viewerNote")}</p> : null}
         {firstAccount ? (
@@ -207,12 +191,8 @@ export function HomeSummary({
       </section>
       {firstAccount ? null : (
         <div className="flex min-w-0 flex-col gap-3 lg:col-start-1">
-          {personal ? null : (
-            <p className="text-sm text-muted">
-              {kind === "DIRECT" ? accountsNote("directNote") : accountsNote("fundsNote")}
-            </p>
-          )}
-          {past ? null : holding.length > 0 ? (
+          {/* Ruling P324: Inicio carries no Miembros or Invitar pills and no note on funds; Más and Cuentas hold them. */}
+          {past ? null : accounts.length > 0 ? (
             <section aria-labelledby="home-accounts" className="flex min-w-0 flex-col">
               <div className="flex items-center justify-between">
                 <h2 id="home-accounts" className={TITLE}>
@@ -227,6 +207,7 @@ export function HomeSummary({
                   {personal ? t("allAccountsShort") : t("allFundsShort")}
                 </Link>
               </div>
+              {/* Only the accounts that hold money are listed; the link still leads to every one of them. */}
               <ul aria-labelledby="home-accounts" className="flex flex-col divide-y divide-line">
                 {holding.map((account) => (
                   <li key={account.id} className="flex min-h-row items-center justify-between gap-3">
@@ -241,7 +222,7 @@ export function HomeSummary({
           ) : accounts.length === 0 && kind === "SHARED" && controls.manageFunds ? (
             <Link
               href={withReturnTo(`/spaces/${spaceId}/accounts/new`, `/spaces/${spaceId}`)}
-              className="flex min-h-11 items-center justify-center gap-2 self-start rounded-full bg-accent px-5 text-sm font-semibold text-on-accent"
+              className="flex min-h-11 items-center gap-2 self-start text-sm font-semibold text-accent"
             >
               <Icon name="plus" size={18} />
               {accountsNote("createFund")}

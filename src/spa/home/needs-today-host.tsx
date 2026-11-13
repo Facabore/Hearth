@@ -35,7 +35,10 @@ const owedOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], 
     .filter((b) => BigInt(b.net.amount) > 0n && (space.kind === "PERSONAL" || b.spaceId === space.id))
     .flatMap((b) => {
       const named = spaces.find((s) => s.id === b.spaceId);
-      return named ? [{ spaceId: b.spaceId, space: named.name, amount: b.net }] : [];
+      // The API names no debtor; in a space of two, it can only be the other member.
+      const others = b.members.filter((m) => m.memberId !== b.memberId);
+      const from = others.length === 1 ? others[0]!.name : undefined;
+      return named ? [{ spaceId: b.spaceId, space: named.name, amount: b.net, from }] : [];
     });
 
 /**
@@ -86,6 +89,7 @@ export function NeedsTodayHost({
       owes={owesOf(balances, spaces, space)}
       today={today}
       formats={formats}
+      here={!personal}
     />
   );
 }

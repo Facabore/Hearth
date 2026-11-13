@@ -355,8 +355,6 @@
     },
     "allTransactions": "Ver todos los movimientos",
     "allTransactionsShort": "Ver todo",
-    "members": "Miembros",
-    "invite": "Invitar",
     "funds": "Fondos",
     "plan": {
       "title": "Tu plan de {month}",
@@ -378,8 +376,8 @@
       "review": "Revisar",
       "reviewIn": "Revisar {name} en {space}",
       "owed": "Te deben",
-      "see": "Ver",
-      "seeOwed": "Ver lo que te deben",
+      "owedBy": "{name} te debe",
+      "seeOwed": "Saldar lo que te deben",
       "more": "{count} más",
       "fewer": "Ver menos"
     },

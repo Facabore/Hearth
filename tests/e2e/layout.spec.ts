@@ -2635,8 +2635,8 @@ test.describe("a shared row names who paid in full, on its one line (UX review S
         { "idempotency-key": crypto.randomUUID() },
       );
       await page.goto(`/spaces/${sharedId}/transactions`);
-      // P284 (board E9-09 00): the payer follows the time on the row's one line, "12:00 PM · pagó …".
-      const payer = page.getByText(/^\d{1,2}:\d{2}[^·]* · pagó Carlos Alberto/);
+      // P324 (amends P284): the row's line names who paid, "pagó …"; the day's label dates it.
+      const payer = page.getByText(/^pagó Carlos Alberto/);
       await expect(payer).toBeVisible();
       const read = await payer.evaluate((el) => {
         const r = el.getBoundingClientRect();
@@ -2851,23 +2851,19 @@ test.describe("Settings and New space keep the space they were opened from (N3)"
   });
 });
 
-test.describe("the members entry of a shared space is findable (N10)", () => {
-  // P272: the Saldos board has no Miembros button; the home and the profile sheet lead there.
-  test("the home leads to the members with full targets", async ({ page }) => {
+test.describe("the members entry of a shared space is findable (N10, P324)", () => {
+  // Ruling P324: Inicio carries no Miembros or Invitar pills; the space's ⚙ Configuración leads to its members.
+  test("the space's settings lead to the members with a full target", async ({ page }) => {
     const { sharedId } = await session(page, "members-entry");
-    for (const [path, names] of [[`/spaces/${sharedId}`, [es.home.members, es.home.invite]]] as const) {
-      await page.goto(path);
-      await settle(page);
-      for (const name of names) {
-        const link = page.getByRole("link", { name, exact: true });
-        await expect(link, `${path}: ${name}`).toBeVisible();
-        const box = (await link.boundingBox())!;
-        expect.soft(box.height, `${path}: height of ${name}`).toBeGreaterThanOrEqual(TARGET);
-        expect.soft(box.x + box.width, `${path}: ${name} stays on screen`).toBeLessThanOrEqual(PHONE.width);
-      }
-      await page.getByRole("link", { name: es.home.members, exact: true }).click();
-      await page.waitForURL(`**/spaces/${sharedId}/members`);
-    }
+    await page.goto(`/spaces/${sharedId}/settings`);
+    await settle(page);
+    const link = page.getByRole("link", { name: new RegExp(`^${es.spaces.screen.members}`) });
+    await expect(link).toBeVisible();
+    const box = (await link.boundingBox())!;
+    expect.soft(box.height, "height of Miembros").toBeGreaterThanOrEqual(TARGET);
+    expect.soft(box.x + box.width, "Miembros stays on screen").toBeLessThanOrEqual(PHONE.width);
+    await link.click();
+    await page.waitForURL(`**/spaces/${sharedId}/members`);
   });
 });
 

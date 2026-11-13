@@ -189,11 +189,23 @@ Then("reloading the page leaves the settle-up sheet closed", async ({ page, worl
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-When("{string} chooses {string} on the home page", async ({ page, world }, name: string, action: string) => {
-  expect(name).toBe(world.user!.name);
-  expect(action).toBe(world.t("home.invite"));
-  await page.getByRole("link", { name: action, exact: true }).click();
-});
+When(
+  "{string} opens the members screen of {string} by its URL",
+  async ({ page, world }, name: string, space: string) => {
+    expect(name).toBe(world.user!.name);
+    await page.goto(`/spaces/${world.spaces.get(space)}/members`);
+  },
+);
+
+// Ruling P324: Inicio carries no Invitar pill; the members screen's Invitar opens the same sheet.
+When(
+  "{string} chooses {string} on the members screen",
+  async ({ page, world }, name: string, action: string) => {
+    expect(name).toBe(world.user!.name);
+    expect(action).toBe(world.t("members.invite"));
+    await page.getByRole("button", { name: action, exact: true }).click();
+  },
+);
 
 Then("the invite sheet of {string} is open on the members screen", async ({ page, world }, space: string) => {
   await expect(

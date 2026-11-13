@@ -91,7 +91,7 @@ export function UnifiedSummary({
     : t("income", { amount: money(page.totals.income) });
   return (
     <Hero period={page.period} policy={policy} formats={formats} amount={money(unified.consumed)}>
-      {first && consumptionHref ? (
+      {consumptionHref ? (
         <Link
           href={consumptionHref}
           className="flex min-h-11 items-center text-sm [overflow-wrap:anywhere] text-muted"

@@ -75,8 +75,8 @@
       "settled": "estás al día"
     },
     "state": {
-      "owes": "le toca poner",
-      "owed": "le toca recibir",
+      "owes": "paga",
+      "owed": "recibe",
       "settled": "al día"
     },
     "suggestions": "Para quedar al día",

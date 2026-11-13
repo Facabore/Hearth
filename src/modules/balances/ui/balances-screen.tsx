@@ -219,9 +219,8 @@ export function BalancesScreen({
                 const memberState = netState(net);
                 const sentence = memberSentence(net, formats, t);
                 const name = memberLabel(member, meUserId, tMembers);
-                // P324: the direction in words ("te toca recibir", "le toca poner") and a signed amount; the colour
-                // only repeats them.
-                const word = member.userId === meUserId ? t(`you.${memberState}`) : t(`state.${memberState}`);
+                // P324: the direction in words ("recibe", "paga") and a signed amount; the colour only repeats them.
+                const word = t(`state.${memberState}`);
                 return (
                   <li key={member.id}>
                     <Link
