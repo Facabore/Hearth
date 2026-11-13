@@ -472,6 +472,9 @@
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",
     "paidBy": "pagó {name}",
+    "paidByYou": "pagaste tú",
+    "yourShare": "tu parte {share}",
+    "yourPart": "tu parte",
     "saved": {
       "title": "Gasto guardado",
       "dismiss": "Cerrar aviso"

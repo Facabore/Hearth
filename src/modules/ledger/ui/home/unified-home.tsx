@@ -8,8 +8,9 @@ import type { FeedEntry } from "./feed";
 
 /**
  * Ruling P306: one row of the person's merged movements. Her own as her personal space draws them, opening `ownHref`;
- * her spaces' with their space, who recorded them and her part, opening the movement in its space. Ruling P319: the
- * personal Movimientos draws them in its day cards (`card`), where her own rows are today's list rows.
+ * her spaces' with their space and her part, opening the movement in its space. Ruling P319: the personal Movimientos
+ * draws them under its day labels (`card`), where her own rows are that list's rows. Ruling P324: both kinds are the
+ * same flat two-line row, so the merged list reads as one.
  */
 export function FeedRow({
   entry,

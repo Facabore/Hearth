@@ -472,6 +472,9 @@
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",
     "paidBy": "paid by {name}",
+    "paidByYou": "you paid",
+    "yourShare": "your share {share}",
+    "yourPart": "your share",
     "saved": {
       "title": "Expense saved",
       "dismiss": "Dismiss notice"

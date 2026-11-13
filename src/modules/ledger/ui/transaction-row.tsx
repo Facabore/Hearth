@@ -16,9 +16,15 @@ export interface RowContext {
   readonly accountNames: Record<string, string>;
   /** Member id to display name; empty in a personal space, where nobody else pays (ruling P171). */
   readonly memberNames: Record<string, string>;
+  /** Ruling P324: the viewer's member id in a shared space, so a row says "pagaste tú" and "tu parte"; absent elsewhere. */
+  readonly viewerMemberId?: string | null;
 }
 
-/** HU-E9-03, the Activity artboard's row: no "use client" and no server import, so both sides render it. */
+/**
+ * HU-E9-03, the Activity artboard's row: no "use client" and no server import, so both sides render it. Ruling P324
+ * (medium density): a flat row of at most two lines, the title and one line that states each fact once, and the
+ * amount on the right; no card and no border of its own, the list draws the hairlines.
+ */
 export function TransactionRow({
   tx,
   context,
@@ -33,20 +39,21 @@ export function TransactionRow({
   /** Issue #216: the viewer's today, for a list whose rows are not under a day's heading; the row then names its day. */
   readonly today?: string;
   /**
-   * Ruling P284 (board E9-09 00, amending P277): a row of Movimientos, inside its day's card. Its line names the time
-   * and who paid or the account, no category, and wraps rather than cut a long name; an income shows in green beside
-   * its plus sign. Inicio's rows (board B1 03) name the category and no account beside it, and truncate.
+   * Ruling P284 (board E9-09 00), amended by P324: a row of Movimientos, under its day's label. Its line names the time,
+   * who paid or the account, and the viewer's share ("pagaste tú · tu parte $ 32.000"); an income shows in green beside
+   * its plus sign. It is the same flat row as Inicio's (board "Inicio de Hogar"), whose line names the day and who paid.
    */
   readonly card?: boolean;
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
+  const you = context.viewerMemberId ?? null;
   const name = (id: string | null) => (id ? (accountNames[id] ?? "") : "");
   const member = (id: string | null) => (id ? (memberNames[id] ?? "") : "");
   const found = tx.categoryId ? findCategory(groups, tx.categoryId) : null;
   const meta: string[] = [];
-  // A long payer name wraps within the line instead of being cut (S1).
-  let payerNamed = false;
+  // Ruling P324: the round icon shows the category, so the line no longer names it; a screen reader still hears it.
+  let category: string | null = null;
   // Issue #216: a list not grouped by day names it: "Hoy · 14:32", "Ayer", then the date; only today keeps its time.
   const day = today === undefined ? null : relativeDay(tx.date, today);
   if (today !== undefined)
@@ -60,37 +67,41 @@ export function TransactionRow({
   else if (tx.type === "SETTLEMENT")
     meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
   else {
-    // #286 (audit pass 3, A12): a movement with no description is titled by its category, so its line does not repeat it.
+    // #286 (audit pass 3, A12): a movement with no description is titled by its category, so it does not repeat it.
     const path = tx.categoryId && (tx.description || !found) ? categoryPath(groups, tx.categoryId) : null;
-    // Ruling P284 (boards E9-09 00 and 12): Movimientos reads "9:15 · pagó Ana" or "12:40 · Nequi"; its icon shows the
-    // category, so the line keeps room for the payer. Inicio (board B1 03) names the category instead.
-    if (path && !card) meta.push(path);
+    // Inicio's rows named it before P324, so their accessible names keep it; Movimientos' never did (P284).
+    if (path && !card) category = path;
     const paid = tx.payments[0];
-    // Ruling P171: a shared expense names who paid (a member, or the fund that paid with no member).
+    // Ruling P171: a shared expense names who paid (a member, or the fund that paid with no member); P324: the viewer
+    // reads "pagaste tú".
     const payer =
       tx.type === "EXPENSE" && paid ? (paid.memberId ? member(paid.memberId) : name(paid.accountId)) : "";
-    // Ruling P284: the payer follows the time on the same line, "9:15 · pagó Ana", never on a line of its own.
-    if (payer) {
-      meta.push(t("paidBy", { name: payer }));
-      payerNamed = true;
-    } else {
+    if (tx.type === "EXPENSE" && you !== null && paid?.memberId === you) meta.push(t("paidByYou"));
+    else if (payer) meta.push(t("paidBy", { name: payer }));
+    else {
       const account = tx.type === "INCOME" ? tx.destinationAccountId : (paid?.accountId ?? null);
       // Board B1 03: Inicio names the account only when no category names the row, as in "1 oct · Bancolombia".
       if (name(account) && (card || !path)) meta.push(name(account));
     }
+    // Ruling P324 (board "Movimientos"): the row shows the whole amount, so its line adds the viewer's share once,
+    // unless the share is the whole amount.
+    const share =
+      card && tx.type === "EXPENSE" && you !== null ? tx.shares.find((s) => s.memberId === you) : undefined;
+    if (share && share.amount.amount !== tx.amount.amount)
+      meta.push(t("yourShare", { share: formatMoney(share.amount, formats) }));
   }
   const kind = kindOf(tx);
   const money = formatMoney(tx.amount, formats);
   const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
   const icon = found ? (
-    <CategoryIcon icon={found.category.icon} color={found.category.color} size={40} />
+    <CategoryIcon icon={found.category.icon} color={found.category.color} size={36} />
   ) : (
     <span
       aria-hidden="true"
       style={paletteVars("GRAPHITE")}
-      className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
+      className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
     >
-      <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={22} />
+      <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={20} />
     </span>
   );
   const tone =
@@ -99,35 +110,38 @@ export function TransactionRow({
       : tx.type === "EXPENSE" || tx.type === "INCOME"
         ? "text-ink"
         : "text-muted";
+  const line = meta.join(" · ");
+  // Ruling P324: 48 px for a row of one line, 56 px for two.
+  const height = line ? "min-h-row-lg" : "min-h-row";
   const content = (
     <>
-      {/* Boards B1 03 and E9-09 00: the icon is round in both lists. */}
+      {/* Boards B1 03, E9-09 00 and P324: a 36 px round icon in every list. */}
       <span className="shrink-0 overflow-hidden rounded-full">{icon}</span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className={card ? "font-medium break-words text-ink" : "truncate font-medium text-ink"}>
+        <span className="truncate text-base font-medium text-ink">
           {tx.description || found?.category.name || t(`type.${kind}`)}
         </span>
-        {meta.length > 0 ? (
-          <span
-            className={card || payerNamed ? "text-sm break-words text-muted" : "truncate text-sm text-muted"}
-          >
-            {meta.join(" · ")}
+        {line ? (
+          // A long name or the share wraps within the line instead of being cut (P284, S1).
+          <span className="text-[13px] break-words text-muted">
+            {line}
+            {category ? <span className="sr-only"> · {category}</span> : null}
           </span>
+        ) : category ? (
+          <span className="sr-only">{category}</span>
         ) : null}
       </span>
-      <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>{amount}</span>
+      <span className={`shrink-0 text-base font-semibold whitespace-nowrap ${tone}`}>{amount}</span>
     </>
   );
-  // Ruling P284: Movimientos's rows share their day's card, which draws the surface and the dividers.
-  const pad = card ? "px-3 py-3" : "py-1.5";
   // The link wraps the row's whole text, so its name holds the visible label (WCAG 2.5.3) and the target is the row.
   return href ? (
     <li>
-      <Link href={href} scroll={false} className={`flex min-h-row-lg items-center gap-3 rounded-xl ${pad}`}>
+      <Link href={href} scroll={false} className={`flex ${height} items-center gap-3 rounded-xl py-1.5`}>
         {content}
       </Link>
     </li>
   ) : (
-    <li className={`flex min-h-row-lg items-center gap-3 ${pad}`}>{content}</li>
+    <li className={`flex ${height} items-center gap-3 py-1.5`}>{content}</li>
   );
 }

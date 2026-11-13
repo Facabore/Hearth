@@ -301,7 +301,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     expect(screen.getByRole("listitem")).toHaveTextContent("Bancolombia");
     expect(screen.getByRole("listitem")).not.toHaveTextContent("pagó");
   });
-  it("names the payer on the same line as the time and the category, wrapping a long name rather than cut it (P284, S1)", () => {
+  it("names the payer on the same line as the time, wrapping a long name rather than cut it (P284, S1)", () => {
     const shared = { ...context, memberNames: { "m-pedro": "Pedro (invitado)" } };
     renderWithIntl(
       <ol>
@@ -318,7 +318,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
         />
       </ol>,
     );
-    const line = screen.getByText("20:45 · Restaurants · pagó Pedro (invitado)");
+    const line = screen.getByText("20:45 · pagó Pedro (invitado)");
     expect(line.closest(".truncate")).toBeNull();
     expect(line).toHaveClass("break-words");
   });
@@ -345,6 +345,22 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
   });
 });
 
+/** The second line as it is seen: without what only a screen reader hears. */
+const visibleLine = (title: string) => {
+  const line = screen.getByText(title).nextElementSibling;
+  if (!line) return null;
+  const copy = line.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll(".sr-only").forEach((node) => node.remove());
+  return norm(copy.textContent);
+};
+
+/** Hogar's rows as Ana reads them (ruling P324). */
+const hogar: RowContext = {
+  ...context,
+  memberNames: { "m-ana": "Ana", "m-juan": "Juan" },
+  viewerMemberId: "m-ana",
+};
+
 describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
   const cardRow = (tx: TransactionDto, rowContext: RowContext = context) =>
     renderWithIntl(
@@ -353,11 +369,10 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
       </ol>,
     );
 
-  it("sits in its day's card, not a card of its own, with a round icon and the time and account on its one line", async () => {
+  it("is a flat row, no card of its own, with a round icon and the time and account on its one line", async () => {
     const { container } = cardRow(dinner);
     const item = screen.getByRole("listitem");
-    expect(item).not.toHaveClass("rounded-2xl");
-    expect(item).not.toHaveClass("bg-surface");
+    expect(item.className).not.toMatch(/\b(bg-|border|rounded-2xl|shadow|px-3)/);
     // Boards E9-09 00 and 12: "12:40 · Nequi"; the round icon shows the category, the line names none.
     const line = screen.getByText("20:45 · Bancolombia");
     expect(line).not.toHaveClass("truncate");
@@ -397,9 +412,165 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
     expect(screen.getByText(/3\.200\.000/)).toHaveClass("text-accent");
   });
 
-  it("keeps the home's rows as they were: one list, truncated", () => {
+  it("adds the viewer's share once after who paid: 'pagaste tú · tu parte $ 32.000' (board Movimientos, P324)", () => {
+    cardRow(
+      transactionDto({
+        type: "EXPENSE",
+        description: "Domicilio",
+        amount: cop(64_000),
+        payments: [{ memberId: "m-ana", accountId: null, amount: cop(64_000) }],
+        shares: [
+          { memberId: "m-ana", amount: cop(32_000), splitMethod: "EQUAL" },
+          { memberId: "m-juan", amount: cop(32_000), splitMethod: "EQUAL" },
+        ],
+      }),
+      hogar,
+    );
+    expect(visibleLine("Domicilio")).toBe("pagaste tú · tu parte $ 32.000");
+    // The row's amount is the whole expense, with its sign; the share is never repeated.
+    expect(norm(screen.getByRole("listitem").textContent)).toBe(
+      "Domiciliopagaste tú · tu parte $ 32.000−$ 64.000",
+    );
+    expect(screen.getByRole("listitem").textContent!.match(/tu parte/g)).toHaveLength(1);
+  });
+
+  it("names another payer and the viewer's share, and no share when it is the whole amount or she is not in it", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            id: "t-internet",
+            description: "Internet",
+            amount: cop(110_000),
+            payments: [{ memberId: "m-juan", accountId: null, amount: cop(110_000) }],
+            shares: [
+              { memberId: "m-ana", amount: cop(55_000), splitMethod: "EQUAL" },
+              { memberId: "m-juan", amount: cop(55_000), splitMethod: "EQUAL" },
+            ],
+          })}
+          context={hogar}
+          card
+        />
+        <TransactionRow
+          tx={transactionDto({
+            id: "t-mine",
+            description: "Solo mío",
+            amount: cop(20_000),
+            payments: [{ memberId: "m-ana", accountId: null, amount: cop(20_000) }],
+            shares: [{ memberId: "m-ana", amount: cop(20_000), splitMethod: "EQUAL" }],
+          })}
+          context={hogar}
+          card
+        />
+        <TransactionRow
+          tx={transactionDto({
+            id: "t-his",
+            description: "Solo de Juan",
+            amount: cop(15_000),
+            payments: [{ memberId: "m-juan", accountId: null, amount: cop(15_000) }],
+            shares: [{ memberId: "m-juan", amount: cop(15_000), splitMethod: "EQUAL" }],
+          })}
+          context={hogar}
+          card
+        />
+      </ol>,
+    );
+    expect(visibleLine("Internet")).toBe("pagó Juan · tu parte $ 55.000");
+    expect(visibleLine("Solo mío")).toBe("pagaste tú");
+    expect(visibleLine("Solo de Juan")).toBe("pagó Juan");
+  });
+
+  it("names no share without the viewer's member, as a personal space's rows are", () => {
+    cardRow(
+      transactionDto({
+        description: "Domicilio",
+        amount: cop(64_000),
+        payments: [{ memberId: "m-ana", accountId: null, amount: cop(64_000) }],
+        shares: [{ memberId: "m-ana", amount: cop(32_000), splitMethod: "EQUAL" }],
+      }),
+      { ...hogar, viewerMemberId: undefined },
+    );
+    expect(visibleLine("Domicilio")).toBe("pagó Ana");
+  });
+});
+
+describe("medium density (ruling P324)", () => {
+  it("draws Inicio de Hogar's row as its board: 'Ayer · pagaste tú', the whole amount with its sign", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow
+          tx={transactionDto({
+            description: "Domicilio",
+            date: "2026-11-12",
+            amount: cop(64_000),
+            categoryId: "c-dining",
+            payments: [{ memberId: "m-ana", accountId: null, amount: cop(64_000) }],
+            shares: [
+              { memberId: "m-ana", amount: cop(32_000), splitMethod: "EQUAL" },
+              { memberId: "m-juan", amount: cop(32_000), splitMethod: "EQUAL" },
+            ],
+          })}
+          context={hogar}
+          today="2026-11-13"
+          href="/spaces/sp-hogar?tx=t-1"
+        />
+      </ol>,
+    );
+    expect(visibleLine("Domicilio")).toBe("Ayer · pagaste tú");
+    // Inicio names no share: the line says who paid, the amount is the expense.
+    expect(screen.getByText(/64\.000/)).toHaveTextContent("−$ 64.000");
+    expect(screen.getByRole("link", { name: /Domicilio/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-hogar?tx=t-1",
+    );
+  });
+
+  it("states the category once, by its icon, and still to a screen reader", () => {
     renderRow(dinner);
-    expect(screen.getByRole("listitem")).not.toHaveClass("bg-surface");
-    expect(screen.getByText("20:45 · Restaurants")).toHaveClass("truncate");
+    expect(visibleLine("Dinner")).toBe("20:45");
+    const hidden = screen.getByRole("listitem").querySelector(".sr-only");
+    expect(norm(hidden!.textContent)).toBe(" · Restaurants");
+    // A row titled by its category names no category again, not even to a screen reader.
+    renderRow({ ...dinner, id: "t-2", description: "", occurredAt: null, timeZone: null });
+    expect(screen.getAllByRole("listitem")[1]!.querySelector(".sr-only")).toBeNull();
+  });
+
+  it("keeps a category for a screen reader when the row has no visible second line", () => {
+    renderRow({ ...dinner, occurredAt: null, timeZone: null });
+    expect(screen.getByText("Dinner").nextElementSibling).toHaveClass("sr-only");
+    expect(screen.getByText("Dinner").nextElementSibling).toHaveTextContent("Restaurants");
+  });
+
+  it("is 56 px with two lines and 48 px with one, never below a 44 px target", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow tx={dinner} context={context} href="/spaces/s-1?tx=t-dinner" />
+        <TransactionRow
+          tx={{ ...dinner, id: "t-2", description: "Lunch", occurredAt: null, timeZone: null }}
+          context={context}
+          href="/spaces/s-1?tx=t-2"
+        />
+      </ol>,
+    );
+    expect(screen.getByRole("link", { name: /Dinner/ })).toHaveClass("min-h-row-lg");
+    expect(screen.getByRole("link", { name: /Lunch/ })).toHaveClass("min-h-row");
+    expect(screen.getByRole("link", { name: /Lunch/ })).not.toHaveClass("min-h-row-lg");
+  });
+
+  it("reads a 16 px title, a 13 px muted line and a 16 px semibold amount beside a 36 px icon, in both lists", () => {
+    for (const card of [false, true]) {
+      const { unmount } = renderWithIntl(
+        <ol>
+          <TransactionRow tx={dinner} context={context} card={card} />
+        </ol>,
+      );
+      expect(screen.getByText("Dinner")).toHaveClass("truncate", "text-base", "text-ink");
+      expect(screen.getByText("Dinner").nextElementSibling).toHaveClass("text-[13px]", "text-muted");
+      expect(screen.getByText(/60\.000/)).toHaveClass("text-base", "font-semibold", "whitespace-nowrap");
+      expect(screen.getByRole("listitem").querySelector("[aria-hidden='true']")).toHaveStyle({
+        width: "36px",
+      });
+      unmount();
+    }
   });
 });

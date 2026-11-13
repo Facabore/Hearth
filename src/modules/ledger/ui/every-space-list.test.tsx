@@ -105,7 +105,8 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
     const row = screen.getByRole("link", { name: /Mercado del mes/ });
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
     expect(within(row).getByText("Hogar")).toHaveAttribute("data-space-chip");
-    expect(norm(row.textContent)).toContain("Juan registró · tu parte $ 90.000 de $ 180.000");
+    // Ruling P324: the day is the list's label and the amount is her part, so the line reads "Hogar · tu parte".
+    expect(norm(row.textContent)).toBe("Mercado del mesHogar · tu parte−$ 90.000");
   });
 
   it("shows a personal movement as the personal list does, opening its sheet over the list", () => {

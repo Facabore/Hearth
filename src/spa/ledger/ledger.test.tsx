@@ -538,7 +538,8 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
     const row = await screen.findByRole("link", { name: /Mercado del mes/ });
     expect(row).toHaveAttribute("href", "/spaces/sp-household?tx=t-household");
     expect(within(row).getByText("Household")).toHaveAttribute("data-space-chip");
-    expect(normalized(row.textContent)).toContain("tu parte $ 90.000 de $ 180.000");
+    // Ruling P324: the amount is her part, so the line names it once, under the list's day label.
+    expect(normalized(row.textContent)).toBe("Mercado del mesHousehold · tu parte−$ 90.000");
     expect(screen.getByRole("link", { name: /Salary/ })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/transactions?period=2026-10&tx=t-salary",

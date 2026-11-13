@@ -2,9 +2,9 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CategoryIcon } from "@/modules/categories/ui";
 import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
-import { SpaceChip } from "@/shared/ui/atoms/space-chip";
 import type { ActivityItemDto, MoneyDto } from "@/shared/ui/api/dto";
 import { formatDate, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
 import { withTx } from "../detail/tx-href";
 import { kindOf } from "../movement-kind";
@@ -77,10 +77,10 @@ const partOf = (item: ActivityItemDto): Part => {
 };
 
 /**
- * Ruling P306 (boards "Inicio personal · todo en un lugar"): a movement of a shared or direct space in the personal
- * Inicio's Recientes. Its day and its space's chip, who recorded it and the person's part: "Juan registró · tu parte
- * $ 90.000 de $ 180.000". The amount is the person's part with its sign; a movement without them says "no te incluye"
- * and shows its amount grey and unsigned, never color alone. The row opens the movement in its own space.
+ * Ruling P306 (boards "Inicio personal · todo en un lugar"), amended by P324: a movement of a shared or direct space in
+ * the personal Inicio's Recientes. One line names its day, its space and the person's part once: "Ayer · Hogar · tu
+ * parte". The amount is the person's part with its sign; a movement without them says "no te incluye" and shows its
+ * amount grey and unsigned, never color alone. The row opens the movement in its own space.
  */
 export function ActivityRow({
   item,
@@ -96,7 +96,7 @@ export function ActivityRow({
   readonly today: string;
   /** Inicio's money formatter, from the person's formats. */
   readonly money: (amount: MoneyDto) => string;
-  /** Ruling P319: a row of the personal Movimientos, inside its day's card, padded as that list's own rows are. */
+  /** Ruling P319, amended by P324: a row of the personal Movimientos, under its day's label, so it names no day. */
   readonly card?: boolean;
 }) {
   const t = useTranslations("home.feed");
@@ -104,28 +104,36 @@ export function ActivityRow({
   const tx = item.transaction;
   const part = partOf(item);
   const day = relativeDay(tx.date, today);
-  const when = [day === "today" || day === "yesterday" ? ledger(`day.${day}`) : formatDate(tx.date, formats)];
-  if (day === "today" && tx.occurredAt && tx.timeZone && tx.timeZone === viewerZone)
-    when.push(formatTimeAt(tx.occurredAt, tx.timeZone, formats));
-  const recorder = item.recordedBy.you
-    ? t("recordedByYou")
-    : item.recordedBy.name
-      ? t("recordedBy", { name: item.recordedBy.name })
-      : t("recorded");
+  const when: string[] = [];
+  if (card) {
+    // Ruling P324: Movimientos states the day in its label, so the row keeps only the time, as its own rows do.
+    if (tx.occurredAt && tx.timeZone) {
+      const time = formatTimeAt(tx.occurredAt, tx.timeZone, formats);
+      when.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
+    }
+  } else {
+    when.push(day === "today" || day === "yesterday" ? ledger(`day.${day}`) : formatDate(tx.date, formats));
+    if (day === "today" && tx.occurredAt && tx.timeZone && tx.timeZone === viewerZone)
+      when.push(formatTimeAt(tx.occurredAt, tx.timeZone, formats));
+  }
+  // Ruling P324 (board "Inicio personal"): the amount is the person's part, so the line names it once, "tu parte",
+  // without repeating a figure or who recorded it.
   const detail =
-    part.detail === "shareOf"
-      ? `${recorder} · ${t("shareOf", { share: money(part.amount), total: money(tx.amount) })}`
-      : part.detail === "paidAndShare"
-        ? `${recorder} · ${t("paidAndShare", { paid: money(item.you.paid!), share: money(part.amount) })}`
-        : part.detail === "paid"
-          ? `${recorder} · ${t("paid", { paid: money(part.amount) })}`
-          : part.detail === "notYou"
-            ? `${recorder} · ${t("notYou")}`
-            : part.detail === "betweenYou"
-              ? t("betweenYou")
-              : part.detail === "noMoney"
-                ? t("noMoney")
-                : recorder;
+    part.detail === "shareOf" || part.detail === "paidAndShare"
+      ? ledger("yourPart")
+      : part.detail === "paid"
+        ? ledger("paidByYou")
+        : part.detail === "notYou"
+          ? t("notYou")
+          : part.detail === "betweenYou"
+            ? t("betweenYou")
+            : part.detail === "noMoney"
+              ? t("noMoney")
+              : item.recordedBy.you
+                ? t("recordedByYou")
+                : item.recordedBy.name
+                  ? t("recordedBy", { name: item.recordedBy.name })
+                  : t("recorded");
   const named = part.title;
   const title =
     tx.description ||
@@ -137,38 +145,40 @@ export function ActivityRow({
   const category = item.category;
   const icon =
     category?.icon && category.color ? (
-      <CategoryIcon icon={category.icon} color={category.color} size={40} />
+      <CategoryIcon icon={category.icon} color={category.color} size={36} />
     ) : (
       <span
         aria-hidden="true"
         style={paletteVars("GRAPHITE")}
-        className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
+        className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
       >
         {/* Boards "Inicio personal · todo en un lugar": a settlement between members wears the swap arrows. */}
         {tx.type === "SETTLEMENT" ? (
-          <Icon name="swap" size={22} />
+          <Icon name="swap" size={20} />
         ) : (
-          <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={22} />
+          <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={20} />
         )}
       </span>
     );
   const tone = part.sign === null ? "text-muted" : part.sign === "+" ? "text-accent" : "text-ink";
   return (
     <li data-activity-row>
+      {/* Ruling P324: the same flat two-line row as the person's own, with no card and no border of its own. */}
       <Link
         href={withTx(`/spaces/${item.space.id}`, tx.id)}
-        className={`flex min-h-row-lg items-center gap-3 rounded-xl ${card ? "px-3 py-3" : "py-1.5"}`}
+        className="flex min-h-row-lg items-center gap-3 rounded-xl py-1.5"
       >
         <span className="shrink-0 overflow-hidden rounded-full">{icon}</span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate font-medium text-ink">{title}</span>
-          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-muted">
-            <span>{when.join(" · ")}</span>
-            <SpaceChip name={item.space.name} color={item.space.color} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-base font-medium text-ink">{title}</span>
+          {/* "Ayer · Hogar · tu parte": the space is named in words, so its color is never the only cue (AGENTS.md). */}
+          <span className="text-[13px] break-words text-muted">
+            {when.map((w) => `${w} · `).join("")}
+            <span data-space-chip>{item.space.name}</span>
+            {` · ${detail}`}
           </span>
-          <span className="text-sm break-words text-muted">{detail}</span>
         </span>
-        <span className={`shrink-0 font-semibold whitespace-nowrap ${tone}`}>
+        <span className={`shrink-0 text-base font-semibold whitespace-nowrap ${tone}`}>
           {signed(part.sign, money(part.amount))}
         </span>
       </Link>

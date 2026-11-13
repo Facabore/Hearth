@@ -305,24 +305,21 @@ describe("the personal space shows everything (ruling P306)", () => {
     expect(soloPanel).not.toBeVisible();
   });
 
-  it("merges her spaces' movements into Recientes with their space, who recorded them and her part", () => {
+  it("merges her spaces' movements into Recientes with their space and her part, each said once (P324)", () => {
     home();
     const rows = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem");
     expect(rows).toHaveLength(5);
-    expect(norm(rowOf("Mercado del mes").textContent)).toBe(
-      "Mercado del mesHoyHogarJuan registró · tu parte $ 90.000 de $ 180.000−$ 90.000",
-    );
+    // Board "Inicio personal": "Ayer · Hogar · tu parte"; the amount is her part, so the line repeats no figure.
+    expect(norm(rowOf("Mercado del mes").textContent)).toBe("Mercado del mesHoy · Hogar · tu parte−$ 90.000");
     expect(within(rowOf("Mercado del mes")).getByRole("link")).toHaveAttribute(
       "href",
       "/spaces/sp-hogar?tx=t-hogar",
     );
-    expect(norm(rowOf("Hotel").textContent)).toBe(
-      "HotelAyerViaje CartagenaRegistraste tú · pagaste $ 210.000 · tu parte $ 70.000−$ 70.000",
-    );
+    expect(norm(rowOf("Hotel").textContent)).toBe("HotelAyer · Viaje Cartagena · tu parte−$ 70.000");
     expect(norm(rowOf("te pagó").textContent)).toBe(
-      "Juan te pagó29/10/2026HogarSaldo entre ustedes+$ 50.000",
+      "Juan te pagó29/10/2026 · Hogar · Saldo entre ustedes+$ 50.000",
     );
-    expect(norm(rowOf("Gas").textContent)).toBe("Gas28/10/2026HogarJuan registró · no te incluye$ 45.000");
+    expect(norm(rowOf("Gas").textContent)).toBe("Gas28/10/2026 · Hogar · no te incluye$ 45.000");
     // Her own row is the one Inicio always drew, opening on her personal home.
     expect(within(rowOf("Salary")).getByRole("link")).toHaveAttribute(
       "href",
