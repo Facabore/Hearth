@@ -632,7 +632,14 @@ const sheets: {
   {
     name: "transaction filters",
     path: "transactions",
-    open: (page) => page.getByRole("button", { name: es.ledger.list.filterCategory }).click(),
+    // Ruling P324: the filters sit behind one button; its sheet lists each filter as a row.
+    open: async (page) => {
+      await page.getByRole("button", { name: new RegExp(`^${es.ledger.list.filters}`) }).click();
+      await page
+        .getByRole("dialog", { name: es.ledger.list.filters })
+        .getByRole("button", { name: new RegExp(`^${es.ledger.list.filterCategory}`) })
+        .click();
+    },
   },
   {
     // Ruling P189: a row opens its detail over the list; its last control is Eliminar, above the bottom bar.
@@ -2910,14 +2917,10 @@ test.describe("Movimientos names a shared or direct space (U7)", () => {
       );
       await page.goto(`/spaces/${split.spaceId}/transactions`);
       await settle(page);
-      const title = page.getByRole("heading", { level: 1, name: es.ledger.list.title });
-      // The name of the space the move landed in sits right under the title.
-      await expect(title.locator("xpath=following-sibling::p")).toContainText(`& ${GUEST_NAME}`);
+      // Ruling P324: the space pill names the space the move landed in; the list repeats it nowhere.
+      await expect(page.getByRole("button", { name: new RegExp(`& ${GUEST_NAME}`) }).first()).toBeVisible();
       const { overflow, message } = await overflowReport(page, "Movimientos of a direct space");
       expect(overflow, message).toBeLessThanOrEqual(0);
-      // A personal space shows no such line.
-      await page.goto(`/spaces/${spaceId}/transactions`);
-      await expect(title.locator("xpath=following-sibling::p")).toHaveCount(0);
     });
   }
 });

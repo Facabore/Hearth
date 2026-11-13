@@ -330,7 +330,12 @@ Then(
 
 When(/^she shows only "Personal" movements$/, async ({ page, world }) => {
   // Ruling P319: the space chip's sheet narrows the list to one space; a filter replaces the entry (N8).
-  await page.getByRole("button", { name: world.t("ledger.list.allSpaces") }).click();
+  // Ruling P324: the space filter is a row of the Filtros sheet.
+  await page.getByRole("button", { name: new RegExp(`^${world.t("ledger.list.filters")}`) }).click();
+  await page
+    .getByRole("dialog", { name: world.t("ledger.list.filters") })
+    .getByRole("button", { name: new RegExp(`^${world.t("ledger.list.spaceLabel")}`) })
+    .click();
   const sheet = page.getByRole("dialog", { name: world.t("ledger.list.spacesTitle") });
   await sheet.getByRole("button", { name: /Personal/ }).click();
   await expect(page).toHaveURL(/[?&]space=/);

@@ -133,7 +133,12 @@ When(
   "{string} filters Movimientos by the category {string}",
   async ({ page, world }, name: string, category: string) => {
     expect(name).toBe(world.user!.name);
-    await page.getByRole("button", { name: world.t("ledger.list.filterCategory") }).click();
+    // Ruling P324: the filters sit behind one button.
+    await page.getByRole("button", { name: new RegExp(`^${world.t("ledger.list.filters")}`) }).click();
+    await page
+      .getByRole("dialog", { name: world.t("ledger.list.filters") })
+      .getByRole("button", { name: new RegExp(`^${world.t("ledger.list.filterCategory")}`) })
+      .click();
     await page
       .getByRole("dialog", { name: world.t("ledger.list.filterTitle") })
       .getByRole("radio", { name: category })

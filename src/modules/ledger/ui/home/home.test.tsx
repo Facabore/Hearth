@@ -365,11 +365,11 @@ describe("the personal space shows everything (ruling P306)", () => {
       .getAllByRole("listitem")
       .map((row) => norm(row.textContent));
     expect(rows).toEqual([
-      "Le perdonaste la deuda a Juan29/10/2026HogarNo se movió dinero$ 10.000",
-      "Luis te perdonó la deuda29/10/2026HogarNo se movió dinero$ 10.000",
-      "Se lo regalaste a Juan29/10/2026HogarNo se movió dinero$ 10.000",
-      "Luis te lo regaló29/10/2026HogarNo se movió dinero$ 10.000",
-      "Luis le perdonó la deuda a Juan29/10/2026HogarNo se movió dinero$ 10.000",
+      "Le perdonaste la deuda a Juan29/10/2026 · Hogar · No se movió dinero$ 10.000",
+      "Luis te perdonó la deuda29/10/2026 · Hogar · No se movió dinero$ 10.000",
+      "Se lo regalaste a Juan29/10/2026 · Hogar · No se movió dinero$ 10.000",
+      "Luis te lo regaló29/10/2026 · Hogar · No se movió dinero$ 10.000",
+      "Luis le perdonó la deuda a Juan29/10/2026 · Hogar · No se movió dinero$ 10.000",
     ]);
     const first = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem")[0]!;
     const amount = [...first.querySelectorAll("span")].find((span) => norm(span.textContent) === "$ 10.000");
