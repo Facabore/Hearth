@@ -362,7 +362,6 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await scan("shared expense form");
       await page.locator("#record-amount").fill("300000");
-      await page.getByRole("button", { name: es.ledger.form.moreOptions }).click();
       await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
       await scan("split sheet");
       await page.keyboard.press("Escape");

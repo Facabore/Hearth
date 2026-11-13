@@ -13,8 +13,11 @@ const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 /** The page person's own row reads "<name> (tú)"; anyone else's their name. */
 const labelOf = (world: World, name: string) =>
   name === world.user!.name ? world.t("members.you", { name }) : name;
+/** Ruling P324: the split sheet holds the method and the people; who paid has a sheet of its own. */
 const splitSheet = (page: Page, world: World) =>
-  page.getByRole("dialog", { name: world.t("ledger.split.title") });
+  page.getByRole("dialog", { name: world.t("ledger.split.method") });
+const payerSheet = (page: Page, world: World) =>
+  page.getByRole("dialog", { name: world.t("ledger.split.payerTitle") });
 
 Given(
   "{string} is signed in and {string} has the members {string} and {string}",
@@ -84,11 +87,14 @@ When(
       .replace(/<\/?b>/g, "")
       .trim();
     await page.getByRole("button", { name: new RegExp(`^${paid} `) }).click();
-    const sheet = splitSheet(page, world);
-    await sheet
+    const payer = payerSheet(page, world);
+    await payer
       .getByRole("radiogroup", { name: world.t("ledger.split.from") })
       .getByRole("radio", { name: account })
       .click();
+    await payer.getByRole("button", { name: world.t("ledger.split.done") }).click();
+    await page.getByRole("button", { name: new RegExp(world.t("ledger.split.split")) }).click();
+    const sheet = splitSheet(page, world);
     await sheet.getByRole("radio", { name: world.t("ledger.split.methods.EQUAL") }).click();
     for (const name of [a, b])
       await expect(sheet.getByRole("checkbox", { name: labelOf(world, name) })).toBeChecked();
@@ -167,7 +173,6 @@ When(
 Then(
   /^the split "([^"]+)" is preselected with ([\d,]+) COP for "([^"]+)" and ([\d,]+) COP for "([^"]+)"$/,
   async ({ page, world }, method: string, ana: string, a: string, juan: string, b: string) => {
-    await page.getByRole("button", { name: world.t("ledger.form.moreOptions") }).click();
     const row = page.getByRole("button", { name: new RegExp(world.t("ledger.split.split")) });
     // The row reads "Con Ana y Juan · según el plan" (U2); the sheet's radio is named by the method itself.
     await expect(row).toContainText(world.t(`ledger.split.how.${method}`));

@@ -488,8 +488,9 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
       "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "MEMBER" })] }),
     });
     renderSpa("/spaces/sp-household/new", routes);
-    await userEvent.click(await screen.findByRole("button", { name: /^Pagó/ }, { timeout: 5_000 }));
-    const sheet = await screen.findByRole("dialog", { name: es.ledger.split.title }, { timeout: 10_000 });
+    // Ruling P324: the split row opens "Cómo se divide"; who paid has a sheet of its own.
+    await userEvent.click(await screen.findByRole("button", { name: /División/ }, { timeout: 5_000 }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.split.method }, { timeout: 10_000 });
     await userEvent.click(within(sheet).getByRole("button", { name: new RegExp(es.ledger.split.addGuests) }));
     expect(
       await screen.findByRole("dialog", { name: "Agregar invitados a Household" }, { timeout: 10_000 }),
