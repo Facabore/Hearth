@@ -179,7 +179,11 @@ export function NeedsToday({
       </h2>
       <ul id={listId} className="flex flex-col divide-y divide-line">
         {lines.map((line, i) => (
-          <li key={line.key} hidden={i > 0 && !open} className="flex min-h-row items-center gap-3 py-1">
+          <li
+            key={line.key}
+            hidden={i > 0 && !open}
+            className={`flex min-h-row items-center gap-3 py-1 ${i > 0 ? "motion-reveal" : ""}`}
+          >
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="font-medium [overflow-wrap:anywhere] text-ink">{line.title}</span>
               {line.detail ? (

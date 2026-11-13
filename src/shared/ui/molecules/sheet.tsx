@@ -19,10 +19,16 @@ export const preloadSheet = (): Promise<void> =>
 
 /** A bottom sheet under 1024 px, a centered panel above; Escape and the scrim close it, focus returns to the trigger. */
 export function Sheet(props: SheetProps) {
-  const [Panel, setPanel] = useState<ComponentType<SheetProps> | undefined>(() => loaded);
+  const [state, setPanel] = useState<ComponentType<SheetProps> | undefined>(() => loaded);
+  // #314: a sheet mounted before the panel loaded takes the panel as soon as any sheet loaded it, so a sheet that
+  // replaces another opens in the same render instead of one later.
+  const Panel = state ?? loaded;
   const { open } = props;
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
   useEffect(() => {
     if (open && !Panel) void preloadSheet().then(() => setPanel(() => loaded));
   }, [open, Panel]);
-  return open && Panel ? <Panel {...props} /> : null;
+  // Ruling P325: once shown, the panel stays mounted, so Radix plays its closing movement before it goes.
+  return shown && Panel ? <Panel {...props} /> : null;
 }

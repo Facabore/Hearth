@@ -74,10 +74,6 @@ export function ListSheets({
 }) {
   const t = useTranslations("ledger.list");
   const opener = (name: ListSheet) => (open: boolean) => onSheet(open ? name : null);
-  // P324: a row of Filtros swaps its sheet for the filter's in one render, so the filter's sheet mounts anew as it
-  // opens and finds the panel Filtros loaded; mounted before that load, it would open a render after Filtros gave back
-  // its history entry, and that Back would close it (P307).
-  const fresh = (name: ListSheet) => `${name}-${sheet === name}`;
   return (
     <>
       <FiltersSheet
@@ -88,12 +84,7 @@ export function ListSheets({
         payers={payers}
         recurringHref={recurringHref}
       />
-      <Sheet
-        key={fresh("period")}
-        open={sheet === "period"}
-        onOpenChange={opener("period")}
-        title={t("periods")}
-      >
+      <Sheet open={sheet === "period"} onOpenChange={opener("period")} title={t("periods")}>
         <ul className="flex flex-col">
           {periods.map((p) => (
             <li key={p.label}>
@@ -113,7 +104,6 @@ export function ListSheets({
       </Sheet>
       {spaces && onSpace ? (
         <SpaceSheet
-          key={fresh("space")}
           open={sheet === "space"}
           onOpenChange={opener("space")}
           spaces={spaces}
@@ -123,7 +113,6 @@ export function ListSheets({
       ) : null}
       {categorySpaces ? (
         <SpacesCategorySheet
-          key={fresh("category")}
           open={sheet === "category"}
           onOpenChange={opener("category")}
           spaces={categorySpaces}
@@ -131,7 +120,6 @@ export function ListSheets({
         />
       ) : (
         <CategoryPicker
-          key={fresh("category")}
           open={sheet === "category"}
           onOpenChange={opener("category")}
           groups={groups}
@@ -143,7 +131,6 @@ export function ListSheets({
         />
       )}
       <ChoiceSheet
-        key={fresh("account")}
         open={sheet === "account"}
         onOpenChange={opener("account")}
         title={t("accountTitle")}
@@ -151,7 +138,6 @@ export function ListSheets({
         onChoose={(accountId) => onNarrow({ accountId })}
       />
       <ChoiceSheet
-        key={fresh("type")}
         open={sheet === "type"}
         onOpenChange={opener("type")}
         title={t("typeTitle")}

@@ -50,6 +50,25 @@ describe("app shell (HU-E9-01)", () => {
     expect(document.documentElement.dataset.font).toBe("inter");
   });
 
+  it("draws each screen inside the wrapper that plays its arrival (P325)", () => {
+    for (const stacked of [true, false]) {
+      const { unmount } = renderWithIntl(
+        <AppShell
+          me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+          spaces={spaces}
+          activeSpace={spaces[0]}
+          stacked={stacked}
+        >
+          <h1>Ajustes</h1>
+        </AppShell>,
+      );
+      const heading = screen.getByRole("heading", { level: 1, name: "Ajustes" });
+      expect(heading.parentElement).toHaveClass("motion-screen");
+      expect(heading.parentElement?.parentElement).toBe(screen.getByRole("main"));
+      unmount();
+    }
+  });
+
   it("starts with a link that skips to the screen's content, and the content takes the focus (#290)", async () => {
     // Audit pass 3, A17: a keyboard reached Registrar after twenty Tabs, with no way past the header.
     renderWithIntl(

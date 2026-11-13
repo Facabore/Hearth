@@ -69,7 +69,7 @@ export const showToast = (toast: ToastInput): void => {
 
   const card = element(
     "div",
-    "pointer-events-auto flex min-h-14 w-full items-center gap-1 rounded-2xl border border-line bg-surface py-1 pr-1 pl-4 text-ink shadow-lg",
+    "motion-toast pointer-events-auto flex min-h-14 w-full items-center gap-1 rounded-2xl border border-line bg-surface py-1 pr-1 pl-4 text-ink shadow-lg",
   );
   card.tabIndex = -1;
   card.setAttribute("data-testid", "toast");

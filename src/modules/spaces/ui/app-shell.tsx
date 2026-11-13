@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, type ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
@@ -44,6 +45,21 @@ export interface AppShellProps {
  * the header reads [space switcher] … [⚙] [profile] on every tab destination; the ⚙ opens the active space's
  * Configuración.
  */
+/**
+ * Ruling P325: each screen arrives with a short fade and rise. The wrapper is keyed by the path, so a new screen plays
+ * it and a change of the query (a filter, a period, an open sheet) does not.
+ */
+function Screen({ children }: { readonly children: ReactNode }) {
+  // The space is left out of the key: the same screen in another space (Registrar moved with what was typed, P305) is
+  // the same screen, and remounting it would lose its state.
+  const screen = usePathname().replace(/^\/spaces\/[^/]+/, "");
+  return (
+    <div key={screen} className="motion-screen">
+      {children}
+    </div>
+  );
+}
+
 export function AppShell({
   me,
   spaces,
@@ -66,7 +82,9 @@ export function AppShell({
     return (
       <div className="min-h-dvh pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto max-w-[1200px] px-gutter">
-          <main id="main">{children}</main>
+          <main id="main">
+            <Screen>{children}</Screen>
+          </main>
         </div>
       </div>
     );
@@ -103,7 +121,7 @@ export function AppShell({
           </div>
         </header>
         <main id="main" tabIndex={-1} className="outline-none">
-          {children}
+          <Screen>{children}</Screen>
         </main>
       </div>
       <NavLinks
