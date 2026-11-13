@@ -216,7 +216,9 @@ describe("the account edit form's values (issue 169)", () => {
       built.ok ? (built.body.openingBalance as { amount: string }).amount : null;
     // A card in credit by 50.000 since it was opened, with no movement: today's 60.000 in credit is its opening.
     expect(
-      amountOf(edited(accountDto({ type: "CREDIT_CARD", openingBalance: cop(50_000), balance: cop(50_000) }))),
+      amountOf(
+        edited(accountDto({ type: "CREDIT_CARD", openingBalance: cop(50_000), balance: cop(50_000) })),
+      ),
     ).toBe("6000000");
     expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(-50_000) })))).toBe("-6000000");
     expect(amountOf(edited(accountDto({ type: "LOAN", openingBalance: cop(0) })))).toBe("-6000000");
