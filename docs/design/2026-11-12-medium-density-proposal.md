@@ -1,10 +1,10 @@
 # Medium-density cleanup of the phone app: proposal
 
-- **Status:** proposal, waiting for the owner's approval. Nothing here is a decision yet, and no code follows it until the boards are approved.
+- **Status:** approved by the owner on 2026-11-13 ("Sí, aprobado"), recorded as ruling P324 in the [decisions index](../decisions/README.md). The code follows the boards, one story per screen group.
 - **Issue:** [#308](https://github.com/Facabore/Hearth/issues/308).
 - **Boards:** Penpot file "Hearth", page "Propuesta · Densidad media (2026-11-12)". It holds 25 boards at 390 × 844.
 - **Why:** on 2026-11-12 the owner said the UX feels "demasiado saturada" and asked for examples and a direction.
-- **Owner's reaction (2026-11-13), on the boards:** "me gusta muchisimo más, es más limpio más minimalista, está muchisimo mejor". The direction is liked. Formal approval to start the code is still pending.
+- **Owner's reaction (2026-11-13), on the boards:** "me gusta muchisimo más, es más limpio más minimalista, está muchisimo mejor". The owner then approved the boards.
 
 ## What the critique found
 
@@ -54,4 +54,4 @@ Expected effect: Inicio fits in one screen, and Movimientos shows about 9 rows i
 - **The example data is illustrative.** Sofi, Rosa, Viaje Cartagena, Nequi and the contribution figures are not seeded. Some copy is new and is not yet in `es.json` or `en.json`, for example "Hola de nuevo", "Ahora no" and "Quién puede editar un movimiento".
 - **The boards are checked at 390 px only.** The 320 px reflow and dark theme still need a pass.
 - **No real person has used them.** This is a heuristic review, not a usability test.
-- **After approval:** split the work into stories per screen group. Then change the code to match the boards, per ruling P272.
+- **Each story's own work:** the code changes to match its boards, per ruling P272. Each story also checks its screens at 320 px and in dark mode, and puts its copy into both catalogs.
