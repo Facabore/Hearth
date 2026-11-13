@@ -234,7 +234,7 @@ html:not([data-frame="public"]) .hearth-frame-public {
  * Ruling P325: Hearth's motion. The bottom sheet is the app's main surface, so it carries the one authored movement: it
  * rises with a decelerating curve while the scrim fades in, and leaves faster than it came. A screen arrives with a short
  * fade and a 6 px rise, a revealed row fades in, a toast rises, and a pressed control sinks slightly. CSS only; with
- * reduced motion every movement becomes a fade and nothing travels.
+ * reduced motion nothing animates.
  */
 :root {
   --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
@@ -320,14 +320,14 @@ html:not([data-frame="public"]) .hearth-frame-public {
   transform: scale(0.98);
 }
 
+/* With reduced motion nothing travels, scales or fades: every state change is immediate and stays legible. */
 @media (prefers-reduced-motion: reduce) {
-  .motion-sheet[data-state="open"],
+  .motion-sheet,
+  .motion-scrim,
   .motion-screen,
+  .motion-reveal,
   .motion-toast {
-    animation-name: hearth-fade-in;
-  }
-  .motion-sheet[data-state="closed"] {
-    animation-name: hearth-fade-out;
+    animation: none;
   }
   .motion-press:active:not(:disabled) {
     transform: none;

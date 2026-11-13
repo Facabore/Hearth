@@ -334,8 +334,8 @@ describe("the edit form is the compact record form (#171)", () => {
     expect(screen.queryByTestId("record-scrim")).toBeNull();
     const amount = screen.getByLabelText("Monto");
     expect(amount).toHaveAttribute("inputmode", "none");
-    // The edit leaves the focus alone.
-    expect(amount).not.toHaveFocus();
+    // Owner, 2026-11-13: the edit lands on the amount, selected, so typing replaces it.
+    expect(amount).toHaveFocus();
     for (const key of ["0", "1", "9", "000", "Borrar"])
       expect(screen.getByRole("button", { name: key })).toBeInTheDocument();
   };

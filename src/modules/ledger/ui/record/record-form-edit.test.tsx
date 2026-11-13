@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
@@ -78,6 +78,34 @@ const personal = (value: RecordEdit, people: [] | undefined = []) => {
   );
   return { ...view, requests };
 };
+
+describe("an edit opens on its amount, selected (owner, 2026-11-13)", () => {
+  it("lands the focus on the amount with all of it selected, so typing replaces it", async () => {
+    personal(edit());
+    const amount = screen.getByLabelText<HTMLInputElement>("Monto");
+    expect(amount).toHaveFocus();
+    expect([amount.selectionStart, amount.selectionEnd]).toEqual([0, amount.value.length]);
+    await userEvent.keyboard("9");
+    expect(amount).toHaveValue("9");
+  });
+
+  it("lets the keypad's first key replace the selected amount, and the next ones add to it", async () => {
+    personal(edit());
+    await userEvent.click(screen.getByRole("button", { name: "4" }));
+    expect(screen.getByLabelText("Monto")).toHaveValue("4");
+    await userEvent.click(screen.getByRole("button", { name: "2" }));
+    expect(screen.getByLabelText("Monto")).toHaveValue("42");
+  });
+
+  it("adds to the amount once the caret moved, as a keyboard does", async () => {
+    personal(edit());
+    const amount = screen.getByLabelText<HTMLInputElement>("Monto");
+    amount.setSelectionRange(amount.value.length, amount.value.length);
+    fireEvent.select(amount);
+    await userEvent.click(screen.getByRole("button", { name: "1" }));
+    expect(amount).toHaveValue("850.001");
+  });
+});
 
 describe("record form in edit mode (ruling P191)", () => {
   it("starts from the transaction, hides the kind tabs and the split with someone, and hands Save to onSave", async () => {

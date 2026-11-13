@@ -20,6 +20,8 @@ export function AmountField({
   exponent,
   error,
   autoFocus = false,
+  selectOnOpen = false,
+  onWholeSelected,
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
@@ -28,16 +30,23 @@ export function AmountField({
   /** The currency's decimals: a currency with none has no point to type. */
   readonly exponent: number;
   readonly error?: string | undefined;
-  /** Focus the amount once, on mount: a new record, never an edit. */
+  /** Focus the amount once, on mount. */
   readonly autoFocus?: boolean;
+  /** An edit: the focus lands with the whole amount selected, so what is typed replaces it. */
+  readonly selectOnOpen?: boolean;
+  /** Whether the whole amount is selected, so the keypad's next key replaces it as a keyboard's would. */
+  readonly onWholeSelected?: (whole: boolean) => void;
 }) {
   const t = useTranslations("ledger.form");
   const common = useTranslations("common");
   const input = useRef<HTMLInputElement>(null);
   // Once, when the form opens: a later change of the prop never takes the focus back.
   const focusOnOpen = useRef(autoFocus);
+  const selectAll = useRef(selectOnOpen);
   useEffect(() => {
-    if (focusOnOpen.current) input.current?.focus();
+    if (!focusOnOpen.current) return;
+    input.current?.focus();
+    if (selectAll.current) input.current?.select();
   }, []);
   const rule: NumberRule = { kind: "money", numberFormat, decimals: exponent };
   const sample = error ? null : exampleOf(rule);
@@ -54,6 +63,14 @@ export function AmountField({
           id="record-amount"
           {...numberInputProps(rule, { value, onChange })}
           inputMode="none"
+          onSelect={(event) => {
+            const field = event.currentTarget;
+            onWholeSelected?.(
+              field.value.length > 0 &&
+                field.selectionStart === 0 &&
+                field.selectionEnd === field.value.length,
+            );
+          }}
           placeholder="0"
           aria-invalid={error ? true : undefined}
           aria-describedby={described}

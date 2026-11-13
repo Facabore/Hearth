@@ -38,7 +38,14 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: [["list"]],
   globalTeardown: "./tests/e2e/support/global-teardown.ts",
-  use: { baseURL: BASE_URL, locale: "es-CO", timezoneId: "America/Bogota", trace: "retain-on-failure" },
+  use: {
+    baseURL: BASE_URL,
+    locale: "es-CO",
+    timezoneId: "America/Bogota",
+    trace: "retain-on-failure",
+    // Ruling P325: with reduced motion nothing animates, so every measurement and axe scan reads the settled screen.
+    reducedMotion: "reduce",
+  },
   webServer: [
     {
       command: "node scripts/e2e-server.mjs",

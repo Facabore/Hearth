@@ -456,9 +456,13 @@ export function RecordForm({
     });
     if (fields.includes("category")) setKeylessTried(false);
   }, []);
+  // An edit opens with the amount selected (accessibility, 2026-11-13): while all of it is selected, the keypad's next
+  // key replaces it, as a keyboard's does; moving the caret or typing ends that.
+  const [replacing, setReplacing] = useState(edit !== undefined);
   // The keypad and the keyboard write the same amount.
   const changeAmount = (next: string) => {
     setAmount(next);
+    setReplacing(false);
     clear("amount");
   };
   // The split and who paid share their rows: either one changing clears both, and the account an API problem names.
@@ -651,7 +655,9 @@ export function RecordForm({
             numberFormat={formats.numberFormat}
             exponent={currency.exponent}
             error={errorOf("amount")}
-            autoFocus={!edit}
+            autoFocus
+            selectOnOpen={edit !== undefined}
+            onWholeSelected={setReplacing}
           />
           <DescriptionField
             value={description}
@@ -802,7 +808,7 @@ export function RecordForm({
         {/* While asking, the panel's two buttons replace the keypad and Save, so the last control stays in view (17c). */}
         {asking ? null : (
           <Keypad
-            value={amount}
+            value={replacing ? "" : amount}
             onChange={changeAmount}
             numberFormat={formats.numberFormat}
             exponent={currency.exponent}

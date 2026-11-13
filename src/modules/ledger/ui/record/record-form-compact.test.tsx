@@ -113,9 +113,11 @@ describe("the amount takes the form's keypad (ruling P291, board B1 · 01)", () 
     expect(amount()).toHaveFocus();
   });
 
-  it("leaves the focus alone when the form opens to edit a record", () => {
+  it("lands on the amount, selected, when the form opens to edit a record (owner, 2026-11-13)", () => {
     personal(fakeApi({}).api, { edit: edit(initial) });
-    expect(amount()).not.toHaveFocus();
+    expect(amount()).toHaveFocus();
+    const field = amount() as HTMLInputElement;
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length]);
   });
 });
 
