@@ -161,6 +161,33 @@ const oweSettlement = (settlement: DebtSettlement, pairs: PairLedger): void => {
 };
 
 /**
+ * Ruling P323: nobody can settle with someone who is no longer a member, so what others owe them goes straight to
+ * whom they owe, in place order, until one side runs out. Every member's net stays as it was; what is left of theirs
+ * stays with them.
+ */
+const routeThrough = (gone: string, pairs: PairLedger, placeOf: (id: string) => number): void => {
+  const byPlace =
+    (id: (debt: SettlementSuggestion) => string) => (x: SettlementSuggestion, y: SettlementSuggestion) =>
+      placeOf(id(x)) - placeOf(id(y));
+  const debts = pairs.debts();
+  const owing = debts.filter((d) => d.receivingMemberId === gone).sort(byPlace((d) => d.payerMemberId));
+  const owed = debts.filter((d) => d.payerMemberId === gone).sort(byPlace((d) => d.receivingMemberId));
+  const left = { owing: owing.map((d) => d.amount), owed: owed.map((d) => d.amount) };
+  for (let i = 0, j = 0; i < owing.length && j < owed.length;) {
+    const amount = left.owing[i]! < left.owed[j]! ? left.owing[i]! : left.owed[j]!;
+    const debtor = owing[i]!.payerMemberId;
+    const creditor = owed[j]!.receivingMemberId;
+    pairs.owe(debtor, gone, -amount);
+    pairs.owe(gone, creditor, -amount);
+    pairs.owe(debtor, creditor, amount);
+    left.owing[i]! -= amount;
+    left.owed[j]! -= amount;
+    if (left.owing[i] === 0n) i += 1;
+    if (left.owed[j] === 0n) j += 1;
+  }
+};
+
+/**
  * HU-E5-03, ruling P323: who pays whom, without simplification. For every pair of members, the net of what each owes
  * the other over the space's live member-paid expenses and settlements; one suggestion per pair that owes anything,
  * from the member who owes to the member owed. For every member, what they are owed minus what they owe over their
@@ -181,18 +208,20 @@ export const pairwiseDebts = (
     if (!owed.ok) return owed;
   }
   for (const settlement of movements.settlements) oweSettlement(settlement, pairs);
-  const debts = pairs.debts();
-  const others = [...new Set(debts.flatMap((d) => [d.payerMemberId, d.receivingMemberId]))]
+  const others = [...new Set(pairs.debts().flatMap((d) => [d.payerMemberId, d.receivingMemberId]))]
     .filter((id) => !memberIds.includes(id))
     .sort();
   const place = new Map([...memberIds, ...others].map((id, index) => [id, index]));
   const placeOf = (id: string) => place.get(id)!;
+  for (const gone of others) routeThrough(gone, pairs, placeOf);
   return ok(
-    debts.sort(
-      (x, y) =>
-        (x.amount === y.amount ? 0 : x.amount > y.amount ? -1 : 1) ||
-        placeOf(x.payerMemberId) - placeOf(y.payerMemberId) ||
-        placeOf(x.receivingMemberId) - placeOf(y.receivingMemberId),
-    ),
+    pairs
+      .debts()
+      .sort(
+        (x, y) =>
+          (x.amount === y.amount ? 0 : x.amount > y.amount ? -1 : 1) ||
+          placeOf(x.payerMemberId) - placeOf(y.payerMemberId) ||
+          placeOf(x.receivingMemberId) - placeOf(y.receivingMemberId),
+      ),
   );
 };

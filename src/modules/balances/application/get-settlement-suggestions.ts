@@ -1,4 +1,5 @@
 import { map, type Result } from "@/shared/kernel";
+import type { SpaceId } from "@/modules/spaces/application";
 import { pairwiseDebts, type SettlementSuggestion } from "../domain/balances";
 import {
   createGetSpaceBalances,
@@ -32,10 +33,11 @@ export const createGetSettlementSuggestions = (deps: SettlementSuggestionsDeps):
   return async (input) => {
     const balances = await getBalances(input);
     if (!balances.ok) return balances;
-    const { spaceId, currency, members } = balances.value;
+    const { spaceId, currency } = balances.value;
     const movements = await deps.source.debtMovements(spaceId);
-    const order = members.map((m) => m.memberId);
-    return map(pairwiseDebts(currency, order, movements), (suggestions) => ({
+    // Current members only, in join order; a debt to someone who left goes through them (ruling P323).
+    const current = (await deps.members.listCurrent(spaceId as SpaceId)).map((member) => member.id);
+    return map(pairwiseDebts(currency, current, movements), (suggestions) => ({
       spaceId,
       currency,
       suggestions,

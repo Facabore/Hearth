@@ -46,8 +46,9 @@ export const createGetMyBalances = (deps: MyBalancesDeps): GetMyBalances => {
         const me = members.find((member) => member.userId === userId);
         if (!me) return null;
         const { currency } = balances.value;
-        const order = balances.value.members.map((standing) => standing.memberId);
-        const debts = pairwiseDebts(currency, order, await deps.source.debtMovements(space.id));
+        // Ruling P323: current members only, in join order; a debt to someone who left goes through them.
+        const current = members.map((member) => member.id);
+        const debts = pairwiseDebts(currency, current, await deps.source.debtMovements(space.id));
         if (!debts.ok) return null;
         return {
           spaceId: space.id,

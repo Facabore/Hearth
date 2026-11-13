@@ -186,6 +186,31 @@ describe("pairwise debts (ruling P323)", () => {
     expect(debts([])).toEqual([]);
   });
 
+  it("routes a debt through a member who left: what they were owed goes straight to whom they owed", () => {
+    // Dani paid 40,000 with Kamilox, Roger paid 30,000 with Dani, and Dani is no longer a member: only the 5,000
+    // Dani is owed on balance stays with Dani.
+    const movements = [
+      expense(
+        [["dani", pesos(40_000n)]],
+        [
+          ["kamilox", pesos(20_000n)],
+          ["dani", pesos(20_000n)],
+        ],
+      ),
+      expense(
+        [["roger", pesos(30_000n)]],
+        [
+          ["dani", pesos(15_000n)],
+          ["roger", pesos(15_000n)],
+        ],
+      ),
+    ];
+    expect(debts(movements, [], ["kamilox", "roger"])).toEqual([
+      pays("kamilox", "roger", pesos(15_000n)),
+      pays("kamilox", "dani", pesos(5_000n)),
+    ]);
+  });
+
   describe("settlements", () => {
     const kamiloxPaysForRoger = expense([["kamilox", pesos(100_000n)]], [["roger", pesos(100_000n)]]);
 
@@ -402,6 +427,16 @@ describe("pairwise debts (ruling P323)", () => {
           .filter((s) => s.payerMemberId === memberId)
           .reduce((sum, s) => sum + s.amount, 0n);
         expect(owed - owes, memberId).toBe(nets.get(memberId) ?? 0n);
+      }
+      // A debt to someone who left goes through them: they keep at most their net, on one side only.
+      for (const gone of new Set(suggestions.flatMap((s) => [s.payerMemberId, s.receivingMemberId]))) {
+        if (memberIds.includes(gone)) continue;
+        const sides = new Set(
+          suggestions.flatMap((s) =>
+            s.payerMemberId === gone ? ["pays"] : s.receivingMemberId === gone ? ["paid"] : [],
+          ),
+        );
+        expect(sides.size, gone).toBe(1);
       }
       // One positive suggestion per pair at most, and nobody pays themself.
       expect(suggestions.every((s) => s.amount > 0n && s.payerMemberId !== s.receivingMemberId)).toBe(true);

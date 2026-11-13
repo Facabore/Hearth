@@ -139,6 +139,17 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
     ]);
   });
 
+  it("has a debt to a former member paid to whom that member owed, as nobody can settle with them (P323)", async () => {
+    const { ledger, suggest } = world();
+    // Zed, who left, paid 40,000 for Juan; Luis paid 30,000 for Zed. Juan pays Luis, and only the rest stays Zed's.
+    await ledger.add(paidFor("member-zed", pesos(40_000n), [["member-juan", pesos(40_000n)]]));
+    await ledger.add(paidFor("member-luis", pesos(30_000n), [["member-zed", pesos(30_000n)]]));
+    expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([
+      { payerMemberId: "member-juan", receivingMemberId: "member-luis", amount: pesos(30_000n) },
+      { payerMemberId: "member-juan", receivingMemberId: "member-zed", amount: pesos(10_000n) },
+    ]);
+  });
+
   it("lets every member read, viewers included, and hides the space from non-members", async () => {
     const { suggest } = world([memberOf("Ana", "OWNER", 0), memberOf("Sofi", "VIEWER", 1)]);
     expect(codeOf(await suggest({ spaceId: "space-household", userId: "u-sofi" }))).toBe("ok");
