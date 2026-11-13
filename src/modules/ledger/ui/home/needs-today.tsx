@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useId, useState, type ReactNode } from "react";
-import { Icon } from "@/shared/ui";
 import type { MoneyDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 
@@ -177,11 +176,6 @@ export function NeedsToday({
           className="flex min-h-11 items-center gap-1 self-start text-sm text-muted"
         >
           {open ? t("fewer") : t("more", { count: more })}
-          <Icon
-            name="chevronDown"
-            size={18}
-            className={open ? "rotate-180 transition-transform" : "transition-transform"}
-          />
         </button>
       ) : null}
     </section>
