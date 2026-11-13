@@ -573,6 +573,7 @@
       "details": "Detalles del movimiento",
       "category": "Categoría",
       "chooseCategory": "Elegir categoría",
+      "allCategories": "Todas",
       "recent": "Recientes",
       "account": "Cuenta",
       "receivingAccount": "Cuenta que recibe",
@@ -580,6 +581,7 @@
       "to": "Hacia",
       "chooseAccount": "Elegir cuenta",
       "when": "Fecha y hora: {label}. Cambiar",
+      "date": "Fecha",
       "recordIn": "Registrar en",
       "space": "Espacio: {name}. Cambiar",
       "spaceTitle": "¿En qué espacio lo registras?",
@@ -607,6 +609,7 @@
     "split": {
       "title": "Quién pagó y para quién",
       "payer": "Pagó",
+      "payerTitle": "Quién pagó",
       "from": "Desde",
       "guestPays": "{name} es invitado: pagó fuera de la app, así que no hay cuenta que elegir.",
       "fundPays": "Sale de la cuenta {fund}. Nadie queda debiendo por este gasto.",
@@ -657,7 +660,7 @@
         "SHARES": "por partes",
         "BY_ALLOCATION": "según el plan"
       },
-      "addGuests": "Agregar invitados",
+      "addGuests": "Agregar a alguien",
       "addGuestsHint": "Alguien sin cuenta que pagó o participa"
     },
     "direct": {

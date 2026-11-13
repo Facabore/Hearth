@@ -6,7 +6,7 @@ import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { accountDto, guestDto, memberDto, normalized } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { SplitSheet } from "./split-sheet";
+import { PayerSheet, SplitSheet } from "./split-sheet";
 import type { SplitDraft } from "./split-request";
 import type { DefaultSplitState } from "./use-default-split";
 
@@ -416,7 +416,7 @@ describe("split sheet (HU-E9-06)", () => {
   });
 });
 
-describe("adding guests from Para quién (P309, S6)", () => {
+describe("the split sheet without who paid (ruling P324, S6, board Cómo se divide)", () => {
   const sheetWith = (onAddGuests?: () => void) =>
     renderWithIntl(
       <SplitSheet
@@ -426,30 +426,130 @@ describe("adding guests from Para quién (P309, S6)", () => {
         members={MEMBERS}
         meUserId="u-ana"
         myAccounts={[BANK]}
-        funds={[]}
+        funds={[FUND]}
         draft={start}
         onChange={() => undefined}
         amount="30000000"
         currency="COP"
         formats={BUILT_IN_FORMATS}
         defaultSplit={EQUAL_DEFAULT}
+        withPayer={false}
         {...(onAddGuests ? { onAddGuests } : {})}
       />,
     );
+  const split = () => screen.getByRole("dialog", { name: "Cómo se divide" });
 
-  it("ends the list with Agregar invitados, and its hint, only when the sheet is given a way to add them", async () => {
+  it("keeps only the method and the people, each with a checkbox and a share, then the status and Listo", async () => {
+    sheetWith();
+    expect(within(split()).getByRole("radiogroup", { name: "Cómo se divide" })).toBeInTheDocument();
+    expect(within(split()).queryByRole("radiogroup", { name: "Pagó" })).not.toBeInTheDocument();
+    expect(within(split()).queryByRole("radiogroup", { name: "Desde" })).not.toBeInTheDocument();
+    expect(within(split()).queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
+    const people = within(within(split()).getByRole("list", { name: "Para quién" })).getAllByRole("listitem");
+    expect(people.map((row) => normalized(row.textContent))).toEqual([
+      "Ana (tú)$ 150.000",
+      "Juan$ 150.000",
+      "Pedro (invitado)—",
+    ]);
+    expect(within(split()).getAllByRole("checkbox")).toHaveLength(3);
+    expect(within(split()).getByRole("status")).toHaveTextContent("Suma $ 300.000: cuadra con el gasto");
+    expect(within(split()).getByRole("button", { name: "Listo" })).toBeEnabled();
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("offers Agregar a alguien after the status, only when the sheet is given a way to add guests", async () => {
     let asked = 0;
     const { unmount } = sheetWith(() => (asked += 1));
-    const add = within(sheet()).getByRole("button", { name: "Agregar invitados" });
-    expect(add).toHaveAccessibleDescription("Alguien sin cuenta que pagó o participa");
+    const add = within(split()).getByRole("button", { name: "Agregar a alguien" });
     expect(add).toHaveClass("min-h-11");
-    const list = within(sheet()).getByRole("list", { name: "Para quién" });
-    expect(list.lastElementChild).toContainElement(add);
+    const status = within(split()).getByRole("status");
+    expect(status.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      add.compareDocumentPosition(within(split()).getByRole("button", { name: "Listo" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await userEvent.click(add);
     expect(asked).toBe(1);
     expect(await axeViolations(document.body)).toEqual([]);
     unmount();
     sheetWith();
-    expect(within(sheet()).queryByRole("button", { name: "Agregar invitados" })).not.toBeInTheDocument();
+    expect(within(split()).queryByRole("button", { name: "Agregar a alguien" })).not.toBeInTheDocument();
+  });
+});
+
+describe("the payer sheet (ruling P324, S5, S6)", () => {
+  function PayerHarness({
+    seen,
+    onAddGuests,
+  }: {
+    seen?: (draft: SplitDraft) => void;
+    onAddGuests?: () => void;
+  }) {
+    const [draft, setDraft] = useState(start);
+    const [open, setOpen] = useState(true);
+    return (
+      <PayerSheet
+        open={open}
+        onOpenChange={setOpen}
+        title="Mercado · $ 300.000 · Household"
+        members={MEMBERS}
+        meUserId="u-ana"
+        myAccounts={[BANK, accountDto({ id: "a-visa", name: "Visa", type: "CREDIT_CARD" })]}
+        funds={[FUND]}
+        draft={draft}
+        onChange={(next) => {
+          seen?.(next);
+          setDraft(next);
+        }}
+        {...(onAddGuests ? { onAddGuests } : {})}
+      />
+    );
+  }
+  const payers = () => screen.getByRole("dialog", { name: "Quién pagó" });
+
+  it("holds who paid and the account, with the guest's and the fund's notes, and nothing of the split", async () => {
+    const drafts: SplitDraft[] = [];
+    renderWithIntl(<PayerHarness seen={(d) => drafts.push(d)} />);
+    expect(payers()).toHaveAccessibleDescription("Mercado · $ 300.000 · Household");
+    expect(within(payers()).queryByRole("radiogroup", { name: "Cómo se divide" })).not.toBeInTheDocument();
+    expect(within(payers()).queryByRole("checkbox")).not.toBeInTheDocument();
+    const who = within(payers()).getByRole("radiogroup", { name: "Pagó" });
+    expect(
+      within(who)
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["Ana (tú)", "Pedro (invitado)", "Fondo Hogar"]);
+    await userEvent.click(within(payers()).getByRole("radio", { name: "Visa" }));
+    await userEvent.click(within(who).getByRole("radio", { name: "Pedro (invitado)" }));
+    expect(
+      within(payers()).getByText(
+        "Pedro es invitado: pagó fuera de la app, así que no hay cuenta que elegir.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(payers()).queryByRole("radiogroup", { name: "Desde" })).not.toBeInTheDocument();
+    await userEvent.click(within(who).getByRole("radio", { name: "Fondo Hogar" }));
+    expect(
+      within(payers()).getByText("Sale de la cuenta Fondo Hogar. Nadie queda debiendo por este gasto."),
+    ).toBeInTheDocument();
+    expect(drafts.map((d) => d.payer)).toEqual([
+      { kind: "ME", memberId: "m-ana", accountId: "a-visa" },
+      { kind: "GUEST", memberId: "m-pedro" },
+      { kind: "FUND", accountId: "a-fund" },
+    ]);
+    // Who paid is never the person's split work, so the plan's split may still apply (P167).
+    expect(drafts.every((d) => !d.chosen)).toBe(true);
+    expect(await axeViolations(document.body)).toEqual([]);
+    await userEvent.click(within(payers()).getByRole("button", { name: "Listo" }));
+    expect(screen.queryByRole("dialog", { name: "Quién pagó" })).not.toBeInTheDocument();
+  });
+
+  it("offers Agregar a alguien only when it is given a way to add guests", async () => {
+    let asked = 0;
+    const { unmount } = renderWithIntl(<PayerHarness onAddGuests={() => (asked += 1)} />);
+    await userEvent.click(within(payers()).getByRole("button", { name: "Agregar a alguien" }));
+    expect(asked).toBe(1);
+    unmount();
+    renderWithIntl(<PayerHarness />);
+    expect(within(payers()).queryByRole("button", { name: "Agregar a alguien" })).not.toBeInTheDocument();
   });
 });

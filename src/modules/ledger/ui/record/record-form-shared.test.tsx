@@ -86,18 +86,17 @@ const form = (api: Api, shared = context()) =>
       api={api}
     />,
   );
-// Issue #171: the split is folded under Más opciones until it is opened.
-const openMore = () => userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
 const enter = async (pesos: string) => {
   await userEvent.type(screen.getByLabelText("Monto"), pesos);
   await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
   await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
-  await openMore();
 };
 const divisionRow = () => screen.getByRole("button", { name: /División/ });
 // The sheet is a lazily imported chunk: it exists only after the import resolves, so it is awaited, never assumed.
-const splitSheet = () => screen.findByRole("dialog", { name: "Quién pagó y para quién" });
+const splitSheet = () => screen.findByRole("dialog", { name: "Cómo se divide" });
+// Ruling P324 (S6): who paid and the account it left have a sheet of their own, opened from the "Quién pagó" row.
+const payerSheet = () => screen.findByRole("dialog", { name: "Quién pagó" });
 
 describe("the account a shared expense is paid from (issue #208)", () => {
   afterEach(() => localStorage.clear());
@@ -224,12 +223,19 @@ describe("shared expense (HU-E9-06)", () => {
     form(api, context(members));
     await enter("90000");
     await userEvent.click(screen.getByRole("button", { name: /Pagas tú|Pagó/ }));
-    const sheet = await splitSheet();
+    const payers = await payerSheet();
     expect(
-      within(within(sheet).getByRole("radiogroup", { name: "Pagó" }))
+      within(within(payers).getByRole("radiogroup", { name: "Pagó" }))
         .getAllByRole("radio")
         .map((r) => r.textContent),
     ).toEqual(["Ana (tú)", "Pedro (invitado)"]);
+    // The payer sheet holds one decision: no method, nobody to tick.
+    expect(within(payers).queryByRole("radiogroup", { name: "Cómo se divide" })).not.toBeInTheDocument();
+    expect(within(payers).queryByRole("checkbox")).not.toBeInTheDocument();
+    await userEvent.click(within(payers).getByRole("button", { name: "Listo" }));
+    await userEvent.click(divisionRow());
+    const sheet = await splitSheet();
+    expect(within(sheet).queryByRole("radiogroup", { name: "Pagó" })).not.toBeInTheDocument();
     expect(
       within(sheet)
         .getAllByRole("checkbox")
@@ -403,6 +409,58 @@ describe("shared expense (HU-E9-06)", () => {
     expect((await requests.find((r) => r.method === "POST")!.json()).payments).toEqual([
       { memberId: null, accountId: "a-fund", amount: { amount: "30000000", currency: "COP" } },
     ]);
+  });
+
+  it("chooses who paid and the account in the payer sheet, outside the split sheet, and sends the same request (P324, S6)", async () => {
+    const VISA = accountDto({ id: "a-visa", name: "Visa", type: "CREDIT_CARD" });
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+      "POST /api/v1/spaces/{spaceId}/expenses": recordedAt,
+    });
+    form(api, { ...context(), myAccounts: [BANK, VISA] });
+    await enter("300000");
+    // Board "Registrar gasto": how it is split, then who paid, then the date, each a row with its meta.
+    const payerRow = screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" });
+    expect(payerRow).toHaveTextContent("Quién pagó");
+    expect(divisionRow()).toHaveTextContent("Cómo se divide");
+    expect(divisionRow().compareDocumentPosition(payerRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      payerRow.compareDocumentPosition(screen.getByTestId("when-chip")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // The split sheet no longer offers the payer or the account.
+    await userEvent.click(divisionRow());
+    const split = await splitSheet();
+    expect(within(split).queryByRole("radiogroup", { name: "Pagó" })).not.toBeInTheDocument();
+    expect(within(split).queryByRole("radiogroup", { name: "Desde" })).not.toBeInTheDocument();
+    await userEvent.click(within(split).getByRole("button", { name: "Listo" }));
+    await userEvent.click(payerRow);
+    const payers = await payerSheet();
+    await userEvent.click(
+      within(within(payers).getByRole("radiogroup", { name: "Desde" })).getByRole("radio", { name: "Visa" }),
+    );
+    await userEvent.click(within(payers).getByRole("button", { name: "Listo" }));
+    expect(screen.getByRole("button", { name: "Pagó Ana desde Visa" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    const body = await requests.find((r) => r.method === "POST")!.json();
+    expect(body).toMatchObject({
+      payments: [{ memberId: "m-ana", accountId: "a-visa", amount: { amount: "30000000", currency: "COP" } }],
+      split: { method: "EQUAL", participants: [{ memberId: "m-ana" }, { memberId: "m-juan" }] },
+    });
+    expect(body).not.toHaveProperty("accountId");
+  });
+
+  it("asks for the account under the Quién pagó row when the recorder has none to pay from", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": (r) => equal(amountOf(r)),
+    });
+    form(api, { ...context(), myAccounts: [] });
+    await enter("300000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    expect(screen.getByRole("button", { name: /^Pagó Ana/ })).toHaveAccessibleDescription(
+      "Elige una cuenta.",
+    );
+    expect(divisionRow()).not.toHaveAccessibleDescription(/Elige una cuenta/);
+    expect(requests.filter((r) => r.method === "POST")).toEqual([]);
   });
 
   // D25 (owner's ruling, 2026-10-27): a shared space holds only its fund, so it records expenses and contributions to

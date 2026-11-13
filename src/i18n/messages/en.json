@@ -573,6 +573,7 @@
       "details": "Transaction details",
       "category": "Category",
       "chooseCategory": "Choose a category",
+      "allCategories": "All",
       "recent": "Recent",
       "account": "Account",
       "receivingAccount": "Receiving account",
@@ -580,6 +581,7 @@
       "to": "To",
       "chooseAccount": "Choose an account",
       "when": "Date and time: {label}. Change",
+      "date": "Date",
       "recordIn": "Record in",
       "space": "Space: {name}. Change",
       "spaceTitle": "Which space do you record it in?",
@@ -607,6 +609,7 @@
     "split": {
       "title": "Who paid and for whom",
       "payer": "Paid by",
+      "payerTitle": "Who paid",
       "from": "From",
       "guestPays": "{name} is a guest: they paid outside the app, so there is no account to choose.",
       "fundPays": "It comes out of {fund}. Nobody owes anything for this expense.",
@@ -657,7 +660,7 @@
         "SHARES": "by shares",
         "BY_ALLOCATION": "per the plan"
       },
-      "addGuests": "Add guests",
+      "addGuests": "Add someone",
       "addGuestsHint": "Someone without an account who paid or takes part"
     },
     "direct": {

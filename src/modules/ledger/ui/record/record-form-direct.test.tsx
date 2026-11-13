@@ -76,13 +76,13 @@ const splitWith = async (name: string) => {
 };
 
 describe("the split with someone is a row under the category (U11, #222)", () => {
-  it("shows ¿Lo compartiste? Dividir con alguien as its own outlined row, with nothing to unfold first (P291)", async () => {
+  it("shows ¿Lo compartiste? Dividir con alguien as a flat summary row, with nothing to unfold first (P291, P324)", async () => {
     const { container } = form(fakeApi({}).api);
     const row = screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" });
     const tiles = screen.getByRole("group", { name: "Categoría" });
     expect(tiles.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(row).toBeVisible();
-    expect(row).toHaveClass("border");
+    expect(row).toHaveClass("border-b", "min-h-11");
     expect(row).toHaveTextContent("¿Lo compartiste? Dividir con alguien");
     expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);

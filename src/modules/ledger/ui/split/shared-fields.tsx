@@ -4,18 +4,19 @@ import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type ReactNode } from "react";
 import { memberLabel } from "@/modules/spaces/ui";
-import { Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { Formats } from "@/shared/ui/format/formatters";
+import { SummaryRow } from "../record/form-chip";
 import { defaultParticipantIds, type SharedExpenseContext } from "./shared-context";
 import { isUntouched, splitFailureMessage } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
+import type { SharedSheet } from "./split-sheet";
 import { includedIds } from "./split-summary";
 import { useDefaultSplit } from "./use-default-split";
 
-// The editor's code (the sheet, the preview, the Radix dialog, adding guests) loads only when a shared expense's rows
-// are opened.
-const SplitSheet = dynamic(() => import("./split-sheet").then((module) => module.SharedSplitSheet), {
+// The sheets' code (the split, who paid, the preview, the Radix dialog, adding guests) loads only when one of a shared
+// expense's rows is opened.
+const SplitSheets = dynamic(() => import("./split-sheet").then((module) => module.SharedSplitSheet), {
   ssr: false,
 });
 
@@ -27,28 +28,24 @@ export interface SharedFieldsProps {
   readonly amount: string | null;
   readonly currency: string;
   readonly formats: Formats;
-  /** The expense in one line ("Mercado · $ 300.000 · Household"), shown under the sheet's title. */
+  /** The expense in one line ("Mercado · $ 300.000 · Household"), shown under the sheets' titles. */
   readonly title: string;
   readonly spaceId: string;
   readonly categoryId: string | null;
   readonly date: string;
   readonly api: Api;
+  /** The split's problem, shown under its row. */
   readonly error?: string | undefined;
+  /** Who paid's problem (the account it was paid from), shown under its row. */
+  readonly payerError?: string | undefined;
   /** Whether the plan's split (HU-E6-08) is asked for and offered; an edit starts from the saved split and has none (P192). */
   readonly defaultSplit?: boolean;
-  /** Issue #171: the division row is folded under Más opciones; who paid stays on screen. */
-  readonly splitHidden?: boolean;
-  /** The division row's id, for the Más opciones toggle's aria-controls. */
-  readonly splitId?: string;
 }
 
-const rowClass =
-  "flex min-h-14 items-center justify-between gap-3 rounded-xl border border-field bg-surface px-4 text-left";
-
 /**
- * HU-E9-06, the SharedExpense artboard: two rows, who paid and how it is split, both opening the split sheet. The
- * plan's default split is preselected until the person picks a method or a participant (P167). Issue #171: the record
- * form folds the division row under Más opciones (`splitHidden`), never who paid.
+ * HU-E9-06, the SharedExpense artboard as ruling P324 draws it (board "Registrar gasto"): two flat summary rows, how it
+ * is split ("Cómo se divide") and who paid with the account ("Quién pagó"), each opening its own sheet. The plan's
+ * default split is preselected until the person picks a method or a participant (P167).
  */
 export function SharedFields({
   context,
@@ -63,14 +60,13 @@ export function SharedFields({
   date,
   api,
   error,
+  payerError,
   defaultSplit: offerPlan = true,
-  splitHidden = false,
-  splitId,
 }: SharedFieldsProps) {
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
   const [opened, setOpened] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [sheet, setSheet] = useState<SharedSheet>(null);
   const defaultSplit = useDefaultSplit({ api, spaceId, categoryId, date, amount, enabled: offerPlan });
   const memberIds = context.members.map((member) => member.id);
   const meUserId = context.members.find((m) => m.id === context.meMemberId)?.userId ?? "";
@@ -126,8 +122,9 @@ export function SharedFields({
   const { payer } = draft;
   const account =
     payer.kind === "ME" ? context.myAccounts.find((a) => a.id === payer.accountId)?.name : undefined;
-  // Ruling P291 (board E9-06 · 01): "Pagó Ana desde Bancolombia", the verb in bold, the recorder named too.
-  const b = (chunks: ReactNode) => <strong className="font-semibold">{chunks}</strong>;
+  // Ruling P291 (board E9-06 · 01): "Pagó Ana desde Bancolombia", the recorder named too; ruling P324 drops the bold, so
+  // the row is one plain line over its meta.
+  const b = (chunks: ReactNode) => chunks;
   const paid =
     payer.kind === "FUND"
       ? t.rich("paidBy", { b, payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
@@ -138,42 +135,43 @@ export function SharedFields({
             t.rich("paidFrom", { b, payer: nameOf(payer.memberId), account })
           : t.rich("paidBy", { b, payer: label(payer.memberId) });
 
-  const show = () => {
+  const show = (which: NonNullable<SharedSheet>) => {
     setOpened(true);
-    setOpen(true);
+    setSheet(which);
   };
 
   return (
     <>
-      <div className="flex flex-col gap-3">
-        <button type="button" onClick={show} className={rowClass}>
-          <span className="text-[15px] text-ink">{paid}</span>
-          <Icon name="chevronRight" size={20} />
-        </button>
-        <div id={splitId} hidden={splitHidden} className="flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={show}
-            aria-describedby={error ? "record-split-error" : undefined}
-            className={rowClass}
-          >
-            <span className="flex min-w-0 flex-col">
-              <span className="text-sm text-muted">{t("split")}</span>
-              <span className="font-medium break-words text-ink">{summary}</span>
-            </span>
-            <Icon name="chevronRight" size={20} />
-          </button>
-          {error ? (
-            <p id="record-split-error" className="text-sm text-danger">
-              {error}
-            </p>
-          ) : null}
-        </div>
-      </div>
+      {/* The row is still named "División …" for screen readers; "Cómo se divide" under it says the same. */}
+      <SummaryRow
+        label={t("split")}
+        value={summary}
+        meta={t("method")}
+        onClick={() => show("split")}
+        errorId={error ? "record-split-error" : undefined}
+      />
+      {error ? (
+        <p id="record-split-error" className="pt-1 text-sm text-danger">
+          {error}
+        </p>
+      ) : null}
+      {/* "Pagó Ana desde Bancolombia" says what it is, so "Quién pagó" under it is not read again. */}
+      <SummaryRow
+        label=""
+        value={paid}
+        meta={t("payerTitle")}
+        onClick={() => show("payer")}
+        errorId={payerError ? "record-payer-error" : undefined}
+      />
+      {payerError ? (
+        <p id="record-payer-error" className="pt-1 text-sm text-danger">
+          {payerError}
+        </p>
+      ) : null}
       {opened ? (
-        <SplitSheet
-          open={open}
-          onOpenChange={setOpen}
+        <SplitSheets
+          sheet={sheet}
+          onSheetChange={setSheet}
           title={title}
           context={context}
           api={api}

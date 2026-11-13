@@ -17,7 +17,7 @@ import {
 import { AccountPicker } from "@/modules/accounts/ui";
 import { controlsFor } from "@/modules/spaces/ui";
 import { activeTree, categoryPath, groupsForKind, type CategoryChoice } from "@/modules/categories/ui";
-import { Button, Icon, ProblemNotice, ScreenHeader, SymbolIcon } from "@/shared/ui";
+import { Button, Icon, ProblemNotice, ScreenHeader } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
@@ -47,7 +47,7 @@ import { CategoryTiles } from "./category-tiles";
 import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
-import { ClockIcon, FormChip } from "./form-chip";
+import { FormChip, SummaryRow } from "./form-chip";
 import { DescriptionField, RowError } from "./form-rows";
 import { Keypad } from "./keypad";
 import { RecordSheet } from "./record-sheet";
@@ -122,7 +122,8 @@ function KindTabs({
     tabs.current.get(next)?.focus();
   };
   return (
-    <div role="tablist" aria-label={label} onKeyDown={move} className="flex rounded-[14px] bg-track p-1">
+    // Ruling P324 (board "Registrar gasto"): the kinds as chips, the chosen one tinted; still the tabs pattern.
+    <div role="tablist" aria-label={label} onKeyDown={move} className="flex flex-wrap gap-2">
       {kinds.map((k) => (
         <button
           key={k}
@@ -140,7 +141,7 @@ function KindTabs({
           onClick={() => {
             if (k !== value) onChange(k);
           }}
-          className="min-h-11 flex-1 rounded-[10px] text-sm font-medium text-ink data-[state=active]:bg-surface data-[state=active]:shadow"
+          className="min-h-11 rounded-full border border-line bg-surface px-3.5 text-sm font-medium text-ink data-[state=active]:border-accent-soft data-[state=active]:bg-accent-soft data-[state=active]:text-accent-strong"
         >
           {labelOf(k)}
         </button>
@@ -551,43 +552,35 @@ export function RecordForm({
     setPending(false);
   };
 
-  const chip = (
+  // Ruling P324 (board "Registrar gasto"): an account is a flat summary row, its value over what it is. A transfer's
+  // "Desde" and "Hacia" are read before the account (#286); the others name it for screen readers.
+  const accountRow = (
     field: RecordField,
     name: string,
     value: string | null,
     open: Sheet,
     placeholder: string,
-    icon: ReactNode,
     fixed = false,
   ): ReactNode => (
-    <FormChip
-      name={name}
+    <SummaryRow
       value={value ?? placeholder}
-      icon={icon}
+      meta={name}
+      label={kind === "TRANSFER" ? undefined : name}
       onClick={fixed ? undefined : () => setSheet(open)}
       errorId={errorOf(field) ? `record-${field}-error` : undefined}
-      showName={kind === "TRANSFER"}
     />
   );
   const accountLabel = t(
     kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
   );
-  const accountIcon = <SymbolIcon name="wallet" size={16} />;
   const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
   const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
 
-  // Issue #171: Más opciones folds how a shared expense is split (who paid stays on screen). It starts open on an edit
-  // that already has a split. While the division has a problem (the API's, or a chosen split that no longer adds up and
-  // disables Save) it is open and offers no Menos opciones, so the problem cannot be folded away. U11 (#222): the split
-  // with someone is a row of its own instead, never folded; a person already chosen stays on screen.
-  const foldsShared = Boolean(sharedExpense && shared && split);
-  const foldsDirect = canSplit && !direct;
-  const sharedError = errorOf("split") ?? errorOf("payer");
-  const divisionNeedsLook =
-    foldsShared &&
-    (sharedError !== undefined || Boolean(split?.chosen && !built.ok && built.field === "split"));
-  const [moreOpen, setMoreOpen] = useState(Boolean(edit?.initial.split));
-  if (divisionNeedsLook && !moreOpen) setMoreOpen(true);
+  // Ruling P324 (S5): how a shared expense is split and who paid are two summary rows, always on screen, so a problem
+  // in either is never folded away (it replaced Más opciones, issue #171). U11 (#222): a personal expense's split with
+  // someone is a row too; a person already chosen stays on screen.
+  const sharedRows = Boolean(sharedExpense && shared && split);
+  const offersDirect = canSplit && !direct;
   const chipErrors = (["account", "toAccount", "when"] as const).flatMap((field) => {
     const error = errorOf(field);
     return error ? [{ field, error }] : [];
@@ -602,9 +595,14 @@ export function RecordForm({
       data-ready={client ? "true" : undefined}
       onSubmit={(event) => void submit(event)}
       noValidate
-      className="flex flex-col gap-3"
+      // S5 (ruling P324): in the sheet the form fills the height it is given; only the fields scroll, above a keypad and
+      // a Guardar that never scroll, so the keypad's last row is never under Guardar. An edit's page scrolls as a whole.
+      className={edit ? "flex flex-col gap-3" : "flex min-h-0 flex-1 flex-col"}
     >
-      <div>
+      <div
+        data-testid="record-fields"
+        className={edit ? undefined : "-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-3"}
+      >
         {/* Ruling P308: the space comes first, since the categories, the accounts and the split below depend on it. */}
         <div className="mb-3 flex items-center gap-2">
           {edit ? null : <span className="text-sm text-muted">{t("form.recordIn")}</span>}
@@ -683,67 +681,83 @@ export function RecordForm({
             />
           )}
           {/* U11 (#222): under the category, the way to split the expense with someone; a chosen person replaces it. */}
-          {foldsDirect ? (
-            <button
-              type="button"
-              aria-label={t("direct.row")}
-              onClick={() => {
-                setDirectOpened(true);
-                setDirectOpen(true);
-              }}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-field bg-surface px-3 text-left text-[15px] text-ink"
-            >
-              <Icon name="userPlus" size={20} className="shrink-0 text-accent" />
-              <span className="min-w-0 flex-1">
-                {t("direct.shared")} <span className="font-medium text-accent">{t("direct.open")}</span>
-              </span>
-              <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
-            </button>
-          ) : null}
-          {canSplit && direct ? (
-            <div className="flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4">
-              <span className="min-w-0 py-2 font-medium break-words text-accent">
-                {t("direct.with", { name: directName })}
-              </span>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={t("direct.remove", { name: directName })}
-                onClick={() => setDirect(null)}
-              >
-                <Icon name="close" />
-              </Button>
-            </div>
-          ) : null}
-          <div className="flex flex-col gap-1">
-            <div role="group" aria-label={t("form.details")} className="flex flex-wrap gap-2">
-              {/* A shared expense names who paid instead of one account, in its own row below (P168). */}
-              {foldsShared
+          {/* Ruling P324 (S5, board "Registrar gasto"): flat summary rows, each opening its sheet: how it is split, who
+              paid and from which account, and the date. A row that does not apply to the kind or space is not drawn. */}
+          <div className="flex flex-col">
+            {/* U11 (#222): a personal expense's split with someone; a chosen person replaces the row. */}
+            {offersDirect ? (
+              <SummaryRow
+                value={t("direct.open")}
+                meta={t("direct.shared")}
+                ariaLabel={t("direct.row")}
+                onClick={() => {
+                  setDirectOpened(true);
+                  setDirectOpen(true);
+                }}
+              />
+            ) : null}
+            {canSplit && direct ? (
+              <div className="flex items-center gap-2 border-b border-line">
+                <span className="flex min-w-0 flex-1 flex-col py-2">
+                  <span className="truncate text-base text-ink">
+                    {t("direct.with", { name: directName })}
+                  </span>
+                  <span className="text-sm text-muted">{t("split.method")}</span>
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t("direct.remove", { name: directName })}
+                  onClick={() => setDirect(null)}
+                >
+                  <Icon name="close" />
+                </Button>
+              </div>
+            ) : null}
+            {/* A shared expense names who paid instead of one account (P168). Never unmounted while it applies (P167). */}
+            {sharedRows && shared && split ? (
+              <SharedFields
+                context={shared}
+                draft={split}
+                onChange={changeSplit}
+                amount={positiveMinor}
+                currency={space.currency}
+                formats={formats}
+                title={sharedTitle}
+                spaceId={space.id}
+                categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
+                date={when.date}
+                api={api}
+                error={errorOf("split")}
+                payerError={errorOf("payer")}
+                defaultSplit={!edit}
+              />
+            ) : null}
+            <div role="group" aria-label={t("form.details")} className="flex flex-col">
+              {sharedRows
                 ? null
-                : chip(
+                : accountRow(
                     "account",
                     accountLabel,
                     nameOf(accountId),
                     "account",
                     t("form.chooseAccount"),
-                    accountIcon,
                     fixedAccounts,
                   )}
               {kind === "TRANSFER"
-                ? chip(
+                ? accountRow(
                     "toAccount",
                     t("form.to"),
                     nameOf(toAccountId),
                     "toAccount",
                     t("form.chooseAccount"),
-                    accountIcon,
                     fixedAccounts,
                   )
                 : null}
-              <FormChip
-                name={t("form.when", { label })}
+              <SummaryRow
+                label={t("form.when", { label })}
                 value={label}
-                icon={<ClockIcon />}
+                meta={t("form.date")}
                 testId="when-chip"
                 ariaLabel={t("form.when", { label })}
                 errorId={errorOf("when") ? "record-when-error" : undefined}
@@ -751,6 +765,7 @@ export function RecordForm({
                   setSheetNow(nowIn(new Date(), zone));
                   setSheet("when");
                 }}
+                last
               />
             </div>
             {chipErrors.map(({ field, error }) => (
@@ -759,70 +774,33 @@ export function RecordForm({
               </RowError>
             ))}
           </div>
-          {foldsShared ? (
-            <div className="flex flex-col gap-1">
-              {/* Who paid stays on screen; only the division row folds (issue #171). Never unmounted (P167). */}
-              {shared && split ? (
-                <SharedFields
-                  context={shared}
-                  draft={split}
-                  onChange={changeSplit}
-                  amount={positiveMinor}
-                  currency={space.currency}
-                  formats={formats}
-                  title={sharedTitle}
-                  spaceId={space.id}
-                  categoryId={category ? (category.subcategoryId ?? category.categoryId) : null}
-                  date={when.date}
-                  api={api}
-                  error={sharedError}
-                  defaultSplit={!edit}
-                  splitHidden={!moreOpen}
-                  splitId="record-more-split"
-                />
-              ) : null}
-              {divisionNeedsLook ? null : (
-                <button
-                  type="button"
-                  aria-expanded={moreOpen}
-                  aria-controls="record-more-split"
-                  onClick={() => setMoreOpen((open) => !open)}
-                  className="flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-accent"
-                >
-                  {moreOpen ? t("form.fewerOptions") : t("form.moreOptions")}
-                  <Icon
-                    name="chevronDown"
-                    size={18}
-                    className={moreOpen ? "rotate-180 transition-transform" : "transition-transform"}
-                  />
-                </button>
-              )}
-            </div>
-          ) : null}
         </div>
       </div>
-      {asking && warning ? (
-        <LineWarningConfirm
-          warning={warning}
-          formats={formats}
-          onConfirm={() => {
-            confirmedFor.current = asked;
-            setAskingFor(null);
-            formRef.current?.requestSubmit();
-          }}
-          onReview={() => {
-            setAskingFor(null);
-            document.getElementById("record-amount")?.focus();
-          }}
-        />
-      ) : warning ? (
-        <LineWarningNote warning={warning} formats={formats} />
-      ) : null}
-      {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
-      {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
-      {/* While asking, the panel's two buttons replace the keypad and Save, so the last control stays in view (17c). */}
-      {asking ? null : (
-        <>
+      <div
+        data-testid="record-controls"
+        className={edit ? "flex flex-col gap-3" : "flex shrink-0 flex-col gap-3 pt-1"}
+      >
+        {asking && warning ? (
+          <LineWarningConfirm
+            warning={warning}
+            formats={formats}
+            onConfirm={() => {
+              confirmedFor.current = asked;
+              setAskingFor(null);
+              formRef.current?.requestSubmit();
+            }}
+            onReview={() => {
+              setAskingFor(null);
+              document.getElementById("record-amount")?.focus();
+            }}
+          />
+        ) : warning ? (
+          <LineWarningNote warning={warning} formats={formats} />
+        ) : null}
+        {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}
+        {problem && where === "form" && edit?.problemAction ? edit.problemAction(problem) : null}
+        {/* While asking, the panel's two buttons replace the keypad and Save, so the last control stays in view (17c). */}
+        {asking ? null : (
           <Keypad
             value={amount}
             onChange={changeAmount}
@@ -831,24 +809,27 @@ export function RecordForm({
             // Pesos are typed whole (their shares round to whole pesos, P183): 000, not a point.
             point={currency.roundingUnit < 10n ** BigInt(currency.exponent)}
           />
-          {/* #281 (audit pass 3, A1): Save is pinned to the bottom of whatever scrolls (the sheet, or the edit page), so
-              on a 375×667 or 320×640 phone it is on screen before any scroll and the fields scroll above it. */}
-          <div
-            className={`sticky bottom-0 z-10 pt-2 ${
-              edit ? "bg-bg pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "bg-surface pb-1"
-            }`}
+        )}
+      </div>
+      {/* #281 (audit pass 3, A1): Save is pinned to the bottom (of the sheet, or of the edit page), so on a 375×667 or
+          320×640 phone it is on screen before any scroll. S5 (P324): it comes after the keypad, never over it. */}
+      {asking ? null : (
+        <div
+          data-testid="record-save"
+          className={`sticky bottom-0 z-10 shrink-0 pt-2 ${
+            edit ? "bg-bg pb-[max(0.75rem,env(safe-area-inset-bottom))]" : "bg-surface pb-1"
+          }`}
+        >
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full"
+            disabled={pending || (!built.ok && built.field === "split")}
+            aria-describedby={warning ? "record-line-warning" : undefined}
           >
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={pending || (!built.ok && built.field === "split")}
-              aria-describedby={warning ? "record-line-warning" : undefined}
-            >
-              {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
-            </Button>
-          </div>
-        </>
+            {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
+          </Button>
+        </div>
       )}
       {directOpened && people ? (
         <SplitWithPersonSheet

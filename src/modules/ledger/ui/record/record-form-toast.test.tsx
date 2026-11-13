@@ -229,7 +229,6 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { space: HOUSEHOLD, accounts: [], shared });
     await userEvent.type(screen.getByLabelText("Monto"), "2000000");
     await chooseGroceries();
-    await userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
     await userEvent.click(screen.getByRole("button", { name: /Pagas tú|Pagó/ }));
     await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));

@@ -1,19 +1,19 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { CategoryIcon, findCategory, type CategoryChoice } from "@/modules/categories/ui";
+import { findCategory, type CategoryChoice } from "@/modules/categories/ui";
 import { Icon } from "@/shared/ui";
 import type { CategoryGroupDto } from "@/shared/ui/api/dto";
 import type { RecentCategory } from "./recent-categories";
 
-/** Board B1 · 01: three category tiles, then the one that opens every category. */
+/** Board B1 · 01: three category chips, then the one that opens every category. */
 const TILES = 3;
 
 /** #289 (audit pass 3, A14): the seeded categories most records fall in, before the tree's order (housing first). */
 const EVERYDAY = ["groceries", "restaurants", "public_transport", "salary"];
 
 /**
- * The categories the tiles show: the chosen one, then the recent ones, then the everyday seeded ones, then the rest of
+ * The categories the chips show: the chosen one, then the recent ones, then the everyday seeded ones, then the rest of
  * the kind's tree in its order. The chosen one may be archived since (an edit), so it is named from the whole tree.
  */
 export const tileIds = (
@@ -32,24 +32,11 @@ export const tileIds = (
   ].slice(0, TILES);
 };
 
-/** Four 2 × 2 squares: "every category". */
-function GridIcon() {
-  return (
-    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /**
- * Ruling P291 (board B1 · 01): the category as a row of tiles, most recent first; the chosen one carries a pencil and
- * a second tap on it opens the picker, as the last tile does. Under them, the chosen category's subcategories as chips:
- * tapping the chosen chip again leaves the category without one.
+ * Ruling P291 (board B1 · 01), drawn as ruling P324 asks (medium density, board "Registrar gasto"): the category as one
+ * row of chips, most recent first, then "Todas", which opens every category; a second tap on the chosen chip opens the
+ * picker too. Under them, the chosen category's subcategories as chips: tapping the chosen chip again leaves the
+ * category without one. A chip's name stays on one line, cut short with an ellipsis rather than broken mid-word.
  */
 export function CategoryTiles({
   groups,
@@ -75,15 +62,14 @@ export function CategoryTiles({
   const ids = tileIds(offered, recent, value?.categoryId ?? null);
   const live = offered.flatMap((g) => g.categories).find((c) => c.id === value?.categoryId);
   const subcategories = live?.subcategories ?? [];
-  const tile =
-    "relative flex min-h-[68px] flex-col items-center justify-center gap-1 rounded-xl border px-1 py-2 text-xs font-medium text-ink";
+  const chip = "flex min-h-11 max-w-full min-w-0 items-center rounded-full border px-3.5 text-sm font-medium";
   return (
     <div className="flex flex-col gap-2">
       <div
         role="group"
         aria-label={t("category")}
         aria-describedby={error ? "record-category-error" : undefined}
-        className="grid grid-cols-4 gap-2"
+        className="flex flex-wrap gap-2"
       >
         {ids.map((id) => {
           const found = findCategory(groups, id);
@@ -96,21 +82,10 @@ export function CategoryTiles({
               type="button"
               aria-pressed={chosen}
               onClick={() => (chosen ? onMore() : onChoose({ categoryId: id, subcategoryId: latest }))}
-              className={`${tile} ${chosen ? "border-2 border-accent bg-accent-soft" : "border-line bg-surface"}`}
+              className={`${chip} ${chosen ? "border-accent-soft bg-accent-soft text-accent-strong" : "border-line bg-surface text-ink"}`}
             >
-              <CategoryIcon icon={found.category.icon} color={found.category.color} size={28} />
-              {/* A long name hyphenates in the page's language instead of breaking mid-word; anywhere stays as the last resort. */}
-              <span className="line-clamp-2 text-center hyphens-auto [overflow-wrap:anywhere]">
-                {found.category.name}
-              </span>
-              {chosen ? (
-                <span
-                  aria-hidden="true"
-                  className="absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full border border-line bg-surface text-accent"
-                >
-                  <Icon name="pencil" size={14} />
-                </span>
-              ) : null}
+              {/* #309 (S5): one line, never broken mid-word ("Restaurante/s" at 390 px); a long name ends in "…". */}
+              <span className="truncate">{found.category.name}</span>
             </button>
           );
         })}
@@ -118,10 +93,11 @@ export function CategoryTiles({
           type="button"
           onClick={onMore}
           aria-label={t("chooseCategory")}
-          className={`${tile} border-dashed border-field bg-surface text-accent`}
+          className={`${chip} border-line bg-surface text-ink`}
         >
-          <GridIcon />
-          <Icon name="chevronDown" size={16} />
+          <span aria-hidden="true" className="truncate">
+            {t("allCategories")}
+          </span>
         </button>
       </div>
       {error ? (
