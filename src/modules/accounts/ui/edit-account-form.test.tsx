@@ -23,6 +23,8 @@ const visa = accountDto({
   name: "Visa",
   type: "CREDIT_CARD",
   openingBalance: cop(-350_000),
+  // 180.400 spent on it since it was opened: 530.400 owed today.
+  balance: cop(-530_400),
   lastFour: "4821",
   icon: "star",
   includeInAvailable: false,
@@ -44,7 +46,8 @@ describe("edit account form (issue 169)", () => {
     );
     expect(screen.getByText("Tipo: Tarjeta de crédito")).toBeInTheDocument();
     expect(screen.getByLabelText("Nombre")).toHaveValue("Visa");
-    expect(screen.getByLabelText("Debes hoy")).toHaveValue("350.000");
+    // Owner, 2026-11-13: "Debes hoy" is what the card owes today, its movements included.
+    expect(screen.getByLabelText("Debes hoy")).toHaveValue("530.400");
     expect(screen.getByLabelText("Cupo")).toHaveValue("5.000.000");
     expect(screen.getByLabelText("Últimos 4")).toHaveValue("4821");
     expect(screen.getByLabelText("Interés M.V.")).toHaveValue("1,89");
@@ -88,7 +91,7 @@ describe("edit account form (issue 169)", () => {
     expect(router.refresh).toHaveBeenCalled();
   });
 
-  it("changes the icon and sends what is owed negative", async () => {
+  it("changes the icon, and a new debt today moves the opening balance by the difference", async () => {
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(visa) });
     render(api);
     await userEvent.click(screen.getByRole("radio", { name: "Avión" }));
@@ -96,7 +99,8 @@ describe("edit account form (issue 169)", () => {
     await userEvent.type(screen.getByLabelText("Debes hoy"), "400.000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     expect(await requests[0]!.json()).toEqual({
-      openingBalance: { amount: "-40000000", currency: "COP" },
+      // 400.000 owed today instead of 530.400: the opening debt drops from 350.000 to 219.600.
+      openingBalance: { amount: "-21960000", currency: "COP" },
       icon: "plane",
     });
   });

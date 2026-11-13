@@ -148,6 +148,11 @@ export interface AccountEdit {
    * edit keeps it, so a card in credit or an overdrawn bank account never flips sign.
    */
   readonly openingNegative: boolean;
+  /**
+   * Owner, 2026-11-13: a card's or a loan's field is what is owed today (the opening balance plus every movement since),
+   * in minor units as the API read them; a new figure moves the opening balance by the difference.
+   */
+  readonly today?: { readonly opening: string; readonly balance: string } | undefined;
   readonly fields: Readonly<Partial<Record<AccountField, string>>>;
   readonly icon: AccountIcon | null;
   readonly includeInAvailable: boolean | null;
@@ -180,10 +185,14 @@ export const editOf = (account: AccountDto, numberFormat: NumberFormat): Account
     else fields[field] = String(stored);
   }
   const { amount } = account.openingBalance;
+  const owed = OWED_TYPES.includes(account.type);
+  // A card or a loan shows what is owed today; any other account its opening balance, which is what its field names.
+  const shown = owed ? account.balance.amount : amount;
   return {
     name: account.name,
-    opening: money(amount),
-    openingNegative: amount.startsWith("-") || (amount === "0" && OWED_TYPES.includes(account.type)),
+    opening: money(shown),
+    openingNegative: shown.startsWith("-") || (shown === "0" && owed),
+    today: owed ? { opening: amount, balance: account.balance.amount } : undefined,
     fields,
     ...account.stored,
   };
@@ -203,9 +212,19 @@ export const editBodyOf = (
   const body: Record<string, unknown> = {};
   if (after.name.trim() !== before.name) body.name = after.name.trim();
   if (after.opening !== before.opening) {
-    const openingBalance = openingOf(after.opening, before.openingNegative, currency, numberFormat);
-    if (!openingBalance) return { ok: false, field: "opening" };
-    body.openingBalance = openingBalance;
+    const typed = openingOf(after.opening, before.openingNegative, currency, numberFormat);
+    if (!typed) return { ok: false, field: "opening" };
+    // What is owed today moves the opening balance by the same amount, so the movements since stay as they are.
+    body.openingBalance = before.today
+      ? {
+          ...typed,
+          amount: (
+            BigInt(before.today.opening) +
+            BigInt(typed.amount) -
+            BigInt(before.today.balance)
+          ).toString(),
+        }
+      : typed;
   }
   const terms: Record<string, unknown> = {};
   for (const field of FIELDS_BY_TYPE[type]) {

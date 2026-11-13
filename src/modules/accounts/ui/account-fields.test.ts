@@ -127,6 +127,8 @@ describe("the account edit form's values (issue 169)", () => {
     name: "Visa",
     type: "CREDIT_CARD",
     openingBalance: cop(-350_000),
+    // 180.400 spent on it since it was opened: 530.400 owed today.
+    balance: cop(-530_400),
     lastFour: "4821",
     icon: "star",
     includeInAvailable: false,
@@ -139,11 +141,13 @@ describe("the account edit form's values (issue 169)", () => {
     expect(ACCOUNT_ICON_CHOICES).toEqual(ACCOUNT_ICONS);
   });
 
-  it("starts from the account as stored, each number as the person types it", () => {
+  it("starts from the account as stored, each number as the person types it, a card at what it owes today", () => {
     expect(editOf(visa, "DOT_COMMA")).toEqual({
       name: "Visa",
-      opening: "350.000",
+      // Owner, 2026-11-13: "Debes hoy" counts the movements since the card was opened.
+      opening: "530.400",
       openingNegative: true,
+      today: { opening: "-35000000", balance: "-53040000" },
       fields: { lastFour: "4821", creditLimit: "5.000.000", cutOffDay: "25", monthlyRate: "1,89" },
       icon: "star",
       includeInAvailable: null,
@@ -179,15 +183,17 @@ describe("the account edit form's values (issue 169)", () => {
     expect(editBodyOf("CREDIT_CARD", before, before, "COP", "DOT_COMMA")).toEqual({ ok: true, body: {} });
   });
 
-  it("sends a changed debt negative, and points at a field it cannot read", () => {
+  it("moves the opening balance by what today's debt changed, and points at a field it cannot read", () => {
     const before = editOf(visa, "DOT_COMMA");
+    // 400.000 owed today instead of 530.400: the opening debt drops by 130.400, from 350.000 to 219.600.
     expect(editBodyOf("CREDIT_CARD", before, { ...before, opening: "400.000" }, "COP", "DOT_COMMA")).toEqual({
       ok: true,
-      body: { openingBalance: { amount: "-40000000", currency: "COP" } },
+      body: { openingBalance: { amount: "-21960000", currency: "COP" } },
     });
+    // Nothing owed today: the opening balance covers the 180.400 spent since.
     expect(editBodyOf("CREDIT_CARD", before, { ...before, opening: "" }, "COP", "DOT_COMMA")).toEqual({
       ok: true,
-      body: { openingBalance: { amount: "0", currency: "COP" } },
+      body: { openingBalance: { amount: "18040000", currency: "COP" } },
     });
     const cleared = { ...before, fields: { ...before.fields, creditLimit: "", cutOffDay: "" } };
     expect(editBodyOf("CREDIT_CARD", before, cleared, "COP", "DOT_COMMA")).toEqual({
@@ -208,9 +214,10 @@ describe("the account edit form's values (issue 169)", () => {
     };
     const amountOf = (built: ReturnType<typeof edited>) =>
       built.ok ? (built.body.openingBalance as { amount: string }).amount : null;
-    expect(amountOf(edited(accountDto({ type: "CREDIT_CARD", openingBalance: cop(50_000) })))).toBe(
-      "6000000",
-    );
+    // A card in credit by 50.000 since it was opened, with no movement: today's 60.000 in credit is its opening.
+    expect(
+      amountOf(edited(accountDto({ type: "CREDIT_CARD", openingBalance: cop(50_000), balance: cop(50_000) }))),
+    ).toBe("6000000");
     expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(-50_000) })))).toBe("-6000000");
     expect(amountOf(edited(accountDto({ type: "LOAN", openingBalance: cop(0) })))).toBe("-6000000");
     expect(amountOf(edited(accountDto({ type: "BANK", openingBalance: cop(0) })))).toBe("6000000");
