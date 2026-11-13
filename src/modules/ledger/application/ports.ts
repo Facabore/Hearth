@@ -159,6 +159,25 @@ export interface MemberMoneyTotals {
   readonly settledIn: bigint;
 }
 
+/**
+ * Ruling P323: what pairwise debts are computed from, over one space's live transactions: every member-paid expense
+ * with its payments and shares in position order (a fund-paid expense creates no debt, D5), and every settlement.
+ * Transfers, fund contributions included, never count.
+ */
+export interface SpaceDebtMovements {
+  readonly expenses: readonly {
+    readonly payments: readonly { readonly memberId: string; readonly amount: bigint }[];
+    readonly shares: readonly { readonly memberId: string; readonly amount: bigint }[];
+  }[];
+  readonly settlements: readonly {
+    readonly payerMemberId: string;
+    readonly receivingMemberId: string;
+    readonly amount: bigint;
+    readonly reason: SettlementReason;
+    readonly onBehalfOfMemberId: string | null;
+  }[];
+}
+
 /** HU-E5-04: a span of dates, open on either side when null. */
 export interface HistoryRange {
   readonly from: LocalDate | null;

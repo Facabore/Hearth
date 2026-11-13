@@ -1,7 +1,12 @@
 import type { SpaceId, SpaceRepository } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
-import { simplifyDebts } from "../domain/balances";
-import { createGetSpaceBalances, type BalancesDeps } from "./get-space-balances";
+import { pairwiseDebts } from "../domain/balances";
+import {
+  createGetSpaceBalances,
+  type BalanceSource,
+  type BalancesDeps,
+  type DebtSource,
+} from "./get-space-balances";
 
 /** One space with balances, as its viewer stands in it (#240, ruling P278). */
 export interface MyBalance {
@@ -13,13 +18,14 @@ export interface MyBalance {
   readonly net: bigint;
   /** The current members in join order, guests included, by the name the space knows them by. */
   readonly members: readonly { readonly memberId: string; readonly name: string }[];
-  /** The settle-up suggestions (HU-E5-03) in which the viewer pays, the largest first. */
+  /** The settle-up suggestions (HU-E5-03, pairwise since ruling P323) in which the viewer pays, the largest first. */
   readonly payments: readonly { readonly receivingMemberId: string; readonly amount: bigint }[];
 }
 
 export type GetMyBalances = (userId: string) => Promise<Result<MyBalance[]>>;
 
 export interface MyBalancesDeps extends BalancesDeps {
+  readonly source: BalanceSource & DebtSource;
   readonly spaces: Pick<SpaceRepository, "listForUser">;
 }
 
@@ -39,13 +45,17 @@ export const createGetMyBalances = (deps: MyBalancesDeps): GetMyBalances => {
         const members = await deps.members.listCurrent(space.id as SpaceId);
         const me = members.find((member) => member.userId === userId);
         if (!me) return null;
+        const { currency } = balances.value;
+        const order = balances.value.members.map((standing) => standing.memberId);
+        const debts = pairwiseDebts(currency, order, await deps.source.debtMovements(space.id));
+        if (!debts.ok) return null;
         return {
           spaceId: space.id,
-          currency: balances.value.currency,
+          currency,
           memberId: me.id,
           net: balances.value.members.find((standing) => standing.memberId === me.id)?.net ?? 0n,
           members: members.map((member) => ({ memberId: member.id, name: member.displayName })),
-          payments: simplifyDebts(balances.value.members)
+          payments: debts.value
             .filter((suggestion) => suggestion.payerMemberId === me.id)
             .map((suggestion) => ({
               receivingMemberId: suggestion.receivingMemberId,

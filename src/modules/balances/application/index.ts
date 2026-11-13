@@ -1,8 +1,17 @@
-export type { MemberBalance, MemberStanding, MemberTotals, SettlementSuggestion } from "../domain/balances";
+export type {
+  DebtExpense,
+  DebtMovements,
+  DebtSettlement,
+  MemberBalance,
+  MemberStanding,
+  MemberTotals,
+  SettlementSuggestion,
+} from "../domain/balances";
 export {
   createGetSpaceBalances,
   type BalancesDeps,
   type BalanceSource,
+  type DebtSource,
   type GetSpaceBalances,
   type SpaceBalances,
 } from "./get-space-balances";
@@ -24,6 +33,7 @@ export {
   createGetSettlementSuggestions,
   type GetSettlementSuggestions,
   type SettlementSuggestions,
+  type SettlementSuggestionsDeps,
 } from "./get-settlement-suggestions";
 export {
   createGetMyBalances,

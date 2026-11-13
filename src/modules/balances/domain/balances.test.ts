@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { Result } from "@/shared/kernel";
 import {
   netBalances,
   netOf,
-  simplifyDebts,
-  type MemberBalance,
+  pairwiseDebts,
+  type DebtExpense,
+  type DebtMovements,
+  type DebtSettlement,
   type MemberTotals,
   type SettlementSuggestion,
 } from "./balances";
@@ -52,231 +55,360 @@ describe("balance rule (E5)", () => {
   });
 });
 
-describe("settlement suggestions (HU-E5-03)", () => {
-  const nets = (...entries: [string, bigint][]): MemberBalance[] =>
-    entries.map(([memberId, net]) => ({ memberId, net }));
+/** A deterministic 64-bit linear congruential generator over bigint, so no amount ever passes through Number. */
+const seeded = (seed: bigint) => {
+  let state = seed;
+  return (below: bigint): bigint => {
+    state = (state * 6364136223846793005n + 1442695040888963407n) & 0xffff_ffff_ffff_ffffn;
+    return (state >> 24n) % below;
+  };
+};
+
+const valueOf = <T>(result: Result<T>): T => {
+  if (!result.ok) throw new Error(`expected ok, got ${result.error.code}`);
+  return result.value;
+};
+
+describe("pairwise debts (ruling P323)", () => {
+  const pesos = (n: bigint) => n * 100n;
+  const MEMBERS = ["kamilox", "yuberley", "roger", "sofi"];
+  const expense = (
+    payments: readonly (readonly [string | null, bigint])[],
+    shares: readonly (readonly [string, bigint])[],
+  ): DebtExpense => ({
+    payments: payments.map(([memberId, amount]) => ({ memberId, amount })),
+    shares: shares.map(([memberId, amount]) => ({ memberId, amount })),
+  });
+  const settlement = (
+    payerMemberId: string,
+    receivingMemberId: string,
+    amount: bigint,
+    reason: DebtSettlement["reason"] = "PAYMENT",
+    onBehalfOfMemberId: string | null = null,
+  ): DebtSettlement => ({ payerMemberId, receivingMemberId, amount, reason, onBehalfOfMemberId });
   const pays = (payerMemberId: string, receivingMemberId: string, amount: bigint): SettlementSuggestion => ({
     payerMemberId,
     receivingMemberId,
     amount,
   });
-  /** What each member pays minus what they receive through the suggestions: −net when they settle everything. */
-  const flowOf = (suggestions: readonly SettlementSuggestion[], balances: readonly MemberBalance[]) =>
-    balances.map(({ memberId }) => [
-      memberId,
-      suggestions.reduce(
-        (sum, s) =>
-          sum +
-          (s.payerMemberId === memberId ? s.amount : 0n) -
-          (s.receivingMemberId === memberId ? s.amount : 0n),
-        0n,
+  const debts = (
+    expenses: readonly DebtExpense[],
+    settlements: readonly DebtSettlement[] = [],
+    memberIds: readonly string[] = MEMBERS,
+  ) => valueOf(pairwiseDebts("COP", memberIds, { expenses, settlements }));
+
+  /** The ledger of S5 on staging (Friends 3): Kamilox paid 50,000 with Yuberley; Yuberley paid 16,000 and 15,000 for the three. */
+  const friends3 = [
+    expense(
+      [["kamilox", pesos(50_000n)]],
+      [
+        ["kamilox", pesos(25_000n)],
+        ["yuberley", pesos(25_000n)],
+      ],
+    ),
+    expense(
+      [["yuberley", pesos(16_000n)]],
+      [
+        ["kamilox", pesos(5_334n)],
+        ["yuberley", pesos(5_333n)],
+        ["roger", pesos(5_333n)],
+      ],
+    ),
+    expense(
+      [["yuberley", pesos(15_000n)]],
+      [
+        ["kamilox", pesos(5_000n)],
+        ["yuberley", pesos(5_000n)],
+        ["roger", pesos(5_000n)],
+      ],
+    ),
+  ];
+
+  it("has Roger pay Yuberley 10,333 and Yuberley pay Kamilox 14,666, never Roger pay Kamilox (S5)", () => {
+    expect(debts(friends3)).toEqual([
+      pays("yuberley", "kamilox", pesos(14_666n)),
+      pays("roger", "yuberley", pesos(10_333n)),
+    ]);
+  });
+
+  it("never has a member owe themself", () => {
+    expect(
+      debts([
+        expense(
+          [["kamilox", pesos(100_000n)]],
+          [
+            ["kamilox", pesos(50_000n)],
+            ["yuberley", pesos(50_000n)],
+          ],
+        ),
+      ]),
+    ).toEqual([pays("yuberley", "kamilox", pesos(50_000n))]);
+  });
+
+  it("splits each share between two payers in proportion to what each paid, and the parts add up", () => {
+    // Kamilox paid 60,000 and Yuberley 40,000 of 100,000 split in three: 33,334 / 33,333 / 33,333.
+    const result = debts([
+      expense(
+        [
+          ["kamilox", pesos(60_000n)],
+          ["yuberley", pesos(40_000n)],
+        ],
+        [
+          ["kamilox", pesos(33_334n)],
+          ["yuberley", pesos(33_333n)],
+          ["roger", pesos(33_333n)],
+        ],
       ),
     ]);
-
-  /** A deterministic 64-bit linear congruential generator over bigint, so no amount ever passes through Number. */
-  const seeded = (seed: bigint) => {
-    let state = seed;
-    return (below: bigint): bigint => {
-      state = (state * 6364136223846793005n + 1442695040888963407n) & 0xffff_ffff_ffff_ffffn;
-      return (state >> 24n) % below;
-    };
-  };
-  /** The first n − 1 nets as given, the last one balancing the sum back to zero. */
-  const balancing = (head: readonly bigint[]): MemberBalance[] =>
-    [...head, -head.reduce((sum, net) => sum + net, 0n)].map((net, index) => ({
-      memberId: `member-${index}`,
-      net,
-    }));
-
-  it("lets several debtors pay the one creditor: Juan pays Ana 100,000 COP and Luis pays Ana 50,000 COP", () => {
-    const balances = nets(["ana", 15_000_000n], ["juan", -10_000_000n], ["luis", -5_000_000n]);
-    expect(simplifyDebts(balances)).toEqual([
-      pays("juan", "ana", 10_000_000n),
-      pays("luis", "ana", 5_000_000n),
+    // Kamilox owes Yuberley 13,334 of his share; Yuberley owes Kamilox 20,000 of hers; Roger owes 20,000 and 13,333.
+    expect(result).toEqual([
+      pays("roger", "kamilox", pesos(20_000n)),
+      pays("roger", "yuberley", pesos(13_333n)),
+      pays("yuberley", "kamilox", pesos(6_666n)),
     ]);
   });
 
-  it("collapses Ana owing Juan and Juan owing Luis into one payment from Ana to Luis", () => {
-    // Ana owes Juan 100,000 and Juan owes Luis 100,000, so Juan's net is 0.
-    expect(simplifyDebts(nets(["ana", -10_000_000n], ["juan", 0n], ["luis", 10_000_000n]))).toEqual([
-      pays("ana", "luis", 10_000_000n),
-    ]);
+  it("creates no debt for an expense paid from the shared fund (D5)", () => {
+    expect(
+      debts([
+        expense(
+          [[null, pesos(90_000n)]],
+          [
+            ["kamilox", pesos(45_000n)],
+            ["yuberley", pesos(45_000n)],
+          ],
+        ),
+      ]),
+    ).toEqual([]);
   });
 
-  it("suggests nothing for a settled group", () => {
-    expect(simplifyDebts(nets(["ana", 0n], ["juan", 0n], ["luis", 0n]))).toEqual([]);
+  it("suggests nothing without movements", () => {
+    expect(debts([])).toEqual([]);
   });
 
-  it("suggests nothing for no balances at all", () => {
-    expect(simplifyDebts([])).toEqual([]);
-  });
+  describe("settlements", () => {
+    const kamiloxPaysForRoger = expense([["kamilox", pesos(100_000n)]], [["roger", pesos(100_000n)]]);
 
-  it("breaks ties by join order, so the same balances always give the same suggestions", () => {
-    const balances = nets(["ana", 100n], ["juan", 100n], ["luis", -100n], ["sofi", -100n]);
-    expect(simplifyDebts(balances)).toEqual([pays("luis", "ana", 100n), pays("sofi", "juan", 100n)]);
-  });
-
-  it("settles every net exactly with at most n − 1 positive payments", () => {
-    const balances = nets(["ana", 700n], ["juan", 500n], ["luis", -600n], ["sofi", -400n], ["pedro", -200n]);
-    const suggestions = simplifyDebts(balances);
-    expect(suggestions).toEqual([
-      pays("luis", "ana", 600n),
-      pays("sofi", "juan", 400n),
-      pays("pedro", "ana", 100n),
-      pays("pedro", "juan", 100n),
-    ]);
-    expect(suggestions.length).toBeLessThanOrEqual(balances.length - 1);
-    expect(suggestions.every((s) => s.amount > 0n)).toBe(true);
-    expect(flowOf(suggestions, balances)).toEqual(balances.map(({ memberId, net }) => [memberId, -net]));
-  });
-
-  it("never involves a member whose net is zero", () => {
-    const balances = nets(["ana", 0n], ["juan", 300n], ["luis", 0n], ["sofi", -300n], ["pedro", 0n]);
-    expect(simplifyDebts(balances)).toEqual([pays("sofi", "juan", 300n)]);
-  });
-
-  it("keeps every amount exact beyond 2^53 minor units, where Number arithmetic would round", () => {
-    const big = 2n ** 70n;
-    const balances = nets(
-      ["ana", big + 1n],
-      ["juan", 2n ** 53n + 1n],
-      ["luis", -(big + 2n ** 53n + 4n)],
-      ["sofi", 2n],
-    );
-    expect(simplifyDebts(balances)).toEqual([
-      pays("luis", "ana", big + 1n),
-      pays("luis", "juan", 2n ** 53n + 1n),
-      pays("luis", "sofi", 2n),
-    ]);
-  });
-
-  describe("with nets that do not sum to zero (never produced by a space's balances)", () => {
-    /** Settles as far as it goes: the side with less money is cleared, the surplus of the other stays unpaid. */
-    const settlesWhatItCan = (balances: readonly MemberBalance[]) => {
-      const suggestions = simplifyDebts(balances);
-      const active = balances.filter((b) => b.net !== 0n).length;
-      expect(suggestions.length).toBeLessThanOrEqual(Math.max(active - 1, 0));
-      expect(suggestions.every((s) => s.amount > 0n)).toBe(true);
-      expect(suggestions.every((s) => s.payerMemberId !== s.receivingMemberId)).toBe(true);
-      for (const { memberId, net } of balances) {
-        const received = suggestions.filter((s) => s.receivingMemberId === memberId);
-        const paid = suggestions.filter((s) => s.payerMemberId === memberId);
-        const receipts = received.reduce((sum, s) => sum + s.amount, 0n);
-        const payments = paid.reduce((sum, s) => sum + s.amount, 0n);
-        // Nobody pays more than they owe or receives more than they are owed, and nobody does both.
-        expect(receipts).toBeLessThanOrEqual(net > 0n ? net : 0n);
-        expect(payments).toBeLessThanOrEqual(net < 0n ? -net : 0n);
-      }
-      const owed = balances.reduce((sum, b) => sum + (b.net > 0n ? b.net : 0n), 0n);
-      const owing = balances.reduce((sum, b) => sum + (b.net < 0n ? -b.net : 0n), 0n);
-      expect(suggestions.reduce((sum, s) => sum + s.amount, 0n)).toBe(owed < owing ? owed : owing);
-      return suggestions;
-    };
-
-    it("suggests nothing when there are only creditors", () => {
-      expect(settlesWhatItCan(nets(["ana", 300n], ["juan", 200n], ["luis", 0n]))).toEqual([]);
-    });
-
-    it("suggests nothing when there are only debtors", () => {
-      expect(settlesWhatItCan(nets(["ana", -300n], ["juan", -200n], ["luis", 0n]))).toEqual([]);
-    });
-
-    it("stops once the creditors are paid when one debtor owes more than all of them are owed", () => {
-      expect(settlesWhatItCan(nets(["ana", 100n], ["juan", 50n], ["luis", -400n]))).toEqual([
-        pays("luis", "ana", 100n),
-        pays("luis", "juan", 50n),
+    it("lowers the payer's debt to the receiver", () => {
+      expect(debts([kamiloxPaysForRoger], [settlement("roger", "kamilox", pesos(40_000n))])).toEqual([
+        pays("roger", "kamilox", pesos(60_000n)),
       ]);
     });
 
-    it("stops once the debtors have paid when one creditor is owed more than all of them owe", () => {
-      expect(settlesWhatItCan(nets(["ana", 400n], ["juan", -100n], ["luis", -50n]))).toEqual([
-        pays("juan", "ana", 100n),
-        pays("luis", "ana", 50n),
+    it("clears the pair when it pays the debt exactly", () => {
+      expect(debts([kamiloxPaysForRoger], [settlement("roger", "kamilox", pesos(100_000n))])).toEqual([]);
+    });
+
+    it("turns the debt around when it overshoots", () => {
+      expect(debts([kamiloxPaysForRoger], [settlement("roger", "kamilox", pesos(130_000n))])).toEqual([
+        pays("kamilox", "roger", pesos(30_000n)),
       ]);
     });
 
-    it("terminates with bounded, positive payments over generated vectors that need not sum to zero", () => {
-      const next = seeded(20_261_015n);
-      for (let round = 0; round < 200; round += 1) {
-        const size = 1 + Number(next(12n));
-        const limit = 1n + next(2_000_000n);
-        const balances = Array.from({ length: size }, (_, index) => ({
-          memberId: `member-${index}`,
-          net: next(3n) === 0n ? 0n : next(2n * limit + 1n) - limit,
-        }));
-        settlesWhatItCan(balances);
-      }
+    it("only touches its own pair", () => {
+      const yuberleyPaysForSofi = expense([["yuberley", pesos(20_000n)]], [["sofi", pesos(20_000n)]]);
+      expect(
+        debts([kamiloxPaysForRoger, yuberleyPaysForSofi], [settlement("roger", "yuberley", pesos(5_000n))]),
+      ).toEqual([
+        pays("roger", "kamilox", pesos(100_000n)),
+        pays("sofi", "yuberley", pesos(20_000n)),
+        pays("yuberley", "roger", pesos(5_000n)),
+      ]);
+    });
+
+    it("moves Roger's debt from Kamilox to Yuberley when Yuberley pays it for him as a loan (P322)", () => {
+      expect(
+        debts(
+          [kamiloxPaysForRoger],
+          [settlement("yuberley", "kamilox", pesos(100_000n), "PAYMENT", "roger")],
+        ),
+      ).toEqual([pays("roger", "yuberley", pesos(100_000n))]);
+    });
+
+    it("moves only the part paid for him", () => {
+      expect(
+        debts([kamiloxPaysForRoger], [settlement("yuberley", "kamilox", pesos(30_000n), "PAYMENT", "roger")]),
+      ).toEqual([pays("roger", "kamilox", pesos(70_000n)), pays("roger", "yuberley", pesos(30_000n))]);
+    });
+
+    it("clears Roger's debt when Yuberley gives away what she paid for him (P322 gift)", () => {
+      expect(
+        debts(
+          [kamiloxPaysForRoger],
+          [
+            settlement("yuberley", "kamilox", pesos(100_000n), "PAYMENT", "roger"),
+            settlement("roger", "yuberley", pesos(100_000n), "GIFT"),
+          ],
+        ),
+      ).toEqual([]);
+    });
+
+    it("lowers what Roger owes Kamilox by what Kamilox forgives (P322 forgiveness)", () => {
+      expect(
+        debts([kamiloxPaysForRoger], [settlement("roger", "kamilox", pesos(30_000n), "FORGIVENESS")]),
+      ).toEqual([pays("roger", "kamilox", pesos(70_000n))]);
     });
   });
 
-  it("leaves the balances it was given unchanged", () => {
-    const balances = nets(["ana", 100n], ["juan", -100n]);
-    simplifyDebts(balances);
-    expect(balances).toEqual(nets(["ana", 100n], ["juan", -100n]));
+  describe("order", () => {
+    it("lists the largest debt first, then by the payer's join order, then the receiver's", () => {
+      const owes = (debtor: string, creditor: string, amount: bigint) =>
+        expense([[creditor, amount]], [[debtor, amount]]);
+      expect(
+        debts([
+          owes("sofi", "roger", 100n),
+          owes("roger", "kamilox", 100n),
+          owes("yuberley", "kamilox", 100n),
+          owes("sofi", "kamilox", 100n),
+          owes("roger", "yuberley", 500n),
+        ]),
+      ).toEqual([
+        pays("roger", "yuberley", 500n),
+        pays("yuberley", "kamilox", 100n),
+        pays("roger", "kamilox", 100n),
+        pays("sofi", "kamilox", 100n),
+        pays("sofi", "roger", 100n),
+      ]);
+    });
+
+    it("places members who are no longer current after the current ones, by id", () => {
+      expect(
+        debts(
+          [
+            expense([["kamilox", 100n]], [["zed", 100n]]),
+            expense([["kamilox", 100n]], [["xavi", 100n]]),
+            expense([["kamilox", 100n]], [["yuberley", 100n]]),
+          ],
+          [],
+          ["kamilox", "yuberley"],
+        ),
+      ).toEqual([
+        pays("yuberley", "kamilox", 100n),
+        pays("xavi", "kamilox", 100n),
+        pays("zed", "kamilox", 100n),
+      ]);
+    });
   });
 
-  describe("over generated balances that sum to zero", () => {
-    const repeated = (count: number, net: bigint) => Array.from({ length: count }, () => net);
-    const generated = (): { name: string; balances: MemberBalance[] }[] => {
-      const next = seeded(20_261_014n);
-      const signed = (limit: bigint) => next(2n * limit + 1n) - limit;
-      const cases = [
-        { name: "a single member", balances: balancing([]) },
-        { name: "everyone settled", balances: balancing(repeated(4, 0n)) },
-        { name: "one big creditor and many small debtors", balances: balancing(repeated(9, -100n)) },
-        { name: "one big debtor and many small creditors", balances: balancing(repeated(9, 100n)) },
-        { name: "equal creditors and equal debtors", balances: balancing([100n, 100n, 100n, -100n, -100n]) },
+  it("answers UnknownCurrency for a currency Money does not know", () => {
+    const result = pairwiseDebts("XXX", MEMBERS, { expenses: friends3, settlements: [] });
+    expect(result.ok ? "ok" : result.error.code).toBe("UnknownCurrency");
+  });
+
+  describe("S4: every member's pairs add up to their net balance (E5 rule)", () => {
+    /** The E5 totals of the same movements, as the ledger sums them: fund-paid expenses count for nothing (D5). */
+    const netsOf = (movements: DebtMovements) => {
+      const sums = new Map<string, MemberTotals>();
+      const add = (memberId: string, field: keyof Omit<MemberTotals, "memberId">, amount: bigint) => {
+        const current = sums.get(memberId) ?? totals(memberId, 0n, 0n);
+        sums.set(memberId, { ...current, [field]: current[field] + amount });
+      };
+      for (const e of movements.expenses) {
+        if (e.payments.some((p) => p.memberId === null)) continue;
+        for (const p of e.payments) add(p.memberId!, "paid", p.amount);
+        for (const s of e.shares) add(s.memberId, "consumed", s.amount);
+      }
+      for (const s of movements.settlements) {
+        add(s.payerMemberId, "settledOut", s.amount);
+        add(s.receivingMemberId, "settledIn", s.amount);
+      }
+      return new Map([...sums.values()].map((t) => [t.memberId, netOf(t)]));
+    };
+
+    /** Splits `total` (≥ count) into `count` positive parts. */
+    const partsOf = (next: (below: bigint) => bigint, total: bigint, count: number) => {
+      const parts: bigint[] = [];
+      let left = total;
+      for (let i = 0; i < count - 1; i += 1) {
+        const part = 1n + next(left - BigInt(count - 1 - i));
+        parts.push(part);
+        left -= part;
+      }
+      return [...parts, left];
+    };
+    const pick = <T>(next: (below: bigint) => bigint, items: readonly T[]) =>
+      items[Number(next(BigInt(items.length)))]!;
+    const distinct = (next: (below: bigint) => bigint, items: readonly string[], count: number) => {
+      const pool = [...items];
+      return Array.from(
+        { length: Math.min(count, pool.length) },
+        () => pool.splice(Number(next(BigInt(pool.length))), 1)[0]!,
+      );
+    };
+
+    const generated = () => {
+      const next = seeded(20_261_112n);
+      const cases: { name: string; currency: string; memberIds: string[]; movements: DebtMovements }[] = [
         {
-          name: "ties with zero nets in between",
-          balances: balancing([100n, 0n, -100n, 0n, 100n, 0n, -100n]),
-        },
-        { name: "two members", balances: balancing([12_345n]) },
-        {
-          name: "amounts around 2^70 minor units",
-          balances: balancing([2n ** 70n + 1n, 2n ** 53n + 1n, -(2n ** 70n) - 7n, -(2n ** 69n) - 3n]),
+          name: "the staging example (S5)",
+          currency: "COP",
+          memberIds: MEMBERS,
+          movements: { expenses: friends3, settlements: [] },
         },
       ];
       for (let round = 0; round < 300; round += 1) {
-        const size = 2 + Number(next(11n));
-        const zeroOneIn = 1n + next(4n);
-        const limit = 1n + next(2_000_000n);
-        const head = Array.from({ length: size - 1 }, () => (next(zeroOneIn) === 0n ? 0n : signed(limit)));
-        cases.push({ name: `random vector ${round} of ${size} members`, balances: balancing(head) });
-      }
-      // Amounts from 2^64 to 2^84 with random low bits, far beyond 2^53, where Number arithmetic would round.
-      const wide = () => (signed(1_000_000n) || 1n) * 2n ** 64n + next(2n ** 40n);
-      for (let round = 0; round < 50; round += 1) {
-        const size = 2 + Number(next(11n));
-        const head = Array.from({ length: size - 1 }, () => (next(4n) === 0n ? 0n : wide()));
-        cases.push({ name: `wide random vector ${round} of ${size} members`, balances: balancing(head) });
+        const size = 2 + Number(next(6n));
+        const everyone = Array.from({ length: size }, (_, i) => `member-${i}`);
+        // Some members left the space: their history still counts.
+        const memberIds = everyone.filter(() => next(5n) !== 0n);
+        const currency = pick(next, ["COP", "USD"]);
+        // COP amounts are whole pesos most of the time, as people record them; sometimes not, to stress sub-units.
+        const scale = currency === "COP" && next(3n) !== 0n ? 100n : 1n;
+        const limit = 1n + next(next(2n) === 0n ? 1_000n : 10_000_000n);
+        const expenses: DebtExpense[] = Array.from({ length: Number(next(8n)) }, () => {
+          const fund = next(6n) === 0n;
+          const payers = fund ? [null] : distinct(next, everyone, 1 + Number(next(3n)));
+          const paid = payers.map(() => 1n + next(limit));
+          const total = paid.reduce((a, b) => a + b, 0n);
+          const sharers = distinct(next, everyone, 1 + Number(next(BigInt(size))));
+          const shareCount = Number(BigInt(sharers.length) < total ? BigInt(sharers.length) : total);
+          const shares = partsOf(next, total, shareCount);
+          return expense(
+            payers.map((memberId, i) => [memberId, paid[i]! * scale] as const),
+            shares.map((amount, i) => [sharers[i]!, amount * scale] as const),
+          );
+        });
+        const settlements: DebtSettlement[] = Array.from({ length: Number(next(6n)) }, () => {
+          const [payer, receiver, third] = distinct(next, everyone, 3);
+          const amount = (1n + next(limit)) * scale;
+          const kind = next(4n);
+          if (kind === 0n && third !== undefined)
+            return settlement(payer!, receiver!, amount, "PAYMENT", third);
+          if (kind === 1n) return settlement(payer!, receiver!, amount, "GIFT");
+          if (kind === 2n) return settlement(payer!, receiver!, amount, "FORGIVENESS");
+          return settlement(payer!, receiver!, amount);
+        });
+        cases.push({
+          name: `random ledger ${round} of ${size} members in ${currency}`,
+          currency,
+          memberIds,
+          movements: { expenses, settlements },
+        });
       }
       return cases;
     };
 
-    it.each(generated())("clears $name with at most n − 1 positive payments", ({ balances }) => {
-      const suggestions = simplifyDebts(balances);
-      const netOfMember = new Map(balances.map((b) => [b.memberId, b.net]));
-      // Sanity of the generator itself: the nets sum to zero, as the balances of a space always do.
-      expect(balances.reduce((sum, b) => sum + b.net, 0n)).toBe(0n);
-      // (a) at most n − 1 payments.
-      expect(suggestions.length).toBeLessThanOrEqual(Math.max(balances.length - 1, 0));
-      // (b) every amount is positive, (d) nobody pays themselves.
-      expect(suggestions.every((s) => s.amount > 0n)).toBe(true);
-      expect(suggestions.every((s) => s.payerMemberId !== s.receivingMemberId)).toBe(true);
-      // Debtors pay and creditors receive, so a member with a zero net appears in no suggestion.
-      expect(suggestions.every((s) => (netOfMember.get(s.payerMemberId) ?? 0n) < 0n)).toBe(true);
-      expect(suggestions.every((s) => (netOfMember.get(s.receivingMemberId) ?? 0n) > 0n)).toBe(true);
-      // (c) for every member, receipts − payments equals their net exactly.
-      for (const { memberId, net } of balances) {
-        const received = suggestions.filter((s) => s.receivingMemberId === memberId);
-        const paid = suggestions.filter((s) => s.payerMemberId === memberId);
-        expect(
-          received.reduce((sum, s) => sum + s.amount, 0n) - paid.reduce((sum, s) => sum + s.amount, 0n),
-        ).toBe(net);
+    it.each(generated())("holds for $name", ({ currency, memberIds, movements }) => {
+      const suggestions = valueOf(pairwiseDebts(currency, memberIds, movements));
+      const nets = netsOf(movements);
+      for (const memberId of new Set([
+        ...nets.keys(),
+        ...suggestions.flatMap((s) => [s.payerMemberId, s.receivingMemberId]),
+      ])) {
+        const owed = suggestions
+          .filter((s) => s.receivingMemberId === memberId)
+          .reduce((sum, s) => sum + s.amount, 0n);
+        const owes = suggestions
+          .filter((s) => s.payerMemberId === memberId)
+          .reduce((sum, s) => sum + s.amount, 0n);
+        expect(owed - owes, memberId).toBe(nets.get(memberId) ?? 0n);
       }
-      // (e) the same input gives the same output, ties included.
-      expect(simplifyDebts(balances)).toEqual(suggestions);
-      expect(simplifyDebts(balances.map((b) => ({ ...b })))).toEqual(suggestions);
+      // One positive suggestion per pair at most, and nobody pays themself.
+      expect(suggestions.every((s) => s.amount > 0n && s.payerMemberId !== s.receivingMemberId)).toBe(true);
+      const pairs = suggestions.map((s) => [s.payerMemberId, s.receivingMemberId].sort().join(" "));
+      expect(new Set(pairs).size).toBe(pairs.length);
+      // The same movements always give the same suggestions.
+      expect(valueOf(pairwiseDebts(currency, memberIds, movements))).toEqual(suggestions);
     });
   });
 });

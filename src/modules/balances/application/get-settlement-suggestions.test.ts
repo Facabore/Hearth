@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSpaceAccess } from "@/modules/spaces/application";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
-import { anExpense, InMemoryTransactions } from "../../../../tests/support/in-memory-ledger";
+import { anExpense, aSettlement, InMemoryTransactions } from "../../../../tests/support/in-memory-ledger";
 import { householdSpace, InMemorySpaceStore, memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createGetSettlementSuggestions } from "./get-settlement-suggestions";
 
@@ -58,14 +58,70 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([]);
   });
 
-  it("leaves a member whose net is zero out of every suggestion", async () => {
+  it("has each member pay whoever paid for them, even a member whose net is zero (P323)", async () => {
     const { ledger, suggest } = world();
-    // Ana pays 100,000 for Juan and Juan pays 100,000 for Luis, so Juan nets 0 and Luis owes Ana.
+    // Ana pays 100,000 for Juan and Juan pays 100,000 for Luis: Juan nets 0, but Luis owes Juan, not Ana.
     await ledger.add(paidFor("member-ana", pesos(100_000n), [["member-juan", pesos(100_000n)]]));
     await ledger.add(paidFor("member-juan", pesos(100_000n), [["member-luis", pesos(100_000n)]]));
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([
-      { payerMemberId: "member-luis", receivingMemberId: "member-ana", amount: pesos(100_000n) },
+      { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: pesos(100_000n) },
+      { payerMemberId: "member-luis", receivingMemberId: "member-juan", amount: pesos(100_000n) },
     ]);
+  });
+
+  it("nets each pair over its expenses and settlements, as on staging (P323, S5)", async () => {
+    const { ledger, suggest } = world();
+    // Ana paid 50,000 with Juan; Juan paid 16,000 and 15,000 split in three; Luis paid Juan 3,000 back.
+    await ledger.add(
+      paidFor("member-ana", pesos(50_000n), [
+        ["member-ana", pesos(25_000n)],
+        ["member-juan", pesos(25_000n)],
+      ]),
+    );
+    await ledger.add(
+      paidFor("member-juan", pesos(16_000n), [
+        ["member-ana", pesos(5_334n)],
+        ["member-juan", pesos(5_333n)],
+        ["member-luis", pesos(5_333n)],
+      ]),
+    );
+    await ledger.add(
+      paidFor("member-juan", pesos(15_000n), [
+        ["member-ana", pesos(5_000n)],
+        ["member-juan", pesos(5_000n)],
+        ["member-luis", pesos(5_000n)],
+      ]),
+    );
+    await ledger.add(
+      aSettlement("2026-10-06", pesos(3_000n), {
+        payerMemberId: "member-luis",
+        receivingMemberId: "member-juan",
+      }),
+    );
+    expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-luis" })).suggestions).toEqual([
+      { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: pesos(14_666n) },
+      { payerMemberId: "member-luis", receivingMemberId: "member-juan", amount: pesos(7_333n) },
+    ]);
+  });
+
+  it("leaves out deleted expenses, fund-paid expenses and other spaces' movements", async () => {
+    const { ledger, suggest } = world();
+    await ledger.add({
+      ...paidFor("member-ana", pesos(80_000n), [["member-juan", pesos(80_000n)]]),
+      deletedAt: new Date("2026-10-06T00:00:00Z"),
+    });
+    await ledger.add(
+      anExpense("2026-10-05", pesos(90_000n), {
+        spaceId: "space-household",
+        payments: [{ memberId: null, accountId: "account-fund", amount: pesos(90_000n) }],
+        shares: [{ memberId: "member-juan", amount: pesos(90_000n), splitMethod: "EXACT" }],
+      }),
+    );
+    await ledger.add({
+      ...paidFor("member-ana", pesos(70_000n), [["member-luis", pesos(70_000n)]]),
+      spaceId: "space-other",
+    });
+    expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([]);
   });
 
   it("includes a guest with a balance and a former member the totals still mention", async () => {

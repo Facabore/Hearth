@@ -3,6 +3,7 @@ import { POST as archiveSpace } from "@/app/api/v1/spaces/[spaceId]/archive/rout
 import { GET as getSuggestions } from "@/app/api/v1/spaces/[spaceId]/balances/suggestions/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
+import { DELETE as deleteTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
@@ -10,6 +11,8 @@ import {
   cop,
   household,
   joinHousehold,
+  newAccount,
+  paysEqually,
   post,
   type HouseholdMember,
   type MoneyDto,
@@ -80,11 +83,84 @@ describe("settlement suggestions (HU-E5-03)", () => {
     ]);
   });
 
-  it("collapses Ana owing Juan and Juan owing Luis into one payment from Ana to Luis", async () => {
+  it("has Luis pay Juan, who paid for him, and Juan pay Ana, never Luis pay Ana (P323)", async () => {
     const { h, luis } = await trip();
-    await paysFor(h.juan, h.groceries, [[h.ana.memberId, 100_000]]);
-    await paysFor(luis, h.groceries, [[h.juan.memberId, 100_000]]);
-    expect(await suggestionsOf(h.ana, h.spaceId)).toEqual([pays(h.ana.memberId, luis.memberId, 100_000)]);
+    await paysFor(h.ana, h.groceries, [[h.juan.memberId, 100_000]]);
+    await paysFor(h.juan, h.groceries, [[luis.memberId, 100_000]]);
+    expect(await suggestionsOf(h.ana, h.spaceId)).toEqual([
+      pays(h.juan.memberId, h.ana.memberId, 100_000),
+      pays(luis.memberId, h.juan.memberId, 100_000),
+    ]);
+  });
+
+  it("nets each pair as on staging: Luis pays Juan 10,333 and Juan pays Ana 14,666 (P323, S5)", async () => {
+    // Ana (Kamilox) paid 50,000 with Juan (Yuberley); Juan paid 16,000 and 15,000 split in three with Luis (Roger).
+    const { h, luis } = await trip();
+    const three = [h.ana.memberId, h.juan.memberId, luis.memberId];
+    await paysEqually(h.ana, 50_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    await paysEqually(h.juan, 16_000, three, h.groceries);
+    await paysEqually(h.juan, 15_000, three, h.groceries);
+    expect(await suggestionsOf(luis, h.spaceId)).toEqual([
+      pays(h.juan.memberId, h.ana.memberId, 14_666),
+      pays(luis.memberId, h.juan.memberId, 10_333),
+    ]);
+    // S4: every net stays what it was; the pairs only say who pays whom.
+    expect(await balancesOf(h.ana, h.spaceId)).toEqual([
+      [h.ana.memberId, cop(14_666)],
+      [h.juan.memberId, cop(-4_333)],
+      [luis.memberId, cop(-10_333)],
+    ]);
+  });
+
+  it("leaves out deleted and fund-paid expenses (D5)", async () => {
+    const { h, luis } = await trip();
+    const fund = await newAccount(h.ana, "Household Fund", 1_500_000, "SHARED_FUND");
+    const rent = await post(recordExpense, h.ana, "expenses", {
+      description: "Rent",
+      date: "2026-10-01",
+      categoryId: h.groceries,
+      amount: cop(90_000),
+      payments: [{ memberId: null, accountId: fund, amount: cop(90_000) }],
+      split: { method: "EQUAL", participants: [{ memberId: h.juan.memberId }, { memberId: luis.memberId }] },
+    });
+    expect(rent.status).toBe(201);
+    const dinner = await paysEqually(h.ana, 60_000, [h.juan.memberId, luis.memberId], h.groceries);
+    const deleted = await call(
+      deleteTransaction,
+      "DELETE",
+      `/api/v1/spaces/${h.spaceId}/transactions/${dinner.id}`,
+      { user: h.ana, params: { spaceId: h.spaceId, transactionId: dinner.id } },
+    );
+    expect(deleted.status).toBe(204);
+    expect(await suggestionsOf(h.ana, h.spaceId)).toEqual([]);
+  });
+
+  it("moves Luis's debt to Juan when Juan pays Ana for him, and clears it when Juan gives it away (P322)", async () => {
+    const { h, luis } = await trip();
+    await paysFor(h.ana, h.groceries, [[luis.memberId, 100_000]]);
+    const forLuis = { date: "2026-10-30", amount: cop(40_000), payerMemberId: h.juan.memberId };
+    const loan = await post(recordSettlement, h.juan, "settlements", {
+      ...forLuis,
+      receivingMemberId: h.ana.memberId,
+      onBehalfOfMemberId: luis.memberId,
+    });
+    expect(loan.status).toBe(201);
+    expect(await suggestionsOf(h.ana, h.spaceId)).toEqual([
+      pays(luis.memberId, h.ana.memberId, 60_000),
+      pays(luis.memberId, h.juan.memberId, 40_000),
+    ]);
+    const gift = await post(recordSettlement, h.juan, "settlements", {
+      ...forLuis,
+      receivingMemberId: h.ana.memberId,
+      onBehalfOfMemberId: luis.memberId,
+      gift: true,
+    });
+    expect(gift.status).toBe(201);
+    // The gift clears only what this second payment made Luis owe Juan.
+    expect(await suggestionsOf(h.ana, h.spaceId)).toEqual([
+      pays(luis.memberId, h.juan.memberId, 40_000),
+      pays(luis.memberId, h.ana.memberId, 20_000),
+    ]);
   });
 
   it("returns no suggestions for a settled group", async () => {

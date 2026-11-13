@@ -73,6 +73,26 @@ describe("GetMyBalances (#240, P278)", () => {
     expect(household?.payments).toEqual([]);
   });
 
+  it("has her pay whoever paid for her, each pair on its own, the largest first (P323)", async () => {
+    const { ledger, getMyBalances } = world();
+    const paidFor = (payer: string, debtor: string, amount: bigint) =>
+      anExpense("2026-10-05", amount, {
+        spaceId: "space-household",
+        payments: [{ memberId: payer, accountId: null, amount }],
+        shares: [{ memberId: debtor, amount, splitMethod: "EXACT" as const }],
+      });
+    // Ana pays 100,000 for Juan, Juan pays 100,000 for Luis and Ana pays 30,000 for Luis.
+    await ledger.add(paidFor("member-ana", "member-juan", pesos(100_000n)));
+    await ledger.add(paidFor("member-juan", "member-luis", pesos(100_000n)));
+    await ledger.add(paidFor("member-ana", "member-luis", pesos(30_000n)));
+    const [household] = unwrap(await getMyBalances("u-luis"));
+    expect(household?.net).toBe(-pesos(130_000n));
+    expect(household?.payments).toEqual([
+      { receivingMemberId: "member-juan", amount: pesos(100_000n) },
+      { receivingMemberId: "member-ana", amount: pesos(30_000n) },
+    ]);
+  });
+
   it("answers 0 and no payments in a space where nothing moved", async () => {
     const { getMyBalances } = world();
     const [household] = unwrap(await getMyBalances("u-ana"));

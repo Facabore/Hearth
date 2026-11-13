@@ -76,7 +76,7 @@
     },
     "suggestions": "To settle up",
     "owes": "{payer} owes {receiver} {amount}",
-    "suggestionsNote": "The fewest payments that settle everyone. Settle only fills in the form.",
+    "suggestionsNote": "Everyone pays back whoever paid for them. Settle only fills in the form.",
     "personalNote": "{space} is yours alone: there is nothing to settle here.",
     "allSettled": "Nobody owes anybody in {space}.",
     "members": "Each member",

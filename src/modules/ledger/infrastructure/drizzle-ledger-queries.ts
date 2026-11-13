@@ -25,13 +25,14 @@ import type {
   HistoryRange,
   MemberBalanceHistory,
   MemberMoneyTotals,
+  SpaceDebtMovements,
   TransactionFilter,
   TransactionPosition,
   TransactionQuery,
   TransactionsAcrossFilter,
   TransactionsAcrossQuery,
 } from "../application/ports";
-import type { Transaction } from "../domain/transaction";
+import type { SettlementReason, Transaction } from "../domain/transaction";
 import { payments, shares, transactions } from "./ledger.schema";
 import { loadTransactions } from "./transaction-rows";
 
@@ -259,19 +260,7 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
     type Field = "paid" | "consumed" | "settledOut" | "settledIn";
     // Same selection shape in every branch of the UNION ALL: member, field label, sum as text.
     const memberOf = (column: AnyColumn) => sql<string | null>`${column}`;
-    const fundPayments = alias(payments, "fund_payments");
-    const live = and(eq(transactions.spaceId, spaceId), isNull(transactions.deletedAt));
-    const memberPaid = and(
-      live,
-      eq(transactions.type, "EXPENSE"),
-      notExists(
-        db
-          .select({ one: sql`1` })
-          .from(fundPayments)
-          .where(and(eq(fundPayments.transactionId, transactions.id), isNull(fundPayments.memberId))),
-      ),
-    );
-    const settlements = and(live, eq(transactions.type, "SETTLEMENT"));
+    const { memberPaid, settlements } = this.debtFilters(spaceId);
     const rows = await unionAll(
       db
         .select({
@@ -322,6 +311,112 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
     return [...totals.entries()]
       .map(([memberId, sums]) => ({ memberId, ...sums }))
       .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+  }
+
+  /**
+   * Ruling P323: the live member-paid expenses of one space with their payments and shares in position order, and its
+   * live settlements, in one statement so they all come from the same snapshot. The same rows `memberTotals` sums:
+   * a fund-paid expense and every transfer create no debt (D5). Expenses by id; empty for malformed ids.
+   */
+  async debtMovements(spaceId: string): Promise<SpaceDebtMovements> {
+    if (!isUuid(spaceId)) return { expenses: [], settlements: [] };
+    const db = this.tm.executor();
+    const { memberPaid, settlements } = this.debtFilters(spaceId);
+    type Kind = "payment" | "share" | "settlement";
+    // Same selection shape in every branch of the UNION ALL; amounts as text, so they never round.
+    const text = (column: AnyColumn) => sql<string | null>`${column}::text`;
+    const none = sql<string | null>`null::text`;
+    const rows = await unionAll(
+      db
+        .select({
+          kind: sql<Kind>`'payment'::text`,
+          transactionId: text(transactions.id),
+          position: sql<number>`${payments.position}::integer`,
+          memberId: text(payments.memberId),
+          receiverId: none,
+          onBehalfOfId: none,
+          reason: none,
+          amount: sql<string>`${payments.amount}::text`,
+        })
+        .from(payments)
+        .innerJoin(transactions, eq(transactions.id, payments.transactionId))
+        .where(memberPaid),
+      db
+        .select({
+          kind: sql<Kind>`'share'::text`,
+          transactionId: text(transactions.id),
+          position: sql<number>`${shares.position}::integer`,
+          memberId: text(shares.memberId),
+          receiverId: none,
+          onBehalfOfId: none,
+          reason: none,
+          amount: sql<string>`${shares.amount}::text`,
+        })
+        .from(shares)
+        .innerJoin(transactions, eq(transactions.id, shares.transactionId))
+        .where(memberPaid),
+      db
+        .select({
+          kind: sql<Kind>`'settlement'::text`,
+          transactionId: text(transactions.id),
+          position: sql<number>`0`,
+          memberId: text(transactions.payerMemberId),
+          receiverId: text(transactions.receivingMemberId),
+          onBehalfOfId: text(transactions.onBehalfOfMemberId),
+          reason: text(transactions.settlementReason),
+          amount: sql<string>`${transactions.amount}::text`,
+        })
+        .from(transactions)
+        .where(settlements),
+    );
+    rows.sort((a, b) =>
+      a.transactionId! < b.transactionId!
+        ? -1
+        : a.transactionId! > b.transactionId!
+          ? 1
+          : Number(a.position) - Number(b.position),
+    );
+    type Parts = { memberId: string; amount: bigint }[];
+    const expenses = new Map<string, { payments: Parts; shares: Parts }>();
+    const settled: SpaceDebtMovements["settlements"][number][] = [];
+    for (const row of rows) {
+      const amount = BigInt(row.amount);
+      if (row.kind === "settlement") {
+        settled.push({
+          payerMemberId: row.memberId!,
+          receivingMemberId: row.receiverId!,
+          amount,
+          reason: (row.reason ?? "PAYMENT") as SettlementReason,
+          onBehalfOfMemberId: row.onBehalfOfId,
+        });
+        continue;
+      }
+      const expense = expenses.get(row.transactionId!) ?? { payments: [], shares: [] };
+      (row.kind === "payment" ? expense.payments : expense.shares).push({ memberId: row.memberId!, amount });
+      expenses.set(row.transactionId!, expense);
+    }
+    return { expenses: [...expenses.values()], settlements: settled };
+  }
+
+  /**
+   * E5 balance rule, D5: the live member-paid expenses of one space (no payment from the shared fund) and its live
+   * settlements; what `memberTotals` sums and `debtMovements` lists.
+   */
+  private debtFilters(spaceId: string) {
+    const fundPayments = alias(payments, "fund_payments");
+    const live = and(eq(transactions.spaceId, spaceId), isNull(transactions.deletedAt));
+    const memberPaid = and(
+      live,
+      eq(transactions.type, "EXPENSE"),
+      notExists(
+        this.tm
+          .executor()
+          .select({ one: sql`1` })
+          .from(fundPayments)
+          .where(and(eq(fundPayments.transactionId, transactions.id), isNull(fundPayments.memberId))),
+      ),
+    );
+    return { memberPaid, settlements: and(live, eq(transactions.type, "SETTLEMENT")) };
   }
 
   /** Spec 5.4, HU-E6-04: Σ live expenses of the space per category within [from, to], for budget lines (D7). */

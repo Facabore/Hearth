@@ -22,6 +22,7 @@ import type {
   TransactionsAcrossQuery,
   Transfer,
 } from "@/modules/ledger/application";
+import type { SpaceDebtMovements } from "@/modules/ledger/application/ports";
 import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
 import {
@@ -228,6 +229,34 @@ export class InMemoryTransactions
     return [...totals.entries()]
       .map(([memberId, sums]) => ({ memberId, ...sums }))
       .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+  }
+
+  /** The in-memory twin of DrizzleLedgerQueries.debtMovements (ruling P323): the rows `memberTotals` sums, listed. */
+  async debtMovements(spaceId: string): Promise<SpaceDebtMovements> {
+    const live = this.rows
+      .filter((t) => t.spaceId === spaceId && t.deletedAt === null)
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const expenses: SpaceDebtMovements["expenses"][number][] = [];
+    const settlements: SpaceDebtMovements["settlements"][number][] = [];
+    for (const t of live) {
+      // D5: an expense paid from the shared fund creates no debt.
+      if (t.type === "EXPENSE" && t.payments.every((p) => p.memberId !== null)) {
+        expenses.push({
+          payments: t.payments.map((p) => ({ memberId: p.memberId!, amount: p.amount })),
+          shares: t.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
+        });
+      }
+      if (t.type === "SETTLEMENT") {
+        settlements.push({
+          payerMemberId: t.payerMemberId,
+          receivingMemberId: t.receivingMemberId,
+          amount: t.amount,
+          reason: t.reason,
+          onBehalfOfMemberId: t.onBehalfOfMemberId,
+        });
+      }
+    }
+    return { expenses, settlements };
   }
 
   /** The in-memory twin of DrizzleLedgerQueries.memberHistory (HU-E5-04); drizzle-balance-history.int.test.ts pins them. */

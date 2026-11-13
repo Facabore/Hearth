@@ -76,7 +76,7 @@
     },
     "suggestions": "Para quedar al día",
     "owes": "{payer} le paga {amount} a {receiver}",
-    "suggestionsNote": "Sugerencia con el menor número de pagos. Saldar solo prellena el formulario.",
+    "suggestionsNote": "Cada quien le paga a quien pagó por él. Saldar solo prellena el formulario.",
     "personalNote": "{space} es solo tuyo: aquí no hay nada que saldar.",
     "allSettled": "Todos están al día en {space}.",
     "members": "Cada miembro",

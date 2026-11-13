@@ -4,11 +4,24 @@ import {
   type SpaceMemberRepository,
 } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
-import { memberStandings, type MemberStanding, type MemberTotals } from "../domain/balances";
+import {
+  memberStandings,
+  type DebtMovements,
+  type MemberStanding,
+  type MemberTotals,
+} from "../domain/balances";
 
 /** Per-member totals of one space's live ledger (E5 balance rule); bound to the ledger by the composition root. */
 export interface BalanceSource {
   memberTotals(spaceId: string): Promise<readonly MemberTotals[]>;
+}
+
+/**
+ * Ruling P323: the live member-paid expenses (payments and shares in position order) and live settlements of one space,
+ * read in one snapshot; bound to the ledger by the composition root.
+ */
+export interface DebtSource {
+  debtMovements(spaceId: string): Promise<DebtMovements>;
 }
 
 export interface BalancesDeps {

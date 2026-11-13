@@ -1,3 +1,5 @@
+import { currencyOf, flatMap, Money, ok, type Result } from "@/shared/kernel";
+
 /** Per-member sums over the live transactions of one space that move balances (E5 balance rule). */
 export interface MemberTotals {
   readonly memberId: string;
@@ -63,35 +65,134 @@ export interface SettlementSuggestion {
   readonly amount: bigint;
 }
 
-/**
- * HU-E5-03 DebtSimplifier: while someone is owed money, the member who owes the most pays the member owed
- * the most as much as one of them still needs. Each payment settles at least one of the two, so n members
- * need at most n − 1 payments, and each member pays or receives exactly their net. Ties go to the member
- * listed first (join order), so the same balances always give the same suggestions. Greedy: few payments,
- * not always the fewest possible. Nets that do not sum to zero (never the balances of a space) are settled as
- * far as they go: it stops when no creditor or no debtor is left, and the surplus of the other side stays unpaid.
- */
-export const simplifyDebts = (balances: readonly MemberBalance[]): SettlementSuggestion[] => {
-  const open = balances.map((b) => ({ memberId: b.memberId, net: b.net }));
-  /**
-   * The open member furthest from zero on the side `sign` (1n: owed money, -1n: owes money), in one pass: only a
-   * strictly larger amount replaces the one found, so a tie keeps the member listed first.
-   */
-  const largest = (sign: bigint) => {
-    let found: (typeof open)[number] | undefined;
-    for (const member of open) {
-      if (member.net * sign > (found === undefined ? 0n : found.net * sign)) found = member;
-    }
-    return found;
-  };
-  const suggestions: SettlementSuggestion[] = [];
-  for (;;) {
-    const creditor = largest(1n);
-    const debtor = largest(-1n);
-    if (!creditor || !debtor) return suggestions;
-    const amount = creditor.net < -debtor.net ? creditor.net : -debtor.net;
-    suggestions.push({ payerMemberId: debtor.memberId, receivingMemberId: creditor.memberId, amount });
-    creditor.net -= amount;
-    debtor.net += amount;
+/** Ruling P323: one member-paid part of an expense, in minor units; a fund payment has no member (D5). */
+export interface DebtPart<M extends string | null = string> {
+  readonly memberId: M;
+  readonly amount: bigint;
+}
+
+/** Ruling P323: a live expense of the space, with its payments and shares in position order. */
+export interface DebtExpense {
+  readonly payments: readonly DebtPart<string | null>[];
+  readonly shares: readonly DebtPart[];
+}
+
+/** Ruling P323: a live settlement of the space (HU-E5-02), with why it was recorded and for whom (P322). */
+export interface DebtSettlement {
+  readonly payerMemberId: string;
+  readonly receivingMemberId: string;
+  readonly amount: bigint;
+  readonly reason: "PAYMENT" | "GIFT" | "FORGIVENESS";
+  readonly onBehalfOfMemberId: string | null;
+}
+
+/** Ruling P323: the live movements of one space that create or settle debts between its members. */
+export interface DebtMovements {
+  readonly expenses: readonly DebtExpense[];
+  readonly settlements: readonly DebtSettlement[];
+}
+
+/** Ruling P323: what each pair of members owes, netted over every movement between the two (positive: `a` owes `b`). */
+class PairLedger {
+  private readonly owed = new Map<string, { a: string; b: string; net: bigint }>();
+
+  owe(debtor: string, creditor: string, amount: bigint): void {
+    if (debtor === creditor || amount === 0n) return;
+    const [a, b, sign] = debtor < creditor ? [debtor, creditor, 1n] : [creditor, debtor, -1n];
+    const key = `${a}\n${b}`;
+    const pair = this.owed.get(key) ?? { a, b, net: 0n };
+    pair.net += sign * amount;
+    this.owed.set(key, pair);
   }
+
+  debts(): SettlementSuggestion[] {
+    return [...this.owed.values()]
+      .filter((pair) => pair.net !== 0n)
+      .map((pair) =>
+        pair.net > 0n
+          ? { payerMemberId: pair.a, receivingMemberId: pair.b, amount: pair.net }
+          : { payerMemberId: pair.b, receivingMemberId: pair.a, amount: -pair.net },
+      );
+  }
+}
+
+/**
+ * Ruling P323: each participant owes each member payer their share in proportion to what that payer paid. A share is
+ * allocated with Money's own largest-remainder rule over what each payer is still owed from this expense, and the
+ * last share takes exactly what is left, so the parts of every share add up to it and the parts owed to every payer
+ * add up to what they paid (Σ payments = Σ shares, spec 5.2). An expense with a fund payment creates no debt (D5).
+ */
+const oweExpense = (currency: string, expense: DebtExpense, pairs: PairLedger): Result<void> => {
+  const payers: DebtPart[] = [];
+  for (const payment of expense.payments) {
+    if (payment.memberId === null) return ok(undefined);
+    payers.push({ memberId: payment.memberId, amount: payment.amount });
+  }
+  const left = payers.map((payer) => payer.amount);
+  for (const [index, share] of expense.shares.entries()) {
+    let parts: readonly bigint[] = [...left];
+    if (index < expense.shares.length - 1) {
+      const weights = left.map((amount) => (amount > 0n ? amount : 0n));
+      const allocated = flatMap(Money.ofMinor(share.amount, currency), (money) => money.allocate(weights));
+      if (!allocated.ok) return allocated;
+      parts = allocated.value.map((part) => part.minor);
+    }
+    parts.forEach((part, i) => {
+      left[i] = left[i]! - part;
+      pairs.owe(share.memberId, payers[i]!.memberId, part);
+    });
+  }
+  return ok(undefined);
+};
+
+/**
+ * Ruling P323: settlements net against the pair they name. A PAYMENT from A to B for C (P322) lowers C's debt to B and
+ * makes C owe A instead; any other settlement, a GIFT or a FORGIVENESS included, lowers its payer's debt to its
+ * receiver, and one that pays more than the debt turns it around.
+ */
+const oweSettlement = (settlement: DebtSettlement, pairs: PairLedger): void => {
+  const { payerMemberId, receivingMemberId, amount, onBehalfOfMemberId } = settlement;
+  if (settlement.reason === "PAYMENT" && onBehalfOfMemberId !== null) {
+    pairs.owe(onBehalfOfMemberId, receivingMemberId, -amount);
+    pairs.owe(onBehalfOfMemberId, payerMemberId, amount);
+    return;
+  }
+  pairs.owe(payerMemberId, receivingMemberId, -amount);
+};
+
+/**
+ * HU-E5-03, ruling P323: who pays whom, without simplification. For every pair of members, the net of what each owes
+ * the other over the space's live member-paid expenses and settlements; one suggestion per pair that owes anything,
+ * from the member who owes to the member owed. For every member, what they are owed minus what they owe over their
+ * pairs equals their net balance (E5 rule). The largest debt comes first; ties go by the payer's place and then the
+ * receiver's: `memberIds` (join order), then anyone else by id. Computed on read (D7). UnknownCurrency for a currency
+ * Money does not know.
+ */
+export const pairwiseDebts = (
+  currency: string,
+  memberIds: readonly string[],
+  movements: DebtMovements,
+): Result<SettlementSuggestion[]> => {
+  const known = currencyOf(currency);
+  if (!known.ok) return known;
+  const pairs = new PairLedger();
+  for (const expense of movements.expenses) {
+    const owed = oweExpense(currency, expense, pairs);
+    if (!owed.ok) return owed;
+  }
+  for (const settlement of movements.settlements) oweSettlement(settlement, pairs);
+  const debts = pairs.debts();
+  const others = [...new Set(debts.flatMap((d) => [d.payerMemberId, d.receivingMemberId]))]
+    .filter((id) => !memberIds.includes(id))
+    .sort();
+  const place = new Map([...memberIds, ...others].map((id, index) => [id, index]));
+  const placeOf = (id: string) => place.get(id)!;
+  return ok(
+    debts.sort(
+      (x, y) =>
+        (x.amount === y.amount ? 0 : x.amount > y.amount ? -1 : 1) ||
+        placeOf(x.payerMemberId) - placeOf(y.payerMemberId) ||
+        placeOf(x.receivingMemberId) - placeOf(y.receivingMemberId),
+    ),
+  );
 };
