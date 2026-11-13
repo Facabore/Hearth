@@ -1,6 +1,7 @@
 import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { en, es } from "@/i18n/messages/full";
 import { axeViolations } from "../../../../tests/support/ui/axe";
@@ -67,6 +68,36 @@ describe("app shell (HU-E9-01)", () => {
       expect(heading.parentElement?.parentElement).toBe(screen.getByRole("main"));
       unmount();
     }
+  });
+
+  it("keeps the screen it draws when the address moves on, so what it took on mounting stays (P325, P321)", () => {
+    // The address changes before the router draws the next screen: a screen mounted under the old address must not be
+    // mounted again under the new one, or Registrar loses the amount it got back from Crear un fondo.
+    let mounts = 0;
+    function Counted() {
+      useState(() => {
+        mounts += 1;
+      });
+      return <h1>Registrar</h1>;
+    }
+    const shell = (
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={spaces}
+        activeSpace={spaces[0]}
+        stacked
+      >
+        <Counted />
+      </AppShell>
+    );
+    navigation.pathname = "/spaces/sp-personal/accounts/new";
+    const { rerender } = renderWithIntl(shell);
+    navigation.pathname = "/spaces/sp-personal/new";
+    rerender(shell);
+    expect(mounts).toBe(1);
+    expect(screen.getByRole("heading", { level: 1, name: "Registrar" }).parentElement).toHaveClass(
+      "motion-screen",
+    );
   });
 
   it("starts with a link that skips to the screen's content, and the content takes the focus (#290)", async () => {

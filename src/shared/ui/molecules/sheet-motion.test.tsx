@@ -4,7 +4,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { Button } from "../atoms/button";
 import { Sheet } from "./sheet";
 
-/** Ruling P325: the sheet carries the app's motion; the stylesheet animates these hooks, reduced motion only fades. */
+/** Ruling P325: the sheet carries the app's motion, which the stylesheet animates; reduced motion moves nothing. */
 describe("the sheet's motion (ruling P325)", () => {
   it("marks its panel and its scrim for the rising and fading movement", () => {
     renderWithIntl(

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, type ReactNode } from "react";
 import type { Locale } from "@/i18n/locale";
@@ -46,18 +45,14 @@ export interface AppShellProps {
  * Configuración.
  */
 /**
- * Ruling P325: each screen arrives with a short fade and rise. The wrapper is keyed by the path, so a new screen plays
- * it and a change of the query (a filter, a period, an open sheet) does not.
+ * Ruling P325: each screen arrives with a short fade and rise. The stylesheet plays it on the wrapper's children as they
+ * mount, so a new screen plays it and a change of the query (a filter, a period, an open sheet), or the same screen in
+ * another space (Registrar moved with what was typed, P305), keeps its elements and does not. The wrapper is never keyed
+ * by the address: the address changes before the router draws the next screen, so a key would mount that screen again
+ * and lose what it took on mounting, such as the amount Registrar gets back from Crear un fondo (P321).
  */
 function Screen({ children }: { readonly children: ReactNode }) {
-  // The space is left out of the key: the same screen in another space (Registrar moved with what was typed, P305) is
-  // the same screen, and remounting it would lose its state.
-  const screen = usePathname().replace(/^\/spaces\/[^/]+/, "");
-  return (
-    <div key={screen} className="motion-screen">
-      {children}
-    </div>
-  );
+  return <div className="motion-screen">{children}</div>;
 }
 
 export function AppShell({

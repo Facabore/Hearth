@@ -233,7 +233,7 @@ html:not([data-frame="public"]) .hearth-frame-public {
 /*
  * Ruling P325: Hearth's motion. The bottom sheet is the app's main surface, so it carries the one authored movement: it
  * rises with a decelerating curve while the scrim fades in, and leaves faster than it came. A screen arrives with a short
- * fade and a 6 px rise, a revealed row fades in, a toast rises, and a pressed control sinks slightly. CSS only; with
+ * fade, a revealed row fades in, a toast rises, and a pressed control sinks slightly. CSS only; with
  * reduced motion nothing animates.
  */
 :root {
@@ -304,8 +304,12 @@ html:not([data-frame="public"]) .hearth-frame-public {
 .motion-scrim[data-state="closed"] {
   animation: hearth-fade-out var(--motion-exit) ease-in;
 }
-.motion-screen {
-  animation: hearth-rise-in var(--motion-quick) var(--ease-arrive);
+/*
+ * A screen's elements play it as they mount: a new screen does; the same one under another query keeps them. Opacity
+ * only, so no transform turns the screen into the containing block of its pinned Guardar or backdrop mid-animation.
+ */
+.motion-screen > * {
+  animation: hearth-fade-in var(--motion-quick) ease-out;
 }
 .motion-reveal {
   animation: hearth-fade-in var(--motion-quick) ease-out;
@@ -320,11 +324,14 @@ html:not([data-frame="public"]) .hearth-frame-public {
   transform: scale(0.98);
 }
 
-/* With reduced motion nothing travels, scales or fades: every state change is immediate and stays legible. */
+/*
+ * With reduced motion nothing travels, scales or fades: every state change is immediate and stays legible. The sheet and
+ * the scrim are matched by their state as the rules above are, so these win by order instead of losing on specificity.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .motion-sheet,
-  .motion-scrim,
-  .motion-screen,
+  .motion-sheet[data-state],
+  .motion-scrim[data-state],
+  .motion-screen > *,
   .motion-reveal,
   .motion-toast {
     animation: none;
