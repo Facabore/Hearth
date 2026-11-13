@@ -16,19 +16,30 @@ export { useViewer } from "../viewer";
  * Movimientos' list in `list-hooks.ts`, so Inicio never loads its filters' reads.
  */
 
-/** What a row needs to name itself (`RowContext`): the person's formats and zone, categories, accounts, members. */
+/**
+ * What a row needs to name itself (`RowContext`): the person's formats and zone, categories, accounts, members, and
+ * the person's own member id in a shared space, so a row says "pagaste tú" and "tu parte" (P324).
+ */
 export const rowContextOf = (
   me: MeDto,
   groups: readonly CategoryGroupDto[],
   accounts: readonly { readonly id: string; readonly name: string }[],
   memberNames: Record<string, string> = {},
+  viewerMemberId: string | null = null,
 ) => ({
   formats: me.preferences.effective,
   viewerZone: me.timezone,
   groups: [...groups],
   accountNames: Object.fromEntries(accounts.map((a) => [a.id, a.name])),
   memberNames,
+  viewerMemberId,
 });
+
+/** The person's member id among a space's members, or none outside a shared space. */
+export const viewerMemberIdOf = (
+  me: MeDto,
+  members: readonly { readonly id: string; readonly userId?: string | null }[],
+): string | null => members.find((m) => m.userId === me.id)?.id ?? null;
 
 /** A space's members by id, as its rows name them. */
 export const memberNamesOf = (
@@ -85,7 +96,13 @@ export const useHome = (viewer: Viewer, period?: string) => {
   return {
     page: page.data,
     accounts: accounts.data,
-    context: rowContextOf(viewer.me, groups.data, accounts.data, memberNamesOf(members[0]?.data ?? [])),
+    context: rowContextOf(
+      viewer.me,
+      groups.data,
+      accounts.data,
+      memberNamesOf(members[0]?.data ?? []),
+      viewerMemberIdOf(viewer.me, members[0]?.data ?? []),
+    ),
   };
 };
 

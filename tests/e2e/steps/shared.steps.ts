@@ -112,7 +112,7 @@ Then(
     await page.getByRole("button", { name: world.t("ledger.form.save.EXPENSE") }).click();
     await expect(page).toHaveURL(`/spaces/${world.spaces.get(space)}/transactions`);
     const row = page.getByRole("listitem").filter({ hasText: "Groceries" });
-    await expect(row).toContainText(world.t("ledger.paidBy", { name: world.user!.name }));
+    await expect(row).toContainText(world.t("ledger.paidByYou"));
     expect(norm(await row.textContent())).toContain(norm(shown("300,000")));
   },
 );

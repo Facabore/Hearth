@@ -11,7 +11,7 @@ import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import { memberNamesOf, movedOf, rowContextOf } from "../ledger/hooks";
+import { memberNamesOf, movedOf, rowContextOf, viewerMemberIdOf } from "../ledger/hooks";
 import { recentPeriodsQuery } from "../ledger/list-hooks";
 import { listFilterOf } from "../ledger/list-search";
 import { homeRowsOf, listQueryOf, myListQueryOf, myPageQuery, pageQuery } from "../ledger/queries";
@@ -73,6 +73,10 @@ function HomeBehind({ viewer }: { readonly viewer: Viewer }) {
         sharedSpace(space)
           ? memberNamesOf(cache.getQueryData(membersQuery(api, space.id).queryKey) ?? [])
           : {},
+        viewerMemberIdOf(
+          me,
+          sharedSpace(space) ? (cache.getQueryData(membersQuery(api, space.id).queryKey) ?? []) : [],
+        ),
       )}
       today={nowIn(new Date(), me.timezone).date}
     />
@@ -167,6 +171,7 @@ function SpaceListBehind({ viewer, filter }: { readonly viewer: Viewer; readonly
         groups,
         accounts,
         Object.fromEntries(members.map((m) => [m.id, m.displayName])),
+        viewerMemberIdOf(me, members),
       )}
       today={today}
       filter={filter}

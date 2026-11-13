@@ -52,6 +52,34 @@ beforeEach(() => {
   localStorage.clear();
 });
 
+describe("a shared space's rows say 'pagaste tú' for the viewer's own payment (P324)", () => {
+  it("reads Ana's expense in Hogar's Movimientos as 'pagaste tú', not 'pagó Ana'", async () => {
+    const expense = transactionDto({
+      id: "t-domicilio",
+      type: "EXPENSE",
+      description: "Domicilio",
+      amount: cop(64_000),
+      date: "2026-10-25",
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(64_000) }],
+    });
+    renderSpa("/spaces/sp-household/transactions", {
+      ...api(),
+      "GET /api/v1/spaces/{spaceId}/transactions": () =>
+        jsonResponse({
+          period: { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" },
+          totals: { expenses: cop(64_000), income: cop(0) },
+          items: [expense],
+          nextCursor: null,
+        }),
+      "GET /api/v1/spaces/{spaceId}/balances": () => jsonResponse({ members: [] }),
+    });
+    const row = await screen.findByRole("link", { name: /Domicilio/ }, { timeout: 15_000 });
+    const text = row.textContent?.replace(/\s/g, " ") ?? "";
+    expect(text).toContain("pagaste tú");
+    expect(text).not.toContain("pagó Ana");
+  });
+});
+
 describe("Inicio of a shared space names who paid whom (P307)", () => {
   it("reads a settlement between members as 'Juan → Ana', not a bare arrow", async () => {
     renderSpa("/spaces/sp-household", api());

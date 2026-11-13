@@ -15,7 +15,7 @@ import {
 } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
 import { read } from "../read";
-import { movedOf, rowContextOf } from "./hooks";
+import { movedOf, rowContextOf, viewerMemberIdOf } from "./hooks";
 import { listQueryOf, myListQueryOf, myPageQuery, pageQuery } from "./queries";
 
 /**
@@ -69,7 +69,13 @@ export const useList = (viewer: Viewer, filter: ListFilter) => {
   return {
     page: page.data,
     accounts: accounts.data,
-    context: rowContextOf(viewer.me, groups.data, accounts.data, memberNames),
+    context: rowContextOf(
+      viewer.me,
+      groups.data,
+      accounts.data,
+      memberNames,
+      viewerMemberIdOf(viewer.me, members[0]?.data ?? []),
+    ),
     ...usePeriods(viewer, page.data.period),
     movedMemberIds: movedOf(balances.data?.members),
   };
