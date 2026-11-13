@@ -9,7 +9,18 @@ import { SpaceChip } from "@/shared/ui/atoms/space-chip";
 import type { CategoryGroupDto } from "@/shared/ui/api/dto";
 import type { ListFilter, ListSpace, TransactionKind } from "./list-href";
 
-export type ListSheet = "period" | "space" | "category" | "account" | "type";
+export type ListSheet = "filters" | "period" | "space" | "category" | "account" | "type";
+
+/** One row of the Filtros sheet: the sheet it opens, and what it holds now (`null` while nothing narrows it). */
+export type FilterRow = readonly [Exclude<ListSheet, "filters">, string | null];
+
+/** One choice of the payer filter: Todos (`id` empty) or a member, with its list's address. */
+export interface PayerChoice {
+  readonly id: string;
+  readonly name: string;
+  readonly href: string;
+  readonly current: boolean;
+}
 
 /** One period the period chip's sheet offers: its name, its list's address, and whether it is the one shown. */
 export interface PeriodChoice {
@@ -20,13 +31,16 @@ export interface PeriodChoice {
 }
 
 /**
- * Ruling P277: the sheets of Movimientos' chips, in a chunk of their own that loads on the first tap, so the list's
+ * Ruling P277: the sheets of Movimientos' filters, in a chunk of their own that loads on the first tap, so the list's
  * script stays within its budget (ADR 0004). A period is a place, so choosing one follows a link (N8); a filter only
- * narrows the place.
+ * narrows the place. Ruling P324 (#309): every filter waits behind one Filtros button, whose sheet opens each one's.
  */
 export function ListSheets({
   sheet,
   onSheet,
+  rows,
+  payers = [],
+  recurringHref,
   periods,
   groups,
   accounts,
@@ -39,6 +53,12 @@ export function ListSheets({
 }: {
   readonly sheet: ListSheet | null;
   readonly onSheet: (sheet: ListSheet | null) => void;
+  /** Ruling P324: the Filtros sheet's rows, in the board's order. */
+  readonly rows: readonly FilterRow[];
+  /** Issue #148: Todos and the members to filter by who paid; none in a list without two payers. */
+  readonly payers?: readonly PayerChoice[];
+  /** P270: the space's recurring movements, reachable from Filtros. */
+  readonly recurringHref: string;
   readonly periods: readonly PeriodChoice[];
   readonly groups: CategoryGroupDto[];
   readonly accounts: readonly (readonly [string, string])[];
@@ -56,6 +76,14 @@ export function ListSheets({
   const opener = (name: ListSheet) => (open: boolean) => onSheet(open ? name : null);
   return (
     <>
+      <FiltersSheet
+        open={sheet === "filters"}
+        onOpenChange={opener("filters")}
+        onSheet={onSheet}
+        rows={rows}
+        payers={payers}
+        recurringHref={recurringHref}
+      />
       <Sheet open={sheet === "period"} onOpenChange={opener("period")} title={t("periods")}>
         <ul className="flex flex-col">
           {periods.map((p) => (
@@ -117,6 +145,89 @@ export function ListSheets({
         onChoose={(type) => onNarrow({ type })}
       />
     </>
+  );
+}
+
+const LABEL = {
+  period: "periodLabel",
+  space: "spaceLabel",
+  category: "filterCategory",
+  account: "filterAccount",
+  type: "filterType",
+} as const;
+
+/**
+ * Ruling P324 (board "Movimientos", densidad media): one row per filter, each opening its own sheet and naming what it
+ * holds; then who paid, and the space's recurring movements (P270).
+ */
+function FiltersSheet({
+  open,
+  onOpenChange,
+  onSheet,
+  rows,
+  payers,
+  recurringHref,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly onSheet: (sheet: ListSheet | null) => void;
+  readonly rows: readonly FilterRow[];
+  readonly payers: readonly PayerChoice[];
+  readonly recurringHref: string;
+}) {
+  const t = useTranslations("ledger.list");
+  const recurring = useTranslations("recurrences");
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={t("filters")}>
+      <div className="flex flex-col gap-4">
+        <ul className="flex flex-col divide-y divide-line">
+          {rows.map(([name, value]) => (
+            <li key={name}>
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                onClick={() => onSheet(name)}
+                className="flex min-h-12 w-full items-center gap-3 px-1 text-left text-ink"
+              >
+                <span className="shrink-0 font-medium">{t(LABEL[name])}</span>{" "}
+                <span className="min-w-0 flex-1 text-right text-muted [overflow-wrap:anywhere]">
+                  {value ? <span className="inline-block first-letter:uppercase">{value}</span> : null}
+                </span>
+                <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        {payers.length > 0 ? (
+          <nav aria-label={t("paidBy")} className="flex flex-col gap-2">
+            <p className="text-sm font-semibold text-muted">{t("paidBy")}</p>
+            <div className="flex flex-wrap gap-2">
+              {payers.map((payer) => (
+                <Link
+                  key={payer.id || "anyone"}
+                  href={payer.href}
+                  aria-current={payer.current ? "page" : undefined}
+                  onClick={() => onSheet(null)}
+                  className={`flex min-h-11 items-center rounded-full px-4 text-sm font-medium [overflow-wrap:anywhere] ${
+                    payer.current ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
+                  }`}
+                >
+                  {payer.name}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        ) : null}
+        <Link
+          href={recurringHref}
+          onClick={() => onSheet(null)}
+          className="flex min-h-11 items-center gap-2 self-start rounded-full border border-line bg-surface px-4 text-[15px] font-semibold text-ink"
+        >
+          <Icon name="calendar" size={18} />
+          {recurring("pill")}
+        </Link>
+      </div>
+    </Sheet>
   );
 }
 

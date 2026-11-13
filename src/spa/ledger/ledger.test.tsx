@@ -245,6 +245,8 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
   it("searches as the person types and keeps the field in place while the list answers (P277)", async () => {
     const { routes } = ledgerApi();
     const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", routes);
+    // Ruling P324: the field waits behind its icon.
+    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.search }));
     const field = await screen.findByRole("searchbox", { name: es.ledger.list.search });
     await userEvent.type(field, "din{Enter}");
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?period=2026-10&q=din"));
@@ -267,7 +269,10 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     await waitFor(() =>
       expect(calls(spa.requests, "GET", /\/periods\?from=\d{4}-\d{2}-\d{2}&count=24$/)).toHaveLength(1),
     );
-    await userEvent.click(screen.getByRole("button", { name: "octubre 2026" }));
+    // Ruling P324: the period changes from the Filtros sheet.
+    await userEvent.click(screen.getByRole("button", { name: es.ledger.list.filters }));
+    const filters = await screen.findByRole("dialog", { name: es.ledger.list.filters });
+    await userEvent.click(within(filters).getByRole("button", { name: "Período octubre 2026" }));
     const sheet = await screen.findByRole("dialog", { name: es.ledger.list.periods });
     await userEvent.click(within(sheet).getByRole("link", { name: "septiembre 2026" }));
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?period=2026-09"));
@@ -556,7 +561,13 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
 
   it("narrows the list to the space chosen in its sheet, in the address and in what it asks", async () => {
     const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", everySpace().routes);
-    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.allSpaces }));
+    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.filters }));
+    const filters = await screen.findByRole("dialog", { name: es.ledger.list.filters });
+    await userEvent.click(
+      within(filters).getByRole("button", {
+        name: `${es.ledger.list.spaceLabel} ${es.ledger.list.allSpaces}`,
+      }),
+    );
     const sheet = await screen.findByRole("dialog", { name: es.ledger.list.spacesTitle });
     await userEvent.click(within(sheet).getByRole("button", { name: "Household" }));
     await waitFor(() =>
@@ -598,8 +609,9 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
       calls(spa.requests, "GET", /\/spaces\/sp-personal\/transactions\?period=2026-10&limit=50$/),
     ).toHaveLength(1);
     expect(calls(spa.requests, "GET", /\/me\/transactions/)).toHaveLength(0);
-    const title = screen.getByRole("heading", { level: 1, name: es.ledger.list.title });
-    expect(title.nextElementSibling).toBeNull();
+    // Ruling P324: the shell's pill names the space; the list says nothing of every space.
+    expect(screen.getByRole("heading", { level: 1, name: es.ledger.list.title })).toBeInTheDocument();
+    expect(screen.queryByText(es.ledger.list.everySpace)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: es.ledger.list.allSpaces })).not.toBeInTheDocument();
     expect(normalized(screen.getByRole("region", { name: es.ledger.list.totals }).textContent)).toContain(
       "Gastos $ 245.000",

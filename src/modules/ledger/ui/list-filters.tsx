@@ -10,7 +10,7 @@ import { Button, Icon, usePeriodText } from "@/shared/ui";
 import type { AccountDto, CategoryGroupDto, PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { hrefOf, type ListFilter, type ListSpace, type TransactionKind } from "./list-href";
-import type { ListSheet } from "./list-sheets";
+import type { FilterRow, ListSheet } from "./list-sheets";
 
 // Ruling P277: the chips' sheets load on the first tap, so the list's script stays within its budget (ADR 0004).
 const ListSheets = dynamic(() => import("./list-sheets").then((module) => module.ListSheets), { ssr: false });
@@ -18,16 +18,20 @@ const ListSheets = dynamic(() => import("./list-sheets").then((module) => module
 /** How long the search waits for the person to stop typing before it asks again. */
 const SEARCH_PAUSE_MS = 400;
 
-const CHIP = "flex h-11 shrink-0 items-center gap-1 rounded-full px-4 text-sm font-semibold";
+/** A removable chip of an active filter, whether a button or a link. */
+const CHIP =
+  "inline-flex h-11 shrink-0 items-center rounded-full border border-line bg-surface px-4 text-sm font-semibold text-ink [overflow-wrap:anywhere]";
 
 /**
- * HU-E9-03, board B1 06 (ruling P277): the search, then the period chip and the Categoría, Cuenta and Tipo filters. N8:
- * a period is a place, so choosing one pushes; a filter only narrows the place, so it replaces the entry. A chosen
- * filter reads as a pressed chip that removes it. Ruling P319: the personal Movimientos across every space adds the
- * space chip after the period's, and no payer row.
+ * Ruling P324 (#309, board "Movimientos", densidad media): one summary line (the period and its totals), the search
+ * behind its icon, and every filter behind one Filtros button whose sheet opens each filter's own (P277): the period,
+ * the space (P319), Categoría, Cuenta, Tipo and who paid (#148), and the recurring movements (P270). An active filter
+ * is never hidden: the button counts them, and each shows under the summary as a pressed chip that removes it. N8: a
+ * period is a place, so choosing one pushes; a filter only narrows the place, so it replaces the entry.
  */
 export function ListFilters({
   spaceId,
+  summary,
   period,
   previous,
   next,
@@ -44,6 +48,8 @@ export function ListFilters({
   spaces,
 }: {
   readonly spaceId: string;
+  /** The period's totals, read after its name on the summary line. */
+  readonly summary: ReactNode;
   readonly period: PeriodDto;
   readonly previous: PeriodDto | null;
   readonly next: PeriodDto | null;
@@ -104,27 +110,6 @@ export function ListFilters({
         .map((p) => [p.label, p]),
     ).values(),
   ].sort((a, b) => b.startDate.localeCompare(a.startDate));
-  const chip = (
-    name: string,
-    open: () => void,
-    chosen: string | null,
-    clear: Partial<ListFilter>,
-  ): ReactNode =>
-    chosen ? (
-      <Button
-        variant="secondary"
-        aria-pressed="true"
-        aria-label={t("list.removeFilter", { name: chosen })}
-        size="chip"
-        onClick={() => narrow(clear)}
-      >
-        {chosen} ✕
-      </Button>
-    ) : (
-      <Button variant="secondary" size="chip" onClick={open}>
-        {name}
-      </Button>
-    );
   // Ruling P319: another space keeps the category and the account chosen only when they are its own.
   const toSpace = (space: ListSpace | undefined): Partial<ListFilter> => {
     const kept = space ?? { groups, accounts };
@@ -138,63 +123,105 @@ export function ListFilters({
   const chosenSpace = spaces?.find((s) => s.id === filter.spaceId);
   // Ruling P310: Inicio opens a category with its subcategories ("id,sub,…"); the chip names the first, the category.
   const category = filter.categoryId ? categoryPath(groups, filter.categoryId.split(",")[0]!) : null;
+  const account = filter.accountId ? (accountNames[filter.accountId] ?? null) : null;
+  const type = filter.type ? t(`type.${filter.type}`) : null;
+  const payer = filter.payerMemberId ? (memberNames[filter.payerMemberId] ?? null) : null;
+  // The Filtros sheet's rows, in the board's order: period, space, category, account, type.
+  const rows: FilterRow[] = [
+    ["period", nameOf(period)],
+    ...(spaces ? [["space", chosenSpace?.name ?? t("list.allSpaces")] as const] : []),
+    ["category", category],
+    ...(live.length > 0 || filter.accountId ? [["account", account] as const] : []),
+    ["type", type],
+  ];
+  const remove = (name: string, clear: Partial<ListFilter>): ReactNode => (
+    <Button
+      key={name}
+      variant="secondary"
+      aria-pressed="true"
+      aria-label={t("list.removeFilter", { name })}
+      size="chip"
+      onClick={() => narrow(clear)}
+    >
+      {name} ✕
+    </Button>
+  );
+  // What narrows the list now, each removable; a payer stays a link, as choosing one is (#148).
+  const chips = [
+    chosenSpace ? remove(chosenSpace.name, { spaceId: undefined }) : null,
+    category ? remove(category, { categoryId: undefined }) : null,
+    account ? remove(account, { accountId: undefined }) : null,
+    type ? remove(type, { type: undefined }) : null,
+    payer ? (
+      <Link
+        key="payer"
+        href={hrefOf(spaceId, { ...filter, payerMemberId: undefined })}
+        aria-label={t("list.removeFilter", { name: payer })}
+        className={CHIP}
+      >
+        {payer} ✕
+      </Link>
+    ) : null,
+  ].filter((chip) => chip !== null);
+  const searched = Boolean(filter.search);
+  // The field stays out until the person asks for it; a search in the address, or one she started, keeps it shown.
+  const [searching, setSearching] = useState(searched);
+  const [focusSearch, setFocusSearch] = useState(false);
+  if (searched && !searching) setSearching(true);
   return (
-    <div className="flex flex-col gap-3">
-      <SearchField
-        label={t("list.search")}
-        clearLabel={t("list.clearSearch")}
-        value={filter.search ?? ""}
-        onSearch={(search) => narrow({ search: search || undefined })}
-      />
-      <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-1">
+        <div className="min-w-0 flex-1 text-sm text-muted">
+          <span className="inline-block first-letter:uppercase">{nameOf(period)}</span> · {summary}
+        </div>
+        <button
+          type="button"
+          aria-label={t("list.search")}
+          aria-expanded={searching}
+          onClick={() => {
+            setFocusSearch(true);
+            setSearching(searched || !searching);
+          }}
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-ink"
+        >
+          <Icon name="search" size={22} />
+        </button>
         <button
           type="button"
           aria-haspopup="dialog"
-          onClick={open("period")}
-          className={`${CHIP} bg-ink text-bg`}
+          onClick={open("filters")}
+          className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[15px] font-semibold text-ink"
         >
-          <span className="inline-block first-letter:uppercase">{nameOf(period)}</span>
-          <Icon name="chevronDown" size={18} />
+          <Icon name="sliders" size={18} />
+          {chips.length > 0 ? t("list.filtersCount", { count: chips.length }) : t("list.filters")}
         </button>
-        {spaces
-          ? chip(t("list.allSpaces"), open("space"), chosenSpace?.name ?? null, { spaceId: undefined })
-          : null}
-        {chip(t("list.filterCategory"), open("category"), category, { categoryId: undefined })}
-        {live.length > 0 || filter.accountId
-          ? chip(
-              t("list.filterAccount"),
-              open("account"),
-              filter.accountId ? (accountNames[filter.accountId] ?? null) : null,
-              { accountId: undefined },
-            )
-          : null}
-        {chip(t("list.filterType"), open("type"), filter.type ? t(`type.${filter.type}`) : null, {
-          type: undefined,
-        })}
       </div>
-      {payers.length > 1 ? (
-        <nav aria-label={t("list.paidBy")} className="flex flex-wrap gap-2">
-          {[["", t("list.anyone")] as const, ...payers].map(([id, name]) => {
-            const current = (filter.payerMemberId ?? "") === id;
-            return (
-              <Link
-                key={id || "anyone"}
-                href={hrefOf(spaceId, { ...filter, payerMemberId: id || undefined })}
-                aria-current={current ? "page" : undefined}
-                className={`flex min-h-11 items-center rounded-full px-4 text-sm font-medium [overflow-wrap:anywhere] ${
-                  current ? "bg-accent-soft text-accent" : "border border-line bg-surface text-ink"
-                }`}
-              >
-                {name}
-              </Link>
-            );
-          })}
-        </nav>
+      {searching ? (
+        <SearchField
+          label={t("list.search")}
+          clearLabel={t("list.clearSearch")}
+          value={filter.search ?? ""}
+          focus={focusSearch}
+          onSearch={(search) => narrow({ search: search || undefined })}
+        />
       ) : null}
+      {chips.length > 0 ? <div className="flex flex-wrap gap-2">{chips}</div> : null}
       {opened ? (
         <ListSheets
           sheet={sheet}
           onSheet={setSheet}
+          rows={rows}
+          payers={
+            payers.length > 1
+              ? [["", t("list.anyone")] as const, ...payers].map(([id, name]) => ({
+                  id,
+                  name,
+                  href: hrefOf(spaceId, { ...filter, payerMemberId: id || undefined }),
+                  current: (filter.payerMemberId ?? "") === id,
+                }))
+              : []
+          }
+          recurringHref={`/spaces/${spaceId}/recurrences`}
           periods={choices.map((p) => ({
             label: p.label,
             name: nameOf(p),
@@ -219,16 +246,21 @@ export function ListFilters({
   );
 }
 
-/** Ruling P277: asks once the person pauses typing, or at once on Enter; blank asks for everything again. */
+/**
+ * Ruling P277: asks once the person pauses typing, or at once on Enter; blank asks for everything again. Opened from
+ * its icon (P324), it takes the focus.
+ */
 function SearchField({
   label,
   clearLabel,
   value,
+  focus,
   onSearch,
 }: {
   readonly label: string;
   readonly clearLabel: string;
   readonly value: string;
+  readonly focus: boolean;
   readonly onSearch: (search: string) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -265,6 +297,9 @@ function SearchField({
   useEffect(() => {
     asked.current = value;
   }, [value]);
+  useEffect(() => {
+    if (focus) input.current?.focus();
+  }, [focus]);
   useEffect(() => {
     const timer = setTimeout(() => ask(wanted), SEARCH_PAUSE_MS);
     return () => clearTimeout(timer);

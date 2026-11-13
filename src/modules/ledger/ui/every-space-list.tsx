@@ -12,7 +12,7 @@ import { hrefOf, myListQueryOf, type ListFilter, type ListSpace } from "./list-h
 import { useMyLoadMore } from "./load-more";
 import { PendingBanner } from "./pending/pending-banner";
 import { SavedNotice } from "./saved-notice";
-import { DayCards, ListHeader, MoreFooter } from "./transaction-list";
+import { DayList, MoreFooter } from "./transaction-list";
 import type { RowContext } from "./transaction-row";
 
 /**
@@ -72,7 +72,7 @@ export function EverySpaceList({
   );
   return (
     <div className="flex flex-col gap-3 py-3">
-      <ListHeader spaceId={spaceId} subtitle={t("list.everySpace")} />
+      <h1 className="sr-only">{t("list.title")}</h1>
       {pendingCount > 0 ? (
         <PendingBanner spaceId={spaceId} count={pendingCount} names={pendingNames} />
       ) : null}
@@ -86,6 +86,19 @@ export function EverySpaceList({
       ) : null}
       <ListFilters
         spaceId={spaceId}
+        summary={
+          <section aria-label={t("list.totals")} className="inline">
+            {t.rich("list.share", {
+              amount: formatMoney(page.totals.share, context.formats),
+              b: figure(page.totals.share, false),
+            })}{" "}
+            ·{" "}
+            {t.rich("list.income", {
+              amount: formatSignedMoney(page.totals.income, context.formats),
+              b: figure(page.totals.income, true),
+            })}
+          </section>
+        }
         period={page.period}
         previous={previous}
         next={next}
@@ -99,18 +112,9 @@ export function EverySpaceList({
         formats={context.formats}
         spaces={spaces}
       />
-      <section aria-label={t("list.totals")} className="text-sm text-ink">
-        {t.rich("list.share", {
-          amount: formatMoney(page.totals.share, context.formats),
-          b: figure(page.totals.share, false),
-        })}{" "}
-        ·{" "}
-        {t.rich("list.income", {
-          amount: formatSignedMoney(page.totals.income, context.formats),
-          b: figure(page.totals.income, true),
-        })}
-      </section>
-      <DayCards
+      {/* P319: what this list gathers, which the space pill alone does not say. */}
+      <p className="text-sm text-muted">{t("list.everySpace")}</p>
+      <DayList
         days={days}
         formats={context.formats}
         row={(entry) => (

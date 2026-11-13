@@ -89,15 +89,35 @@ const everySpace = (props: Partial<ComponentProps<typeof EverySpaceList>> = {}) 
   />
 );
 
+/** Ruling P324: every filter waits behind one Filtros button; its sheet opens each filter's own. */
+const openFilters = async () => {
+  await userEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
+  return screen.findByRole("dialog", { name: list.filters });
+};
+const openFilter = async (name: string | RegExp) =>
+  userEvent.click(within(await openFilters()).getByRole("button", { name }));
+
 describe("the personal Movimientos across every space (ruling P319, #294)", () => {
-  it("says it gathers every space under the title", () => {
+  it("says it gathers every space under the summary, and offers the recurring movements from the filters", async () => {
     renderWithIntl(everySpace());
-    const title = screen.getByRole("heading", { level: 1, name: list.title });
-    expect(title.nextElementSibling).toHaveTextContent("Todos tus espacios, con tu parte de cada movimiento");
-    expect(screen.getByRole("link", { name: "Recurrentes" })).toHaveAttribute(
+    expect(screen.getByRole("heading", { level: 1, name: list.title })).toHaveClass("sr-only");
+    expect(screen.getByText("Todos tus espacios, con tu parte de cada movimiento")).toHaveClass("text-muted");
+    expect(within(await openFilters()).getByRole("link", { name: "Recurrentes" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/recurrences",
     );
+  });
+
+  it("reads the period and the person's share on the summary line, and draws each day without a card (P324)", () => {
+    renderWithIntl(everySpace());
+    expect(norm(screen.getByRole("region", { name: list.totals }).parentElement!.textContent)).toBe(
+      "octubre 2026 · Tu parte $ 335.000 · Ingresos +$ 3.200.000",
+    );
+    for (const day of screen.getAllByRole("list")) {
+      expect(day).toHaveClass("divide-y");
+      expect(day).not.toHaveClass("rounded-2xl");
+      expect(day).not.toHaveClass("bg-surface");
+    }
   });
 
   it("shows another space's movement with its space chip and the person's part, opening it in its space", () => {
@@ -114,7 +134,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
     const row = screen.getByRole("link", { name: /Salary/ });
     expect(row).toHaveAttribute("href", "/spaces/sp-personal/transactions?period=2026-10&tx=t-salary");
     expect(row.querySelector("[data-space-chip]")).toBeNull();
-    // Under its day, in the day's card, as today's rows.
+    // Under its day, as today's rows.
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
       "25/10/2026",
       "12/10/2026",
@@ -131,8 +151,9 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
   it("offers every space in a sheet, and choosing one narrows the list by replacing the entry", async () => {
     renderWithIntl(everySpace());
     // No payer row: Pagó belongs to one shared space's list.
-    expect(screen.queryByRole("navigation", { name: list.paidBy })).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Todos los espacios" }));
+    const filters = await openFilters();
+    expect(within(filters).queryByRole("navigation", { name: list.paidBy })).toBeNull();
+    await userEvent.click(within(filters).getByRole("button", { name: "Espacio Todos los espacios" }));
     const sheet = await screen.findByRole("dialog", { name: "Ver movimientos de" });
     const rows = within(within(sheet).getByRole("list")).getAllByRole("button");
     expect(rows.map((row) => norm(row.textContent))).toEqual([
@@ -152,28 +173,28 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
 
   it("shows the chosen space as a pressed chip that lists every space again", async () => {
     renderWithIntl(everySpace({ filter: { period: "2026-10", spaceId: "sp-hogar" } }));
+    expect(screen.getByRole("button", { name: "Filtros · 1" })).toBeInTheDocument();
     const chip = screen.getByRole("button", { name: "Quitar el filtro Hogar" });
     expect(chip).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(chip);
     expect(mocks.router.replace).toHaveBeenLastCalledWith("/spaces/sp-personal/transactions?period=2026-10");
   });
 
-  it("puts the chips in the board's order: period, space, category, account, type", () => {
+  it("puts the filters in the board's order: period, space, category, account, type", async () => {
     renderWithIntl(everySpace());
-    const search = screen.getByRole("search");
-    const chips = within(search.nextElementSibling as HTMLElement).getAllByRole("button");
-    expect(chips.map((chip) => chip.textContent)).toEqual([
-      "octubre 2026",
-      "Todos los espacios",
-      list.filterCategory,
-      list.filterAccount,
-      list.filterType,
+    const rows = within(within(await openFilters()).getByRole("list")).getAllByRole("button");
+    expect(rows.map((row) => norm(row.textContent))).toEqual([
+      "Período octubre 2026",
+      "Espacio Todos los espacios",
+      `${list.filterCategory} `,
+      `${list.filterAccount} `,
+      `${list.filterType} `,
     ]);
   });
 
   it("groups the categories by space while more than one is shown (P308)", async () => {
     renderWithIntl(everySpace());
-    await userEvent.click(screen.getByRole("button", { name: list.filterCategory }));
+    await openFilter(list.filterCategory);
     const sheet = await screen.findByRole("dialog", { name: list.filterTitle });
     expect(within(sheet).getByRole("heading", { name: "Categorías de Personal" })).toBeInTheDocument();
     const hogar = within(sheet).getByRole("region", { name: "Categorías de Hogar" });
@@ -193,7 +214,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
 
   it("offers only the chosen space's categories, ungrouped", async () => {
     renderWithIntl(everySpace({ filter: { period: "2026-10", spaceId: "sp-hogar" } }));
-    await userEvent.click(screen.getByRole("button", { name: list.filterCategory }));
+    await openFilter(list.filterCategory);
     const sheet = await screen.findByRole("dialog", { name: list.filterTitle });
     expect(within(sheet).queryByRole("heading", { name: /^Categorías de/ })).toBeNull();
     expect(within(sheet).getByRole("radio", { name: /Mercado/ })).toBeInTheDocument();
@@ -202,7 +223,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
 
   it("lists the accounts of every space shown in Cuenta", async () => {
     const { unmount } = renderWithIntl(everySpace());
-    await userEvent.click(screen.getByRole("button", { name: list.filterAccount }));
+    await openFilter(list.filterAccount);
     const sheet = await screen.findByRole("dialog", { name: list.accountTitle });
     expect(
       within(within(sheet).getByRole("list"))
@@ -211,7 +232,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
     ).toEqual(["Bancolombia", "Visa", "Fondo Hogar"]);
     unmount();
     renderWithIntl(everySpace({ filter: { period: "2026-10", spaceId: "sp-hogar" } }));
-    await userEvent.click(screen.getByRole("button", { name: list.filterAccount }));
+    await openFilter(list.filterAccount);
     const one = await screen.findByRole("dialog", { name: list.accountTitle });
     expect(
       within(within(one).getByRole("list"))
@@ -222,7 +243,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
 
   it("offers payments between members, which the other spaces hold", async () => {
     renderWithIntl(everySpace());
-    await userEvent.click(screen.getByRole("button", { name: list.filterType }));
+    await openFilter(list.filterType);
     const sheet = await screen.findByRole("dialog", { name: list.typeTitle });
     expect(within(sheet).getByRole("button", { name: "Pago entre miembros" })).toBeInTheDocument();
   });

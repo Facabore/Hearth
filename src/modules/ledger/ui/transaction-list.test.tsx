@@ -30,8 +30,18 @@ const page = octoberPage;
 const context = rowContext;
 const expense = octoberExpense;
 
+/** Ruling P324: every filter waits behind one Filtros button; its sheet opens each filter's own. */
+const openFilters = async () => {
+  await userEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
+  return screen.findByRole("dialog", { name: "Filtros" });
+};
+const openFilter = async (name: string | RegExp) =>
+  userEvent.click(within(await openFilters()).getByRole("button", { name }));
+/** Ruling P324: the search waits behind its icon. */
+const openSearch = () => userEvent.click(screen.getByRole("button", { name: "Buscar" }));
+
 describe("transaction list (HU-E9-03)", () => {
-  it("names the space under the title when it is a shared or direct one, so a move into it is no surprise (U7)", () => {
+  it("keeps the page's heading for readers alone, and no title or space name of its own (P324)", () => {
     renderWithIntl(
       <TransactionList
         spaceId="sp-direct"
@@ -42,28 +52,44 @@ describe("transaction list (HU-E9-03)", () => {
         filter={{}}
       />,
     );
+    // The shell's space pill names the space; the list no longer repeats it under a big title.
     const title = screen.getByRole("heading", { level: 1, name: "Movimientos" });
-    expect(title.nextElementSibling).toHaveTextContent("Ana & Juan");
+    expect(title).toHaveClass("sr-only");
+    expect(title).not.toHaveClass("text-[26px]");
+    expect(screen.queryByText("Ana & Juan")).toBeNull();
   });
 
-  it("offers the space's recurring movements beside the title, in every space (P270)", () => {
+  it("offers the space's recurring movements from the filters, in every space (P270)", async () => {
     renderWithIntl(
       <TransactionList spaceId="sp-personal" page={page} context={context} today="2026-10-31" filter={{}} />,
     );
-    const pill = screen.getByRole("link", { name: "Recurrentes" });
+    expect(screen.queryByRole("link", { name: "Recurrentes" })).toBeNull();
+    const pill = within(await openFilters()).getByRole("link", { name: "Recurrentes" });
     expect(pill).toHaveAttribute("href", "/spaces/sp-personal/recurrences");
     // Board E9-09 01: a 44 px white pill with a border, its calendar icon and a 15 px label.
     expect(pill).toHaveClass("min-h-11", "rounded-full", "border", "bg-surface", "text-[15px]");
     expect(pill.querySelector("svg")).not.toBeNull();
   });
 
-  it("shows no space name in a personal space, under a large page title (board B1 06)", () => {
+  it("reads the period and its totals on one muted line, beside the search and one Filtros pill (P324)", () => {
     renderWithIntl(
-      <TransactionList spaceId="sp-personal" page={page} context={context} today="2026-10-31" filter={{}} />,
+      <TransactionList
+        spaceId="sp-personal"
+        page={page}
+        context={context}
+        today="2026-10-31"
+        filter={{}}
+        periodPolicy={{ kind: "MONTHLY", day: 1 }}
+      />,
     );
-    const title = screen.getByRole("heading", { level: 1, name: "Movimientos" });
-    expect(title.nextElementSibling).toBeNull();
-    expect(title).toHaveClass("text-[26px]", "font-bold");
+    const line = screen.getByRole("region", { name: "Totales del período" }).parentElement!;
+    expect(norm(line.textContent)).toBe("octubre 2026 · Gastos $ 245.000 · Ingresos +$ 3.200.000");
+    expect(line).toHaveClass("text-sm", "text-muted");
+    const filters = screen.getByRole("button", { name: "Filtros" });
+    expect(filters).toHaveAttribute("aria-haspopup", "dialog");
+    expect(filters).toHaveClass("min-h-11", "rounded-full", "border", "bg-surface");
+    expect(screen.getByRole("button", { name: "Buscar" })).toHaveClass("size-11");
+    expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
   it("groups by day, newest first, with times, no category in a row's line, and the period totals", async () => {
@@ -146,24 +172,24 @@ const listOf = (props: Partial<ComponentProps<typeof TransactionList>> = {}) => 
   />
 );
 
-describe("the period chip (board B1 06, ruling P277)", () => {
+describe("the period (board B1 06, rulings P277 and P324)", () => {
   const monthly = { kind: "MONTHLY", day: 1 } as const;
   const august = { label: "2026-08", startDate: "2026-08-01", endDate: "2026-08-31" };
   const december = { label: "2026-12", startDate: "2026-12-01", endDate: "2026-12-31" };
 
-  it("names the period on a chip, as the Plan names it (issue #178), instead of arrows", () => {
+  it("names the period as the Plan names it (issue #178), and changes it from the filters, instead of arrows", async () => {
     renderWithIntl(listOf({ periodPolicy: monthly, previous: other, next: later }));
-    const chip = screen.getByRole("button", { name: "octubre 2026" });
-    expect(chip).toHaveAttribute("aria-haspopup", "dialog");
-    expect(chip).toHaveClass("rounded-full", "bg-ink");
+    expect(screen.getByText("octubre 2026")).toBeInTheDocument();
     expect(screen.queryByText("Período 2026-10")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Período anterior" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Período siguiente" })).toBeNull();
+    const row = within(await openFilters()).getByRole("button", { name: "Período octubre 2026" });
+    expect(row).toHaveAttribute("aria-haspopup", "dialog");
   });
 
   it("names the period by its label without the space's policy (issue #178)", () => {
     renderWithIntl(listOf());
-    expect(screen.getByRole("button", { name: "Período 2026-10" })).toBeInTheDocument();
+    expect(screen.getByText("Período 2026-10")).toBeInTheDocument();
   });
 
   it("opens the periods up to today and the next one, newest first, each keeping the filters", async () => {
@@ -176,8 +202,9 @@ describe("the period chip (board B1 06, ruling P277)", () => {
         filter: { period: "2026-10", categoryId: "c-groceries" },
       }),
     );
-    await userEvent.click(screen.getByRole("button", { name: "octubre 2026" }));
+    await openFilter("Período octubre 2026");
     const sheet = await screen.findByRole("dialog", { name: "Elegir período" });
+    expect(screen.queryByRole("dialog", { name: "Filtros" })).toBeNull();
     const links = within(sheet).getAllByRole("link");
     expect(links.map((link) => link.textContent)).toEqual([
       "noviembre 2026",
@@ -195,7 +222,7 @@ describe("the period chip (board B1 06, ruling P277)", () => {
 
   it("still offers the neighbours before the periods are read, and none that does not exist", async () => {
     renderWithIntl(listOf({ previous: other }));
-    await userEvent.click(screen.getByRole("button", { name: "Período 2026-10" }));
+    await openFilter(/^Período/);
     const sheet = await screen.findByRole("dialog", { name: "Elegir período" });
     expect(
       within(sheet)
@@ -211,7 +238,7 @@ describe("the period chip (board B1 06, ruling P277)", () => {
 describe("the category filter (HU-E9-03, ruling P130)", () => {
   it("filters by the category chosen in the picker, keeping the period", async () => {
     renderWithIntl(listOf());
-    await userEvent.click(screen.getByRole("button", { name: "Categoría" }));
+    await openFilter("Categoría");
     const sheet = await screen.findByRole("dialog", { name: "Filtrar por categoría" });
     await userEvent.click(within(sheet).getByRole("radio", { name: "Restaurants" }));
     expect(mocks.router.replace).toHaveBeenLastCalledWith(
@@ -221,7 +248,7 @@ describe("the category filter (HU-E9-03, ruling P130)", () => {
 
   it("filters by a subcategory when one is chosen", async () => {
     renderWithIntl(listOf());
-    await userEvent.click(screen.getByRole("button", { name: "Categoría" }));
+    await openFilter("Categoría");
     const sheet = await screen.findByRole("dialog", { name: "Filtrar por categoría" });
     await userEvent.click(within(sheet).getByRole("radio", { name: "Groceries" }));
     await userEvent.click(within(sheet).getByRole("radio", { name: "Vegetables" }));
@@ -234,6 +261,8 @@ describe("the category filter (HU-E9-03, ruling P130)", () => {
   it("shows the chosen category as a pressed chip that removes the filter and keeps the others", async () => {
     renderWithIntl(listOf({ filter: { period: "2026-10", categoryId: "c-veg", search: "pan" } }));
     expect(screen.queryByRole("button", { name: "Categoría" })).toBeNull();
+    // The search shows in its own field; the button counts the filters behind it.
+    expect(screen.getByRole("button", { name: "Filtros · 1" })).toBeInTheDocument();
     const chip = screen.getByRole("button", { name: "Quitar el filtro Groceries › Vegetables" });
     expect(chip).toHaveAttribute("aria-pressed", "true");
     expect(chip).toHaveTextContent("Groceries › Vegetables ✕");
@@ -251,9 +280,30 @@ describe("the category filter (HU-E9-03, ruling P130)", () => {
   });
 });
 
-describe("the search (board B1 06, ruling P277)", () => {
+describe("the search (board B1 06, rulings P277 and P324)", () => {
+  it("waits behind its icon, and opens with the focus in the field", async () => {
+    renderWithIntl(listOf());
+    const icon = screen.getByRole("button", { name: "Buscar" });
+    expect(icon).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    await userEvent.click(icon);
+    expect(icon).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("searchbox", { name: "Buscar" })).toHaveFocus();
+    await userEvent.click(icon);
+    expect(screen.queryByRole("searchbox")).toBeNull();
+  });
+
+  it("never hides a search in the address: its field shows it, and the icon keeps it open", async () => {
+    renderWithIntl(listOf({ filter: { period: "2026-10", search: "taxi" } }));
+    const field = screen.getByRole("searchbox", { name: "Buscar" });
+    expect(field).not.toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    expect(screen.getByRole("searchbox", { name: "Buscar" })).toBe(field);
+  });
+
   it("searches once the person pauses typing, keeping the other filters", async () => {
     renderWithIntl(listOf({ filter: { period: "2026-10", categoryId: "c-groceries" } }));
+    await openSearch();
     await userEvent.type(screen.getByRole("searchbox", { name: "Buscar" }), "mercado");
     await waitFor(() =>
       expect(mocks.router.replace).toHaveBeenLastCalledWith(
@@ -266,6 +316,7 @@ describe("the search (board B1 06, ruling P277)", () => {
 
   it("searches at once on Enter, without the spaces around the words", async () => {
     renderWithIntl(listOf());
+    await openSearch();
     await userEvent.type(screen.getByRole("searchbox", { name: "Buscar" }), " taxi {Enter}");
     expect(mocks.router.replace).toHaveBeenLastCalledWith(
       "/spaces/sp-personal/transactions?period=2026-10&q=taxi",
@@ -274,6 +325,7 @@ describe("the search (board B1 06, ruling P277)", () => {
 
   it("keeps what the person typed after a search when that search's answer arrives late", async () => {
     const { rerender } = renderWithIntl(listOf({ filter: { period: "2026-10" } }));
+    await openSearch();
     const field = screen.getByRole("searchbox", { name: "Buscar" });
     await userEvent.type(field, "din{Enter}");
     await userEvent.type(field, "n");
@@ -300,6 +352,7 @@ describe("the search (board B1 06, ruling P277)", () => {
 
   it("shows an earlier search again when the person goes back to it", async () => {
     const { rerender } = renderWithIntl(listOf({ filter: { period: "2026-10" } }));
+    await openSearch();
     const field = screen.getByRole("searchbox", { name: "Buscar" });
     await userEvent.type(field, "taxi{Enter}");
     rerender(listOf({ filter: { period: "2026-10", search: "taxi" } }));
@@ -331,7 +384,7 @@ describe("the account and type filters (board B1 06, ruling P277)", () => {
 
   it("filters by the account chosen in its sheet, keeping the other filters", async () => {
     renderWithIntl(listOf({ accounts, filter: { period: "2026-10", categoryId: "c-groceries" } }));
-    await userEvent.click(screen.getByRole("button", { name: "Cuenta" }));
+    await openFilter("Cuenta");
     const sheet = await screen.findByRole("dialog", { name: "Filtrar por cuenta" });
     expect(
       within(within(sheet).getByRole("list"))
@@ -355,17 +408,17 @@ describe("the account and type filters (board B1 06, ruling P277)", () => {
   it("offers active accounts only, and no account filter in a space without one", async () => {
     const hidden = accountDto({ id: "a-gone", name: "Gone", archivedAt: "2026-01-01T00:00:00.000Z" });
     const { unmount } = renderWithIntl(listOf({ accounts: [...accounts, hidden] }));
-    await userEvent.click(screen.getByRole("button", { name: "Cuenta" }));
+    await openFilter("Cuenta");
     const sheet = await screen.findByRole("dialog", { name: "Filtrar por cuenta" });
     expect(within(sheet).queryByRole("button", { name: "Gone" })).toBeNull();
     unmount();
     renderWithIntl(listOf({ accounts: [] }));
-    expect(screen.queryByRole("button", { name: "Cuenta" })).toBeNull();
+    expect(within(await openFilters()).queryByRole("button", { name: "Cuenta" })).toBeNull();
   });
 
   it("filters by the type chosen in its sheet; a personal space has no payments between members", async () => {
     renderWithIntl(listOf());
-    await userEvent.click(screen.getByRole("button", { name: "Tipo" }));
+    await openFilter("Tipo");
     const sheet = await screen.findByRole("dialog", { name: "Filtrar por tipo" });
     const options = within(sheet).getByRole("list");
     expect(
@@ -382,7 +435,7 @@ describe("the account and type filters (board B1 06, ruling P277)", () => {
   it("offers payments between members in a shared space, and the chosen type removes itself", async () => {
     const shared = { ...context, memberNames: { "m-ana": "Ana", "m-juan": "Juan" } };
     const { unmount } = renderWithIntl(listOf({ context: shared }));
-    await userEvent.click(screen.getByRole("button", { name: "Tipo" }));
+    await openFilter("Tipo");
     expect(
       within(await screen.findByRole("dialog", { name: "Filtrar por tipo" })).getByRole("button", {
         name: "Pago entre miembros",
@@ -424,15 +477,28 @@ describe("the days (board E9-09 00, ruling P284)", () => {
     expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("2026/10/25");
   });
 
-  it("puts a day's rows in one card with dividers, never a card per row", () => {
+  it("heads a day with a small muted label over flat rows with hairline dividers, with no card (P324)", () => {
     renderWithIntl(listOf());
     const twelfth = sections()[1]!;
+    expect(within(twelfth).getByRole("heading", { level: 2 })).toHaveClass(
+      "text-[13px]",
+      "font-semibold",
+      "text-muted",
+    );
     const lists = within(twelfth).getAllByRole("list");
     expect(lists).toHaveLength(1);
-    expect(lists[0]).toHaveClass("rounded-2xl", "bg-surface", "divide-y", "divide-line");
+    expect(lists[0]).toHaveClass("divide-y", "divide-line");
     expect(within(lists[0]!).getAllByRole("listitem")).toHaveLength(2);
-    for (const row of screen.getAllByRole("listitem"))
-      expect(row).not.toHaveClass("rounded-2xl", "bg-surface");
+    // Neither the day nor a row is a card.
+    for (const box of [...sections(), ...screen.getAllByRole("list")]) {
+      expect(box).not.toHaveClass("rounded-2xl");
+      expect(box).not.toHaveClass("bg-surface");
+      expect(box).not.toHaveClass("border");
+    }
+    for (const row of screen.getAllByRole("listitem")) {
+      expect(row).not.toHaveClass("rounded-2xl");
+      expect(row).not.toHaveClass("bg-surface");
+    }
   });
 
   it("names who paid on the row's one line, after the time", () => {
@@ -754,9 +820,10 @@ describe("Load more inside the list (HU-E9-03, ruling P130)", () => {
 describe("the payer filter (issue #148)", () => {
   const shared = { ...context, memberNames: { "m-ana": "Ana", "m-juan": "Juan" } };
 
-  it("offers Todos and each member as links that keep the period and category", () => {
+  it("offers Todos and each member in the filters, as links that keep the period and category", async () => {
     renderWithIntl(listOf({ context: shared, filter: { period: "2026-10", categoryId: "c-groceries" } }));
-    const payers = screen.getByRole("navigation", { name: "Pagó" });
+    expect(screen.queryByRole("navigation", { name: "Pagó" })).toBeNull();
+    const payers = within(await openFilters()).getByRole("navigation", { name: "Pagó" });
     expect(within(payers).getByRole("link", { name: "Todos" })).toHaveAttribute("aria-current", "page");
     expect(within(payers).getByRole("link", { name: "Juan" })).toHaveAttribute(
       "href",
@@ -764,17 +831,18 @@ describe("the payer filter (issue #148)", () => {
     );
   });
 
-  it("marks the chosen member and keeps it in the period chip's links", async () => {
+  it("marks the chosen member and keeps it in the period's links", async () => {
     renderWithIntl(
       listOf({ context: shared, next: later, filter: { period: "2026-10", payerMemberId: "m-juan" } }),
     );
-    const payers = screen.getByRole("navigation", { name: "Pagó" });
+    const sheet = await openFilters();
+    const payers = within(sheet).getByRole("navigation", { name: "Pagó" });
     expect(within(payers).getByRole("link", { name: "Juan" })).toHaveAttribute("aria-current", "page");
     expect(within(payers).getByRole("link", { name: "Todos" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/transactions?period=2026-10",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Período 2026-10" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: /^Período/ }));
     expect(
       within(await screen.findByRole("dialog", { name: "Elegir período" })).getByRole("link", {
         name: "Período 2026-11",
@@ -782,9 +850,18 @@ describe("the payer filter (issue #148)", () => {
     ).toHaveAttribute("href", "/spaces/sp-personal/transactions?period=2026-11&payer=m-juan");
   });
 
-  it("offers none in a personal space", () => {
+  it("shows the chosen member as a chip under the summary, which links to the list without it", () => {
+    renderWithIntl(listOf({ context: shared, filter: { period: "2026-10", payerMemberId: "m-juan" } }));
+    expect(screen.getByRole("button", { name: "Filtros · 1" })).toBeInTheDocument();
+    const chip = screen.getByRole("link", { name: "Quitar el filtro Juan" });
+    expect(chip).toHaveTextContent("Juan ✕");
+    expect(chip).toHaveAttribute("href", "/spaces/sp-personal/transactions?period=2026-10");
+    expect(chip).toHaveClass("h-11", "rounded-full");
+  });
+
+  it("offers none in a personal space", async () => {
     renderWithIntl(listOf());
-    expect(screen.queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
+    expect(within(await openFilters()).queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
   });
 
   describe("members no movement touched (#217, P263)", () => {
@@ -792,17 +869,17 @@ describe("the payer filter (issue #148)", () => {
       ...context,
       memberNames: { "m-ana": "Ana", "m-juan": "Juan", "m-sofi": "Sofi", "m-pedro": "Pedro (invitado)" },
     };
-    const payerNames = () =>
-      within(screen.getByRole("navigation", { name: "Pagó" }))
+    const payerNames = async () =>
+      within(within(await openFilters()).getByRole("navigation", { name: "Pagó" }))
         .getAllByRole("link")
         .map((link) => link.textContent);
 
-    it("leaves them out of the filter, and the rows still name everyone", () => {
+    it("leaves them out of the filter, and the rows still name everyone", async () => {
       renderWithIntl(listOf({ context: household, movedMemberIds: ["m-ana", "m-juan"] }));
-      expect(payerNames()).toEqual(["Todos", "Ana", "Juan"]);
+      expect(await payerNames()).toEqual(["Todos", "Ana", "Juan"]);
     });
 
-    it("keeps the chosen member even when no movement touched them", () => {
+    it("keeps the chosen member even when no movement touched them", async () => {
       renderWithIntl(
         listOf({
           context: household,
@@ -810,17 +887,78 @@ describe("the payer filter (issue #148)", () => {
           filter: { period: "2026-10", payerMemberId: "m-sofi" },
         }),
       );
-      expect(payerNames()).toEqual(["Todos", "Ana", "Juan", "Sofi"]);
+      expect(await payerNames()).toEqual(["Todos", "Ana", "Juan", "Sofi"]);
     });
 
-    it("offers no filter when only one member has movements", () => {
+    it("offers no filter when only one member has movements", async () => {
       renderWithIntl(listOf({ context: household, movedMemberIds: ["m-ana"] }));
-      expect(screen.queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
+      expect(within(await openFilters()).queryByRole("navigation", { name: "Pagó" })).not.toBeInTheDocument();
     });
 
-    it("offers every member when nobody says who moved", () => {
+    it("offers every member when nobody says who moved", async () => {
       renderWithIntl(listOf({ context: household }));
-      expect(payerNames()).toEqual(["Todos", "Ana", "Juan", "Sofi", "Pedro (invitado)"]);
+      expect(await payerNames()).toEqual(["Todos", "Ana", "Juan", "Sofi", "Pedro (invitado)"]);
     });
+  });
+});
+
+describe("the filters behind one button (ruling P324, #309)", () => {
+  const accounts = [accountDto({ id: "a-visa", name: "Visa", type: "CREDIT_CARD" })];
+  const shared = { ...context, memberNames: { "m-ana": "Ana", "m-juan": "Juan" } };
+
+  it("keeps every filter behind Filtros, whose sheet lists them in the board's order", async () => {
+    renderWithIntl(listOf({ accounts, periodPolicy: { kind: "MONTHLY", day: 1 } }));
+    for (const name of ["Categoría", "Cuenta", "Tipo", "octubre 2026"])
+      expect(screen.queryByRole("button", { name })).toBeNull();
+    const sheet = await openFilters();
+    expect(
+      within(within(sheet).getByRole("list"))
+        .getAllByRole("button")
+        .map((row) => norm(row.textContent)),
+    ).toEqual(["Período octubre 2026", "Categoría ", "Cuenta ", "Tipo "]);
+    for (const row of within(sheet).getAllByRole("button", { name: /^(Período|Categoría|Cuenta|Tipo)/ }))
+      expect(row).toHaveClass("min-h-12");
+  });
+
+  it("never hides an active filter: the button counts them, and each shows as a chip that removes it", async () => {
+    renderWithIntl(
+      listOf({
+        accounts,
+        context: shared,
+        filter: {
+          period: "2026-10",
+          categoryId: "c-dining",
+          accountId: "a-visa",
+          type: "EXPENSE",
+          payerMemberId: "m-ana",
+        },
+      }),
+    );
+    const button = screen.getByRole("button", { name: "Filtros · 4" });
+    const chips = button.parentElement!.nextElementSibling!;
+    expect([...chips.children].map((chip) => chip.getAttribute("aria-label"))).toEqual([
+      "Quitar el filtro Restaurants",
+      "Quitar el filtro Visa",
+      "Quitar el filtro Gasto",
+      "Quitar el filtro Ana",
+    ]);
+    await userEvent.click(
+      within(chips as HTMLElement).getByRole("button", { name: "Quitar el filtro Visa" }),
+    );
+    expect(mocks.router.replace).toHaveBeenLastCalledWith(
+      "/spaces/sp-personal/transactions?period=2026-10&category=c-dining&payer=m-ana&type=EXPENSE",
+    );
+    // The sheet names what each filter holds.
+    const sheet = await openFilters();
+    expect(within(sheet).getByRole("button", { name: "Categoría Restaurants" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Cuenta Visa" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Tipo Gasto" })).toBeInTheDocument();
+  });
+
+  it("shows a plain Filtros and no chips while nothing narrows the list", () => {
+    renderWithIntl(listOf());
+    const button = screen.getByRole("button", { name: "Filtros" });
+    expect(button.parentElement!.nextElementSibling).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Quitar el filtro/ })).toBeNull();
   });
 });

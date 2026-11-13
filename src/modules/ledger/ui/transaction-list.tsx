@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { Button, Icon, ProblemNotice } from "@/shared/ui";
+import { Button, ProblemNotice } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MoneyDto, PeriodDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
 import type { Problem } from "@/shared/ui/api/problem";
@@ -18,9 +17,9 @@ import { SavedNotice } from "./saved-notice";
 import { TransactionRow, type RowContext } from "./transaction-row";
 
 /**
- * HU-E9-03, board B1 06 "Movimientos por día y hora" (ruling P277): the search, the period chip and the filters, the
- * API's totals, then the period's rows by day. Board E9-09 00 (ruling P284): each day is headed by its date alone, with
- * no total, and its rows share one card with dividers.
+ * HU-E9-03, board B1 06 "Movimientos por día y hora" (ruling P277): the period and the API's totals on one summary
+ * line beside the search and the filters, then the period's rows by day. Ruling P324 (#309, densidad media): the
+ * filters wait behind one Filtros button, and each day is a small label over flat rows with hairline dividers.
  */
 export function TransactionList({
   spaceId,
@@ -54,7 +53,7 @@ export function TransactionList({
   readonly accounts?: readonly AccountDto[];
   /** A saved expense that left a shared fund negative (ruling P170). */
   readonly notice?: { readonly accountName: string; readonly balance: MoneyDto };
-  /** U7: the name of a shared or direct space, under the title; a personal space shows none. */
+  /** #287: the name of a shared or direct space, which its totals carry; a personal space has none. */
   readonly spaceName?: string | undefined;
   /** Issue #178: the space's period policy, so the period reads as the Plan names it. */
   readonly periodPolicy?: SpaceDto["periodPolicy"] | undefined;
@@ -80,7 +79,8 @@ export function TransactionList({
   );
   return (
     <div className="flex flex-col gap-3 py-3">
-      <ListHeader spaceId={spaceId} subtitle={spaceName} />
+      {/* Ruling P324: the shell's space pill names the space; the page keeps its heading for whoever reads it aloud. */}
+      <h1 className="sr-only">{t("list.title")}</h1>
       {pendingCount > 0 ? (
         <PendingBanner spaceId={spaceId} count={pendingCount} names={pendingNames} />
       ) : null}
@@ -94,6 +94,21 @@ export function TransactionList({
       ) : null}
       <ListFilters
         spaceId={spaceId}
+        summary={
+          <section aria-label={t("list.totals")} className="inline">
+            {/* #287 (audit pass 3, A6): a shared space's totals are the whole space's, so they name it. */}
+            {t.rich(spaceName ? "list.expensesOf" : "list.expenses", {
+              space: spaceName ?? "",
+              amount: formatMoney(page.totals.expenses, context.formats),
+              b: figure(page.totals.expenses, false),
+            })}{" "}
+            ·{" "}
+            {t.rich("list.income", {
+              amount: formatSignedMoney(page.totals.income, context.formats),
+              b: figure(page.totals.income, true),
+            })}
+          </section>
+        }
         period={page.period}
         previous={previous}
         next={next}
@@ -108,20 +123,7 @@ export function TransactionList({
         memberNames={context.memberNames}
         movedMemberIds={movedMemberIds}
       />
-      <section aria-label={t("list.totals")} className="text-sm text-ink">
-        {/* #287 (audit pass 3, A6): a shared space's totals are the whole space's, so they name it. */}
-        {t.rich(spaceName ? "list.expensesOf" : "list.expenses", {
-          space: spaceName ?? "",
-          amount: formatMoney(page.totals.expenses, context.formats),
-          b: figure(page.totals.expenses, false),
-        })}{" "}
-        ·{" "}
-        {t.rich("list.income", {
-          amount: formatSignedMoney(page.totals.income, context.formats),
-          b: figure(page.totals.income, true),
-        })}
-      </section>
-      <DayCards
+      <DayList
         days={days}
         formats={context.formats}
         row={(tx) => (
@@ -138,37 +140,10 @@ export function TransactionList({
 }
 
 /**
- * Movimientos' title, a line under it (a shared space's name, U7; the personal list's every space, P319) and the
- * space's recurring movements beside it, two taps from the bottom bar, in every space (P270).
+ * Ruling P324 (board "Movimientos", densidad media, amending P284): each day headed by its date alone in a small muted
+ * label, then its flat rows between hairline dividers, with no card; or the empty line.
  */
-export function ListHeader({
-  spaceId,
-  subtitle,
-}: {
-  readonly spaceId: string;
-  readonly subtitle?: string | undefined;
-}) {
-  const t = useTranslations("ledger");
-  const recurring = useTranslations("recurrences");
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <header className="flex min-w-0 flex-col gap-0.5">
-        <h1 className="text-[26px] leading-tight font-bold tracking-tight text-ink">{t("list.title")}</h1>
-        {subtitle ? <p className="text-sm text-muted [overflow-wrap:anywhere]">{subtitle}</p> : null}
-      </header>
-      <Link
-        href={`/spaces/${spaceId}/recurrences`}
-        className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 text-[15px] font-semibold text-ink"
-      >
-        <Icon name="calendar" size={18} />
-        {recurring("pill")}
-      </Link>
-    </div>
-  );
-}
-
-/** Board E9-09 00 (P284): each day headed by its date alone, its rows in one card with dividers; or the empty line. */
-export function DayCards<T>({
+export function DayList<T>({
   days,
   formats,
   row,
@@ -179,23 +154,25 @@ export function DayCards<T>({
   readonly row: (item: T) => ReactNode;
 }) {
   const t = useTranslations("ledger");
+  if (days.length === 0) return <p className="text-muted">{t("list.empty")}</p>;
   return (
-    <>
-      {days.length === 0 ? <p className="text-muted">{t("list.empty")}</p> : null}
+    <div className="flex flex-col">
       {days.map((day) => {
         const date = formatDate(day.date, formats);
         return (
-          <section key={day.date} aria-labelledby={`day-${day.date}`} className="flex flex-col gap-2">
-            <h2 id={`day-${day.date}`} className="px-1 pt-1 text-sm font-semibold text-muted">
+          <section
+            key={day.date}
+            aria-labelledby={`day-${day.date}`}
+            className="flex flex-col border-b border-line last:border-b-0"
+          >
+            <h2 id={`day-${day.date}`} className="pt-3 text-[13px] font-semibold text-muted">
               {day.relative ? `${t(`day.${day.relative}`)} · ${date}` : date}
             </h2>
-            <ol className="divide-y divide-line rounded-2xl border border-line bg-surface">
-              {day.items.map(row)}
-            </ol>
+            <ol className="divide-y divide-line">{day.items.map(row)}</ol>
           </section>
         );
       })}
-    </>
+    </div>
   );
 }
 

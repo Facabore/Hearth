@@ -454,7 +454,11 @@
       "share": "Tu parte <b>{amount}</b>",
       "allSpaces": "Todos los espacios",
       "spacesTitle": "Ver movimientos de",
-      "onlyYou": "solo tú"
+      "onlyYou": "solo tú",
+      "filters": "Filtros",
+      "filtersCount": "Filtros · {count}",
+      "periodLabel": "Período",
+      "spaceLabel": "Espacio"
     },
     "day": {
       "today": "Hoy",
