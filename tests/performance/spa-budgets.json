@@ -54,7 +54,7 @@
     "spaces/loaders.ts": 4,
     "routes/plan.tsx": 28,
     "../modules/reporting/ui/calendar/cash-flow-calendar.tsx": 29,
-    "routes/my-consumption.tsx": 15,
+    "routes/my-consumption.tsx": 16,
     "routes/recurrences.tsx": 38,
     "recurring/loaders.ts": 4,
     "routes/pending-occurrences.tsx": 18,
