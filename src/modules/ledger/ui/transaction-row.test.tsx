@@ -432,6 +432,10 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
       "Domiciliopagaste tú · tu parte $ 32.000−$ 64.000",
     );
     expect(screen.getByRole("listitem").textContent!.match(/tu parte/g)).toHaveLength(1);
+    // One line at 320 px too: the share never breaks, and only the payer's words give way (P324, S2).
+    const share = screen.getByText("tu parte $ 32.000");
+    expect(share).toHaveClass("shrink-0", "whitespace-nowrap");
+    expect(screen.getByText("pagaste tú ·", { normalizer: (text) => text.trim() })).toHaveClass("truncate");
   });
 
   it("names another payer and the viewer's share, and no share when it is the whole amount or she is not in it", () => {

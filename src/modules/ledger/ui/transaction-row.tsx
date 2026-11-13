@@ -52,6 +52,7 @@ export function TransactionRow({
   const member = (id: string | null) => (id ? (memberNames[id] ?? "") : "");
   const found = tx.categoryId ? findCategory(groups, tx.categoryId) : null;
   const meta: string[] = [];
+  let shareText: string | null = null;
   // Ruling P324: the round icon shows the category, so the line no longer names it; a screen reader still hears it.
   let category: string | null = null;
   // Issue #216: a list not grouped by day names it: "Hoy · 14:32", "Ayer", then the date; only today keeps its time.
@@ -91,7 +92,7 @@ export function TransactionRow({
     const share =
       card && tx.type === "EXPENSE" && you !== null ? tx.shares.find((s) => s.memberId === you) : undefined;
     if (share && share.amount.amount !== tx.amount.amount)
-      meta.push(t("yourShare", { share: formatMoney(share.amount, formats) }));
+      shareText = t("yourShare", { share: formatMoney(share.amount, formats) });
   }
   const kind = kindOf(tx);
   const money = formatMoney(tx.amount, formats);
@@ -114,8 +115,9 @@ export function TransactionRow({
         ? "text-ink"
         : "text-muted";
   const line = meta.join(" · ");
+  const rest = shareText ? (line ? `${line} · ` : "") : line;
   // Ruling P324: 48 px for a row of one line, 56 px for two.
-  const height = line ? "min-h-row-lg" : "min-h-row";
+  const height = line || shareText ? "min-h-row-lg" : "min-h-row";
   const content = (
     <>
       {/* Boards B1 03, E9-09 00 and P324: a 36 px round icon in every list. */}
@@ -124,8 +126,15 @@ export function TransactionRow({
         <span className="truncate text-base font-medium text-ink">
           {tx.description || found?.category.name || t(`type.${kind}`)}
         </span>
-        {line ? (
-          // A long name or the share wraps within the line instead of being cut (P284, S1).
+        {shareText ? (
+          // P324 (board "Movimientos"): one line, whose share never breaks; only the payer's words give way, and
+          // the whole text stays in the link's name.
+          <span className="flex min-w-0 text-[13px] text-muted">
+            {rest ? <span className="min-w-0 truncate whitespace-pre">{rest}</span> : null}
+            <span className="shrink-0 whitespace-nowrap">{shareText}</span>
+          </span>
+        ) : line ? (
+          // A long name wraps within the line instead of being cut (P284, S1).
           <span className="text-[13px] break-words text-muted">
             {line}
             {category ? <span className="sr-only"> · {category}</span> : null}
