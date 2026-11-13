@@ -90,10 +90,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("recurring movements in the SPA (HU-E9-09, P270)", () => {
-  it("opens the list from the Recurrentes pill of Movimientos", async () => {
+  it("opens the list from Movimientos' Filtros sheet (P324)", async () => {
     const { routes } = server([recurrenceDto()]);
     const spa = renderSpa("/spaces/sp-personal/transactions", routes);
-    const pill = await screen.findByRole("link", { name: "Recurrentes" }, { timeout: 5_000 });
+    await userEvent.click(await screen.findByRole("button", { name: /^Filtros/ }, { timeout: 5_000 }));
+    const sheet = await screen.findByRole("dialog", { name: "Filtros" }, { timeout: 5_000 });
+    const pill = await within(sheet).findByRole("link", { name: "Recurrentes" }, { timeout: 5_000 });
     expect(pill).toHaveAttribute("href", "/spaces/sp-personal/recurrences");
     await userEvent.click(pill);
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/recurrences"));

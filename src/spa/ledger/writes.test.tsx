@@ -202,7 +202,7 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(await screen.findByRole("dialog", { name: "Cena" }, SAVE_LANDS)).toBeVisible();
     expect(spa.location()).toBe(`${LIST}?tx=t-dinner`);
     expect(listRow(/Cena/)).not.toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent(es.ledger.toast.edited);
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(es.ledger.toast.edited));
     // Back on Movimientos is a visit, which revalidates its reads (ADR 0006); the save's refresh() reads nothing.
     expect(identityReads(spa.requests)).toEqual(reads);
   });
