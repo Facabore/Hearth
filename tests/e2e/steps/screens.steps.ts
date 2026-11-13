@@ -211,7 +211,8 @@ Then("the invite sheet of {string} is open on the members screen", async ({ page
   await expect(
     page.getByRole("dialog", { name: world.t("members.inviteSheet.title", { space }) }),
   ).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId(world, space)}/members\\?invite=1$`));
+  // The screen's own Invitar opens the sheet in place; only an address from elsewhere carries `?invite=1` (N10).
+  await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId(world, space)}/members$`));
 });
 
 Given("the browser asks for English", async ({ page, world }) => {

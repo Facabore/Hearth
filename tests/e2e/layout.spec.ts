@@ -2605,9 +2605,9 @@ test.describe("the last control of a scrolling screen ends above the bottom bar 
   }
 });
 
-test.describe("a shared row names who paid in full, on its one line (UX review S1, ruling P284)", () => {
+test.describe("a shared row names who paid, and its share stays whole (UX review S1, rulings P284 and P324)", () => {
   for (const viewport of [PHONE, SMALL_PHONE]) {
-    test(`a long payer name follows the time on its line and wraps instead of being cut at ${viewport.width} px`, async ({
+    test(`a long payer name wraps instead of being cut, and only gives way to the viewer's share at ${viewport.width} px`, async ({
       page,
     }) => {
       await page.setViewportSize(viewport);
@@ -2619,41 +2619,58 @@ test.describe("a shared row names who paid in full, on its one line (UX review S
       const { items: groups } = await get(page, `${space}/categories`);
       const categoryId: string = groups.flatMap((g: { categories: { id: string }[] }) => g.categories)[0].id;
       const amount = { amount: "30000000", currency: "COP" };
-      await post(
-        page,
-        `${space}/expenses`,
-        {
-          description: "Mercado",
-          date: "2026-10-30",
-          occurredAt: "2026-10-30T17:00:00.000Z",
-          timeZone: "America/Bogota",
-          categoryId,
-          amount,
-          payments: [{ memberId: guest.id, accountId: null, amount }],
-          split: { method: "EQUAL", participants: [{ memberId: owner.id }, { memberId: guest.id }] },
-        },
-        { "idempotency-key": crypto.randomUUID() },
-      );
+      const expense = (description: string, participants: { memberId: string }[]) =>
+        post(
+          page,
+          `${space}/expenses`,
+          {
+            description,
+            date: "2026-10-30",
+            occurredAt: "2026-10-30T17:00:00.000Z",
+            timeZone: "America/Bogota",
+            categoryId,
+            amount,
+            payments: [{ memberId: guest.id, accountId: null, amount }],
+            split: { method: "EQUAL", participants },
+          },
+          { "idempotency-key": crypto.randomUUID() },
+        );
+      // The viewer has a share of "Mercado" and none of "Ferretería", which only the guest shares.
+      await expense("Mercado", [{ memberId: owner.id }, { memberId: guest.id }]);
+      await expense("Ferretería", [{ memberId: guest.id }]);
       await page.goto(`/spaces/${sharedId}/transactions`);
-      // P324 (amends P284): the row's line names who paid, "pagó …"; the day's label dates it.
-      const payer = page.getByText(/^pagó Carlos Alberto/);
-      await expect(payer).toBeVisible();
-      const read = await payer.evaluate((el) => {
-        const r = el.getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return {
-          text: el.textContent,
-          clipped: el.scrollWidth > el.clientWidth + 1,
-          truncates: style.textOverflow === "ellipsis" || style.overflow === "hidden",
-          right: r.right,
-          page: document.documentElement.scrollWidth,
-        };
-      });
-      expect(read.text).toContain(HISTORY_GUEST);
-      expect(read.truncates, "the row's line never truncates").toBe(false);
-      expect(read.clipped, "the payer name is fully visible").toBe(false);
-      expect(read.right).toBeLessThanOrEqual(viewport.width);
-      expect(read.page, "no horizontal scroll").toBeLessThanOrEqual(viewport.width);
+      const measure = (locator: Locator) =>
+        locator.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return {
+            text: el.textContent,
+            clipped: el.scrollWidth > el.clientWidth + 1,
+            truncates: style.textOverflow === "ellipsis" || style.overflow === "hidden",
+            right: r.right,
+          };
+        });
+      // P324 (amends P284): without a share, the row's line names who paid, "pagó …", and a long name wraps whole.
+      const alone = page.getByRole("link", { name: /Ferretería/ }).getByText(/^pagó Carlos Alberto/);
+      await expect(alone).toBeVisible();
+      const whole = await measure(alone);
+      expect(whole.text).toContain(HISTORY_GUEST);
+      expect(whole.truncates, "a line without a share never truncates").toBe(false);
+      expect(whole.clipped, "the payer name is fully visible").toBe(false);
+      expect(whole.right).toBeLessThanOrEqual(viewport.width);
+      // P324 (board "Movimientos"): with the viewer's share the row keeps one line, and only the payer's words give
+      // way; the share is never cut, and the link's name still holds the whole payer name.
+      const shared = page.getByRole("link", { name: /Mercado/ });
+      await expect(shared).toHaveAccessibleName(new RegExp(`pagó ${HISTORY_GUEST}`));
+      const share = shared.getByText(/^tu parte /);
+      await expect(share).toBeVisible();
+      const kept = await measure(share);
+      expect(kept.clipped, "the share is fully visible").toBe(false);
+      expect(kept.truncates, "the share never truncates").toBe(false);
+      expect(kept.right).toBeLessThanOrEqual(viewport.width);
+      expect(kept.text?.replace(/\s/g, " ")).toBe("tu parte $ 150.000");
+      const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(scroll, "no horizontal scroll").toBeLessThanOrEqual(viewport.width);
     });
   }
 });
@@ -3091,8 +3108,9 @@ test.describe("the empty states of Cuentas and of a shared space explain themsel
       // A shared space with no funds: never "Agrega tu primera cuenta", the explanation and a fund to create.
       await full(es.accounts.createFund, `/spaces/${shared.id}/accounts`);
       await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
+      // Ruling P324: a shared Inicio keeps only a quiet "Crear un fondo", still a full target; the note stays on Cuentas.
       await full(es.accounts.createFund, `/spaces/${shared.id}`);
-      await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
+      await expect(page.getByText(es.accounts.fundsNote)).toHaveCount(0);
       await expect(page.getByText(es.home.firstAccount.title)).toHaveCount(0);
     });
   }

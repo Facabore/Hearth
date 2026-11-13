@@ -99,12 +99,15 @@ Then(
 );
 
 Then(
-  /^the transaction list shows "([^"]+)" with ([\d,]+) COP at (\S+) under the day heading of the key "([^"]+)"$/,
-  async ({ page, world }, description: string, pesos: string, time: string, key: string) => {
+  /^the transaction list shows "([^"]+)" with ([\d,]+) COP under the day heading of the key "([^"]+)", and its detail at (\S+)$/,
+  async ({ page, world }, description: string, pesos: string, key: string, time: string) => {
     const day = page.getByRole("region", { name: world.t(key) });
     const row = day.getByRole("listitem").filter({ hasText: description });
-    await expect(row).toContainText(time);
     expect(norm(await row.textContent())).toContain(norm(shown(pesos)));
+    // Ruling P324 (amends P284): a row of Movimientos leaves the time of a record made in her own zone to its detail.
+    await expect(row).not.toContainText(time);
+    await row.getByRole("link").click();
+    await expect(page.getByRole("dialog", { name: new RegExp(description) })).toContainText(time);
   },
 );
 

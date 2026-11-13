@@ -10,7 +10,7 @@ Feature: Personal ledger screens
     Then the date and time chip reads "Today · 23:30"
     When "Ana" enters "Market", 85,000 COP, "Groceries" and "Bancolombia" and saves
     Then the transaction has date 2026-10-31, occurredAt "2026-11-01T04:30:00Z" and timeZone "America/Bogota"
-    And the transaction list shows "Market" with 85,000 COP at 23:30 under the day heading of the key "ledger.day.today"
+    And the transaction list shows "Market" with 85,000 COP under the day heading of the key "ledger.day.today", and its detail at 23:30
     And the accounts screen shows "Bancolombia" with a balance of 1,915,000 COP
 
   @e2e

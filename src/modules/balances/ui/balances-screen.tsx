@@ -219,7 +219,8 @@ export function BalancesScreen({
                 const memberState = netState(net);
                 const sentence = memberSentence(net, formats, t);
                 const name = memberLabel(member, meUserId, tMembers);
-                // P324: the direction in words ("recibe", "paga") and a signed amount; the colour only repeats them.
+                // P324: the direction in words ("recibe", "paga") and a signed amount; the colour only repeats them, in the
+                // ink tone of --owe, which keeps AA on the page background now that the rows have no card.
                 const word = t(`state.${memberState}`);
                 return (
                   <li key={member.id}>
@@ -234,7 +235,7 @@ export function BalancesScreen({
                         <span className="text-[13px] text-muted">{word}</span>
                       </span>
                       <span
-                        className={`shrink-0 font-semibold whitespace-nowrap tabular-nums ${memberState === "owes" ? "text-owe" : memberState === "owed" ? "text-accent" : "text-muted"}`}
+                        className={`shrink-0 font-semibold whitespace-nowrap tabular-nums ${memberState === "owes" ? "text-owe-ink" : memberState === "owed" ? "text-accent" : "text-muted"}`}
                       >
                         {formatSignedMoney(net, formats)}
                       </span>

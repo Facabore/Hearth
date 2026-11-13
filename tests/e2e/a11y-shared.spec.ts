@@ -296,11 +296,15 @@ for (const colorScheme of ["light", "dark"] as const) {
       await scan(`${h}/plan/groups drilled`);
       await page.goBack();
       await expect(page.getByText(es.reports.byGroup.hint.groups)).toBeVisible();
-      // U1: a shared space with no funds explains them instead of asking for a first account.
+      // U1: a shared space with no funds explains them on Cuentas instead of asking for a first account; its Inicio
+      // offers only "Crear un fondo" (P324).
       const bare = await post(page, "/api/v1/spaces", { kind: "SHARED", name: "Vacía", currency: "COP" });
-      for (const path of [`/spaces/${bare.id}`, `/spaces/${bare.id}/accounts`]) {
+      for (const [path, shown] of [
+        [`/spaces/${bare.id}`, page.getByRole("link", { name: es.accounts.createFund, exact: true })],
+        [`/spaces/${bare.id}/accounts`, page.getByText(es.accounts.fundsNote)],
+      ] as const) {
         await page.goto(path);
-        await expect(page.getByText(es.accounts.fundsNote)).toBeVisible();
+        await expect(shown).toBeVisible();
         await scan(`${path} without funds`);
       }
       // U6: the one-time welcome after accepting an invitation.

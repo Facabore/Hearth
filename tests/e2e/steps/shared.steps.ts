@@ -365,6 +365,10 @@ When(
       .first()
       .click();
     await expect(page).toHaveURL(new RegExp(`/spaces/${world.spaces.get(space)!}`));
+    // The address changes before the shell does: its tabs lead into the space once the switcher names it.
+    await expect(
+      page.getByRole("button", { name: world.t("shell.space.current", { name: space }) }),
+    ).toBeVisible();
     await page
       .getByRole("navigation", { name: world.t("shell.nav.main") })
       .getByRole("link", { name: world.t("shell.nav.transactions"), exact: true })

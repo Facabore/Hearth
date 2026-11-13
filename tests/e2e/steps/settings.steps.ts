@@ -154,6 +154,10 @@ Then(
     await expect(page.getByRole("heading", { level: 2, name: "10/16/2026" })).toBeVisible();
     const row = page.getByRole("listitem").filter({ hasText: "Market" });
     expect(norm(await row.textContent())).toContain("$ 1,234,567.89");
-    expect(norm(await row.textContent())).toContain("2:30 PM");
+    // Ruling P324 (amends P284): the row leaves the time to its detail, which writes it in her time format.
+    await row.getByRole("link").click();
+    const detail = page.getByRole("dialog", { name: /Market/ });
+    await expect(detail).toContainText("2:30 PM");
+    await expect(detail).toContainText("10/16/2026");
   },
 );

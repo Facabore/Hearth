@@ -71,7 +71,8 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     // P272 (board 01): the hero's figure is ink whatever the direction; its words say who puts and who receives.
     expect(screen.getByTestId("balances-hero-amount")).toHaveClass("text-ink");
     const members = screen.getByRole("region", { name: "Por persona" });
-    expect(within(members).getByText(named("−$ 150.000"))).toHaveClass("text-owe");
+    // On the page background --owe is 4.4:1, short of AA for small text (a11y-shared, P324): its ink tone is 6.1:1.
+    expect(within(members).getByText(named("−$ 150.000"))).toHaveClass("text-owe-ink");
     expect(within(members).getByText(named("+$ 150.000"))).toHaveClass("text-accent");
   });
 

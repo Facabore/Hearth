@@ -48,9 +48,10 @@ test("a new person sees the first steps, and recording an expense ticks its step
   await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/spaces/${spaceId}(\\?|$)`));
-  // Ruling P324: once a step is done, the list shrinks to one link to the next step; nothing is ticked "Hecho".
+  // Ruling P324: once a step is done, the list shrinks to one link to the next step; nothing is ticked "Hecho". The
+  // expense moved a starter account, so the balances count as set too (P265): two steps are left, sharing first.
   await expect(card).toHaveCount(0);
-  const next = page.getByRole("link", { name: /^Te faltan 3 pasos/ });
+  const next = page.getByRole("link", { name: `Te faltan 2 pasos: ${steps.nextStep.share}`, exact: true });
   await expect(next).toBeVisible();
 
   // Dismissed, it stays away for this person after a reload.
