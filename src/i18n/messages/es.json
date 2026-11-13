@@ -302,15 +302,23 @@
         "expense": "Registra tu primer gasto",
         "share": "Crea el espacio de tu hogar",
         "plan": "Arma el plan del mes"
+      },
+      "next": "{count, plural, one {Te falta un paso} other {Te faltan # pasos}}: {step}",
+      "nextStep": {
+        "balances": "anota cuánto tienes hoy en tus cuentas",
+        "expense": "registra tu primer gasto",
+        "share": "crea el espacio de tu hogar",
+        "plan": "crea tu plan del mes"
       }
     },
     "summary": "Resumen del período",
-    "spentIn": "Gastado en {month}",
-    "spentBetween": "Gastado del {start} al {end}",
-    "solo": "Solo tú",
-    "withOthers": "Con otros",
+    "spentIn": "Gastaste en {month}",
+    "spentBetween": "Gastaste del {start} al {end}",
+    "spaceSpentIn": "{space} gastó en {month}",
+    "spaceSpentBetween": "{space} gastó del {start} al {end}",
+    "includes": "{count, plural, one {Incluye tu parte en {space}.} other {Incluye tu parte en # espacios.}}",
+    "parts": "Solo tú {solo} · con otros {others}",
     "viewerNote": "Eres Lector aquí: ves los movimientos y los saldos, pero no registras.",
-    "whyNotPaid": "¿Por qué no es lo que pagaste?",
     "income": "Ingresos +{amount}",
     "accounts": "Cuentas",
     "allAccounts": "Ver todas las cuentas",
@@ -356,7 +364,9 @@
       "left": "Te quedan {available} de {planned}",
       "overspent": "Te pasaste {over} de {planned} planeados",
       "over": "{line} se pasó: {amount} más de lo planeado",
-      "overMore": "{line} se pasó: {amount} más de lo planeado · y {count} más"
+      "overMore": "{line} se pasó: {amount} más de lo planeado · y {count} más",
+      "ofPlan": "de {planned} del plan",
+      "ofPlanOver": "{over} por encima de {planned} del plan"
     },
     "today": {
       "title": "Te necesita hoy",
@@ -369,7 +379,9 @@
       "reviewIn": "Revisar {name} en {space}",
       "owed": "Te deben",
       "see": "Ver",
-      "seeOwed": "Ver lo que te deben"
+      "seeOwed": "Ver lo que te deben",
+      "more": "{count} más",
+      "fewer": "Ver menos"
     },
     "owe": {
       "in": "En {space}",

@@ -232,9 +232,9 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
     unified
       ? page.then(({ period }) => settled(ensure(unifiedViewQuery(api, spaceId, period.label))))
       : undefined,
-    // Ruling P311: the card "Tu plan de {mes}" under the figure draws in the first paint, so it never moves what is
-    // under it; a failed read only leaves it out.
-    viewer?.space.kind === "PERSONAL"
+    // Rulings P311 and P324: the personal line "Tu plan de {mes}" and a shared hero's plan draw in the first paint, so
+    // they never move what is under them; a failed read only leaves them out.
+    viewer?.space.kind === "PERSONAL" || viewer?.space.kind === "SHARED"
       ? page.then(({ period }) => settled(ensure(lineReportQuery(api, spaceId, period.label))))
       : undefined,
     ensure(accountsQuery(api, spaceId, "active")),

@@ -62,10 +62,19 @@ const putAway = (personId: string): void => {
   }
 };
 
+/** Ruling P324: whether the person has done any first step yet; until then they show as a list under the hero. */
+export const startedFirstSteps = (done: FirstStepsDone): boolean =>
+  done.balances || done.expense || done.share || done.plan;
+
+const ICONS = { balances: "list", expense: "plus", share: "userPlus", plan: "chart" } as const;
+
 /**
- * Issue #220 (F14): a new person's first home proposes four next steps: set what the accounts hold today, record the
- * first expense, share with the household, and set up the month's plan (#152). Each shows as done once it is done; the
- * card goes away once all four are, or when the person dismisses it, and this browser remembers that per person.
+ * Issue #220 (F14), as ruling P324 draws it at medium density: a new person's first home proposes four next steps: set
+ * what the accounts hold today, record the first expense, share with the household, and set up the month's plan (#152).
+ * Before any is done they are flat rows under a heading, never a card. A step that is done leaves; from then on the
+ * steps shrink to one link at the end of Inicio, to the first one still missing ("Te falta un paso: crea tu plan del
+ * mes"). Nothing is ever ticked as done. They go away once all four are done, or when the person dismisses them, and
+ * this browser remembers that per person.
  */
 export function FirstSteps({
   spaceId,
@@ -79,61 +88,66 @@ export function FirstSteps({
   const t = useTranslations("home.firstSteps");
   const titleId = useId();
   const [away, setAway] = useState(() => wasPutAway(personId));
-  const complete = done.balances && done.expense && done.share && done.plan;
+  const home = `/spaces/${spaceId}`;
+  const missing = (
+    [
+      { key: "balances", href: withReturnTo(`${home}/accounts`, home) },
+      { key: "expense", href: withReturnTo(`${home}/new`, home) },
+      { key: "share", href: withReturnTo(`/spaces/new?from=${spaceId}`, home) },
+      // A Plan tab view needs no way back; Rubros is where a period's plan is started.
+      { key: "plan", href: `${home}/plan/lines` },
+    ] as const
+  ).filter((step) => !done[step.key]);
+  const [next] = missing;
+  const complete = next === undefined;
   useEffect(() => {
     if (complete) putAway(personId);
   }, [complete, personId]);
-  if (away || complete) return null;
-  const home = `/spaces/${spaceId}`;
-  const steps = [
-    { key: "balances", href: withReturnTo(`${home}/accounts`, home) },
-    { key: "expense", href: withReturnTo(`${home}/new`, home) },
-    { key: "share", href: withReturnTo(`/spaces/new?from=${spaceId}`, home) },
-    // A Plan tab view needs no way back; Rubros is where a period's plan is started.
-    { key: "plan", href: `${home}/plan/lines` },
-  ] as const;
+  if (away || !next) return null;
+  const dismiss = (
+    <button
+      type="button"
+      aria-label={t("dismiss")}
+      onClick={() => {
+        putAway(personId);
+        setAway(true);
+      }}
+      className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-full text-muted"
+    >
+      <Icon name="close" size={20} />
+    </button>
+  );
+  if (startedFirstSteps(done))
+    return (
+      <div className="flex items-center gap-2">
+        <Link
+          href={next.href}
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-sm font-medium text-accent"
+        >
+          <Icon name={ICONS[next.key]} size={18} className="shrink-0" />
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            {t("next", { count: missing.length, step: t(`nextStep.${next.key}`) })}
+          </span>
+        </Link>
+        {dismiss}
+      </div>
+    );
   return (
-    <section aria-labelledby={titleId} className="flex flex-col rounded-2xl bg-surface px-3 pt-1 pb-2">
+    <section aria-labelledby={titleId} className="flex flex-col">
       <div className="flex items-center justify-between gap-2">
-        <h2 id={titleId} className="text-lg font-semibold text-ink">
+        <h2 id={titleId} className="font-semibold text-ink">
           {t("title")}
         </h2>
-        <button
-          type="button"
-          aria-label={t("dismiss")}
-          onClick={() => {
-            putAway(personId);
-            setAway(true);
-          }}
-          className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-full text-muted"
-        >
-          <Icon name="close" size={20} />
-        </button>
+        {dismiss}
       </div>
-      <ol className="flex flex-col">
-        {steps.map(({ key, href }) => (
+      <ol className="flex flex-col divide-y divide-line">
+        {missing.map(({ key, href }) => (
           <li key={key}>
-            {done[key] ? (
-              <p className="flex min-h-11 items-center gap-3 text-sm text-muted">
-                <span
-                  aria-hidden="true"
-                  className="flex size-6 shrink-0 items-center justify-center text-accent"
-                >
-                  <Icon name="check" size={20} />
-                </span>
-                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(`step.${key}`)}</span>
-                <span className="shrink-0 text-xs font-medium">{t("done")}</span>
-              </p>
-            ) : (
-              // Board B1 · 06: the step labels are regular weight.
-              <Link href={href} className="flex min-h-11 items-center gap-3 text-sm text-ink">
-                <span aria-hidden="true" className="size-6 shrink-0 rounded-full border-2 border-line" />
-                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(`step.${key}`)}</span>
-                <span aria-hidden="true" className="shrink-0 text-muted">
-                  <Icon name="chevronRight" size={18} />
-                </span>
-              </Link>
-            )}
+            <Link href={href} className="flex min-h-row items-center gap-3 text-ink">
+              <Icon name={ICONS[key]} size={20} className="shrink-0 text-muted" />
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t(`step.${key}`)}</span>
+              <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
+            </Link>
           </li>
         ))}
       </ol>

@@ -119,11 +119,10 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
         }),
     });
     const spa = renderSpa("/spaces/sp-personal", routes);
-    // Ruling P306: one figure, her month across her spaces, split into "Solo tú" and "Con otros".
+    // Ruling P306 (as P324 draws it): one figure, her month across her spaces.
     const summary = await screen.findByRole("region", { name: es.home.summary });
-    await waitFor(() => expect(summary.textContent).toContain(es.home.solo));
-    expect(summary.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000");
-    expect(summary.textContent).toContain(es.home.withOthers);
+    await waitFor(() => expect(summary.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000"));
+    expect(summary).toHaveTextContent(/^Gastaste en octubre/);
     const row = await screen.findByRole("link", { name: /Mercado del mes/ });
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
     expect(within(row).getByText("Hogar")).toBeInTheDocument();
@@ -148,7 +147,7 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
         ).toMatchObject({ status: "error", fetchStatus: "idle" }),
       { timeout: 5_000 },
     );
-    expect(screen.queryByText(es.home.withOthers)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Incluye tu parte/)).not.toBeInTheDocument();
     // The toast provider's live region is always mounted; a failed optional read leaves it empty.
     expect(screen.getByRole("alert")).toBeEmptyDOMElement();
   });
@@ -165,47 +164,66 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     const shared = renderSpa("/spaces/sp-household", ledgerApi().routes);
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
     await settled(shared);
-    expect(screen.queryByText(es.home.withOthers)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Incluye tu parte/)).not.toBeInTheDocument();
     expect(calls([...spa.requests, ...shared.requests], "GET", /\/me\/(unified-view|activity)/)).toHaveLength(
       0,
     );
   });
 
   it("proposes the month's plan on the personal home until its period's plan has a line (#152)", async () => {
-    const steps = es.home.firstSteps;
-    const step = () =>
-      within(screen.getByRole("region", { name: steps.title }))
-        .getAllByRole("listitem")
-        .find((item) => item.textContent?.includes(steps.step.plan))!;
+    // Her account opened with money and she shares Household: the plan is the one step left (P324: one link at the end).
+    const funded: Record<string, FakeHandler> = {
+      "GET /api/v1/spaces/{spaceId}/accounts": () =>
+        jsonResponse({
+          items: [accountDto({ id: "a-bank", name: "Bancolombia", openingBalance: cop(10_000) })],
+        }),
+    };
     const empty = ledgerApi({
+      ...funded,
       "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
         jsonResponse(
           e7Dashboard({ spaceId: "sp-personal", period: octoberPage.period, plan: null, lines: [] }),
         ),
     });
     const spa = renderSpa("/spaces/sp-personal", empty.routes);
-    expect(await screen.findByRole("link", { name: steps.step.plan })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/plan/lines",
-    );
+    expect(
+      await screen.findByRole("link", { name: "Te falta un paso: crea tu plan del mes" }),
+    ).toHaveAttribute("href", "/spaces/sp-personal/plan/lines");
     expect(calls(spa.requests, "GET", /\/spaces\/sp-personal\/reports\/lines\?period=2026-10$/)).toHaveLength(
       1,
     );
     spa.unmount();
     const planned = ledgerApi({
+      ...funded,
       "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
         jsonResponse(e7Dashboard({ spaceId: "sp-personal", period: octoberPage.period })),
     });
     renderSpa("/spaces/sp-personal", planned.routes);
-    await waitFor(() => expect(within(step()).getByText(steps.done)).toBeInTheDocument());
-    expect(within(step()).queryByRole("link")).toBeNull();
+    // All four done: the steps leave, never ticked as done.
+    expect(await screen.findByRole("link", { name: /^Tu plan de octubre/ })).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Te falta/ })).toBeNull();
+    expect(screen.queryByText(es.home.firstSteps.done)).toBeNull();
   });
 
-  it("reads no plan for the first steps in a shared space's home (#152)", async () => {
-    const spa = renderSpa("/spaces/sp-household", ledgerApi().routes);
-    expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
+  it("reads the plan of a shared space's home for its hero, and offers no first steps there (P324)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/reports/lines": () =>
+        jsonResponse(e7Dashboard({ spaceId: "sp-household", period: octoberPage.period })),
+    });
+    const spa = renderSpa("/spaces/sp-household", routes);
+    const hero = await screen.findByRole("region", { name: es.home.summary });
+    // The loader reads it ahead, so it is there with the figure in the first paint.
+    // This file's clock is past October, so the plan opens at the period shown.
+    expect(within(hero).getByRole("link", { name: /del plan$/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/plan?period=2026-10",
+    );
     await settled(spa);
-    expect(calls(spa.requests, "GET", /\/reports\/lines/)).toHaveLength(0);
+    expect(
+      calls(spa.requests, "GET", /\/spaces\/sp-household\/reports\/lines\?period=2026-10$/),
+    ).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: es.home.firstSteps.title })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Te falta/ })).toBeNull();
   });
 
   it("lists Movimientos by day with the API's totals, under the space's own filters", async () => {
@@ -677,6 +695,9 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
           }),
         ),
       "GET /api/v1/me/activity": () => jsonResponse({ items: [] }),
+      // Ruling P324: Inicio lists only the accounts that hold money.
+      "GET /api/v1/spaces/{spaceId}/accounts": () =>
+        jsonResponse({ items: [accountDto({ id: "a-bank", name: "Bancolombia", balance: cop(4_455_000) })] }),
       ...overrides,
     }).routes;
 
@@ -734,21 +755,16 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     expect(screen.getByRole("heading", { name: es.home.accounts })).toBeVisible();
   });
 
-  it("opens each part's movements: a category in the personal space, a space in its own period", async () => {
-    const user = userEvent.setup({ advanceTimers: () => undefined });
+  it("says in one line what her month holds, which opens Mi consumo (P324)", async () => {
     renderSpa("/spaces/sp-personal", hubApi());
     const summary = await screen.findByRole("region", { name: es.home.summary });
-    await user.click(await within(summary).findByRole("button", { name: new RegExp(es.home.solo) }));
-    expect(within(summary).getByRole("link", { name: /Groceries/ })).toHaveAttribute(
-      "href",
-      // Its amount counts its subcategory, Vegetables, so the list asks for both.
-      "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries%2Cc-veg",
+    const line = await within(summary).findByRole("link", { name: /^Incluye tu parte en Household\./ });
+    expect(line.textContent?.replace(/\s/g, " ")).toBe(
+      "Incluye tu parte en Household. Solo tú $ 1.500 · con otros $ 900",
     );
-    await user.click(within(summary).getByRole("button", { name: new RegExp(es.home.withOthers) }));
-    expect(await within(summary).findByRole("link", { name: /Household/ })).toHaveAttribute(
-      "href",
-      "/spaces/sp-household/transactions?period=2026-10",
-    );
+    expect(line).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
+    // P324 drops the parts that opened in place (P310).
+    expect(within(summary).queryByRole("button")).toBeNull();
   });
 
   it("names a category opened with its subcategories by the category, and asks the API for all of them", async () => {
@@ -814,6 +830,12 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     renderSpa("/spaces/sp-household", hubApi({ "GET /api/v1/spaces/{spaceId}/reports/lines": linesOf() }));
     expect(await screen.findByRole("heading", { name: es.home.recent })).toBeVisible();
     expect(screen.queryByRole("link", { name: /plan de/ })).toBeNull();
+    // Ruling P324: a shared space's hero leads to its plan instead.
+    const hero = screen.getByRole("region", { name: es.home.summary });
+    expect(within(hero).getByRole("link", { name: /del plan$/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/plan",
+    );
   });
 });
 

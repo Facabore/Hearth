@@ -302,15 +302,23 @@
         "expense": "Record your first expense",
         "share": "Create your household's space",
         "plan": "Set up the month's plan"
+      },
+      "next": "{count, plural, one {One step left} other {# steps left}}: {step}",
+      "nextStep": {
+        "balances": "set what your accounts hold today",
+        "expense": "record your first expense",
+        "share": "create your household's space",
+        "plan": "set up this month's plan"
       }
     },
     "summary": "Period summary",
     "spentIn": "Spent in {month}",
     "spentBetween": "Spent from {start} to {end}",
-    "solo": "Just you",
-    "withOthers": "With others",
+    "spaceSpentIn": "{space} spent in {month}",
+    "spaceSpentBetween": "{space} spent from {start} to {end}",
+    "includes": "{count, plural, one {Includes your part in {space}.} other {Includes your part in # spaces.}}",
+    "parts": "Just you {solo} · with others {others}",
     "viewerNote": "You are a Viewer here: you see the movements and balances, but you do not record.",
-    "whyNotPaid": "Why is it not what you paid?",
     "income": "Income +{amount}",
     "accounts": "Accounts",
     "allAccounts": "See all accounts",
@@ -356,7 +364,9 @@
       "left": "{available} left of {planned}",
       "overspent": "{over} over the {planned} planned",
       "over": "{line} went over: {amount} more than planned",
-      "overMore": "{line} went over: {amount} more than planned · and {count} more"
+      "overMore": "{line} went over: {amount} more than planned · and {count} more",
+      "ofPlan": "of the {planned} plan",
+      "ofPlanOver": "{over} over the {planned} plan"
     },
     "today": {
       "title": "Needs you today",
@@ -369,7 +379,9 @@
       "reviewIn": "Review {name} in {space}",
       "owed": "You are owed",
       "see": "See",
-      "seeOwed": "See what you are owed"
+      "seeOwed": "See what you are owed",
+      "more": "{count} more",
+      "fewer": "Show less"
     },
     "owe": {
       "in": "In {space}",

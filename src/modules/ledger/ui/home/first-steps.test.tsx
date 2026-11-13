@@ -16,10 +16,6 @@ const ALL: FirstStepsDone = { balances: true, expense: true, share: true, plan: 
 const KEY = "hearth.firstSteps.u-ana";
 
 const card = () => screen.queryByRole("region", { name: "Tus primeros pasos" });
-const step = (name: RegExp) =>
-  within(card()!)
-    .getAllByRole("listitem")
-    .find((item) => name.test(item.textContent ?? ""))!;
 
 const space = (kind: SpaceDto["kind"], id = `sp-${kind}`): SpaceDto => ({
   id,
@@ -46,29 +42,38 @@ describe("a new person's first steps (#220, F14)", () => {
       ["Arma el plan del mes", "/spaces/sp-1/plan/lines"],
     ]);
     expect(within(card()!).queryByText("Hecho")).toBeNull();
+    // Ruling P324: flat rows under a heading, never a card.
+    expect(card()).not.toHaveClass("bg-surface");
+    expect(card()).not.toHaveClass("rounded-2xl");
+    for (const link of links) expect(link).toHaveClass("min-h-row");
     expect(await axeViolations(container)).toEqual([]);
   });
 
   it.each([
-    ["balances", /cuentas/],
-    ["expense", /gasto/],
-    ["share", /hogar/],
-    ["plan", /plan del mes/],
-  ] as const)("shows the %s step as done, with no link, while the others stay open", (key, name) => {
-    renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...NONE, [key]: true }} />);
-    expect(within(step(name)).getByText("Hecho")).toBeInTheDocument();
-    expect(within(step(name)).queryByRole("link")).toBeNull();
-    expect(within(card()!).getAllByRole("link")).toHaveLength(3);
-    expect(within(card()!).getAllByText("Hecho")).toHaveLength(1);
-  });
+    ["balances", "registra tu primer gasto", 3],
+    ["expense", "anota cuánto tienes hoy en tus cuentas", 3],
+    ["share", "anota cuánto tienes hoy en tus cuentas", 3],
+    ["plan", "anota cuánto tienes hoy en tus cuentas", 3],
+  ] as const)(
+    "once the %s step is done it vanishes, never ticked done: one link to the first one missing (P324)",
+    (key, next, count) => {
+      renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...NONE, [key]: true }} />);
+      expect(card()).toBeNull();
+      expect(screen.queryByText("Hecho")).toBeNull();
+      const links = screen.getAllByRole("link");
+      expect(links).toHaveLength(1);
+      expect(links[0]).toHaveTextContent(`Te faltan ${count} pasos: ${next}`);
+    },
+  );
 
-  it("stays while only the plan is missing (#152)", () => {
+  it("leads to the one step left, the plan, while only the plan is missing (#152)", () => {
     renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...ALL, plan: false }} />);
-    expect(
-      within(card()!)
-        .getAllByRole("link")
-        .map((link) => link.textContent),
-    ).toEqual(["Arma el plan del mes"]);
+    expect(screen.getByRole("link", { name: "Te falta un paso: crea tu plan del mes" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-1/plan/lines",
+    );
+    expect(screen.getByRole("link")).toHaveClass("min-h-11");
+    expect(screen.getByRole("button", { name: "Ocultar los primeros pasos" })).toBeInTheDocument();
     expect(localStorage.getItem(KEY)).toBeNull();
   });
 
@@ -108,13 +113,17 @@ describe("a new person's first steps (#220, F14)", () => {
   });
 
   it("reads in English too", () => {
-    renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...NONE, expense: true }} />, {
+    const { unmount } = renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={NONE} />, {
       locale: "en",
     });
     const region = screen.getByRole("region", { name: "Your first steps" });
-    expect(within(region).getByText("Done")).toBeInTheDocument();
     expect(within(region).getByRole("link", { name: "Set up the month's plan" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hide the first steps" })).toBeInTheDocument();
+    unmount();
+    renderWithIntl(<FirstSteps spaceId="sp-1" personId="u-ana" done={{ ...ALL, plan: false }} />, {
+      locale: "en",
+    });
+    expect(screen.getByRole("link", { name: "One step left: set up this month's plan" })).toBeInTheDocument();
   });
 });
 
@@ -173,7 +182,7 @@ describe("which first steps are done (#220)", () => {
 });
 
 describe("the first steps on the home (#220)", () => {
-  it("sit under the period's figure, so it stays the first thing on the home", () => {
+  it("sit under the period's figure while none is done, so it stays the first thing on the home", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
@@ -187,9 +196,28 @@ describe("the first steps on the home (#220)", () => {
     );
     const summary = screen.getByRole("region", { name: "Resumen del período" });
     expect(summary.compareDocumentPosition(card()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(card()!.compareDocumentPosition(screen.getByRole("region", { name: "Cuentas" }))).toBe(
+    expect(card()!.compareDocumentPosition(screen.getByRole("region", { name: "Recientes" }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  it("ends the home with one link to the step missing once one is done (P324)", () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        today="2026-10-31"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={[accountDto()]}
+        context={rowContext}
+        firstSteps={{ personId: "u-ana", done: { ...ALL, plan: false } }}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Te falta un paso: crea tu plan del mes" });
+    expect(screen.getByRole("region", { name: "Recientes" }).compareDocumentPosition(link)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(card()).toBeNull();
   });
 
   it("is not on the home when the container offers none", () => {

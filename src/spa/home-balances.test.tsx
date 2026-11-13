@@ -63,7 +63,7 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     );
   });
 
-  it("gathers Household's bill to confirm and what the others owe her in one card (#288)", async () => {
+  it("gathers Household's bill to confirm and what the others owe her behind one action line (#288, P324)", async () => {
     const owedInTrip = {
       ...anaOwesJuan,
       spaceId: "sp-trip",
@@ -107,6 +107,10 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     expect(text).toContain("Te deben $ 30.000");
     expect(text).toContain("Viaje $ 30.000");
     expect(text).toContain("Te toca poner $ 120.000 a Juan");
+    // Ruling P324: one action line, her turn first; the others open in place behind "2 más".
+    expect(within(card).getByRole("link", { name: "Saldar con Juan en Household" })).toBeVisible();
+    expect(within(card).queryByRole("link", { name: "Revisar Energía en Household" })).toBeNull();
+    await userEvent.click(within(card).getByRole("button", { name: "2 más" }));
     expect(within(card).getByRole("link", { name: "Revisar Energía en Household" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/pending-occurrences",

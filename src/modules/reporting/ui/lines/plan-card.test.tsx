@@ -26,11 +26,69 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
     expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe(
       "Te quedan $ 1.190.000 de $ 4.000.000",
     );
-    // The bar is decoration: the words say it.
-    const bar = container.querySelector("[data-plan-bar]");
-    expect(bar).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByText(/se pasó/)).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("is one line on the personal Inicio, never a card, with no bar (P324)", () => {
+    const { container } = renderWithIntl(
+      <PlanCard dashboard={personal()} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
+    );
+    expect(normalized(card().textContent)).toBe(
+      "Tu plan de noviembre · Te quedan $ 1.190.000 de $ 4.000.000",
+    );
+    expect(card()).not.toHaveClass("bg-surface");
+    expect(card()).not.toHaveClass("rounded-2xl");
+    expect(card()).toHaveClass("min-h-11");
+    expect(container.querySelector("[data-plan-bar]")).toBeNull();
+  });
+
+  describe("under a shared space's hero (P324)", () => {
+    const shared = (overrides: Parameters<typeof e7Dashboard>[0] = {}) =>
+      renderWithIntl(
+        <PlanCard
+          dashboard={e7Dashboard({ spaceId: "sp-hogar", ...overrides })}
+          policy={MONTHLY}
+          formats={BUILT_IN_FORMATS}
+          href="/spaces/sp-hogar/plan"
+          variant="hero"
+        />,
+      );
+
+    it("says what was planned, with a bar of what was spent, as one link to the Plan screen", async () => {
+      const { container } = shared();
+      const link = screen.getByRole("link", { name: /del plan$/ });
+      expect(link).toHaveAttribute("href", "/spaces/sp-hogar/plan");
+      expect(normalized(link.textContent)).toBe("de $ 4.000.000 del plan");
+      // The bar is decoration: the words say it.
+      const bar = container.querySelector("[data-plan-bar]");
+      expect(bar).toHaveAttribute("aria-hidden", "true");
+      expect(link).toContainElement(bar as HTMLElement);
+      expect(link).not.toHaveClass("bg-surface");
+      expect(await axeViolations(container)).toEqual([]);
+    });
+
+    it("says how much the spending went past the plan, in words", () => {
+      shared({ totals: { planned: cop(4_000_000), spent: cop(4_250_000), available: cop(-250_000) } });
+      expect(normalized(screen.getByRole("link").textContent)).toBe(
+        "$ 250.000 por encima de $ 4.000.000 del plan",
+      );
+      expect(screen.getByRole("link").textContent).not.toMatch(/[−-]/);
+    });
+
+    it("speaks English too", () => {
+      renderWithIntl(
+        <PlanCard
+          dashboard={e7Dashboard({ spaceId: "sp-hogar" })}
+          policy={MONTHLY}
+          formats={BUILT_IN_FORMATS}
+          href="/spaces/sp-hogar/plan"
+          variant="hero"
+        />,
+        { locale: "en" },
+      );
+      expect(normalized(screen.getByRole("link").textContent)).toBe("of the $ 4.000.000 plan");
+    });
   });
 
   it("says what is left to spend of what was planned to spend, savings apart (#283)", () => {

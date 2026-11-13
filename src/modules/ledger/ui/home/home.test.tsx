@@ -42,7 +42,7 @@ describe("home (HU-E9-01)", () => {
     );
     expect(screen.getByRole("heading", { level: 1, name: "Inicio" })).toBeInTheDocument();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
-    expect(norm(summary.textContent)).toContain("Gastado en octubre");
+    expect(norm(summary.textContent)).toContain("Gastaste en octubre");
     expect(norm(summary.textContent)).toContain("$ 245.000");
     expect(norm(summary.textContent)).toContain("+$ 3.200.000");
     expect(norm(screen.getByRole("region", { name: "Cuentas" }).textContent)).toContain(
@@ -62,25 +62,67 @@ describe("home (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("lets the keyboard reach and scroll the accounts strip, which overflows sideways with several accounts", async () => {
+  it("shows one hero with no card around it, and no other figure at its size (P324)", async () => {
+    const { container } = renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        today="2026-10-31"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: octoberPage.items.slice(0, 3) }}
+        accounts={[accountDto({ name: "Bancolombia", balance: cop(4_455_000) })]}
+        context={rowContext}
+      />,
+    );
+    const hero = screen.getByRole("region", { name: "Resumen del período" });
+    expect(hero).not.toHaveClass("bg-surface");
+    expect(hero).not.toHaveClass("rounded-2xl");
+    expect(hero.parentElement).not.toHaveClass("bg-surface");
+    expect(container.querySelectorAll("[data-hero-amount]")).toHaveLength(1);
+    expect(norm(hero.querySelector("[data-hero-amount]")!.textContent)).toBe("$ 245.000");
+    // Nothing on Inicio sits in a card: the hero, the accounts and Recientes are on the page.
+    expect(container.querySelector(".rounded-2xl.bg-surface")).toBeNull();
+  });
+
+  it("lists only the accounts that hold money, as flat rows (P324)", () => {
+    const { unmount } = renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        today="2026-10-31"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={{ ...octoberPage, items: [] }}
+        accounts={[
+          accountDto({ id: "a-cash", name: "Efectivo", balance: cop(0) }),
+          accountDto({ id: "a-bank", name: "Bancolombia", balance: cop(4_455_000) }),
+          accountDto({ id: "a-nequi", name: "Nequi", balance: cop(0) }),
+          accountDto({ id: "a-visa", name: "Visa", balance: cop(-120_000) }),
+        ]}
+        context={rowContext}
+      />,
+    );
+    const list = screen.getByRole("list", { name: "Cuentas" });
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .map((row) => norm(row.textContent)),
+    ).toEqual(["Bancolombia$ 4.455.000", "Visa−$ 120.000"]);
+    expect(list).toHaveClass("divide-y");
+    expect(list).not.toHaveClass("overflow-x-auto");
+    for (const row of within(list).getAllByRole("listitem")) expect(row).toHaveClass("min-h-row");
+    unmount();
+    // Every account at zero: no accounts block at all, and still no first-account card.
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
         today="2026-10-31"
         policy={{ kind: "MONTHLY", day: 1 }}
         page={{ ...octoberPage, items: [] }}
-        accounts={["Efectivo", "Bancolombia", "Nequi", "Visa"].map((name, i) =>
-          accountDto({ id: `a-${i}`, name, balance: cop(1) }),
-        )}
+        accounts={[accountDto({ id: "a-cash", name: "Efectivo", balance: cop(0) })]}
         context={rowContext}
       />,
     );
-    const strip = screen.getByRole("list", { name: "Cuentas" });
-    await userEvent.tab();
-    await userEvent.tab();
-    expect(strip).toHaveFocus();
-    // #223: it still scrolls sideways, without drawing a scrollbar on a phone (scrollbar-width, and WebKit's own).
-    expect(strip).toHaveClass("overflow-x-auto", "[scrollbar-width:none]", "[&::-webkit-scrollbar]:hidden");
+    expect(screen.queryByRole("region", { name: "Cuentas" })).toBeNull();
+    expect(screen.queryByText("Efectivo")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Agrega tu primera cuenta" })).toBeNull();
   });
 });
 
@@ -241,68 +283,66 @@ describe("the personal space shows everything (ruling P306)", () => {
       .getAllByRole("listitem")
       .find((row) => row.textContent?.includes(name))!;
 
-  it("shows one figure, her month, and its two parts closed: Solo tú and Con otros", async () => {
+  it("shows one hero, her month, and one line of what it holds, with no parts to open (P324)", async () => {
     const { container } = home();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
-    expect(norm(summary.textContent)).toContain("Gastado en octubre$ 725.000");
-    const solo = within(summary).getByRole("button", { name: /Solo tú/ });
-    const others = within(summary).getByRole("button", { name: /Con otros/ });
-    expect(norm(solo.textContent)).toBe("Solo tú$ 245.000");
-    expect(norm(others.textContent)).toBe("Con otros$ 480.000");
-    expect(solo).toHaveAttribute("aria-expanded", "false");
-    expect(others).toHaveAttribute("aria-expanded", "false");
-    expect(within(summary).queryByText("Mercado")).not.toBeVisible();
-    expect(screen.queryByRole("button", { name: "Lo que pagaste" })).not.toBeInTheDocument();
+    expect(norm(summary.textContent)).toBe(
+      "Gastaste en octubre$ 725.000Incluye tu parte en 2 espacios. Solo tú $ 245.000 · con otros $ 480.000",
+    );
+    expect(summary).not.toHaveClass("bg-surface");
+    expect(within(summary).queryByRole("button")).toBeNull();
+    expect(within(summary).queryByText("Mercado")).toBeNull();
+    expect(container.querySelectorAll("[data-hero-amount]")).toHaveLength(1);
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("links to Mi consumo, which explains why her month is not what she paid (#287)", () => {
+  it("names the one space she shares, and opens Mi consumo from that line (#287)", () => {
     // Audit pass 3, A7: since P306 nothing led to Mi consumo and its "¿Por qué es distinto?".
     renderWithIntl(
       <UnifiedSummary
-        unified={unified}
+        unified={{
+          ...unified,
+          withOthers: { ...unified.withOthers, items: unified.withOthers.items.slice(0, 1) },
+        }}
         page={octoberPage}
         policy={{ kind: "MONTHLY", day: 1 }}
         formats={rowContext.formats}
         consumptionHref="/spaces/sp-personal/my-consumption?period=2026-10"
       />,
     );
-    expect(screen.getByRole("link", { name: "¿Por qué no es lo que pagaste?" })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/my-consumption?period=2026-10",
-    );
+    const line = screen.getByRole("link", { name: /^Incluye tu parte en Hogar\./ });
+    expect(norm(line.textContent)).toBe("Incluye tu parte en Hogar. Solo tú $ 245.000 · con otros $ 480.000");
+    expect(line).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
+    expect(line).toHaveClass("min-h-11");
   });
 
-  it("opens Solo tú into her categories and Con otros into her groups, each named beside its color", async () => {
-    const { container } = home();
-    const summary = screen.getByRole("region", { name: "Resumen del período" });
-    await userEvent.click(within(summary).getByRole("button", { name: /Solo tú/ }));
-    const soloPanel = document.getElementById(
-      within(summary)
-        .getByRole("button", { name: /Solo tú/ })
-        .getAttribute("aria-controls")!,
-    )!;
-    expect(within(summary).getByRole("button", { name: /Solo tú/ })).toHaveAttribute("aria-expanded", "true");
-    expect(
-      within(soloPanel)
-        .getAllByRole("listitem")
-        .map((row) => norm(row.textContent)),
-    ).toEqual(["Mercado$ 150.000", "Restaurantes$ 60.000", "Transporte$ 35.000"]);
-    await userEvent.click(within(summary).getByRole("button", { name: /Con otros/ }));
-    const othersPanel = document.getElementById(
-      within(summary)
-        .getByRole("button", { name: /Con otros/ })
-        .getAttribute("aria-controls")!,
-    )!;
-    expect(
-      within(othersPanel)
-        .getAllByRole("listitem")
-        .map((row) => norm(row.textContent)),
-    ).toEqual(["Hogar$ 410.000", "Viaje Cartagena$ 70.000"]);
-    expect(othersPanel.querySelectorAll("[data-space-chip]")).toHaveLength(2);
-    expect(await axeViolations(container)).toEqual([]);
-    await userEvent.click(within(summary).getByRole("button", { name: /Solo tú/ }));
-    expect(soloPanel).not.toBeVisible();
+  it("says her income instead when she shared nothing this month", () => {
+    renderWithIntl(
+      <UnifiedSummary
+        unified={{ ...unified, withOthers: { amount: cop(0), items: [] } }}
+        page={octoberPage}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        formats={rowContext.formats}
+        consumptionHref="/spaces/sp-personal/my-consumption?period=2026-10"
+      />,
+    );
+    expect(screen.queryByText(/Incluye tu parte/)).toBeNull();
+    expect(norm(screen.getByText(/^Ingresos/).textContent)).toBe("Ingresos +$ 3.200.000");
+  });
+
+  it("speaks English in the English catalog", () => {
+    renderWithIntl(
+      <UnifiedSummary
+        unified={unified}
+        page={octoberPage}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        formats={rowContext.formats}
+      />,
+      { locale: "en" },
+    );
+    expect(norm(screen.getByRole("region", { name: "Period summary" }).textContent)).toBe(
+      "Spent in October$ 725.000Includes your part in 2 spaces. Just you $ 245.000 · with others $ 480.000",
+    );
   });
 
   it("merges her spaces' movements into Recientes with their space and her part, each said once (P324)", () => {
@@ -376,9 +416,21 @@ describe("the personal space shows everything (ruling P306)", () => {
     expect(amount).toHaveClass("text-muted");
   });
 
-  it("keeps the old home without the unified month: no parts, only her own rows", () => {
+  it("ends the personal Inicio with its plan as one line, after Recientes, never in the hero (P324)", () => {
+    // Inicio's route fills the slot with the plan's line (`PlanCard`).
+    home({ plan: <a href="/spaces/sp-personal/plan">Tu plan de octubre · Te quedan $ 1 de $ 2</a> });
+    const plan = screen.getByRole("link", { name: /^Tu plan de octubre/ });
+    expect(screen.getByRole("region", { name: "Recientes" }).compareDocumentPosition(plan)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    const hero = screen.getByRole("region", { name: "Resumen del período" });
+    expect(within(hero).queryByRole("link", { name: /plan/ })).toBeNull();
+  });
+
+  it("keeps the old home without the unified month: her income, only her own rows", () => {
     home({ summary: undefined, recent: undefined });
-    expect(screen.queryByRole("button", { name: /Solo tú/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Incluye tu parte/)).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Resumen del período" })).toHaveTextContent(/Ingresos/);
     expect(document.querySelector("[data-activity-row]")).toBeNull();
   });
 });
@@ -502,12 +554,15 @@ describe("home, narrow screens (S2)", () => {
         context={rowContext}
       />,
     );
-    const amounts = [
-      screen.getByRole("region", { name: "Resumen del período" }).querySelector("p.font-semibold"),
-      screen.getByRole("region", { name: "Cuentas" }).querySelector("li span.font-semibold"),
-    ];
-    for (const amount of amounts) expect(amount).toHaveClass("[overflow-wrap:anywhere]");
-    expect(amounts[0]?.className).toContain("clamp(");
+    const hero = screen
+      .getByRole("region", { name: "Resumen del período" })
+      .querySelector("[data-hero-amount]");
+    expect(hero).toHaveClass("[overflow-wrap:anywhere]");
+    expect(hero?.className).toContain("clamp(");
+    // An account's amount never breaks across lines; its name wraps instead.
+    const row = within(screen.getByRole("region", { name: "Cuentas" })).getByRole("listitem");
+    expect(row.querySelector("span.font-semibold")).toHaveClass("whitespace-nowrap", "shrink-0");
+    expect(within(row).getByText("Bancolombia")).toHaveClass("[overflow-wrap:anywhere]", "min-w-0");
   });
 });
 
@@ -620,6 +675,63 @@ describe("the home of a shared or direct space leads to its members (N10)", () =
   });
 });
 
+describe("a shared space's Inicio (P324)", () => {
+  const shared = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) =>
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-hogar"
+        today="2026-10-31"
+        kind="SHARED"
+        name="Hogar"
+        role="MEMBER"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={octoberPage}
+        accounts={[]}
+        context={rowContext}
+        {...props}
+      />,
+    );
+
+  it("says the space spent it, and shows the plan line under the hero", () => {
+    // Inicio's route fills the slot with the plan's hero line (`PlanCard`, variant "hero").
+    shared({ plan: <a href="/spaces/sp-hogar/plan">de $ 4.000.000 del plan</a> });
+    const hero = screen.getByRole("region", { name: "Resumen del período" });
+    expect(hero).toHaveTextContent(/^Hogar gastó en octubre/);
+    expect(within(hero).getByRole("link", { name: "de $ 4.000.000 del plan" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-hogar/plan",
+    );
+    // The plan stands in for the income line; nothing else shows the plan.
+    expect(within(hero).queryByText(/^Ingresos/)).toBeNull();
+    expect(screen.getAllByRole("link", { name: /del plan/ })).toHaveLength(1);
+  });
+
+  it("says its income under the hero while it has no plan", () => {
+    shared();
+    const hero = screen.getByRole("region", { name: "Resumen del período" });
+    expect(norm(within(hero).getByText(/^Ingresos/).textContent)).toBe("Ingresos +$ 3.200.000");
+  });
+
+  it("speaks English in the English catalog", () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-hogar"
+        today="2026-10-31"
+        kind="SHARED"
+        name="Hogar"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={octoberPage}
+        accounts={[]}
+        context={rowContext}
+      />,
+      { locale: "en" },
+    );
+    expect(screen.getByRole("region", { name: "Period summary" })).toHaveTextContent(
+      /^Hogar spent in October/,
+    );
+  });
+});
+
 describe("home after accepting an invitation (U6)", () => {
   const home = (joined?: { space: string; dismissHref: string }) =>
     renderWithIntl(
@@ -690,14 +802,25 @@ describe("the home of a shared or direct space explains its funds (U1)", () => {
   });
 
   it("lists the funds it has, under a title for funds, and keeps the note", () => {
-    home("SHARED", "OWNER", [accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(0) })]);
+    home("SHARED", "OWNER", [
+      accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(250_000) }),
+    ]);
     expect(screen.getByText(NOTE)).toBeInTheDocument();
     expect(norm(screen.getByRole("region", { name: "Fondos" }).textContent)).toContain("Fondo Hogar");
     expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
   });
 
+  it("leaves out a fund that holds nothing, and offers no new one beside it (P324)", () => {
+    home("SHARED", "OWNER", [accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(0) })]);
+    expect(screen.getByText(NOTE)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Fondos" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Crear un fondo" })).toBeNull();
+  });
+
   it("links its fund list under the name of a fund list (issue #178)", () => {
-    home("SHARED", "MEMBER", [accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(0) })]);
+    home("SHARED", "MEMBER", [
+      accountDto({ name: "Fondo Hogar", type: "SHARED_FUND", balance: cop(250_000) }),
+    ]);
     expect(screen.getByRole("link", { name: "Ver todos los fondos" })).toHaveAttribute(
       "href",
       "/spaces/sp-shared/accounts",
@@ -754,6 +877,23 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("is one action line between two hairlines, never a card (P324)", async () => {
+    renderWithIntl(home({ needs: needs({ owes: [owe] }) }));
+    const line = await screen.findByRole("region", { name: "Te necesita hoy" });
+    expect(line).toHaveClass("border-y");
+    expect(line).not.toHaveClass("bg-surface");
+    expect(within(line).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(line).queryByRole("button")).toBeNull();
+    // It sits right under the hero, above Recientes.
+    expect(
+      screen.getByRole("region", { name: "Resumen del período" }).compareDocumentPosition(line) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(line.compareDocumentPosition(screen.getByRole("region", { name: "Recientes" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it("shows no such card when nothing needs the person", () => {
     renderWithIntl(home({ needs: needs() }));
     expect(screen.queryByRole("region", { name: "Te necesita hoy" })).not.toBeInTheDocument();
@@ -773,23 +913,39 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
       { spaceId: "sp-direct", space: "Ana & Mateo", amount: cop(30_000) },
     ];
 
-    it("lists the bill, what she is owed and her turn, each with its way to act", async () => {
+    it("shows her turn as the one line, and the bill and what she is owed behind 2 más, each with its way to act", async () => {
       const { container } = renderWithIntl(home({ needs: needs({ owes: [owe], pending: [energy], owed }) }));
       const card = await screen.findByRole("region", { name: "Te necesita hoy" });
+      expect(within(card).getAllByRole("listitem")).toHaveLength(1);
+      expect(norm(within(card).getByRole("listitem").textContent)).toContain("Te toca poner $ 120.000");
+      expect(within(card).queryByRole("link", { name: "Revisar Energía en Household" })).toBeNull();
+      const more = within(card).getByRole("button", { name: "2 más" });
+      expect(more).toHaveAttribute("aria-expanded", "false");
+      expect(more).toHaveClass("min-h-11");
+      await userEvent.click(more);
+      expect(within(card).getByRole("button", { name: "Ver menos" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
       const rows = within(card)
         .getAllByRole("listitem")
         .map((row) => norm(row.textContent));
-      expect(rows[0]).toContain("Energía por confirmar");
-      expect(rows[0]).toContain("Household · hoy · sugerido $ 180.000");
-      expect(rows[1]).toContain("Te deben $ 341.400");
-      expect(rows[1]).toContain("Household $ 311.400 · Ana & Mateo $ 30.000");
-      expect(rows[2]).toContain("Te toca poner $ 120.000");
+      expect(rows).toHaveLength(3);
+      expect(rows[0]).toContain("Te toca poner $ 120.000");
+      expect(rows[1]).toContain("Energía por confirmar");
+      expect(rows[1]).toContain("Household · hoy · sugerido $ 180.000");
+      expect(rows[2]).toContain("Te deben $ 341.400");
+      expect(rows[2]).toContain("Household $ 311.400 · Ana & Mateo $ 30.000");
       expect(within(card).getByRole("link", { name: "Revisar Energía en Household" })).toHaveAttribute(
         "href",
         "/spaces/sp-household/pending-occurrences",
       );
       // Every action is a full 44 × 44 target, the short "Ver" included (AGENTS.md, UI).
-      for (const name of ["Revisar Energía en Household", "Ver lo que te deben"])
+      for (const name of [
+        "Saldar con Juan en Household",
+        "Revisar Energía en Household",
+        "Ver lo que te deben",
+      ])
         expect(within(card).getByRole("link", { name })).toHaveClass("min-h-11", "min-w-11");
       // Saldos of the space that owes her the most.
       expect(within(card).getByRole("link", { name: "Ver lo que te deben" })).toHaveAttribute(
@@ -797,6 +953,13 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
         "/spaces/sp-household/balances",
       );
       expect(await axeViolations(container)).toEqual([]);
+    });
+
+    it("leads with a bill to confirm when it is not her turn to put money in", async () => {
+      renderWithIntl(home({ needs: needs({ pending: [energy], owed }) }));
+      const card = await screen.findByRole("region", { name: "Te necesita hoy" });
+      expect(norm(within(card).getByRole("listitem").textContent)).toContain("Energía por confirmar");
+      expect(within(card).getByRole("button", { name: "1 más" })).toBeInTheDocument();
     });
 
     it("counts several bills of one space, and dates one from before today", async () => {

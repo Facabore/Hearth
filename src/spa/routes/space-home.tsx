@@ -8,11 +8,9 @@ import {
   mergedFeed,
   PeriodStepper,
   TransactionSheetHost,
-  transactionListHref,
   UnifiedSummary,
   unifiedMonthOf,
 } from "@/modules/ledger/ui";
-import { categoryIdsOf } from "@/modules/categories/ui";
 import { myConsumptionHref, PlanCard } from "@/modules/reporting/ui";
 import dynamic from "next/dynamic";
 import { SpaceStanding } from "@/modules/spaces/ui";
@@ -22,7 +20,7 @@ import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
 import { FEED_ROWS, homeQueryOf, neighboursOf } from "../ledger/queries";
-import { lineReportQuery, myActivityQuery, periodQuery, unifiedViewQuery } from "../reads";
+import { lineReportQuery, myActivityQuery, unifiedViewQuery } from "../reads";
 import { spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
 
@@ -79,21 +77,18 @@ export function SpaceHome() {
     ...myActivityQuery(api, spaceId, page.period.startDate, FEED_ROWS, page.period.endDate),
     enabled: unified,
   }).data;
-  // Ruling P310: a "Con otros" row opens its space's Movimientos in that space's period holding this one's start.
-  const others =
-    unified && allSpaces ? unifiedMonthOf(allSpaces).withOthers.items.map((item) => item.id) : [];
-  const otherPeriods = useQueries({
-    queries: others.map((id) => periodQuery(api, id, page.period.startDate)),
-  });
-  // #152 (P265): the first steps' plan step reads the period's line dashboard; ruling P311: so does the card "Tu plan de
-  // {mes}" under the figure, in any period. The loader reads it ahead, so the card draws in the first paint.
-  const plan = useQuery({ ...lineReportQuery(api, spaceId, page.period.label), enabled: personal }).data;
+  // #152 (P265): the first steps' plan step reads the period's line dashboard; ruling P311: so does the line "Tu plan de
+  // {mes}", in any period, and ruling P324: a shared space's hero, "de $ X del plan". The loader reads it ahead, so it
+  // draws in the first paint.
+  const planned = personal || space.kind === "SHARED";
+  const plan = useQuery({ ...lineReportQuery(api, spaceId, page.period.label), enabled: planned }).data;
   const planHref = `${home}/plan${holdsToday(page.period) ? "" : `?period=${encodeURIComponent(page.period.label)}`}`;
   return (
     <>
       <HomeSummary
         spaceId={spaceId}
         kind={space.kind}
+        name={space.name}
         role={space.role}
         joined={joined === "1" ? { space: space.name, dismissHref: home } : undefined}
         policy={space.periodPolicy}
@@ -110,28 +105,18 @@ export function SpaceHome() {
               page={page}
               policy={space.periodPolicy}
               formats={context.formats}
-              // Ruling P310: a category opens with its subcategories, which its amount counts too.
-              soloHref={(id) =>
-                transactionListHref(spaceId, {
-                  period: page.period.label,
-                  categoryId: categoryIdsOf(id, context.groups),
-                })
-              }
-              othersHref={(id) => {
-                const label = otherPeriods[others.indexOf(id)]?.data?.label;
-                return label ? transactionListHref(id, { period: label }) : undefined;
-              }}
               consumptionHref={myConsumptionHref(space, page.period.label)}
             />
           ) : undefined
         }
         plan={
-          personal && plan ? (
+          planned && plan ? (
             <PlanCard
               dashboard={plan}
               policy={space.periodPolicy}
               formats={context.formats}
               href={planHref}
+              variant={personal ? "line" : "hero"}
             />
           ) : undefined
         }
