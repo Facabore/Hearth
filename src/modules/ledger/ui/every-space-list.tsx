@@ -12,7 +12,7 @@ import { hrefOf, myListQueryOf, type ListFilter, type ListSpace } from "./list-h
 import { useMyLoadMore } from "./load-more";
 import { PendingBanner } from "./pending/pending-banner";
 import { SavedNotice } from "./saved-notice";
-import { DayList, MoreFooter } from "./transaction-list";
+import { DayList, MoreFooter } from "./day-list";
 import type { RowContext } from "./transaction-row";
 
 /**

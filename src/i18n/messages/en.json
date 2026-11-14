@@ -489,6 +489,8 @@
     "paidByYou": "you paid",
     "yourShare": "your share {share}",
     "yourPart": "your share",
+    "betweenYourAccounts": "Transfer between your accounts",
+    "paidByFund": "paid by the fund",
     "saved": {
       "title": "Expense saved",
       "dismiss": "Dismiss notice"

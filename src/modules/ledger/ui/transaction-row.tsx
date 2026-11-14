@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { categoryPath, CategoryIcon, findCategory } from "@/modules/categories/ui";
 import { paletteVars, SymbolIcon } from "@/shared/ui";
-import type { CategoryGroupDto, TransactionDto } from "@/shared/ui/api/dto";
+import type { CategoryGroupDto, MoneyDto, TransactionDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
@@ -31,6 +31,7 @@ export function TransactionRow({
   href,
   today,
   card = false,
+  moved,
 }: {
   readonly tx: TransactionDto;
   readonly context: RowContext;
@@ -44,6 +45,15 @@ export function TransactionRow({
    * its plus sign. It is the same flat row as Inicio's (board "Inicio de Hogar"), whose line names the day and who paid.
    */
   readonly card?: boolean;
+  /**
+   * Ruling P327 (boards "Cuenta · Movimientos · #315"): on an account's own screen, what the account moved and which way,
+   * and the line its screen gives the row (`account-movements.tsx`), in place of the row's own.
+   */
+  readonly moved?: {
+    readonly amount: MoneyDto;
+    readonly sign: "+" | "-";
+    readonly line: readonly string[];
+  };
 }) {
   const t = useTranslations("ledger");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
@@ -66,7 +76,8 @@ export function TransactionRow({
     const time = formatTimeAt(tx.occurredAt, tx.timeZone, formats);
     meta.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
   }
-  if (tx.type === "TRANSFER")
+  if (moved) meta.push(...moved.line);
+  else if (tx.type === "TRANSFER")
     meta.push(t("transfer", { from: name(tx.sourceAccountId), to: name(tx.destinationAccountId) }));
   else if (tx.type === "SETTLEMENT")
     meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
@@ -95,8 +106,9 @@ export function TransactionRow({
       shareText = t("yourShare", { share: formatMoney(share.amount, formats) });
   }
   const kind = kindOf(tx);
-  const money = formatMoney(tx.amount, formats);
-  const amount = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
+  const money = formatMoney(moved?.amount ?? tx.amount, formats);
+  const sign = moved?.sign ?? (tx.type === "EXPENSE" ? "-" : tx.type === "INCOME" ? "+" : null);
+  const amount = sign === "-" ? `${MINUS}${money}` : sign === "+" ? `+${money}` : money;
   const icon = found ? (
     <CategoryIcon icon={found.category.icon} color={found.category.color} size={36} />
   ) : (
@@ -108,12 +120,7 @@ export function TransactionRow({
       <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={20} />
     </span>
   );
-  const tone =
-    card && tx.type === "INCOME"
-      ? "text-accent"
-      : tx.type === "EXPENSE" || tx.type === "INCOME"
-        ? "text-ink"
-        : "text-muted";
+  const tone = (card || moved) && sign === "+" ? "text-accent" : sign !== null ? "text-ink" : "text-muted";
   const line = meta.join(" · ");
   const rest = shareText ? (line ? `${line} · ` : "") : line;
   // Ruling P324: 48 px for a row of one line, 56 px for two.

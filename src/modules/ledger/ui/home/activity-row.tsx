@@ -89,6 +89,7 @@ export function ActivityRow({
   today,
   money,
   card = false,
+  moved,
 }: {
   readonly item: ActivityItemDto;
   readonly formats: Formats;
@@ -98,6 +99,15 @@ export function ActivityRow({
   readonly money: (amount: MoneyDto) => string;
   /** Ruling P319, amended by P324: a row of the personal Movimientos, under its day's label, so it names no day. */
   readonly card?: boolean;
+  /**
+   * Ruling P327 (board "Cuenta · Movimientos · #315"): on the person's account's own screen, what the account moved and
+   * which way, and the detail its line names after the space ("tu parte $ 32.000") in place of the row's own.
+   */
+  readonly moved?: {
+    readonly amount: MoneyDto;
+    readonly sign: "+" | "-";
+    readonly detail?: string | undefined;
+  };
 }) {
   const t = useTranslations("home.feed");
   const ledger = useTranslations("ledger");
@@ -118,8 +128,9 @@ export function ActivityRow({
   }
   // Ruling P324 (board "Inicio personal"): the amount is the person's part, so the line names it once, "tu parte",
   // without repeating a figure or who recorded it.
-  const detail =
-    part.detail === "shareOf" || part.detail === "paidAndShare"
+  const detail = moved?.detail
+    ? moved.detail
+    : part.detail === "shareOf" || part.detail === "paidAndShare"
       ? ledger("yourPart")
       : part.detail === "paid"
         ? ledger("paidByYou")
@@ -160,7 +171,8 @@ export function ActivityRow({
         )}
       </span>
     );
-  const tone = part.sign === null ? "text-muted" : part.sign === "+" ? "text-accent" : "text-ink";
+  const sign = moved?.sign ?? part.sign;
+  const tone = sign === null ? "text-muted" : sign === "+" ? "text-accent" : "text-ink";
   return (
     <li data-activity-row>
       {/* Ruling P324: the same flat two-line row as the person's own, with no card and no border of its own. */}
@@ -179,7 +191,7 @@ export function ActivityRow({
           </span>
         </span>
         <span className={`shrink-0 text-base font-semibold whitespace-nowrap ${tone}`}>
-          {signed(part.sign, money(part.amount))}
+          {signed(sign, money(moved?.amount ?? part.amount))}
         </span>
       </Link>
     </li>

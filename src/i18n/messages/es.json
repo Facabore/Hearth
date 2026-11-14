@@ -489,6 +489,8 @@
     "paidByYou": "pagaste tú",
     "yourShare": "tu parte {share}",
     "yourPart": "tu parte",
+    "betweenYourAccounts": "Transferencia entre tus cuentas",
+    "paidByFund": "pagó el fondo",
     "saved": {
       "title": "Gasto guardado",
       "dismiss": "Cerrar aviso"

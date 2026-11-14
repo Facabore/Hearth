@@ -31,3 +31,5 @@ export { lineWatchOf } from "./record/line-watch";
 export { peopleOf } from "./direct/counterparts";
 export { EditTransactionForm } from "./edit/edit-transaction-form";
 export { originOf } from "./edit/origin";
+export { FundMovements, PersonalAccountMovements } from "./account-movements";
+export type { AccountView } from "./account-direction";
