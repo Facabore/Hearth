@@ -105,7 +105,7 @@ export type PreviousIncome = (
 export interface BudgetLineRepository {
   addLine(line: BudgetLine, at: Date): Promise<void>;
   /**
-   * Persists the name, planned amount, funding, savings accounts, rollover mode and catch-all flag of a current line
+   * Persists the name, planned amount, funding, savings accounts, rollover mode, catch-all flag and payers (D26) of a current line
    * of the line's own plan; a line of another plan or a removed one is not found and nothing is saved.
    */
   saveLine(line: BudgetLine, at: Date): Promise<void>;

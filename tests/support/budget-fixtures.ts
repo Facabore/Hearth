@@ -18,6 +18,8 @@ export const aLine = (
   rolloverMode: "RESET",
   isCatchAll: false,
   allocationRule: "PROPORTIONAL",
+  payerMemberIds: [],
+  payersScope: null,
   createdAt: CREATED,
   ...overrides,
 });

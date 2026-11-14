@@ -32,6 +32,7 @@ const FUNDINGS = ["DIRECT", "SHARED_FUND", "SAVINGS"] as const;
 const ROLLOVER_MODES = ["RESET", "ROLLOVER", "ADJUSTED"] as const;
 const ALLOCATION_RULES = ["PROPORTIONAL", "PERCENT", "FIXED", "NONE"] as const;
 const VALUE_RULES = ["PERCENT", "FIXED"] as const;
+const PAYERS_SCOPES = ["EVERY_PERIOD", "THIS_PERIOD"] as const;
 
 export const budgetPlans = pgTable(
   "budget_plans",
@@ -100,6 +101,13 @@ export const budgetLines = pgTable(
     isCatchAll: boolean("is_catch_all").notNull(),
     // HU-E6-05: one rule per line; PERCENT and FIXED keep their member values in budget_allocations.
     allocationRule: text("allocation_rule", { enum: ALLOCATION_RULES }).notNull(),
+    // D26: the members who usually pay the line, in the order named (members are never deleted, D8), and whether a
+    // plan copy keeps them (EVERY_PERIOD) or drops them (THIS_PERIOD); a line without payers has no scope.
+    payerMemberIds: uuid("payer_member_ids")
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    payersScope: text("payers_scope", { enum: PAYERS_SCOPES }),
     createdAt: tz("created_at").notNull(),
     updatedAt: tz("updated_at").notNull(),
     // D8: removing a line is logical; the row stays and every read skips it.
@@ -129,6 +137,16 @@ export const budgetLines = pgTable(
     check("budget_lines_funding", oneOf(t.funding, FUNDINGS)),
     check("budget_lines_rollover_mode", oneOf(t.rolloverMode, ROLLOVER_MODES)),
     check("budget_lines_allocation_rule", oneOf(t.allocationRule, ALLOCATION_RULES)),
+    // D26: a scope exactly when the line has payers, and never payers on a SAVINGS line.
+    check(
+      "budget_lines_payers_scope",
+      sql`(${t.payersScope} IS NULL) = (cardinality(${t.payerMemberIds}) = 0)`,
+    ),
+    check("budget_lines_payers_scope_value", oneOf(t.payersScope, PAYERS_SCOPES)),
+    check(
+      "budget_lines_savings_payers",
+      sql`NOT (${t.funding} = 'SAVINGS' AND cardinality(${t.payerMemberIds}) > 0)`,
+    ),
   ],
 );
 

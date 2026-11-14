@@ -19,6 +19,8 @@ const fields = (overrides: Partial<LineFields> = {}): LineFields => ({
   savingsAccountIds: [],
   rolloverMode: "RESET",
   isCatchAll: false,
+  payerMemberIds: [],
+  payersScope: null,
   ...overrides,
 });
 // HU-E6-03 Background: capacities Ana 1,600,000 COP and Juan 2,400,000 COP.
@@ -29,6 +31,7 @@ const context = (
   siblings,
   totalCapacity: 400_000_000n,
   mappedCategories: 0,
+  payerCandidateIds: [],
   ...overrides,
 });
 const add = (f: LineFields, c: LineContext = context()) =>
@@ -51,6 +54,8 @@ describe("newLine (HU-E6-03)", () => {
       rolloverMode: "RESET",
       isCatchAll: false,
       allocationRule: "PROPORTIONAL",
+      payerMemberIds: [],
+      payersScope: null,
       createdAt: now,
     });
   });

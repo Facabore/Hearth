@@ -28,6 +28,8 @@ export const lineContext = (
     members.map((m) => m.id),
   ),
   mappedCategories: parts.mappings.filter((m) => m.lineId === lineId).length,
+  // D26, P261: a VIEWER never pays a line; guests do, through whoever records for them (D15).
+  payerCandidateIds: members.filter((m) => m.role !== "VIEWER").map((m) => m.id),
 });
 
 /**

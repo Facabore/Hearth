@@ -666,6 +666,62 @@ describe("DrizzleBudgetPlanRepository lines (HU-E6-03, D8)", () => {
   });
 });
 
+describe("DrizzleBudgetPlanRepository line payers (D26, #316)", () => {
+  it("stores a line's payers and scope like its twin, and the database refuses a scope without payers or payers on SAVINGS", async () => {
+    const { space, fixture } = await household();
+    const pedro = await guestMemberFixture(pool, fixture, "Pedro");
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    const rent = aLine("Rent", 120_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: november.id,
+      funding: "SHARED_FUND",
+      payerMemberIds: [fixture.memberId, pedro],
+      payersScope: "EVERY_PERIOD",
+      createdAt: at,
+    });
+    const run = async (plans: BudgetPlanRepository & BudgetLineRepository) => {
+      await plans.add(november);
+      await plans.addLine(rent, at);
+      const added = (await plans.contents(november.id)).lines;
+      await plans.saveLine({ ...rent, payerMemberIds: [pedro], payersScope: "THIS_PERIOD" }, later);
+      const changed = (await plans.contents(november.id)).lines;
+      await plans.saveLine({ ...rent, payerMemberIds: [], payersScope: null }, later);
+      return { added, changed, cleared: (await plans.contents(november.id)).lines };
+    };
+    const expected = {
+      added: [rent],
+      changed: [{ ...rent, payerMemberIds: [pedro], payersScope: "THIS_PERIOD" }],
+      cleared: [{ ...rent, payerMemberIds: [], payersScope: null }],
+    };
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+    const set = (payers: string[], scope: string | null, funding = "DIRECT") =>
+      pool.query(
+        "UPDATE budget_lines SET payer_member_ids = $2::uuid[], payers_scope = $3, funding = $4 WHERE id = $1",
+        [rent.id, payers, scope, funding],
+      );
+    await expect(set([], "EVERY_PERIOD")).rejects.toThrow(/budget_lines_payers_scope/);
+    await expect(set([pedro], null)).rejects.toThrow(/budget_lines_payers_scope/);
+    await expect(set([pedro], "SOMETIMES")).rejects.toThrow(/budget_lines_payers_scope_value/);
+    await expect(set([pedro], "EVERY_PERIOD", "SAVINGS")).rejects.toThrow(/budget_lines_s/);
+  });
+
+  it("reads a line stored without payers as before: none and no scope", async () => {
+    const { space } = await household();
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    await repo.add(november);
+    const id = randomUUID();
+    await pool.query(
+      `INSERT INTO budget_lines (id, plan_id, name, planned_amount, funding, savings_account_ids, rollover_mode,
+         is_catch_all, allocation_rule, created_at, updated_at)
+       VALUES ($1, $2, 'Home', 100, 'DIRECT', '{}', 'RESET', false, 'PROPORTIONAL', now(), now())`,
+      [id, november.id],
+    );
+    const [home] = (await repo.contents(november.id)).lines;
+    expect([home!.id, home!.payerMemberIds, home!.payersScope]).toEqual([id, [], null]);
+  });
+});
+
 describe("DrizzleBudgetPlanRepository deleteLine mappings (HU-E6-03, D8)", () => {
   it("ends only the mappings of the removed line of that plan, like its twin, and keeps their rows", async () => {
     const { space, fixture } = await household();

@@ -334,3 +334,50 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
     expect(codeOf(await copyInto("2026-12"))).toBe("PlanAlreadyExists");
   });
 });
+
+describe("CopyBudgetPlan keeps a line's payers for every period (D26, #316)", () => {
+  /** Rent is paid by Ana and Luis (who left) every period, Home by Juan for 2026-11 only; Free names nobody. */
+  const payerParts = {
+    lines: referenceLines().map((l) =>
+      l.name === "Rent"
+        ? { ...l, payerMemberIds: ["member-ana", "member-luis"], payersScope: "EVERY_PERIOD" as const }
+        : l.name === "Home"
+          ? { ...l, payerMemberIds: ["member-juan"], payersScope: "THIS_PERIOD" as const }
+          : l,
+    ),
+  };
+  const payersOf = (copy: PlanCopy) =>
+    copy.view.figures.lines.map((l) => [l.line.name, l.line.payerMemberIds, l.line.payersScope]);
+
+  it("keeps the every-period payers who are still members and drops the this-period ones", async () => {
+    const { copyInto } = await world({ parts: payerParts });
+    expect(payersOf(unwrap(await copyInto("2026-12")))).toEqual([
+      ["Rent", ["member-ana"], "EVERY_PERIOD"],
+      ["Home", [], null],
+      ["Savings", [], null],
+      ["Free", [], null],
+    ]);
+  });
+
+  it("drops the scope of a line whose every payer left the space", async () => {
+    const { copyInto } = await world({
+      parts: {
+        lines: referenceLines().map((l) =>
+          l.name === "Rent"
+            ? { ...l, payerMemberIds: ["member-luis"], payersScope: "EVERY_PERIOD" as const }
+            : l,
+        ),
+      },
+    });
+    expect(payersOf(unwrap(await copyInto("2026-12")))[0]).toEqual(["Rent", [], null]);
+  });
+
+  it("copies lines without payers exactly as before", async () => {
+    const { copyInto } = await world();
+    expect(
+      payersOf(unwrap(await copyInto("2026-12"))).every(
+        ([, ids, scope]) => scope === null && (ids as string[]).length === 0,
+      ),
+    ).toBe(true);
+  });
+});

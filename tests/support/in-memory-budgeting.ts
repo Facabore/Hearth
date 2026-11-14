@@ -107,12 +107,31 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
    * the fields a request changes; its plan, origin, creation time and allocation rule stay.
    */
   async saveLine(line: BudgetLine): Promise<void> {
-    const { name, plannedAmount, funding, savingsAccountIds, rolloverMode, isCatchAll } = line;
+    const {
+      name,
+      plannedAmount,
+      funding,
+      savingsAccountIds,
+      rolloverMode,
+      isCatchAll,
+      payerMemberIds,
+      payersScope,
+    } = line;
     this.lines = this.lines.map((r) =>
       r.line.id === line.id && r.line.planId === line.planId && r.deletedAt === null
         ? {
             ...r,
-            line: { ...r.line, name, plannedAmount, funding, savingsAccountIds, rolloverMode, isCatchAll },
+            line: {
+              ...r.line,
+              name,
+              plannedAmount,
+              funding,
+              savingsAccountIds,
+              rolloverMode,
+              isCatchAll,
+              payerMemberIds,
+              payersScope,
+            },
           }
         : r,
     );

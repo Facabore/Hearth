@@ -36,6 +36,8 @@ const toLine = (row: typeof budgetLines.$inferSelect): BudgetLine => ({
   rolloverMode: row.rolloverMode,
   isCatchAll: row.isCatchAll,
   allocationRule: row.allocationRule,
+  payerMemberIds: row.payerMemberIds,
+  payersScope: row.payersScope,
   createdAt: row.createdAt,
 });
 
@@ -47,6 +49,8 @@ const lineColumns = (line: BudgetLine) => ({
   savingsAccountIds: [...line.savingsAccountIds],
   rolloverMode: line.rolloverMode,
   isCatchAll: line.isCatchAll,
+  payerMemberIds: [...line.payerMemberIds],
+  payersScope: line.payersScope,
 });
 
 /** Plans and their parts (D7: figures are derived on read; D8: nothing is deleted). */

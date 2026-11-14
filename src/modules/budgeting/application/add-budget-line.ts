@@ -1,5 +1,5 @@
 import { ok, type Money, type Result } from "@/shared/kernel";
-import { newLine, type Funding, type RolloverMode } from "../domain/budget-line";
+import { newLine, type Funding, type PayersScope, type RolloverMode } from "../domain/budget-line";
 import type { BudgetingDeps } from "./deps";
 import { inSpaceCurrency, lineContext, usableSavingsAccounts } from "./line-checks";
 import { planForWrite } from "./plan-access";
@@ -14,6 +14,10 @@ export interface LineInput {
   readonly rolloverMode?: RolloverMode;
   readonly savingsAccountIds?: readonly string[];
   readonly isCatchAll?: boolean;
+  /** D26: who usually pays the line; nobody unless given. */
+  readonly payerMemberIds?: readonly string[];
+  /** D26: every period unless given, and only with payers. */
+  readonly payersScope?: PayersScope;
 }
 
 export type AddBudgetLine = (input: {
@@ -51,6 +55,8 @@ export const createAddBudgetLine =
             savingsAccountIds: input.line.savingsAccountIds ?? [],
             rolloverMode: input.line.rolloverMode ?? "RESET",
             isCatchAll: input.line.isCatchAll ?? false,
+            payerMemberIds: input.line.payerMemberIds ?? [],
+            payersScope: input.line.payersScope ?? null,
           },
         },
         lineContext(parts, members, null),

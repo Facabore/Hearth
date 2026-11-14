@@ -35,7 +35,8 @@ export interface CopyInput {
  * funding, rollover mode, catch-all flag and allocation rule, links to its source line (`originLineId`, HU-E6-09)
  * and is created a millisecond after the one before, so readers list the copies in the source's order. Former
  * members' and VIEWERs' capacities and values (ruling P261), mappings to categories that are archived or gone, and accounts that no longer
- * qualify are left out, and a SAVINGS line left without accounts is not copied. Nothing is checked against
+ * qualify are left out, and a SAVINGS line left without accounts is not copied. D26: a line keeps its every-period
+ * payers who are still current members and not VIEWERs, and drops this-period payers (and a scope left without payers). Nothing is checked against
  * capacity: the copy is a DRAFT, and activation checks it (HU-E6-07). A `lineIds` list that is not one id per source
  * line is a programming error, not a domain outcome: it throws.
  */
@@ -62,12 +63,16 @@ export const copiedParts = (input: CopyInput): { parts: PlanParts; dropped: Copy
     for (const accountId of line.savingsAccountIds.filter((a) => !kept.includes(a))) {
       droppedAccounts.push({ lineId: id, accountId });
     }
+    const payers =
+      line.payersScope === "EVERY_PERIOD" ? line.payerMemberIds.filter((m) => current.has(m)) : [];
     lines.push({
       ...line,
       id,
       planId: input.planId,
       originLineId: line.id,
       savingsAccountIds: kept,
+      payerMemberIds: payers,
+      payersScope: payers.length > 0 ? "EVERY_PERIOD" : null,
       createdAt: new Date(input.now.getTime() + lines.length),
     });
     for (const mapping of input.source.mappings.filter((m) => m.lineId === line.id)) {

@@ -3,12 +3,14 @@ export type { MemberCapacity } from "../domain/capacity";
 export {
   ALLOCATION_RULES,
   FUNDINGS,
+  PAYERS_SCOPES,
   ROLLOVER_MODES,
   type AllocationRule,
   type BudgetLine,
   type BudgetLineId,
   type CategoryMapping,
   type Funding,
+  type PayersScope,
   type RolloverMode,
 } from "../domain/budget-line";
 export type { AllocationInput, AllocationValue, LineAllocation } from "../domain/allocation";
