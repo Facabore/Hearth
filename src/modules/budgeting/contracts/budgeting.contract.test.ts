@@ -55,6 +55,20 @@ const view = (
 });
 
 describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
+  it("sends a line's payers and scope only when it has payers, so a line without them answers as before (D26)", () => {
+    const lines = referenceLines().map((l) =>
+      l.name === "Rent" ? { ...l, payerMemberIds: ["member-ana"], payersScope: "EVERY_PERIOD" as const } : l,
+    );
+    const dto = budgetPlanDto(view(lines));
+    const home = dto.lines.find((l) => l.name === "Home")!;
+    expect(home).not.toHaveProperty("payerMemberIds");
+    expect(home).not.toHaveProperty("payersScope");
+    expect(dto.lines.find((l) => l.name === "Rent")).toMatchObject({
+      payerMemberIds: ["member-ana"],
+      payersScope: "EVERY_PERIOD",
+    });
+  });
+
   it("prints the reference plan with two-decimal percentages and money as minor-unit strings (golden)", () => {
     const lines = referenceLines().map((l) =>
       l.name === "Free" ? { ...l, allocationRule: "PERCENT" as const } : l,
@@ -87,8 +101,6 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
       rolloverMode: "RESET",
       isCatchAll: false,
       savingsAccountIds: [],
-      payerMemberIds: [],
-      payersScope: null,
       categoryIds: ["cat-groceries"],
       capacityShare: "36.75",
       allocation: {

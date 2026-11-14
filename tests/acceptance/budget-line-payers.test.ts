@@ -52,10 +52,12 @@ describe("plan line payers over HTTP (D26, #316)", () => {
     });
   });
 
-  it("answers a line without payers with an empty list and no scope, as before", async () => {
+  it("answers a line without payers with neither field, as before", async () => {
     const { h, post } = await background();
     const plan = (await (await post(h.ana, rent)).json()) as PlanDto;
-    expect(lineNamed(plan, "Rent")).toMatchObject({ payerMemberIds: [], payersScope: null });
+    const line = lineNamed(plan, "Rent");
+    expect(line).not.toHaveProperty("payerMemberIds");
+    expect(line).not.toHaveProperty("payersScope");
   });
 
   it("lets Juan, a payer, change only the payers and scope; anything else is 403", async () => {

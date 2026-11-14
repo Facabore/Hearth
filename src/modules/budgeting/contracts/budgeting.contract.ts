@@ -47,9 +47,9 @@ export const BudgetLineSchema = z.object({
   isCatchAll: z.boolean(),
   /** SAVINGS lines: the accounts whose incoming transfers are the line's spending (spec 5.4). */
   savingsAccountIds: z.array(z.string()),
-  /** D26: the members who usually pay the line, in the order named; empty when nobody does. */
+  /** D26: the members who usually pay the line, in the order named; absent when nobody does. */
   payerMemberIds: z.array(z.string()).optional(),
-  /** D26: EVERY_PERIOD (a plan copy keeps the payers) or THIS_PERIOD; null exactly when the line has no payers. */
+  /** D26: EVERY_PERIOD (a plan copy keeps the payers) or THIS_PERIOD; absent when the line has no payers. */
   payersScope: z.enum(PAYERS_SCOPES).nullable().optional(),
   /** HU-E6-04: the categories mapped to the line; the catch-all line also consumes every unmapped one. */
   categoryIds: z.array(z.string()),
@@ -321,8 +321,10 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
     rolloverMode: line.rolloverMode,
     isCatchAll: line.isCatchAll,
     savingsAccountIds: [...line.savingsAccountIds],
-    payerMemberIds: [...line.payerMemberIds],
-    payersScope: line.payersScope,
+    // D26: only a line with payers carries them, so every other line answers exactly as before.
+    ...(line.payerMemberIds.length === 0
+      ? {}
+      : { payerMemberIds: [...line.payerMemberIds], payersScope: line.payersScope }),
     categoryIds: [...figure.categoryIds],
     capacityShare: percentOrNull(figure.capacityShareBasisPoints),
     allocation: {
