@@ -627,6 +627,8 @@
       "from": "Desde",
       "guestPays": "{name} es invitado: pagó fuera de la app, así que no hay cuenta que elegir.",
       "fundPays": "Sale de la cuenta {fund}. Nadie queda debiendo por este gasto.",
+      "forFund": "Pagaste por {fund}",
+      "forFundPays": "Lo que pagaste cuenta como tu aporte a {fund}. Nadie queda debiendo por este gasto.",
       "method": "Cómo se divide",
       "methods": {
         "BY_ALLOCATION": "Según el plan",
@@ -659,6 +661,7 @@
       "done": "Listo",
       "paidBy": "<b>Pagó</b> {payer}",
       "paidFrom": "<b>Pagó</b> {payer} desde {account}",
+      "paidForFund": "<b>Pagaste</b> por {fund} desde {account}",
       "split": "División",
       "line": "{who} · {how}",
       "with": {

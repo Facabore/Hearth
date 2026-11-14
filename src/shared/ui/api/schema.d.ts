@@ -8330,6 +8330,7 @@ export interface operations {
                         method: "BY_ALLOCATION" | "EQUAL";
                         availableMethods: ("BY_ALLOCATION" | "EQUAL" | "PERCENT" | "EXACT" | "SHARES")[];
                         lineId: string | null;
+                        payerMemberIds?: string[];
                         shares: {
                             memberId: string;
                             amount: components["schemas"]["MoneyOutput"];

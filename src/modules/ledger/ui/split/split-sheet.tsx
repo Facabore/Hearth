@@ -27,6 +27,8 @@ interface PayerChoiceProps {
   readonly funds: readonly AccountDto[];
   readonly draft: SplitDraft;
   readonly onChange: (draft: SplitDraft) => void;
+  /** D26, P328: Registrar also offers "Pagaste por <fund>": the recorder pays from their account for the fund. */
+  readonly forFund?: boolean;
 }
 
 export interface SplitSheetProps extends PayerChoiceProps {
@@ -53,7 +55,9 @@ const payerValue = (payer: SplitDraft["payer"]) =>
     ? `me:${payer.memberId}`
     : payer.kind === "GUEST"
       ? `guest:${payer.memberId}`
-      : `fund:${payer.accountId}`;
+      : payer.kind === "FOR_FUND"
+        ? `forfund:${payer.fundAccountId}`
+        : `fund:${payer.accountId}`;
 
 /** A choice that may be a long stored name: it wraps inside its pill instead of widening the sheet. */
 const wrapped = (text: string) => <span className="block max-w-full break-words py-1.5">{text}</span>;
@@ -69,6 +73,7 @@ function PayerChoice({
   funds,
   draft,
   onChange,
+  forFund = false,
   heading,
 }: PayerChoiceProps & { readonly heading: boolean }) {
   const t = useTranslations("ledger.split");
@@ -79,21 +84,26 @@ function PayerChoice({
   const payer = draft.payer;
   const guestPaying = payer.kind === "GUEST" ? members.find((m) => m.id === payer.memberId) : undefined;
   const fundPaying = payer.kind === "FUND" ? funds.find((f) => f.id === payer.accountId) : undefined;
+  const paidFor = payer.kind === "FOR_FUND" ? funds.find((f) => f.id === payer.fundAccountId) : undefined;
+  // The recorder's own account stays chosen when they move between paying themselves and paying for the fund.
+  const ownAccount =
+    payer.kind === "ME" || payer.kind === "FOR_FUND"
+      ? payer.accountId
+      : preferredAccountId(myAccounts, readLastAccount());
+  const ownPayer = payer.kind === "ME" || payer.kind === "FOR_FUND" ? payer : null;
 
   const pickPayer = (value: string) => {
     const [kind, id = ""] = [value.slice(0, value.indexOf(":")), value.slice(value.indexOf(":") + 1)];
-    if (kind === "guest") onChange({ ...draft, payer: { kind: "GUEST", memberId: id } });
-    else if (kind === "fund") onChange({ ...draft, payer: { kind: "FUND", accountId: id } });
-    else
+    // P328: once the person picks who paid, the line's payers no longer propose it.
+    const chosen = { ...draft, payerChosen: true };
+    if (kind === "guest") onChange({ ...chosen, payer: { kind: "GUEST", memberId: id } });
+    else if (kind === "fund") onChange({ ...chosen, payer: { kind: "FUND", accountId: id } });
+    else if (kind === "forfund" && recorder)
       onChange({
-        ...draft,
-        payer: {
-          kind: "ME",
-          memberId: id,
-          accountId:
-            payer.kind === "ME" ? payer.accountId : preferredAccountId(myAccounts, readLastAccount()),
-        },
+        ...chosen,
+        payer: { kind: "FOR_FUND", memberId: recorder.id, accountId: ownAccount, fundAccountId: id },
       });
+    else onChange({ ...chosen, payer: { kind: "ME", memberId: id, accountId: ownAccount } });
   };
 
   return (
@@ -108,22 +118,31 @@ function PayerChoice({
           ...(recorder ? [{ value: `me:${recorder.id}`, label: wrapped(label(recorder)) }] : []),
           ...guests.map((guest) => ({ value: `guest:${guest.id}`, label: wrapped(label(guest)) })),
           ...funds.map((fund) => ({ value: `fund:${fund.id}`, label: wrapped(fund.name) })),
+          ...(forFund && recorder
+            ? funds.map((fund) => ({
+                value: `forfund:${fund.id}`,
+                label: wrapped(t("forFund", { fund: fund.name })),
+              }))
+            : []),
         ]}
       />
-      {payer.kind === "ME" && myAccounts.length > 0 ? (
+      {ownPayer && myAccounts.length > 0 ? (
         <p aria-hidden="true" className="-mb-1 text-sm text-muted">
           {t("from")}
         </p>
       ) : null}
-      {payer.kind === "ME" && myAccounts.length > 0 ? (
+      {ownPayer && myAccounts.length > 0 ? (
         <ChoiceGroup
           layout="chips"
           label={t("from")}
-          value={payer.accountId ?? ""}
-          onValueChange={(accountId) => onChange({ ...draft, payer: { ...payer, accountId } })}
+          value={ownPayer.accountId ?? ""}
+          onValueChange={(accountId) =>
+            onChange({ ...draft, payerChosen: true, payer: { ...ownPayer, accountId } })
+          }
           options={myAccounts.map((account) => ({ value: account.id, label: wrapped(account.name) }))}
         />
       ) : null}
+      {paidFor ? <p className="text-sm text-muted">{t("forFundPays", { fund: paidFor.name })}</p> : null}
       {guestPaying ? (
         <p className="text-sm text-muted">{t("guestPays", { name: guestPaying.displayName })}</p>
       ) : null}
@@ -503,6 +522,7 @@ export function SharedSplitSheet({ context, api, sheet, onSheetChange, ...props 
         open={sheet === "payer"}
         onOpenChange={(open) => onSheetChange(open ? "payer" : null)}
         title={props.title}
+        forFund={props.forFund}
         {...addGuests}
       />
       {adding && space ? (

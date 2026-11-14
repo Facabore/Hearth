@@ -78,7 +78,8 @@ export const requestOf = (
       memberIds: shared.memberIds,
     });
     if (!parts.ok) return { ok: false, field: parts.field };
-    body.payments = parts.payments;
+    if (parts.payments !== null) body.payments = parts.payments;
+    if (parts.paidForFund) body.paidForFund = parts.paidForFund;
     if (parts.split) body.split = parts.split;
   } else body.accountId = draft.accountId;
   return { ok: true, kind: draft.kind, body };

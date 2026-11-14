@@ -11,6 +11,7 @@ import {
   type LocalDate,
   type Result,
 } from "@/shared/kernel";
+import type { BudgetLine } from "../domain/budget-line";
 import { rolledUpCategory, type CategoryParent } from "../domain/category-rollup";
 import { lineAssignment, lineForCategory } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
@@ -43,7 +44,13 @@ export interface DefaultSplit {
   readonly lineId: string | null;
   /** BY_ALLOCATION: the line's positive assigned amounts; EQUAL: 1 per member of `memberIds`. Join order. */
   readonly weights: readonly { readonly memberId: string; readonly weight: bigint }[];
+  /** D26: the members who usually pay that line, so Registrar can propose one of them as who paid; absent without. */
+  readonly payerMemberIds?: readonly string[];
 }
+
+/** D26: a line's payers, only when it names some, so a default without them reads exactly as before. */
+const payersOf = (line: BudgetLine | null) =>
+  line === null || line.payerMemberIds.length === 0 ? {} : { payerMemberIds: line.payerMemberIds };
 
 /**
  * HU-E6-08, spec 5.3, D4: the default split of an expense. BY_ALLOCATION by the line the category consumes (its
@@ -61,10 +68,11 @@ export const defaultSplitOf = async (
   expense: ExpenseToSplit,
   categories?: readonly CategoryParent[],
 ): Promise<DefaultSplit> => {
-  const equal = (lineId: string | null): DefaultSplit => ({
+  const equal = (line: BudgetLine | null): DefaultSplit => ({
     method: "EQUAL",
-    lineId,
+    lineId: line?.id ?? null,
     weights: expense.memberIds.map((memberId) => ({ memberId, weight: 1n })),
+    ...payersOf(line),
   });
   const plan = await deps.plans.covering(expense.spaceId, expense.date);
   if (plan === null || plan.status !== "ACTIVE") return equal(null);
@@ -86,7 +94,9 @@ export const defaultSplitOf = async (
           .filter((a) => a.amount > 0n && expense.memberIds.includes(a.memberId))
           .map((a) => ({ memberId: a.memberId, weight: a.amount }))
       : [];
-  return weights.length === 0 ? equal(line.id) : { method: "BY_ALLOCATION", lineId: line.id, weights };
+  return weights.length === 0
+    ? equal(line)
+    : { method: "BY_ALLOCATION", lineId: line.id, weights, ...payersOf(line) };
 };
 
 export interface DefaultSplitView {
@@ -94,6 +104,8 @@ export interface DefaultSplitView {
   /** What a member may pick; BY_ALLOCATION only when it is the default, since no client requests it (P16). */
   readonly availableMethods: readonly SplitMethodName[];
   readonly lineId: string | null;
+  /** D26: the members who usually pay that line; absent when it names nobody, or without a line. */
+  readonly payerMemberIds?: readonly string[];
   readonly currency: string;
   /** The amount shared by the default, in join order; null when no amount was given. */
   readonly shares: readonly { readonly memberId: string; readonly amount: bigint }[] | null;
@@ -155,6 +167,7 @@ export const createResolveDefaultSplit =
         (m) => m !== "BY_ALLOCATION" || split.method === "BY_ALLOCATION",
       ),
       lineId: split.lineId,
+      ...(split.payerMemberIds === undefined ? {} : { payerMemberIds: split.payerMemberIds }),
       currency: space.currency,
       shares,
     });

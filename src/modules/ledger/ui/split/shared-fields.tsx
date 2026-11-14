@@ -40,6 +40,11 @@ export interface SharedFieldsProps {
   readonly payerError?: string | undefined;
   /** Whether the plan's split (HU-E6-08) is asked for and offered; an edit starts from the saved split and has none (P192). */
   readonly defaultSplit?: boolean;
+  /**
+   * D26, P328: a new expense may be paid for the fund, and the line's payers propose it: a recorder who usually pays
+   * the line its category consumes starts as "pagaste por el fondo" from their account, in a space with a fund.
+   */
+  readonly forFund?: boolean;
 }
 
 /**
@@ -62,6 +67,7 @@ export function SharedFields({
   error,
   payerError,
   defaultSplit: offerPlan = true,
+  forFund = false,
 }: SharedFieldsProps) {
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
@@ -95,6 +101,22 @@ export function SharedFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultSplit, draft, onChange]);
 
+  // D26, P328: until the person picks who paid, the line's payers propose it. A recorder who usually pays the line
+  // pays for the fund from the account they would pay from; once the category no longer says so, they pay themselves.
+  const fund = context.funds[0];
+  useEffect(() => {
+    if (!forFund || draft.payerChosen || fund === undefined) return;
+    const { payer } = draft;
+    const pays =
+      defaultSplit.status === "ready" && (defaultSplit.payerMemberIds ?? []).includes(context.meMemberId);
+    if (pays && payer.kind === "ME")
+      onChange({ ...draft, payer: { ...payer, kind: "FOR_FUND", fundAccountId: fund.id } });
+    else if (!pays && payer.kind === "FOR_FUND")
+      onChange({ ...draft, payer: { kind: "ME", memberId: payer.memberId, accountId: payer.accountId } });
+    // The context is derived on every render; the draft and the answer are what trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultSplit, draft, onChange, forFund, fund?.id]);
+
   const allocation = defaultSplit.status === "ready" ? defaultSplit.shares : null;
   const check = splitCheckOf(draft, {
     amount,
@@ -121,19 +143,27 @@ export function SharedFields({
 
   const { payer } = draft;
   const account =
-    payer.kind === "ME" ? context.myAccounts.find((a) => a.id === payer.accountId)?.name : undefined;
+    payer.kind === "ME" || payer.kind === "FOR_FUND"
+      ? context.myAccounts.find((a) => a.id === payer.accountId)?.name
+      : undefined;
   // Ruling P291 (board E9-06 · 01): "Pagó Ana desde Bancolombia", the recorder named too; ruling P324 drops the bold, so
   // the row is one plain line over its meta.
   const b = (chunks: ReactNode) => chunks;
   const paid =
-    payer.kind === "FUND"
-      ? t.rich("paidBy", { b, payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
-      : payer.kind === "GUEST"
-        ? t.rich("paidBy", { b, payer: label(payer.memberId) })
-        : account
-          ? // A shared space holds only funds: a member pays from a personal account of their own (S7).
-            t.rich("paidFrom", { b, payer: nameOf(payer.memberId), account })
-          : t.rich("paidBy", { b, payer: label(payer.memberId) });
+    payer.kind === "FOR_FUND"
+      ? t.rich("paidForFund", {
+          b,
+          fund: context.funds.find((f) => f.id === payer.fundAccountId)?.name ?? "",
+          account: account ?? "",
+        })
+      : payer.kind === "FUND"
+        ? t.rich("paidBy", { b, payer: context.funds.find((f) => f.id === payer.accountId)?.name ?? "" })
+        : payer.kind === "GUEST"
+          ? t.rich("paidBy", { b, payer: label(payer.memberId) })
+          : account
+            ? // A shared space holds only funds: a member pays from a personal account of their own (S7).
+              t.rich("paidFrom", { b, payer: nameOf(payer.memberId), account })
+            : t.rich("paidBy", { b, payer: label(payer.memberId) });
 
   const show = (which: NonNullable<SharedSheet>) => {
     setOpened(true);
@@ -182,6 +212,7 @@ export function SharedFields({
           currency={currency}
           formats={formats}
           defaultSplit={defaultSplit}
+          forFund={forFund}
         />
       ) : null}
     </>

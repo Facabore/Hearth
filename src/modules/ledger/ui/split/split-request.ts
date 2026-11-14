@@ -11,7 +11,17 @@ import { previewSplit, type ParticipantValue, type SplitCheck, type SplitMethod 
 export type Payer =
   | { readonly kind: "ME"; readonly memberId: string; readonly accountId: string | null }
   | { readonly kind: "GUEST"; readonly memberId: string }
-  | { readonly kind: "FUND"; readonly accountId: string };
+  | { readonly kind: "FUND"; readonly accountId: string }
+  /**
+   * D26, P328: "pagaste por el fondo": the recorder pays from their account for the fund, which Hearth records as their
+   * contribution to it and the fund's payment of the expense.
+   */
+  | {
+      readonly kind: "FOR_FUND";
+      readonly memberId: string;
+      readonly accountId: string | null;
+      readonly fundAccountId: string;
+    };
 
 export interface SplitDraft {
   readonly payer: Payer;
@@ -20,6 +30,8 @@ export interface SplitDraft {
   readonly values: Readonly<Record<string, string>>;
   /** The person picked the method; until then the default split (HU-E6-08) may set it (ruling P167). */
   readonly chosen: boolean;
+  /** P328: the person picked who paid; until then the line's payers (D26) may propose "pagaste por el fondo". */
+  readonly payerChosen?: boolean;
 }
 
 /** The selected members in the space's join order, with what was typed for each. */
@@ -50,7 +62,10 @@ export const splitCheckOf = (
   });
 };
 
-/** HU-E9-06: the `payments` and `split` of a shared expense; no `split` for BY_ALLOCATION (the server applies it). */
+/**
+ * HU-E9-06: the `payments` and `split` of a shared expense; no `split` for BY_ALLOCATION (the server applies it). D26:
+ * an expense paid for the fund sends `paidForFund` instead of `payments`.
+ */
 export const sharedPartsOf = (
   draft: SplitDraft,
   input: {
@@ -60,19 +75,33 @@ export const sharedPartsOf = (
     readonly memberIds: readonly string[];
   },
 ):
-  | { ok: true; payments: readonly Record<string, unknown>[]; split: Record<string, unknown> | null }
+  | {
+      ok: true;
+      payments: readonly Record<string, unknown>[] | null;
+      paidForFund?: Record<string, unknown>;
+      split: Record<string, unknown> | null;
+    }
   | { ok: false; field: "payer" | "split" } => {
   const amount = { amount: input.amount, currency: input.currency };
   const { payer } = draft;
-  if (payer.kind === "ME" && !payer.accountId) return { ok: false, field: "payer" };
-  const payments = [
-    payer.kind === "FUND"
-      ? { memberId: null, accountId: payer.accountId, amount }
-      : payer.kind === "GUEST"
-        ? { memberId: payer.memberId, accountId: null, amount }
-        : { memberId: payer.memberId, accountId: payer.accountId, amount },
-  ];
-  if (draft.method === "BY_ALLOCATION") return { ok: true, payments, split: null };
+  if ((payer.kind === "ME" || payer.kind === "FOR_FUND") && !payer.accountId)
+    return { ok: false, field: "payer" };
+  const paid =
+    payer.kind === "FOR_FUND"
+      ? {
+          payments: null,
+          paidForFund: { fundAccountId: payer.fundAccountId, sourceAccountId: payer.accountId },
+        }
+      : {
+          payments: [
+            payer.kind === "FUND"
+              ? { memberId: null, accountId: payer.accountId, amount }
+              : payer.kind === "GUEST"
+                ? { memberId: payer.memberId, accountId: null, amount }
+                : { memberId: payer.memberId, accountId: payer.accountId, amount },
+          ],
+        };
+  if (draft.method === "BY_ALLOCATION") return { ok: true, ...paid, split: null };
   const participants = participantsOf(draft, input.memberIds);
   const check = previewSplit({ ...input, method: draft.method, participants });
   if (!check.ok) return { ok: false, field: "split" };
@@ -81,7 +110,7 @@ export const sharedPartsOf = (
   const method = draft.method;
   return {
     ok: true,
-    payments,
+    ...paid,
     split: {
       method,
       participants: participants.map(({ memberId, value }) =>

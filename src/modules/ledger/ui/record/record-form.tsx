@@ -316,7 +316,11 @@ export function RecordForm({
         subcategoryId: category.subcategoryId ?? null,
       });
     // Issue #208: the account an expense was paid from is where the next one starts.
-    const paidFrom = sharedExpense ? (split?.payer.kind === "ME" ? split.payer.accountId : null) : accountId;
+    const paidFrom = sharedExpense
+      ? split?.payer.kind === "ME" || split?.payer.kind === "FOR_FUND"
+        ? split.payer.accountId
+        : null
+      : accountId;
     if (kind === "EXPENSE" && paidFrom) rememberLastAccount(paidFrom);
   };
   const [accountId, setAccountId] = useState<string | null>(() => {
@@ -737,6 +741,7 @@ export function RecordForm({
                 error={errorOf("split")}
                 payerError={errorOf("payer")}
                 defaultSplit={!edit}
+                forFund={!edit}
               />
             ) : null}
             <div role="group" aria-label={t("form.details")} className="flex flex-col">

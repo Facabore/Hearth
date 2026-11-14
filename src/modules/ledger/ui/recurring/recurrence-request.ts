@@ -81,6 +81,8 @@ const sharedExpenseOf = (
   if (chosen && split.method === "EXACT") return { ok: false, field: "split", reason: "exactSplit" };
   const parts = sharedPartsOf(chosen ? split : { ...split, method: "BY_ALLOCATION" }, input);
   if (!parts.ok) return { ok: false, field: parts.field };
+  // A recurrence is never paid for the fund: its payer sheet does not offer it (D26).
+  if (parts.payments === null) return { ok: false, field: "payer" };
   const paid = parts.payments[0]!;
   return {
     ok: true,

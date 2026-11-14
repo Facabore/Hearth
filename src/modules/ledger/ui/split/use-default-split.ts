@@ -15,6 +15,8 @@ export type DefaultSplitState =
       readonly method: "BY_ALLOCATION" | "EQUAL";
       readonly availableMethods: readonly SplitMethod[];
       readonly shares: readonly { readonly memberId: string; readonly amount: string }[] | null;
+      /** D26: the members who usually pay the line the category consumes; absent or empty when nobody does. */
+      readonly payerMemberIds?: readonly string[];
     };
 
 /**
@@ -56,6 +58,7 @@ export const useDefaultSplit = (input: {
                   availableMethods: data.availableMethods,
                   shares:
                     data.shares?.map((s) => ({ memberId: s.memberId, amount: s.amount.amount })) ?? null,
+                  payerMemberIds: data.payerMemberIds ?? [],
                 }
               : { status: "none" },
           );

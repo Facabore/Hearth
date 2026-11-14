@@ -627,6 +627,8 @@
       "from": "From",
       "guestPays": "{name} is a guest: they paid outside the app, so there is no account to choose.",
       "fundPays": "It comes out of {fund}. Nobody owes anything for this expense.",
+      "forFund": "You paid for {fund}",
+      "forFundPays": "What you paid counts as your contribution to {fund}. Nobody owes anything for this expense.",
       "method": "How it is split",
       "methods": {
         "BY_ALLOCATION": "As in the plan",
@@ -659,6 +661,7 @@
       "done": "Done",
       "paidBy": "<b>Paid by</b> {payer}",
       "paidFrom": "<b>Paid by</b> {payer} from {account}",
+      "paidForFund": "<b>You paid</b> for {fund} from {account}",
       "split": "Split",
       "line": "{who} · {how}",
       "with": {

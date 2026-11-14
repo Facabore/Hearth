@@ -293,6 +293,8 @@ export const DefaultSplitSchema = z.object({
   availableMethods: z.array(z.enum(["BY_ALLOCATION", "EQUAL", "PERCENT", "EXACT", "SHARES"])),
   /** The line of the ACTIVE plan covering the date that the category consumes; null without one. */
   lineId: z.string().nullable(),
+  /** D26: the members who usually pay that line, so a client can propose one as who paid; absent when nobody does. */
+  payerMemberIds: z.array(z.string()).optional(),
   /** The amount shared by the default, in join order; null without an amount. */
   shares: z.array(z.object({ memberId: z.string(), amount: MoneySchema })).nullable(),
 });
@@ -301,6 +303,7 @@ export const defaultSplitDto = (view: DefaultSplitView): z.infer<typeof DefaultS
   method: view.method,
   availableMethods: [...view.availableMethods],
   lineId: view.lineId,
+  ...(view.payerMemberIds === undefined ? {} : { payerMemberIds: [...view.payerMemberIds] }),
   shares:
     view.shares === null
       ? null

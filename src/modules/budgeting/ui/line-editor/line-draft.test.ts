@@ -22,6 +22,8 @@ describe("line fields (HU-E9-08)", () => {
       rolloverMode: "RESET",
       isCatchAll: false,
       savingsAccountIds: [],
+      payerMemberIds: [],
+      payersScope: "EVERY_PERIOD",
     });
     expect(lineDraftOf(planLineDto({ isCatchAll: true }), BUILT_IN_FORMATS)).toEqual({
       ...NEW_LINE,
@@ -100,5 +102,40 @@ describe("line fields (HU-E9-08)", () => {
       lineFieldOf(problem("ValidationFailed", { errors: [{ path: "plannedAmount.amount", message: "x" }] })),
     ).toBe("planned");
     expect(lineFieldOf(problem("PeriodClosed"))).toBe("form");
+  });
+
+  it("sends a line's payers only when it has some, and an edit only what changed (D26)", () => {
+    const paid = { ...NEW_LINE, name: "Rent", planned: "1.200.000", funding: "SHARED_FUND" as const };
+    const withPayers = lineBodyOf(
+      { ...paid, payerMemberIds: ["m-ana"], payersScope: "THIS_PERIOD" },
+      "COP",
+      "DOT_COMMA",
+    );
+    expect(withPayers.ok && withPayers.body).toMatchObject({
+      payerMemberIds: ["m-ana"],
+      payersScope: "THIS_PERIOD",
+    });
+    const without = lineBodyOf(paid, "COP", "DOT_COMMA");
+    expect(without.ok && without.body).not.toHaveProperty("payerMemberIds");
+    const stored = planLineDto({
+      funding: "SHARED_FUND",
+      payerMemberIds: ["m-ana"],
+      payersScope: "EVERY_PERIOD",
+    });
+    const body = (
+      draft: typeof paid & { payerMemberIds: string[]; payersScope: "EVERY_PERIOD" | "THIS_PERIOD" },
+    ) => {
+      const built = lineBodyOf({ ...draft, name: "Home", planned: "1.470.000" }, "COP", "DOT_COMMA");
+      if (!built.ok) throw new Error("unreadable");
+      return lineChanges(stored, built.body);
+    };
+    expect(body({ ...paid, payerMemberIds: ["m-ana"], payersScope: "EVERY_PERIOD" })).toEqual({});
+    expect(body({ ...paid, payerMemberIds: ["m-ana"], payersScope: "THIS_PERIOD" })).toEqual({
+      payersScope: "THIS_PERIOD",
+    });
+    expect(body({ ...paid, payerMemberIds: [], payersScope: "EVERY_PERIOD" })).toEqual({
+      payerMemberIds: [],
+    });
+    expect(lineFieldOf(problem("InvalidLinePayers"))).toBe("payers");
   });
 });

@@ -12251,6 +12251,12 @@
                         "null"
                       ]
                     },
+                    "payerMemberIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "shares": {
                       "anyOf": [
                         {

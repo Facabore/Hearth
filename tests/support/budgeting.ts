@@ -128,6 +128,9 @@ export interface LineSpec {
   rolloverMode?: string;
   savingsAccountIds?: string[];
   isCatchAll?: boolean;
+  /** D26: who usually pays the line, and for how long. */
+  payerMemberIds?: string[];
+  payersScope?: "EVERY_PERIOD" | "THIS_PERIOD";
 }
 
 /** HU-E6-03: `user` adds a line to the plan. */

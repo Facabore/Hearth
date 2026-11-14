@@ -483,3 +483,26 @@ describe("the default split in a personal space (HU-E6-08, ruling N5)", () => {
     expect(sharesOf(unwrap(preview))).toEqual([["member-ana-personal", pesos(100_000)]]);
   });
 });
+
+describe("ResolveDefaultSplit names the line's payers (D26, #316)", () => {
+  it("answers who usually pays the line Groceries consumes, and nobody without a line", async () => {
+    const lines = referenceLines().map((l) =>
+      l.name === "Home" ? { ...l, payerMemberIds: ["member-juan"], payersScope: "EVERY_PERIOD" as const } : l,
+    );
+    const { preview } = await world({ lines });
+    expect(unwrap(await preview("cat-groceries")).payerMemberIds).toEqual(["member-juan"]);
+    expect(unwrap(await preview("cat-groceries", { date: "2026-12-08" }))).not.toHaveProperty(
+      "payerMemberIds",
+    );
+  });
+
+  it("keeps the payers of an EQUAL default whose line has no allocation, and is empty for a line without payers", async () => {
+    const lines = withRule("Home", "NONE").map((l) =>
+      l.name === "Home" ? { ...l, payerMemberIds: ["member-ana"], payersScope: "THIS_PERIOD" as const } : l,
+    );
+    const { preview } = await world({ lines });
+    const view = unwrap(await preview("cat-groceries"));
+    expect([view.method, view.payerMemberIds]).toEqual(["EQUAL", ["member-ana"]]);
+    expect(unwrap(await preview("cat-utilities"))).not.toHaveProperty("payerMemberIds");
+  });
+});

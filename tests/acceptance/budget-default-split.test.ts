@@ -510,3 +510,19 @@ describe("a VIEWER stays out of the default split (ruling P293)", () => {
     ]);
   });
 });
+
+describe("the default split names who usually pays the line (D26, #316)", () => {
+  it("answers Juan as the payer of Home once Ana names him on the line", async () => {
+    const { h, planId, lineId } = await activeReference({ draft: true });
+    expect(
+      (await patchLine(h.ana, h.spaceId, planId, lineId("Home"), { payerMemberIds: [h.juan.memberId] }))
+        .status,
+    ).toBe(200);
+    expect((await activatePlan(h.ana, h.spaceId, planId)).status).toBe(200);
+    const response = await getDefaultSplit(h.ana, h.spaceId, { categoryId: h.groceries, date: "2026-11-08" });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { payerMemberIds?: string[] }).payerMemberIds).toEqual([
+      h.juan.memberId,
+    ]);
+  });
+});
