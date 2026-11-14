@@ -22,6 +22,15 @@ export interface SpaceMemberSums {
     from: LocalDate,
     to: LocalDate,
   ): Promise<readonly { readonly memberId: string; readonly amount: bigint }[]>;
+  /**
+   * D26: per category and member, Σ the contributions that paid an expense for the fund (the expense's category, the
+   * contributor), dated within the dates; they are part of `fundContributionsByMember` too.
+   */
+  paidForFundByCategory(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<readonly { readonly categoryId: string; readonly memberId: string; readonly amount: bigint }[]>;
 }
 
 export interface MemberSumsDeps extends ReportingDeps {

@@ -94,3 +94,41 @@ describe("fund contribution tracking (HU-E7-03)", () => {
     expect(codeOf(await read(w, "2026-11", "u-marta"))).toBe("SpaceNotFound");
   });
 });
+
+describe("what each member paid directly for the fund, by line (D26, P328)", () => {
+  /** Rent is paid by Ana every period; Groceries (cat-groceries) maps to Home, which nobody pays directly. */
+  const lines = () =>
+    referenceLines().map((l) =>
+      l.name === "Rent" ? { ...l, payerMemberIds: ["member-ana"], payersScope: "EVERY_PERIOD" as const } : l,
+    );
+  const mappings = [
+    { lineId: "line-rent", categoryId: "cat-utilities" },
+    { lineId: "line-home", categoryId: "cat-groceries" },
+  ];
+
+  it("lists Ana's payment of Rent for the fund, which also counts in her actual, and the lines she pays at 0", async () => {
+    const w = reportingWorld({ members: BUDGET_MEMBERS.slice(0, 2) });
+    await w.plan("2026-11", { capacities, lines: lines(), mappings });
+    w.sums.contributions["2026-11-01"] = [{ memberId: "member-ana", amount: pesos(1_200_000) }];
+    w.sums.forFund["2026-11-01"] = [
+      { categoryId: "cat-utilities", memberId: "member-ana", amount: pesos(1_200_000) },
+      // Juan paid groceries for the fund once: a line he does not usually pay still shows what he paid.
+      { categoryId: "cat-groceries", memberId: "member-juan", amount: pesos(50_000) },
+    ];
+    const report = unwrap(await read(w, "2026-11"));
+    expect(report.members.map((m) => [m.memberId, m.actual, m.paidDirectly])).toEqual([
+      ["member-ana", pesos(1_200_000), [{ lineId: "line-rent", name: "Rent", amount: pesos(1_200_000) }]],
+      ["member-juan", 0n, [{ lineId: "line-home", name: "Home", amount: pesos(50_000) }]],
+    ]);
+  });
+
+  it("lists a line Ana pays with nothing paid yet, and nothing for a member who pays no line", async () => {
+    const w = reportingWorld({ members: BUDGET_MEMBERS.slice(0, 2) });
+    await w.plan("2026-11", { capacities, lines: lines(), mappings });
+    const report = unwrap(await read(w, "2026-11"));
+    expect(report.members.map((m) => [m.memberId, m.paidDirectly])).toEqual([
+      ["member-ana", [{ lineId: "line-rent", name: "Rent", amount: 0n }]],
+      ["member-juan", []],
+    ]);
+  });
+});

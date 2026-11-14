@@ -323,7 +323,18 @@
       "noPlan": "Sin plan, nadie tiene un aporte esperado.",
       "note": "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
       "missing": "Falta",
-      "behindBy": "Le faltan {amount} para el fondo"
+      "behindBy": "Le faltan {amount} para el fondo",
+      "detail": {
+        "open": "Ver lo que le toca a {name}",
+        "title": "{name} · {period}",
+        "share": "Le toca",
+        "ofPlan": "{percent} del plan de {total}",
+        "paidLine": "{state, select, paid {lo paga directo · ya pagado} other {lo paga directo · aún no}}",
+        "toFund": "Al fondo de {space}",
+        "toFundNote": "aportó {actual} de {expected}",
+        "left": "Le faltan",
+        "settled": "Al día"
+      }
     },
     "lines": {
       "summary": "Resumen del plan",

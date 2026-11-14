@@ -104,6 +104,21 @@ describe("an expense paid for the fund over HTTP (D26, #316)", () => {
     expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(800_000));
   });
 
+  it("lists Rent among what Ana paid directly for the fund in the fund report (P328)", async () => {
+    const { h, payRent, lineId } = await background();
+    expect((await payRent()).status).toBe(201);
+    const response = await getFundContributions(h.ana, h.spaceId, { period: "2026-11" });
+    const report = (await response.json()) as {
+      members: { memberId: string; paidDirectly?: { lineId: string; name: string; amount: unknown }[] }[];
+    };
+    const byMember = Object.fromEntries(report.members.map((m) => [m.memberId, m.paidDirectly]));
+    expect(byMember[h.ana.memberId]).toEqual([
+      { lineId: lineId("Rent"), name: "Rent", amount: cop(1_200_000) },
+    ]);
+    // Juan paid nothing directly and pays no line: his row answers as before.
+    expect(byMember[h.juan.memberId]).toBeUndefined();
+  });
+
   it("deletes and restores both halves from either one", async () => {
     const { h, payRent } = await background();
     const expense = (await (await payRent()).json()) as RecordedDto;

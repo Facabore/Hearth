@@ -8605,6 +8605,11 @@ export interface operations {
                             expected: components["schemas"]["MoneyOutput"];
                             actual: components["schemas"]["MoneyOutput"];
                             difference: components["schemas"]["MoneyOutput"];
+                            paidDirectly?: {
+                                lineId: string;
+                                name: string;
+                                amount: components["schemas"]["MoneyOutput"];
+                            }[];
                         }[];
                         /** @description Σ over the listed members of expected, actual and difference. */
                         totals: {

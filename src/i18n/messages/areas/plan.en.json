@@ -323,7 +323,18 @@
       "noPlan": "Without a plan, nobody has an expected contribution.",
       "note": "Expected: what each one is assigned on the lines paid from the fund. Contributions dated in the period count.",
       "missing": "Missing",
-      "behindBy": "Short by {amount} for the fund"
+      "behindBy": "Short by {amount} for the fund",
+      "detail": {
+        "open": "See what {name} has to put in",
+        "title": "{name} · {period}",
+        "share": "Their part",
+        "ofPlan": "{percent} of the {total} plan",
+        "paidLine": "{state, select, paid {paid directly · already paid} other {paid directly · not yet}}",
+        "toFund": "Into the {space} fund",
+        "toFundNote": "put in {actual} of {expected}",
+        "left": "Still to put in",
+        "settled": "Up to date"
+      }
     },
     "lines": {
       "summary": "Plan summary",

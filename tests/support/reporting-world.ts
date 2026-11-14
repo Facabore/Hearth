@@ -18,6 +18,8 @@ export class MemberSumsByPeriod implements SpaceMemberSums {
     { categoryId: string; memberId: string; paid: bigint; consumed: bigint }[]
   > = {};
   readonly contributions: Record<string, { memberId: string; amount: bigint }[]> = {};
+  /** D26: the contributions that paid an expense for the fund, by the expense's category. */
+  readonly forFund: Record<string, { categoryId: string; memberId: string; amount: bigint }[]> = {};
 
   async memberSumsByCategory(_spaceId: string, from: LocalDate) {
     return [...(this.byCategory[from] ?? [])];
@@ -25,6 +27,10 @@ export class MemberSumsByPeriod implements SpaceMemberSums {
 
   async fundContributionsByMember(_spaceId: string, from: LocalDate) {
     return [...(this.contributions[from] ?? [])];
+  }
+
+  async paidForFundByCategory(_spaceId: string, from: LocalDate) {
+    return [...(this.forFund[from] ?? [])];
   }
 }
 

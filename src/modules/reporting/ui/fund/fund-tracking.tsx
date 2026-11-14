@@ -1,14 +1,24 @@
-import { useId } from "react";
+import dynamic from "next/dynamic";
+import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { absolute } from "@/modules/balances/ui";
-import { Badge } from "@/shared/ui";
-import type { FundTrackingDto, MemberDto, MoneyDto } from "@/shared/ui/api/dto";
-import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
+import { Badge, Icon } from "@/shared/ui";
+import type { FundTrackingDto, MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
+import { periodName } from "@/shared/ui/time/period-name";
 import { barWidth } from "../lines/bar";
 import { activeFundRows } from "../matrix/idle-members";
 import { memberName } from "../member-name";
 
 const isNegative = (money: MoneyDto) => money.amount.startsWith("-");
+
+// P328: the member's detail sheet loads only when someone opens it.
+const MemberFundSheet = dynamic(
+  () => import("./member-fund-sheet").then((module) => module.MemberFundSheet),
+  {
+    ssr: false,
+  },
+);
 
 // The owe ink, never `text-owe`: the plain owe color fails AA contrast below 18.66 px and these figures are small.
 const FIGURE = "text-base font-semibold tabular-nums [overflow-wrap:anywhere]";
@@ -24,15 +34,27 @@ const TILE = "flex min-w-0 flex-col rounded-xl border px-3 py-2.5";
 export function FundTracking({
   fund,
   members,
+  space,
   formats,
 }: {
   readonly fund: FundTrackingDto;
   readonly members: readonly MemberDto[];
-  readonly formats: Pick<Formats, "numberFormat">;
+  /** P328: the space whose fund this is, named in a member's detail ("Al fondo de Hogar"). */
+  readonly space: Pick<SpaceDto, "name" | "periodPolicy">;
+  readonly formats: Pick<Formats, "numberFormat" | "dateFormat">;
 }) {
   const t = useTranslations("reports.fund");
   const tr = useTranslations("reports");
+  const tc = useTranslations("common");
   const base = useId();
+  const [detail, setDetail] = useState<string | null>(null);
+  // P328: the sheet names a calendar month alone ("noviembre"), any other period by its dates.
+  const named = periodName(fund.period, space.periodPolicy);
+  const period =
+    named.kind === "month"
+      ? tc(`month.${named.month as 1}`)
+      : tc("periodRange", { start: formatDate(named.start, formats), end: formatDate(named.end, formats) });
+  const shown = detail === null ? undefined : fund.members.find((row) => row.memberId === detail);
   const money = (value: MoneyDto) => formatMoney(value, formats);
   const short = isNegative(fund.totals.difference);
   return (
@@ -79,9 +101,20 @@ export function FundTracking({
                 aria-labelledby={nameId}
                 className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-3.5"
               >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span id={nameId} className="min-w-0 text-base font-semibold [overflow-wrap:anywhere]">
+                {/* P328: tapping the member opens what they have to put in and what they paid directly. */}
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  aria-label={t("detail.open", { name: memberName(members, row.memberId, tr) })}
+                  onClick={() => setDetail(row.memberId)}
+                  className="flex min-h-11 flex-wrap items-center justify-between gap-2 text-left"
+                >
+                  <span
+                    id={nameId}
+                    className="flex min-w-0 items-center gap-1 text-base font-semibold [overflow-wrap:anywhere]"
+                  >
                     {memberName(members, row.memberId, tr)}
+                    <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
                   </span>
                   {upToDate ? (
                     <Badge tone="accent" icon="check">
@@ -92,7 +125,7 @@ export function FundTracking({
                       {t("behindBy", { amount: money(absolute(row.difference)) })}
                     </Badge>
                   )}
-                </div>
+                </button>
                 <span aria-hidden="true" className="block h-2 w-full overflow-hidden rounded-full bg-track">
                   <span
                     data-bar
@@ -129,6 +162,18 @@ export function FundTracking({
         </ul>
       </section>
       <p className="text-sm text-muted">{t("note")}</p>
+      {shown ? (
+        <MemberFundSheet
+          open={detail !== null}
+          onOpenChange={(open) => setDetail(open ? detail : null)}
+          row={shown}
+          name={memberName(members, shown.memberId, tr)}
+          period={period}
+          spaceName={space.name}
+          total={fund.totals.expected}
+          formats={formats}
+        />
+      ) : null}
     </>
   );
 }

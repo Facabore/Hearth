@@ -706,6 +706,52 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
   }
 
   /**
+   * D26: per category and contributor, Σ the live contributions to the fund dated within [from, to] whose linked
+   * expense (the one they paid for the fund) is live too, by that expense's category; sorted by category, then member.
+   */
+  async paidForFundByCategory(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ categoryId: string; memberId: string; amount: bigint }[]> {
+    if (!isUuid(spaceId)) return [];
+    const expense = alias(transactions, "paid_expense");
+    const rows = await this.tm
+      .executor()
+      .select({
+        categoryId: expense.categoryId,
+        memberId: transactions.payerMemberId,
+        total: sumAsText(transactions.amount),
+      })
+      .from(transactions)
+      .innerJoin(
+        expense,
+        and(
+          eq(expense.id, transactions.linkedTransactionId),
+          eq(expense.spaceId, transactions.spaceId),
+          eq(expense.type, "EXPENSE"),
+          isNull(expense.deletedAt),
+        ),
+      )
+      .where(
+        and(
+          eq(transactions.spaceId, spaceId),
+          eq(transactions.type, "TRANSFER"),
+          isNotNull(transactions.payerMemberId),
+          isNull(transactions.deletedAt),
+          between(transactions.date, from, to),
+        ),
+      )
+      .groupBy(expense.categoryId, transactions.payerMemberId)
+      .orderBy(asc(expense.categoryId), asc(transactions.payerMemberId));
+    return rows.flatMap((row) =>
+      row.memberId === null || row.categoryId === null
+        ? []
+        : [{ categoryId: row.categoryId, memberId: row.memberId, amount: BigInt(row.total) }],
+    );
+  }
+
+  /**
    * HU-E7-04, spec 5.4 (D11): Σ the shares of `memberIds`, one user's member rows, over live expenses dated within
    * [from, to], per space and category, whatever space recorded them; sorted by space, then category; `[]` without
    * well-formed ids.

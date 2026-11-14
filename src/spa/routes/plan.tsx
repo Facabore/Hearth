@@ -301,7 +301,12 @@ export function FundRoute() {
       plan={report.data.plan}
       fundNames={report.data.funds?.map((account) => account.name)}
     >
-      <FundTracking fund={report.data} members={list.data} formats={viewer.me.preferences.effective} />
+      <FundTracking
+        fund={report.data}
+        members={list.data}
+        space={viewer.space}
+        formats={viewer.me.preferences.effective}
+      />
     </Frame>
   );
 }

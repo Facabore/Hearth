@@ -13055,6 +13055,29 @@
                           },
                           "difference": {
                             "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "paidDirectly": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "lineId": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                }
+                              },
+                              "required": [
+                                "lineId",
+                                "name",
+                                "amount"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [

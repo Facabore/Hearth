@@ -295,6 +295,13 @@ export const FundContributionsSchema = z.object({
       actual: MoneySchema,
       /** actual − expected; negative while the member still has to pay in. */
       difference: MoneySchema,
+      /**
+       * D26: in plan order, the lines the member usually pays and those they paid an expense of for the fund, with
+       * what they paid on each in the period (part of `actual`); absent when there is none.
+       */
+      paidDirectly: z
+        .array(z.object({ lineId: z.string(), name: z.string(), amount: MoneySchema }))
+        .optional(),
     }),
   ),
   totals: z
@@ -319,6 +326,16 @@ export const fundContributionsDto = (
     expected: moneyOf(m.expected, report.currency),
     actual: moneyOf(m.actual, report.currency),
     difference: moneyOf(m.difference, report.currency),
+    // D26: only a member who pays a line directly carries it, so every other row answers as before.
+    ...(m.paidDirectly.length === 0
+      ? {}
+      : {
+          paidDirectly: m.paidDirectly.map((line) => ({
+            lineId: line.lineId,
+            name: line.name,
+            amount: moneyOf(line.amount, report.currency),
+          })),
+        }),
   })),
   totals: {
     expected: moneyOf(report.totals.expected, report.currency),

@@ -1,8 +1,14 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
-import { e7Fund, HOUSEHOLD_MEMBERS, spaceMemberDto } from "../../../../../tests/support/ui/plan-dto";
+import {
+  e7Fund,
+  HOUSEHOLD_MEMBERS,
+  householdDto,
+  spaceMemberDto,
+} from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { FundTracking } from "./fund-tracking";
@@ -10,7 +16,9 @@ import { FundTracking } from "./fund-tracking";
 vi.mock("next/navigation", () => ({ notFound: vi.fn(), redirect: vi.fn() }));
 
 const show = (fund = e7Fund(), members = HOUSEHOLD_MEMBERS) =>
-  renderWithIntl(<FundTracking fund={fund} members={members} formats={BUILT_IN_FORMATS} />);
+  renderWithIntl(
+    <FundTracking fund={fund} members={members} space={householdDto()} formats={BUILT_IN_FORMATS} />,
+  );
 const card = (name: string) => normalized(screen.getByRole("listitem", { name }).textContent);
 
 describe("fund tracking (HU-E9-10)", () => {
@@ -129,5 +137,47 @@ describe("fund tracking (HU-E9-10)", () => {
     expect(screen.queryByRole("listitem", { name: "Sofi" })).toBeNull();
     expect(card("Tomás")).toContain("Aportado$ 30.000");
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  describe("a member's detail (P328, board Por persona · detalle de Ana)", () => {
+    /** Ana: 1,680,000 of the 4,000,000 plan; she paid the 1,200,000 rent directly and put 160,000 into the fund. */
+    const anaPaysRent = () =>
+      e7Fund({
+        members: [
+          {
+            memberId: "m-ana",
+            expected: cop(1_680_000),
+            actual: cop(1_360_000),
+            difference: cop(-320_000),
+            paidDirectly: [{ lineId: "l-rent", name: "Arriendo", amount: cop(1_200_000) }],
+          },
+          { memberId: "m-juan", expected: cop(2_320_000), actual: cop(2_320_000), difference: cop(0) },
+        ],
+        totals: { expected: cop(4_000_000), actual: cop(3_680_000), difference: cop(-320_000) },
+      });
+
+    it("opens Ana's part, what she paid directly, what went to the fund and what she still has to put in", async () => {
+      show(anaPaysRent());
+      await userEvent.click(screen.getByRole("button", { name: "Ver lo que le toca a Ana" }));
+      const sheet = await screen.findByRole("dialog", { name: "Ana · noviembre" });
+      const text = normalized(sheet.textContent);
+      expect(text).toContain("Le toca$ 1.680.000");
+      expect(text).toContain("42 % del plan de $ 4.000.000");
+      expect(text).toContain("Arriendolo paga directo · ya pagado$ 1.200.000");
+      expect(text).toContain("Al fondo de Householdaportó $ 160.000 de $ 480.000$ 480.000");
+      expect(text).toContain("Le faltan$ 320.000");
+      expect(await axeViolations(sheet)).toEqual([]);
+    });
+
+    it("says a member with nothing left is up to date, with no line paid directly", async () => {
+      show(anaPaysRent());
+      await userEvent.click(screen.getByRole("button", { name: "Ver lo que le toca a Juan" }));
+      const sheet = await screen.findByRole("dialog", { name: "Juan · noviembre" });
+      expect(within(sheet).getAllByRole("listitem")).toHaveLength(2);
+      expect(normalized(sheet.textContent)).toContain(
+        "Al fondo de Householdaportó $ 2.320.000 de $ 2.320.000",
+      );
+      expect(within(sheet).getByText("Al día")).toBeVisible();
+    });
   });
 });

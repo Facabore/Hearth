@@ -7,6 +7,7 @@ import { testDatabase } from "../../../../tests/support/database";
 import { unwrap } from "../../../../tests/support/fakes";
 import { categoryFixture, sharedLedgerFixture, type SpaceFixture } from "../../../../tests/support/fixtures";
 import {
+  payForFund,
   recordExpense,
   recordFundContribution,
   recordSettlement,
@@ -164,6 +165,68 @@ describe("per-member sums for the space reports (HU-E7-02, HU-E7-03)", () => {
       sorted(expected, (row) => row.memberId),
     );
     expect(await queries.fundContributionsByMember("not-a-uuid", nov1, nov30)).toEqual([]);
+  });
+});
+
+describe("what members paid for the fund, by category (D26, #316)", () => {
+  it("sums the live contributions that paid a live expense for the fund within the dates, by its category", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const rent = await categoryFixture(db, w.household, "Rent");
+    /** Ana pays `pesos` of `categoryId` for the fund on `date`: her contribution and the fund's payment, linked. */
+    const forFund = (
+      categoryId: string,
+      date: string,
+      amount: bigint,
+      payer = ana,
+      source: string | null = w.bank,
+    ) =>
+      unwrap(
+        payForFund(
+          contribution(w.household, w.fund, date, amount, payer, source) as Parameters<typeof payForFund>[0],
+          expense(w.household, categoryId, date, amount, { memberId: null, accountId: w.fund }, [
+            ana,
+            w.pedro,
+          ]) as Parameters<typeof payForFund>[1],
+        ),
+      );
+    // Each pair lands in one statement, as recording it does: its halves point at each other.
+    for (const pair of [
+      forFund(rent, "2026-11-01", pesos(1_200_000n)),
+      forFund(w.groceries, "2026-11-05", pesos(80_000n)),
+      forFund(w.groceries, "2026-11-06", pesos(20_000n), w.pedro, null),
+      // Outside the dates, or deleted: neither paid an expense for the fund in November.
+      forFund(rent, "2026-10-31", pesos(900_000n)),
+      forFund(rent, "2026-11-10", pesos(10_000n)).map((half) => softDelete(half, new Date())),
+    ])
+      await repo.add(...pair);
+    // A plain contribution paid no expense.
+    await store(contribution(w.household, w.fund, "2026-11-02", pesos(480_000n), ana, w.bank));
+    const expected = [
+      { categoryId: rent, memberId: ana, amount: pesos(1_200_000n) },
+      { categoryId: w.groceries, memberId: ana, amount: pesos(80_000n) },
+      { categoryId: w.groceries, memberId: w.pedro, amount: pesos(20_000n) },
+    ];
+    expect(await queries.paidForFundByCategory(w.household.spaceId, nov1, nov30)).toEqual(
+      [...expected].sort((a, b) =>
+        a.categoryId === b.categoryId
+          ? a.memberId.localeCompare(b.memberId)
+          : a.categoryId < b.categoryId
+            ? -1
+            : 1,
+      ),
+    );
+    // Every one of them is a contribution too, so the fund report counts them in actual.
+    expect(await queries.fundContributionsByMember(w.household.spaceId, nov1, nov30)).toEqual(
+      sorted(
+        [
+          { memberId: ana, amount: pesos(1_760_000n) },
+          { memberId: w.pedro, amount: pesos(20_000n) },
+        ],
+        (row) => row.memberId,
+      ),
+    );
+    expect(await queries.paidForFundByCategory("not-a-uuid", nov1, nov30)).toEqual([]);
   });
 });
 
