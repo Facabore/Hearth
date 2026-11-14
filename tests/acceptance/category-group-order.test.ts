@@ -42,7 +42,22 @@ const move = (user: TestUser, groupId: string, body: unknown) =>
     params: { spaceId: user.spaceId, groupId },
     body,
   });
-const STARTERS = ["Vivienda", "Alimentación", "Transporte", "Salud", "Ocio", "Ingresos"];
+/** The starter groups, in the catalog's order (rulings P296, P330). */
+const STARTERS = [
+  "Vivienda",
+  "Alimentación",
+  "Transporte",
+  "Suscripciones",
+  "Salud",
+  "Cuidado personal",
+  "Educación",
+  "Mascotas",
+  "Ocio",
+  "Regalos y donaciones",
+  "Finanzas",
+  "Otros",
+  "Ingresos",
+];
 
 describe("the order of a space's category groups (#240, ruling P296)", () => {
   it("lists a new space's starter groups in board Categorías 01's order, each with its place", async () => {
@@ -56,56 +71,54 @@ describe("the order of a space's category groups (#240, ruling P296)", () => {
     const response = await call(createGroup, "POST", `${base(ana)}/category-groups`, {
       user: ana,
       params: { spaceId: ana.spaceId },
-      body: { name: "Mascotas" },
+      body: { name: "Pasatiempos" },
     });
-    expect(await response.json()).toMatchObject({ name: "Mascotas", position: 6 });
-    expect(await names(ana)).toEqual([...STARTERS, "Mascotas"]);
+    expect(await response.json()).toMatchObject({ name: "Pasatiempos", position: STARTERS.length });
+    expect(await names(ana)).toEqual([...STARTERS, "Pasatiempos"]);
   });
 
   it("moves a group one place up and one place down, answering every group in its new order", async () => {
     const ana = await registerUser("Ana");
     const health = await idOf(ana, "Salud");
 
-    const up = await move(ana, health, { before: await idOf(ana, "Transporte") });
+    const up = await move(ana, health, { before: await idOf(ana, "Suscripciones") });
     expect(up.status).toBe(200);
     const answered = ((await up.json()) as { items: GroupDto[] }).items;
-    expect(answered.map((g) => [g.name, g.position])).toEqual([
-      ["Vivienda", 0],
-      ["Alimentación", 1],
-      ["Salud", 2],
-      ["Transporte", 3],
-      ["Ocio", 4],
-      ["Ingresos", 5],
-    ]);
+    expect(answered.map((g) => [g.name, g.position])).toEqual(
+      ["Vivienda", "Alimentación", "Transporte", "Salud", "Suscripciones", ...STARTERS.slice(5)].map(
+        (name, i) => [name, i],
+      ),
+    );
     expect(await names(ana)).toEqual(answered.map((g) => g.name));
 
-    await move(ana, health, { after: await idOf(ana, "Transporte") });
+    await move(ana, health, { after: await idOf(ana, "Suscripciones") });
     expect(await names(ana)).toEqual(STARTERS);
   });
 
   it("moves past a group another tab hides in one step, and keeps an archived group's place dense", async () => {
     const ana = await registerUser("Ana");
-    const leisure = await idOf(ana, "Ocio");
-    await call(archiveGroup, "POST", `${base(ana)}/category-groups/${leisure}/archive`, {
+    const other = await idOf(ana, "Otros");
+    await call(archiveGroup, "POST", `${base(ana)}/category-groups/${other}/archive`, {
       user: ana,
-      params: { spaceId: ana.spaceId, groupId: leisure },
+      params: { spaceId: ana.spaceId, groupId: other },
     });
     await call(createGroup, "POST", `${base(ana)}/category-groups`, {
       user: ana,
       params: { spaceId: ana.spaceId },
-      body: { name: "Mascotas" },
+      body: { name: "Pasatiempos" },
     });
-    // Gastos hides Ingresos: Mascotas, last, goes right before Salud, the group above it on that tab.
-    await move(ana, await idOf(ana, "Mascotas"), { before: await idOf(ana, "Salud") });
+    // Gastos hides Ingresos and the archived Otros: Pasatiempos, last, goes right before Finanzas, the group above it
+    // on that tab.
+    await move(ana, await idOf(ana, "Pasatiempos"), { before: await idOf(ana, "Finanzas") });
     expect(await names(ana)).toEqual([
-      "Vivienda",
-      "Alimentación",
-      "Transporte",
-      "Mascotas",
-      "Salud",
+      ...STARTERS.slice(0, STARTERS.indexOf("Finanzas")),
+      "Pasatiempos",
+      "Finanzas",
       "Ingresos",
     ]);
-    expect((await listed(ana, "?archived=true")).map((g) => g.position)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect((await listed(ana, "?archived=true")).map((g) => g.position)).toEqual(
+      [...STARTERS, "Pasatiempos"].map((_, i) => i),
+    );
   });
 
   it("refuses an archived group or anchor, an unknown one, and a body without exactly one anchor, and moves nothing", async () => {

@@ -29,7 +29,7 @@ describe("DrizzleCategoryRepository", () => {
     expect(await repo.hasAny(space.spaceId)).toBe(true);
     expect(await repo.listGroups(space.spaceId)).toEqual(expect.arrayContaining(tree.groups));
     const categories = await repo.listCategories(space.spaceId);
-    expect(categories).toHaveLength(13);
+    expect(categories).toHaveLength(tree.categories.length);
     expect(categories).toContainEqual(
       expect.objectContaining({ name: "Mercado", key: "groceries", archivedAt: null }),
     );
@@ -231,25 +231,29 @@ describe("category styles (HU-E3-05)", () => {
     const food = tree.groups[1]!;
     await repo.saveGroup({ ...food, name: "Comida", key: "transport" });
     const groups = await repo.listGroups(space.spaceId);
-    expect(groups.map((g) => g.key).sort()).toEqual([
-      "food",
-      "health",
-      "housing",
-      "income",
-      "leisure",
-      "transport",
-    ]);
+    expect(groups.map((g) => g.key).sort()).toEqual(tree.groups.map((g) => g.key).sort());
     expect(groups.find((g) => g.id === food.id)).toMatchObject({ name: "Comida", key: "food" });
     // category_groups_space_key_uq: a second group of the space cannot take a held key; groups without one never collide.
-    const pets = { ...food, id: ids.next<"CategoryGroup">(), name: "Mascotas", position: 6 };
+    const pets = {
+      ...food,
+      id: ids.next<"CategoryGroup">(),
+      name: "Pasatiempos",
+      position: tree.groups.length,
+    };
     await expect(repo.addGroups([{ ...pets, key: "food" }])).rejects.toMatchObject({
       cause: { constraint: "category_groups_space_key_uq" },
     });
     await repo.addGroups([
       { ...pets, key: null },
-      { ...pets, id: ids.next<"CategoryGroup">(), name: "Viajes", key: null, position: 7 },
+      {
+        ...pets,
+        id: ids.next<"CategoryGroup">(),
+        name: "Viajes",
+        key: null,
+        position: tree.groups.length + 1,
+      },
     ]);
-    // Another space seeds the same six keys.
+    // Another space seeds the same keys.
     await seeded();
   });
 });

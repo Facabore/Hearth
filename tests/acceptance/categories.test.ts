@@ -60,8 +60,10 @@ describe("default categories (HU-E3-01)", () => {
     expect(response.status).toBe(200);
     const groups = await groupsIn(response);
     const names = (group: string) => groups.find((g) => g.name === group)?.categories.map((c) => c.name);
-    expect(names("Vivienda")).toEqual(["Arriendo", "Mantenimiento", "Servicios"]);
-    expect(names("Ingresos")).toEqual(["Otros ingresos", "Salario"]);
+    expect(names("Vivienda")).toEqual(["Arriendo", "Hogar y muebles", "Mantenimiento", "Servicios"]);
+    expect(names("Ingresos")).toEqual(["Freelance", "Otros ingresos", "Rendimientos", "Salario"]);
+    // Ruling P330: Transporte now holds taxis and apps too.
+    expect(names("Transporte")).toContain("Taxi y apps");
     expect(groups.flatMap((g) => g.categories)).toContainEqual(
       expect.objectContaining({ name: "Mercado", key: "groceries", archivedAt: null }),
     );
@@ -103,10 +105,10 @@ describe("managing the category tree (HU-E3-02)", () => {
     const pets = await call(createGroup, "POST", `${base}/category-groups`, {
       user: ana,
       params,
-      body: { name: "Mascotas" },
+      body: { name: "Pasatiempos" },
     });
     expect(pets.status).toBe(201);
-    expect(await pets.json()).toMatchObject({ name: "Mascotas", archivedAt: null });
+    expect(await pets.json()).toMatchObject({ name: "Pasatiempos", archivedAt: null });
 
     const food = await group("Alimentación");
     const bakery = await call(createCategory, "POST", `${base}/categories`, {

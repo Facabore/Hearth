@@ -44,15 +44,15 @@ describe("SeedDefaultCategories (HU-E3-01)", () => {
     const { categories, seed } = setup();
     unwrap(await seed({ spaceId: "space-ana", locale: "es" }));
     expect(categories.groups.map((g) => g.name)).toContain("Vivienda");
-    expect(categories.categories).toHaveLength(13);
+    expect(categories.categories).toHaveLength(42);
   });
 
   it("is idempotent", async () => {
     const { categories, seed } = setup();
     unwrap(await seed({ spaceId: "space-ana", locale: "es" }));
     unwrap(await seed({ spaceId: "space-ana", locale: "es" }));
-    expect(categories.groups).toHaveLength(6);
-    expect(categories.categories).toHaveLength(13);
+    expect(categories.groups).toHaveLength(13);
+    expect(categories.categories).toHaveLength(42);
   });
 
   it("seeds English names for an English locale", async () => {
@@ -67,7 +67,7 @@ describe("SeedDefaultCategories (HU-E3-01)", () => {
     unwrap(await seed({ spaceId: "space-household", locale: "en" }));
     const idsOf = (spaceId: string) =>
       categories.categories.filter((c) => c.spaceId === spaceId).map((c) => c.id);
-    expect(idsOf("space-ana")).toHaveLength(13);
+    expect(idsOf("space-ana")).toHaveLength(42);
     expect(idsOf("space-ana").filter((id) => idsOf("space-household").includes(id))).toEqual([]);
   });
 });
@@ -81,11 +81,20 @@ describe("ListCategories", () => {
       "Vivienda",
       "Alimentación",
       "Transporte",
+      "Suscripciones",
       "Salud",
+      "Cuidado personal",
+      "Educación",
+      "Mascotas",
       "Ocio",
+      "Regalos y donaciones",
+      "Finanzas",
+      "Otros",
       "Ingresos",
     ]);
     expect(tree[1]?.categories.map((c) => [c.name, c.key])).toEqual([
+      ["Café y snacks", "snacks"],
+      ["Domicilios", "delivery"],
       ["Mercado", "groceries"],
       ["Restaurantes", "restaurants"],
     ]);

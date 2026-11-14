@@ -63,7 +63,7 @@ const world = async (archived: boolean) => {
 type World = Awaited<ReturnType<typeof world>>;
 
 const WRITES: readonly (readonly [string, (w: World) => Promise<Result<unknown>>])[] = [
-  ["CreateCategoryGroup", (w) => w.createGroup({ ...asAna, name: "Pets" })],
+  ["CreateCategoryGroup", (w) => w.createGroup({ ...asAna, name: "Hobbies" })],
   ["RenameCategoryGroup", (w) => w.renameGroup({ ...asAna, groupId: w.food.id, name: "Eating" })],
   ["CreateCategory", (w) => w.create({ ...asAna, groupId: w.food.id, name: "Bakery" })],
   [

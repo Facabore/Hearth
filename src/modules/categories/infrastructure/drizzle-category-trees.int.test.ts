@@ -5,7 +5,7 @@ import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator"
 import { testDatabase } from "../../../../tests/support/database";
 import { personalSpaceFixture } from "../../../../tests/support/fixtures";
 import type { Category, CategoryGroup } from "../domain/category";
-import { seedTree } from "../domain/default-catalog";
+import { DEFAULT_CATALOG, seedTree } from "../domain/default-catalog";
 import { DrizzleCategoryRepository } from "./drizzle-category-repository";
 
 const { db, pool } = testDatabase();
@@ -24,6 +24,9 @@ const seeded = async (locale: string) => {
   await repo.addCategories(tree.categories);
   return {
     spaceId,
+    /** How many groups and categories the seed stored. */
+    groups: tree.groups.length,
+    categories: tree.categories.length,
     group: (key: string): CategoryGroup => tree.groups.find((g) => g.key === key)!,
     category: (key: string): Category => tree.categories.find((c) => c.key === key)!,
   };
@@ -38,9 +41,9 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     const pets: CategoryGroup = {
       ...s.group("food"),
       id: ids.next<"CategoryGroup">(),
-      name: "Pets",
+      name: "Hobbies",
       key: null,
-      position: 6,
+      position: s.groups,
     };
     await repo.addGroups([pets]);
     // Copies of a stored row, so each has every column its level needs (HU-E3-05: a subcategory has no style).
@@ -65,8 +68,8 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     // HU-E3-02: a moved category sits in its new group; HU-E3-03: an archived one is still listed.
     await repo.saveCategories([{ ...restaurants, groupId: leisure.id, archivedAt: new Date() }]);
     const rows = await trees.treesOf([s.spaceId]);
-    // The 13 seeded categories, Vet and Vegetables; the deleted one is left out (D8).
-    expect(rows).toHaveLength(15);
+    // The seeded categories, Vet and Vegetables; the deleted one is left out (D8).
+    expect(rows).toHaveLength(s.categories + 2);
     expect(rows.find((r) => r.categoryId === restaurants.id)).toEqual({
       spaceId: s.spaceId,
       groupId: leisure.id,
@@ -87,17 +90,12 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     expect(rows.find((r) => r.categoryId === vet.id)).toMatchObject({
       groupId: pets.id,
       groupKey: null,
-      groupName: "Pets",
+      groupName: "Hobbies",
     });
     expect(rows.some((r) => r.categoryId === gone.id)).toBe(false);
-    expect([...new Set(rows.flatMap((r) => (r.groupKey === null ? [] : [r.groupKey])))].sort()).toEqual([
-      "food",
-      "health",
-      "housing",
-      "income",
-      "leisure",
-      "transport",
-    ]);
+    expect([...new Set(rows.flatMap((r) => (r.groupKey === null ? [] : [r.groupKey])))].sort()).toEqual(
+      DEFAULT_CATALOG.map((g) => g.key).sort(),
+    );
   });
 
   it("answers only the spaces asked for, several in one statement, by space and then category", async () => {
@@ -109,7 +107,7 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     // One round trip for the two spaces (and the malformed id never reaches the database).
     expect(query).toHaveBeenCalledTimes(1);
     query.mockRestore();
-    expect(rows).toHaveLength(26);
+    expect(rows).toHaveLength(en.categories + es.categories);
     expect(rows.some((r) => r.spaceId === other.spaceId)).toBe(false);
     expect(rows.find((r) => r.categoryId === es.category("groceries").id)).toMatchObject({
       groupKey: "food",
@@ -149,7 +147,7 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     const order = rows.map((r) => r.categoryId);
     expect(order.indexOf(lateId)).toBeGreaterThan(-1);
     expect(order.indexOf(lateId)).toBeLessThan(order.indexOf(earlyId));
-    expect(rows.slice(0, 13 + 1).every((r) => r.spaceId === first!.spaceId)).toBe(true);
+    expect(rows.slice(0, first!.categories + 1).every((r) => r.spaceId === first!.spaceId)).toBe(true);
   });
 
   it("lists every group of the spaces asked for, one without a live category and an archived one too (#130)", async () => {
@@ -160,7 +158,7 @@ describe("the category trees a report reads (HU-E7-06)", () => {
       id: ids.next<"CategoryGroup">(),
       name: "Empty",
       key: null,
-      position: 6,
+      position: s.groups,
     };
     await repo.addGroups([empty]);
     await repo.saveGroup({ ...s.group("leisure"), archivedAt: new Date() });
@@ -169,8 +167,8 @@ describe("the category trees a report reads (HU-E7-06)", () => {
     // One statement for both spaces; the malformed id never reaches the database.
     expect(query).toHaveBeenCalledTimes(1);
     query.mockRestore();
-    expect(rows.filter((r) => r.spaceId === s.spaceId)).toHaveLength(7);
-    expect(rows.filter((r) => r.spaceId === other.spaceId)).toHaveLength(6);
+    expect(rows.filter((r) => r.spaceId === s.spaceId)).toHaveLength(s.groups + 1);
+    expect(rows.filter((r) => r.spaceId === other.spaceId)).toHaveLength(other.groups);
     expect(rows.find((r) => r.groupId === empty.id)).toEqual({
       spaceId: s.spaceId,
       groupId: empty.id,

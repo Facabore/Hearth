@@ -66,6 +66,8 @@ describe("category tree management (HU-E3-02)", () => {
     expect(categories.categories.filter((c) => c.groupId === leisure.id).map((c) => c.name)).toEqual([
       "Entertainment",
       "Travel",
+      "Going out",
+      "Games",
     ]);
   });
 
@@ -176,7 +178,7 @@ describe("category tree management (HU-E3-02)", () => {
     expect(codeOf(await create({ ...asAna, groupId: "nope", name: "Pets" }))).toBe("CategoryGroupNotFound");
     expect(codeOf(await update({ ...asAna, categoryId: "nope", name: "Pets" }))).toBe("CategoryNotFound");
     expect(codeOf(await createGroup({ ...asAna, name: "food" }))).toBe("CategoryGroupNameTaken");
-    expect(unwrap(await createGroup({ ...asAna, name: "Pets" })).name).toBe("Pets");
+    expect(unwrap(await createGroup({ ...asAna, name: "Hobbies" })).name).toBe("Hobbies");
   });
 
   it("never uses a group of another space", async () => {

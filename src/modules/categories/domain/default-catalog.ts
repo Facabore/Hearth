@@ -22,7 +22,11 @@ interface CatalogGroup {
   }[];
 }
 
-/** HU-E3-01 default tree. Keys are stable across spaces and renames (spec D11); names become user data. */
+/**
+ * HU-E3-01 default tree, grown by ruling P330 from 6 groups to 13. Keys are stable across spaces and renames (spec D11)
+ * and never reused; names become user data. Migration 0032 gives existing spaces what this list added, and its test
+ * checks that its lists repeat this one.
+ */
 export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
   {
     key: "housing",
@@ -33,6 +37,7 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
       { key: "rent", names: { es: "Arriendo", en: "Rent" }, icon: "key" },
       { key: "utilities", names: { es: "Servicios", en: "Utilities" }, icon: "bulb" },
       { key: "maintenance", names: { es: "Mantenimiento", en: "Maintenance" }, icon: "wrench" },
+      { key: "home_goods", names: { es: "Hogar y muebles", en: "Home and furniture" }, icon: "sofa" },
     ],
   },
   {
@@ -43,6 +48,8 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
     categories: [
       { key: "groceries", names: { es: "Mercado", en: "Groceries" }, icon: "cart" },
       { key: "restaurants", names: { es: "Restaurantes", en: "Restaurants" }, icon: "fork" },
+      { key: "delivery", names: { es: "Domicilios", en: "Delivery" }, icon: "bag" },
+      { key: "snacks", names: { es: "Café y snacks", en: "Coffee and snacks" }, icon: "cup" },
     ],
   },
   {
@@ -53,6 +60,25 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
     categories: [
       { key: "fuel", names: { es: "Combustible", en: "Fuel" }, icon: "fuel" },
       { key: "public_transport", names: { es: "Transporte público", en: "Public transport" }, icon: "bus" },
+      { key: "ride_hailing", names: { es: "Taxi y apps", en: "Taxis and ride apps" }, icon: "car" },
+      { key: "parking", names: { es: "Parqueadero y peajes", en: "Parking and tolls" }, icon: "parking" },
+      {
+        key: "vehicle_maintenance",
+        names: { es: "Mantenimiento del vehículo", en: "Vehicle maintenance" },
+        icon: "wrench",
+      },
+    ],
+  },
+  {
+    key: "subscriptions",
+    names: { es: "Suscripciones", en: "Subscriptions" },
+    icon: "tv",
+    color: "TEAL",
+    categories: [
+      { key: "streaming", names: { es: "Streaming", en: "Streaming" }, icon: "tv" },
+      { key: "music", names: { es: "Música", en: "Music" }, icon: "music" },
+      { key: "software", names: { es: "Apps y software", en: "Apps and software" }, icon: "laptop" },
+      { key: "mobile_plan", names: { es: "Plan de celular", en: "Phone plan" }, icon: "phone" },
     ],
   },
   {
@@ -63,6 +89,38 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
     categories: [
       { key: "medical", names: { es: "Médico", en: "Medical" }, icon: "cross" },
       { key: "pharmacy", names: { es: "Farmacia", en: "Pharmacy" }, icon: "pill" },
+      { key: "fitness", names: { es: "Gimnasio y deporte", en: "Gym and sports" }, icon: "gym" },
+      { key: "dental", names: { es: "Odontología", en: "Dental care" }, icon: "tooth" },
+    ],
+  },
+  {
+    key: "personal_care",
+    names: { es: "Cuidado personal", en: "Personal care" },
+    icon: "scissors",
+    color: "CORAL",
+    categories: [
+      { key: "beauty", names: { es: "Peluquería y belleza", en: "Hair and beauty" }, icon: "scissors" },
+      { key: "clothing", names: { es: "Ropa y calzado", en: "Clothes and shoes" }, icon: "shirt" },
+    ],
+  },
+  {
+    key: "education",
+    names: { es: "Educación", en: "Education" },
+    icon: "graduation",
+    color: "SKY",
+    categories: [
+      { key: "tuition", names: { es: "Cursos y matrículas", en: "Courses and tuition" }, icon: "graduation" },
+      { key: "books", names: { es: "Libros y útiles", en: "Books and supplies" }, icon: "book" },
+    ],
+  },
+  {
+    key: "pets",
+    names: { es: "Mascotas", en: "Pets" },
+    icon: "paw",
+    color: "AMBER",
+    categories: [
+      { key: "pet_care", names: { es: "Comida y cuidado", en: "Food and care" }, icon: "paw" },
+      { key: "vet", names: { es: "Veterinario", en: "Vet" }, icon: "cross" },
     ],
   },
   {
@@ -73,6 +131,39 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
     categories: [
       { key: "entertainment", names: { es: "Entretenimiento", en: "Entertainment" }, icon: "tv" },
       { key: "travel", names: { es: "Viajes", en: "Travel" }, icon: "plane" },
+      { key: "going_out", names: { es: "Salidas y bares", en: "Going out" }, icon: "wine" },
+      { key: "games", names: { es: "Juegos", en: "Games" }, icon: "game" },
+    ],
+  },
+  {
+    key: "gifts",
+    names: { es: "Regalos y donaciones", en: "Gifts and donations" },
+    icon: "gift",
+    color: "LAVENDER",
+    categories: [
+      { key: "gifts_given", names: { es: "Regalos", en: "Gifts" }, icon: "gift" },
+      { key: "donations", names: { es: "Donaciones", en: "Donations" }, icon: "heart" },
+    ],
+  },
+  {
+    key: "finance",
+    names: { es: "Finanzas", en: "Finance" },
+    icon: "bank",
+    color: "GRAPHITE",
+    categories: [
+      { key: "bank_fees", names: { es: "Comisiones bancarias", en: "Bank fees" }, icon: "bank" },
+      { key: "interest", names: { es: "Intereses", en: "Interest" }, icon: "percent" },
+      { key: "insurance", names: { es: "Seguros", en: "Insurance" }, icon: "shield" },
+      { key: "taxes", names: { es: "Impuestos", en: "Taxes" }, icon: "receipt" },
+    ],
+  },
+  {
+    key: "other",
+    names: { es: "Otros", en: "Other" },
+    icon: "dots",
+    color: "OLIVE",
+    categories: [
+      { key: "unexpected", names: { es: "Imprevistos", en: "Unexpected expenses" }, icon: "umbrella" },
     ],
   },
   {
@@ -83,6 +174,8 @@ export const DEFAULT_CATALOG: readonly CatalogGroup[] = [
     categories: [
       { key: "salary", names: { es: "Salario", en: "Salary" }, icon: "briefcase" },
       { key: "other_income", names: { es: "Otros ingresos", en: "Other income" }, icon: "gift" },
+      { key: "freelance", names: { es: "Freelance", en: "Freelance" }, icon: "laptop" },
+      { key: "investment_income", names: { es: "Rendimientos", en: "Investment returns" }, icon: "chart" },
     ],
   },
 ];
@@ -104,7 +197,7 @@ export const seedTree = (input: {
       name: entry.names[language],
       key: entry.key,
       style: { icon: { kind: "SYMBOL", name: entry.icon }, color: entry.color },
-      // Ruling P296: the catalog's order, board Categorías 01's (Vivienda, Alimentación, Transporte, Salud, …).
+      // Rulings P296, P330: the catalog's order (Vivienda, Alimentación, Transporte, Suscripciones, …, Ingresos).
       position,
       archivedAt: null,
       createdAt: input.now,

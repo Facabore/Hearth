@@ -59,7 +59,12 @@ describe("create a shared space (HU-E1-04)", () => {
         joinedAt: expect.any(String),
       },
     ]);
-    expect((await tree(ana, space.id)).get("Vivienda")).toEqual(["Arriendo", "Mantenimiento", "Servicios"]);
+    expect((await tree(ana, space.id)).get("Vivienda")).toEqual([
+      "Arriendo",
+      "Hogar y muebles",
+      "Mantenimiento",
+      "Servicios",
+    ]);
   });
 
   it("seeds English names when the creator's locale is en, and defaults the currency to COP (HU-E3-01)", async () => {
@@ -67,7 +72,12 @@ describe("create a shared space (HU-E1-04)", () => {
     await app.pool.query(`UPDATE "user" SET locale = 'en' WHERE id = $1`, [juan.userId]);
     const flat = await (await create(juan, { kind: "SHARED", name: "Flat" })).json();
     expect(flat.currency).toBe("COP");
-    expect((await tree(juan, flat.id)).get("Housing")).toEqual(["Maintenance", "Rent", "Utilities"]);
+    expect((await tree(juan, flat.id)).get("Housing")).toEqual([
+      "Home and furniture",
+      "Maintenance",
+      "Rent",
+      "Utilities",
+    ]);
   });
 
   it.each([

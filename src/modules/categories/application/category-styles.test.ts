@@ -84,7 +84,7 @@ describe("category icon and color (HU-E3-05)", () => {
     expect(w.group("Food").key).toBe("food");
     unwrap(await w.renameGroup({ ...asAna, groupId: food, name: "Eating", color: "EMBER" }));
     expect([w.group("Eating").key, w.group("Eating").style.color]).toEqual(["food", "EMBER"]);
-    expect(unwrap(await w.createGroup({ ...asAna, name: "Pets" })).key).toBeNull();
+    expect(unwrap(await w.createGroup({ ...asAna, name: "Hobbies" })).key).toBeNull();
   });
 
   it("changes a category's icon and color, never its group's, and a symbol or an emoji replaces the other", async () => {
@@ -112,7 +112,7 @@ describe("category icon and color (HU-E3-05)", () => {
     const food = w.group("Food").id;
     const groceries = w.named("Groceries").id;
     const refused = [
-      await w.createGroup({ ...asAna, name: "Pets", icon }),
+      await w.createGroup({ ...asAna, name: "Hobbies", icon }),
       await w.renameGroup({ ...asAna, groupId: food, name: "Eating", icon }),
       await w.create({ ...asAna, groupId: food, name: "Bakery", icon }),
       await w.update({ ...asAna, categoryId: groceries, name: "Market", icon, color: "ROSE" }),
@@ -165,7 +165,7 @@ describe("category icon and color (HU-E3-05)", () => {
 
   it("creates groups with or without a style, and restyles one without renaming it", async () => {
     const w = await setup();
-    expect(unwrap(await w.createGroup({ ...asAna, name: "Pets" })).style).toEqual({
+    expect(unwrap(await w.createGroup({ ...asAna, name: "Hobbies" })).style).toEqual({
       icon: { kind: "SYMBOL", name: "tag" },
       color: "GRAPHITE",
     });

@@ -305,14 +305,14 @@ describe("category icon and color (HU-E3-05)", () => {
 
   it("creates and restyles groups; a group created without a style takes tag and GRAPHITE", async () => {
     const ana = await household();
-    const pets = (await (await createGroupIn(ana, { name: "Pets" })).json()) as Styled & {
+    const pets = (await (await createGroupIn(ana, { name: "Hobbies" })).json()) as Styled & {
       key: string | null;
     };
     expect(styleOf(pets)).toEqual({ icon: symbol("tag"), color: "GRAPHITE" });
     expect(pets.key).toBeNull();
     const restyled = await patchGroup(ana, pets.id, { icon: emoji("🐶"), color: "MUSTARD" });
     expect(await restyled.json()).toMatchObject({
-      name: "Pets",
+      name: "Hobbies",
       icon: emoji("🐶"),
       color: "MUSTARD",
       key: null,
@@ -356,7 +356,7 @@ describe("category icon and color (HU-E3-05)", () => {
     const food = await groupNamed(ana, "Food");
     const stored = await storedGroups(ana);
     for (const [body, problem] of styleRefusals) {
-      expect(await problemOf(await createGroupIn(ana, { name: "Pets", ...body }))).toEqual(problem);
+      expect(await problemOf(await createGroupIn(ana, { name: "Hobbies", ...body }))).toEqual(problem);
       // A rename travelling with the refused style is refused with it: nothing is half applied.
       expect(await problemOf(await patchGroup(ana, food.id, { name: "Eating", ...body }))).toEqual(problem);
     }
@@ -384,15 +384,22 @@ describe("category icon and color (HU-E3-05)", () => {
   it("returns a seeded group's catalog key, none for a group users create, and takes no key from any body", async () => {
     const ana = await household();
     expect(Object.fromEntries((await treeOf(ana)).map((g) => [g.name, g.key]))).toEqual({
-      Food: "food",
-      Health: "health",
       Housing: "housing",
-      Income: "income",
-      Leisure: "leisure",
+      Food: "food",
       Transport: "transport",
+      Subscriptions: "subscriptions",
+      Health: "health",
+      "Personal care": "personal_care",
+      Education: "education",
+      Pets: "pets",
+      Leisure: "leisure",
+      "Gifts and donations": "gifts",
+      Finance: "finance",
+      Other: "other",
+      Income: "income",
     });
     // The schemas strip a `key` rather than refuse it (P79): the request succeeds and the key is not stored.
-    const pets = await createGroupIn(ana, { name: "Pets", key: "food" });
+    const pets = await createGroupIn(ana, { name: "Hobbies", key: "food" });
     expect(pets.status).toBe(201);
     const petsDto = (await pets.json()) as Styled & { key: string | null };
     expect(petsDto.key).toBeNull();
@@ -411,12 +418,19 @@ describe("category icon and color (HU-E3-05)", () => {
       Object.fromEntries(keys.rows.map((r: { name: string; key: string | null }) => [r.name, r.key])),
     ).toEqual({
       Animals: null,
-      Eating: "food",
-      Health: "health",
       Housing: "housing",
-      Income: "income",
-      Leisure: "leisure",
+      Eating: "food",
       Transport: "transport",
+      Subscriptions: "subscriptions",
+      Health: "health",
+      "Personal care": "personal_care",
+      Education: "education",
+      Pets: "pets",
+      Leisure: "leisure",
+      "Gifts and donations": "gifts",
+      Finance: "finance",
+      Other: "other",
+      Income: "income",
     });
     // A category body takes no key either.
     const bakery = await createIn(ana, { groupId: food.id, name: "Bakery", key: "groceries" });

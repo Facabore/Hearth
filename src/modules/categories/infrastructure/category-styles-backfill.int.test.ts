@@ -8,6 +8,15 @@ import { runMigrations } from "../../../../scripts/migrate.mjs";
 import { DEFAULT_CATALOG } from "../domain/default-catalog";
 
 const TAG = "0017_category_styles";
+/** The default catalog's keys when 0017 shipped, before ruling P330 added groups and categories. */
+const CATALOG_OF_0017: Record<string, readonly string[]> = {
+  housing: ["rent", "utilities", "maintenance"],
+  food: ["groceries", "restaurants"],
+  transport: ["fuel", "public_transport"],
+  health: ["medical", "pharmacy"],
+  leisure: ["entertainment", "travel"],
+  income: ["salary", "other_income"],
+};
 const admin = new pg.Client({ connectionString: inject("adminDatabaseUrl") });
 /** A copy of drizzle/ whose journal stops before 0017: the schema a database had before HU-E3-05. */
 const before = mkdtempSync(join(tmpdir(), "hearth-before-0017-"));
@@ -329,9 +338,15 @@ describe(`${TAG} back-fill (HU-E3-05, rulings P56, P57, P77 and P78)`, () => {
       );
       lists.set(columns.join(","), tuples);
     }
-    const groups = DEFAULT_CATALOG.map((group, index) => ({ ...group, position: String(index + 1) }));
+    // 0017 back-filled the catalog of its day; ruling P330 grew the catalog later (0032 gives spaces the rest).
+    const groups = DEFAULT_CATALOG.filter((group) => group.key in CATALOG_OF_0017).map((group, index) => ({
+      ...group,
+      position: String(index + 1),
+    }));
     const categories = groups.flatMap((group) =>
-      group.categories.map((category) => ({ ...category, group })),
+      group.categories
+        .filter((category) => CATALOG_OF_0017[group.key]!.includes(category.key))
+        .map((category) => ({ ...category, group })),
     );
     expect([...lists.keys()].sort()).toEqual([
       "category_key,group_key,position",
