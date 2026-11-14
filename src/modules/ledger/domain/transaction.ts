@@ -43,6 +43,8 @@ export interface Expense extends TransactionBase {
   readonly categoryId: string;
   readonly payments: readonly Payment[];
   readonly shares: readonly Share[];
+  /** D26: the contribution to the fund that paid for this fund-paid expense; absent on every other expense. */
+  readonly linkedTransactionId?: TransactionId;
 }
 
 export interface Income extends TransactionBase {
@@ -63,6 +65,8 @@ export interface Transfer extends TransactionBase {
   readonly sourceAccountId: string | null;
   readonly destinationAccountId: string;
   readonly payerMemberId: string | null;
+  /** D26: the fund-paid expense this contribution paid for; absent on every other transfer. */
+  readonly linkedTransactionId?: TransactionId;
 }
 
 /**
@@ -320,6 +324,34 @@ export const giveAway = (payment: Settlement, giftId: TransactionId): Result<[Se
     linkedTransactionId: payment.id,
   };
   return ok([{ ...payment, linkedTransactionId: giftId }, gift]);
+};
+
+/** Ruling P322, D26: the other half of a linked pair (a gift, or an expense paid for the fund), or null. */
+export const linkedHalfOf = (tx: Transaction): TransactionId | null =>
+  tx.type === "INCOME" ? null : (tx.linkedTransactionId ?? null);
+
+/**
+ * D26: an expense paid for the fund. A member's contribution to the fund and the fund's payment of the expense, for the
+ * same amount and at the same moment, recorded together and pointing at each other: the fund's balance does not move,
+ * the payment counts as the member's contribution, and nobody owes anybody (D5).
+ */
+export const payForFund = (contribution: Transfer, expense: Expense): Result<[Transfer, Expense]> => {
+  const [payment, ...others] = expense.payments;
+  const fundPays =
+    others.length === 0 &&
+    payment?.memberId === null &&
+    payment.accountId === contribution.destinationAccountId;
+  const together =
+    contribution.amount === expense.amount &&
+    contribution.date === expense.date &&
+    contribution.occurredAt?.getTime() === expense.occurredAt?.getTime();
+  if (contribution.payerMemberId === null || !fundPays || !together) {
+    return err(domainError("InvalidPaidForFund", { reason: "notAPair" }));
+  }
+  return ok([
+    { ...contribution, linkedTransactionId: expense.id },
+    { ...expense, linkedTransactionId: contribution.id },
+  ]);
 };
 
 /**

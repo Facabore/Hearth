@@ -1,12 +1,12 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, ok, type Result } from "@/shared/kernel";
-import type { ChangeSet, Transaction } from "../domain/transaction";
+import { linkedHalfOf, type ChangeSet, type Transaction } from "../domain/transaction";
 import { ensureCurrentParties } from "./checks";
 import type { LedgerDeps } from "./deps";
 
 /**
- * Ruling P322: deleting or restoring one half of a gift does the same to the other half, in the same database
- * transaction and with its own audit entry (D8). The other half is left alone when it is already deleted (or live);
+ * Ruling P322, D26: deleting or restoring one half of a gift, or of an expense paid for the fund, does the same to the
+ * other half, in the same database transaction and with its own audit entry (D8). The other half is left alone when it is already deleted (or live);
  * its parties are checked as the first half's were (HU-E1-08, HU-E1-12).
  */
 export const followLinkedHalf = async (
@@ -21,8 +21,9 @@ export const followLinkedHalf = async (
     readonly changes: (other: Transaction) => ChangeSet;
   },
 ): Promise<Result<void>> => {
-  if (tx.type !== "SETTLEMENT" || tx.linkedTransactionId === null) return ok(undefined);
-  const other = await deps.transactions.findById(spaceId, tx.linkedTransactionId, true);
+  const linked = linkedHalfOf(tx);
+  if (linked === null) return ok(undefined);
+  const other = await deps.transactions.findById(spaceId, linked, true);
   if (other === null || (other.deletedAt !== null) === (step.action === "DELETED")) return ok(undefined);
   const parties = await ensureCurrentParties(deps, spaceId, other);
   if (!parties.ok) return parties;

@@ -416,6 +416,69 @@ describe("leaving, removing and archiving against concurrent money writes (#89)"
     });
   });
 
+  describe("an expense paid for the fund (D26, #316)", () => {
+    /** Bruno pays 300,000 COP of groceries for the fund from his Nequi: his contribution and the fund's payment. */
+    const forTheFund = (w: World, deps: LedgerDeps = ledgerDeps()) =>
+      createRecordExpense(deps)({
+        spaceId: w.household.spaceId,
+        userId: w.bruno.userId,
+        amount: money(30_000_000n),
+        categoryId: w.groceries,
+        paidForFund: { fundAccountId: w.fund, sourceAccountId: w.brunoBank },
+        split: {
+          method: "EQUAL",
+          participants: [{ memberId: w.household.memberId }, { memberId: w.bruno.memberId }],
+        },
+      });
+    const rowsIn = async (spaceId: string) =>
+      (
+        await pool.query(
+          "SELECT type, linked_transaction_id FROM transactions WHERE space_id = $1 ORDER BY type",
+          [spaceId],
+        )
+      ).rows;
+
+    it("records neither half when Bruno's leave, in progress when he records it, commits first", async () => {
+      const w = await world();
+      const h = holder(tm, pool);
+      const leaving = lifecycleDeps(h).leave({ spaceId: w.household.spaceId, userId: w.bruno.userId });
+      await heldBy(h, leaving);
+      // The space lock comes first: the pair waits for the leave and then finds no membership, so nothing is stored.
+      const writing = forTheFund(w).finally(h.release);
+      expect(await outcomesOf(leaving, writing)).toEqual(["SpaceNotFound", "ok"]);
+      expect(await rowsIn(w.household.spaceId)).toEqual([]);
+    });
+
+    it("records neither half when an archive in progress commits first", async () => {
+      const w = await world();
+      const h = holder(tm, pool);
+      const archiving = lifecycleDeps(h).archive({
+        spaceId: w.household.spaceId,
+        userId: w.household.userId,
+      });
+      await heldBy(h, archiving);
+      const writing = forTheFund(w).finally(h.release);
+      expect(await outcomesOf(archiving, writing)).toEqual(["SpaceArchived", "ok"]);
+      expect(await rowsIn(w.household.spaceId)).toEqual([]);
+    });
+
+    it("stores both halves before a leave that queued behind them reads Bruno's balance, which they leave at zero", async () => {
+      const w = await world();
+      const h = holder(tm, pool);
+      const writing = forTheFund(w, ledgerDeps(holdingMembers(h)));
+      await heldBy(h, writing);
+      const leaving = lifecycleDeps()
+        .leave({ spaceId: w.household.spaceId, userId: w.bruno.userId })
+        .finally(h.release);
+      // D5: neither half is a debt, so the leave that waited for the pair still finds Bruno settled.
+      expect(await outcomesOf(writing, leaving)).toEqual(["ok", "ok"]);
+      const rows = await rowsIn(w.household.spaceId);
+      expect(rows.map((r) => r.type)).toEqual(["EXPENSE", "TRANSFER"]);
+      expect(rows.every((r) => r.linked_transaction_id !== null)).toBe(true);
+      expect(await formerMembersWithBalance(w.household.spaceId)).toEqual([]);
+    });
+  });
+
   describe("the lock order", () => {
     it("never deadlocks when leaves, removals, archives, role changes and money writes of one space run together", async () => {
       const w = await world();

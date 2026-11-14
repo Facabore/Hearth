@@ -133,9 +133,10 @@ export const transactions = pgTable(
       "transactions_on_behalf_of",
       sql`${t.onBehalfOfMemberId} IS NULL OR (${t.type} = 'SETTLEMENT' AND ${t.onBehalfOfMemberId} <> ${t.payerMemberId} AND ${t.onBehalfOfMemberId} <> ${t.receivingMemberId})`,
     ),
+    // D26: an expense paid for the fund and the contribution to the fund that paid it point at each other too.
     check(
       "transactions_linked_transaction",
-      sql`${t.linkedTransactionId} IS NULL OR (${t.type} = 'SETTLEMENT' AND ${t.linkedTransactionId} <> ${t.id})`,
+      sql`${t.linkedTransactionId} IS NULL OR (${t.linkedTransactionId} <> ${t.id} AND (${t.type} = 'SETTLEMENT' OR ${t.type} = 'EXPENSE' OR (${t.type} = 'TRANSFER' AND ${t.payerMemberId} IS NOT NULL)))`,
     ),
   ],
 );

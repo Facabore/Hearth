@@ -3,6 +3,7 @@ import {
   canModify,
   changedDebits,
   changesBetween,
+  linkedHalfOf,
   reviseTransaction,
   type Transaction,
 } from "../domain/transaction";
@@ -59,9 +60,10 @@ export const createEditTransaction =
       }
       // Ruling P186: the part fields (accounts, payers) are resolved by `editedParts` below.
       const { description, categoryId, amount, date, occurredAt, timeZone } = input.changes;
-      // Ruling P322: either half of a gift keeps the amount and the date of the other; delete and record again.
-      if (current.type === "SETTLEMENT" && current.linkedTransactionId !== null) {
-        const moved = (["amount", "date", "occurredAt", "timeZone"] as const).find(
+      // Ruling P322, D26: either half of a gift or of an expense paid for the fund keeps the amount and the date of the
+      // other, and the fund stays the payer of the expense; delete and record again.
+      if (linkedHalfOf(current) !== null) {
+        const moved = (["amount", "date", "occurredAt", "timeZone", "accountId", "payments"] as const).find(
           (field) => input.changes[field] !== undefined,
         );
         if (moved) return err(domainError("FieldNotEditable", { field: moved }));

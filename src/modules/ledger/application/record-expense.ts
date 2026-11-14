@@ -1,10 +1,18 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
-import { defaultSplitMembers, ok, type Money, type Result } from "@/shared/kernel";
+import { defaultSplitMembers, domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import { splitShares, type AllocationSplit, type SplitInput } from "../domain/split";
-import { positiveAmount, recordExpense, type Expense, type Payment } from "../domain/transaction";
+import {
+  payForFund,
+  positiveAmount,
+  recordExpense,
+  recordFundContribution,
+  type Expense,
+  type Payment,
+} from "../domain/transaction";
 import { authorizeWriter, inSpaceCurrency, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
 import { resolvePayments, type PaymentInput } from "./payments";
+import { contributionParties } from "./record-fund-contribution";
 import type { DefaultSplitQuery } from "./ports";
 import { whenOf, type WhenInput } from "./when";
 
@@ -22,6 +30,17 @@ export interface RecordExpenseInput extends Omit<WhenInput, "userId"> {
   readonly payments?: readonly PaymentInput[];
   /** HU-E4-07/08: how the amount is shared; when absent, the default split (spec 5.3, HU-E6-08). */
   readonly split?: SplitInput;
+  /**
+   * D26: a member pays the expense for the fund: their contribution to it from their own account (as RecordFundContribution
+   * takes it) and the fund's payment of the expense, linked. Not with `accountId` or `payments`: the fund pays.
+   */
+  readonly paidForFund?: {
+    readonly fundAccountId: string;
+    /** The contributing member, registered or guest; the requester when absent. */
+    readonly memberId?: string;
+    /** The contributor's own account; null or absent only for a guest. */
+    readonly sourceAccountId?: string | null;
+  };
 }
 
 /** A non-blocking condition of a recorded expense, reported as a code (HU-E4-10). */
@@ -73,7 +92,8 @@ export const fundWarnings = async (
 /**
  * HU-E4-01, HU-E4-07, HU-E4-10: one use case for personal and shared expenses (D2). A personal expense
  * is a shared expense with one participant: the requester pays from `accountId` and, being the only
- * current member of their personal space, takes the whole EQUAL share.
+ * current member of their personal space, takes the whole EQUAL share. D26: `paidForFund` records the expense as a
+ * linked contribution to the fund and the fund's payment of it, under the same space lock.
  */
 export const createRecordExpense =
   (deps: LedgerDeps): RecordExpense =>
@@ -90,11 +110,24 @@ export const createRecordExpense =
       if (!category.ok) return category;
       const members = await deps.members.listCurrent(space.spaceId);
       const memberIds = members.map((m) => m.id);
-      const requested: readonly PaymentInput[] = input.payments ?? [
-        { memberId: space.memberId, accountId: input.accountId ?? null, amount: input.amount },
-      ];
+      const forFund = input.paidForFund;
+      if (forFund !== undefined && (input.accountId !== undefined || input.payments !== undefined)) {
+        return err(domainError("InvalidPaidForFund", { reason: "payerGiven" }));
+      }
+      // D26: for the fund, the fund pays the expense with what the member contributes to it.
+      const requested: readonly PaymentInput[] =
+        forFund === undefined
+          ? (input.payments ?? [
+              { memberId: space.memberId, accountId: input.accountId ?? null, amount: input.amount },
+            ])
+          : [{ memberId: null, accountId: forFund.fundAccountId, amount: input.amount }];
       const payments = await resolvePayments(deps, space, members, requested, input.userId);
       if (!payments.ok) return payments;
+      const contributor =
+        forFund === undefined
+          ? ok(null)
+          : await contributionParties(deps, space, members, { ...forFund, userId: input.userId });
+      if (!contributor.ok) return contributor;
       // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
       const when = await whenOf(deps, input);
       if (!when.ok) return when;
@@ -130,9 +163,33 @@ export const createRecordExpense =
         shares: shares.value,
       });
       if (!expense.ok) return expense;
-      await deps.transactions.add(expense.value);
-      return ok({
-        expense: expense.value,
-        warnings: await fundWarnings(deps, space, input.userId, expense.value.payments),
+      if (contributor.value === null) {
+        await deps.transactions.add(expense.value);
+        return ok({
+          expense: expense.value,
+          warnings: await fundWarnings(deps, space, input.userId, expense.value.payments),
+        });
+      }
+      const contribution = recordFundContribution({
+        id: deps.ids.next<"Transaction">(),
+        spaceId: space.spaceId,
+        description: input.description,
+        date,
+        amount: amount.value,
+        currency: space.currency,
+        createdBy: input.userId,
+        occurredAt,
+        timeZone,
+        now: deps.clock.now(),
+        payerMemberId: contributor.value.contributorMemberId,
+        sourceAccountId: contributor.value.sourceAccountId,
+        destinationAccountId: contributor.value.fundAccountId,
       });
+      if (!contribution.ok) return contribution;
+      const pair = payForFund(contribution.value, expense.value);
+      if (!pair.ok) return pair;
+      // D26: both halves in one statement, so neither is ever stored alone (like P322's gift).
+      await deps.transactions.add(...pair.value);
+      const [, paid] = pair.value;
+      return ok({ expense: paid, warnings: await fundWarnings(deps, space, input.userId, paid.payments) });
     });

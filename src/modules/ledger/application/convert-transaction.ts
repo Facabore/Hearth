@@ -1,5 +1,11 @@
 import { domainError, err, map, ok, type Result } from "@/shared/kernel";
-import { canModify, deletionChanges, softDelete, type Transaction } from "../domain/transaction";
+import {
+  canModify,
+  deletionChanges,
+  linkedHalfOf,
+  softDelete,
+  type Transaction,
+} from "../domain/transaction";
 import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
 import {
@@ -19,7 +25,7 @@ type Fields<T> = Omit<T, "spaceId" | "userId">;
  * a contribution to the shared fund (the owner's ruling): a TRANSFER with a payer member (HU-E4-09).
  */
 export type ConversionTarget =
-  | ({ readonly type: "EXPENSE" } & Fields<RecordExpenseInput>)
+  | ({ readonly type: "EXPENSE" } & Omit<Fields<RecordExpenseInput>, "paidForFund">)
   | ({ readonly type: "INCOME" } & Fields<RecordIncomeInput>)
   | ({ readonly type: "TRANSFER" } & Fields<RecordTransferInput>)
   | ({ readonly type: "FUND_CONTRIBUTION" } & Fields<RecordFundContributionInput>);
@@ -90,8 +96,11 @@ export const createConvertTransaction =
       if (input.expectedVersion !== null && input.expectedVersion !== current.version) {
         return err(domainError("PreconditionFailed"));
       }
-      // A settlement pays a debt between members; it is never an expense, an income or a transfer (HU-E5-02).
-      if (current.type === "SETTLEMENT") return err(domainError("TransactionNotConvertible"));
+      // A settlement pays a debt between members; it is never an expense, an income or a transfer (HU-E5-02). D26: a half
+      // of an expense paid for the fund never becomes anything else alone.
+      if (current.type === "SETTLEMENT" || linkedHalfOf(current) !== null) {
+        return err(domainError("TransactionNotConvertible"));
+      }
       if (kindOf(current) === input.to.type) return err(domainError("SameTransactionType"));
       const open = await openPeriod(deps, current.spaceId, current.date);
       if (!open.ok) return open;

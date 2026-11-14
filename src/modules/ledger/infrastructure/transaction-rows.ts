@@ -1,7 +1,13 @@
 import { asc, inArray } from "drizzle-orm";
 import type { Executor } from "@/shared/infrastructure/db/client";
 import type { LocalDate } from "@/shared/kernel";
-import type { Payment, Share, Transaction, TransactionId } from "../domain/transaction";
+import {
+  linkedHalfOf,
+  type Payment,
+  type Share,
+  type Transaction,
+  type TransactionId,
+} from "../domain/transaction";
 import { payments, shares, transactions } from "./ledger.schema";
 
 type TransactionRow = typeof transactions.$inferSelect;
@@ -27,7 +33,7 @@ export const transactionRow = (tx: Transaction): typeof transactions.$inferInser
   // Ruling P322: written on every new settlement; only rows recorded before 0029 keep a null reason.
   settlementReason: tx.type === "SETTLEMENT" ? tx.reason : null,
   onBehalfOfMemberId: tx.type === "SETTLEMENT" ? tx.onBehalfOfMemberId : null,
-  linkedTransactionId: tx.type === "SETTLEMENT" ? tx.linkedTransactionId : null,
+  linkedTransactionId: linkedHalfOf(tx),
   createdBy: tx.createdBy,
   createdAt: tx.createdAt,
   updatedAt: tx.updatedAt,
@@ -89,6 +95,9 @@ const toTransaction = (
     deletedAt: row.deletedAt,
     version: row.version,
   };
+  // D26: only the halves of an expense paid for the fund carry a link among expenses and transfers.
+  const linked =
+    row.linkedTransactionId === null ? {} : { linkedTransactionId: row.linkedTransactionId as TransactionId };
   switch (row.type) {
     case "EXPENSE":
       return {
@@ -97,6 +106,7 @@ const toTransaction = (
         categoryId: row.categoryId!,
         payments: rowPayments.map(toPayment),
         shares: rowShares.map(toShare),
+        ...linked,
       };
     case "INCOME":
       return {
@@ -114,6 +124,7 @@ const toTransaction = (
         sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId!,
         payerMemberId: row.payerMemberId,
+        ...linked,
       };
     case "SETTLEMENT":
       return {

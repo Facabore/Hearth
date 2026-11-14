@@ -11,6 +11,7 @@ export type {
   TransactionType,
   Transfer,
 } from "../domain/transaction";
+export { linkedHalfOf } from "../domain/transaction";
 export type { AllocationSplit, SplitInput } from "../domain/split";
 export type { LedgerDeps } from "./deps";
 export type {
