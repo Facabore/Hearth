@@ -225,6 +225,13 @@
       "when": 1794651560555,
       "tag": "0031_paid_for_fund",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794686943595,
+      "tag": "0032_category_catalog",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,11 @@ const CATALOG_OF_0017: Record<string, readonly string[]> = {
 const admin = new pg.Client({ connectionString: inject("adminDatabaseUrl") });
 /** A copy of drizzle/ whose journal stops before 0017: the schema a database had before HU-E3-05. */
 const before = mkdtempSync(join(tmpdir(), "hearth-before-0017-"));
+/**
+ * A copy of drizzle/ whose journal stops before 0032, ruling P330's back-fill, which would add the newer catalog to
+ * every scenario here; its own test is category-catalog-backfill.int.test.ts.
+ */
+const through0031 = mkdtempSync(join(tmpdir(), "hearth-through-0031-"));
 /** Every database a test opened, registered before it is migrated or connected so `afterAll` always drops it. */
 const databases: { name: string; client?: pg.Client }[] = [];
 
@@ -31,6 +36,13 @@ beforeAll(async () => {
   const cut = journal.entries.findIndex((entry) => entry.tag === TAG);
   expect(cut).toBeGreaterThan(0);
   writeFileSync(journalFile, JSON.stringify({ ...journal, entries: journal.entries.slice(0, cut) }));
+  cpSync("drizzle", through0031, { recursive: true });
+  const p330 = journal.entries.findIndex((entry) => entry.tag === "0032_category_catalog");
+  expect(p330).toBeGreaterThan(cut);
+  writeFileSync(
+    join(through0031, "meta", "_journal.json"),
+    JSON.stringify({ ...journal, entries: journal.entries.slice(0, p330) }),
+  );
 });
 
 afterAll(async () => {
@@ -50,6 +62,7 @@ afterAll(async () => {
   }
   await attempt(() => admin.end());
   await attempt(() => rmSync(before, { recursive: true, force: true }));
+  await attempt(() => rmSync(through0031, { recursive: true, force: true }));
   if (failures.length > 0)
     throw new AggregateError(failures, "Cleaning up the back-fill test databases failed");
 });
@@ -181,7 +194,7 @@ describe(`${TAG} back-fill (HU-E3-05, rulings P56, P57, P77 and P78)`, () => {
     await db.category(health, "Gimnasio", null);
     await db.category(mascotas, "Veterinario", null);
     await db.category(mascotas, "Otros ingresos", "other_income", { deleted: true });
-    await runMigrations(db.url);
+    await runMigrations(db.url, through0031);
     expect(await db.styledGroups()).toEqual([
       { name: "Casa", key: "housing", icon_value: "home", color: "INDIGO" },
       { name: "Despensa", key: "food", icon_value: "apple", color: "SAND" },
@@ -225,7 +238,7 @@ describe(`${TAG} back-fill (HU-E3-05, rulings P56, P57, P77 and P78)`, () => {
     // A subcategory takes no style, whatever its key: an unknown one, or a catalog key no top-level category holds.
     await db.category(casa, "Hija", "legacy_z", { parent: rara });
     await db.category(casa, "Hija2", "travel", { parent: rara });
-    await runMigrations(db.url);
+    await runMigrations(db.url, through0031);
     expect(await db.styledCategories()).toEqual([
       { name: "Arriendo", icon_kind: "SYMBOL", icon_value: "key", color: "INDIGO" },
       { name: "Hija", icon_kind: null, icon_value: null, color: null },
@@ -255,7 +268,7 @@ describe(`${TAG} back-fill (HU-E3-05, rulings P56, P57, P77 and P78)`, () => {
     await other.group("Alimentación", 6);
     await other.group("Salud", 1);
     await other.category(otherCasa, "Arriendo", "rent");
-    await runMigrations(db.url);
+    await runMigrations(db.url, through0031);
     expect(await db.styledGroups()).toEqual([
       { name: "Casa", key: "housing", icon_value: "home", color: "INDIGO" },
       { name: "Despensa", key: "food", icon_value: "apple", color: "SAND" },
@@ -273,7 +286,7 @@ describe(`${TAG} back-fill (HU-E3-05, rulings P56, P57, P77 and P78)`, () => {
     // "Salud" (es) and "Health" (en) both name the health group: only the older one takes its key.
     await db.group("Salud", 1);
     await db.group("Health", 2);
-    await runMigrations(db.url);
+    await runMigrations(db.url, through0031);
     expect(await db.styledGroups()).toEqual([
       { name: "Health", key: null, icon_value: "tag", color: "GRAPHITE" },
       { name: "Salud", key: "health", icon_value: "heart", color: "ROSE" },
@@ -290,7 +303,7 @@ describe(`${TAG} back-fill (HU-E3-05, rulings P56, P57, P77 and P78)`, () => {
     await db.category(casa, "Arriendo", "rent");
     await db.category(salud, "Chequeo", null);
     await db.category(taller, "Snacks", null);
-    await runMigrations(db.url);
+    await runMigrations(db.url, through0031);
     // The back-fill ran once; afterwards the user restyles a category the fallback had styled.
     await db.client.query(
       `UPDATE categories SET icon_kind = 'EMOJI', icon_value = $2, color = 'ROSE' WHERE space_id = $1 AND name = 'Snacks'`,
