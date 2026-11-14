@@ -61,7 +61,12 @@ describe("CreateSpace (HU-E1-04)", () => {
         role: "OWNER",
       }),
     ]);
-    expect(groupNamed(categories, "id-1", "Vivienda")).toEqual(["Arriendo", "Servicios", "Mantenimiento"]);
+    expect(groupNamed(categories, "id-1", "Vivienda")).toEqual([
+      "Arriendo",
+      "Servicios",
+      "Mantenimiento",
+      "Hogar y muebles",
+    ]);
     expect(await spaces.listForUser("u-ana")).toEqual([summary]);
   });
 
@@ -77,7 +82,12 @@ describe("CreateSpace (HU-E1-04)", () => {
         currency: "COP",
       }),
     );
-    expect(groupNamed(categories, flat.id, "Housing")).toEqual(["Rent", "Utilities", "Maintenance"]);
+    expect(groupNamed(categories, flat.id, "Housing")).toEqual([
+      "Rent",
+      "Utilities",
+      "Maintenance",
+      "Home and furniture",
+    ]);
   });
 
   it("requires a name", async () => {
@@ -107,6 +117,7 @@ describe("CreateSpace (HU-E1-04)", () => {
       "Arriendo",
       "Servicios",
       "Mantenimiento",
+      "Hogar y muebles",
     ]);
     expect(await spaces.listForUser("u-ana")).toEqual([summary]);
   });

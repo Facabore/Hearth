@@ -102,8 +102,9 @@ FROM "spaces" AS s
 JOIN "seeded" AS r ON r."space_id" = s."id"
 WHERE s."archived_at" IS NULL
 GROUP BY s."id";--> statement-breakpoint
--- 3. A group the space never had (no row with its key, archived or not) goes after the space's groups, in catalog
---    order (ruling P296), unless a group of the space already has its name (names are unique ignoring case).
+-- 3. A group P330 added that the space never had (no row with its key, archived or not) goes after the space's groups,
+--    in catalog order (ruling P296), unless a group of the space already has its name (names are unique ignoring case).
+--    The six groups of the first catalog are never added again: one a space no longer has was removed by its people.
 INSERT INTO "category_groups" ("id", "space_id", "name", "key", "icon_kind", "icon_value", "color", "position", "created_at")
 SELECT
   gen_random_uuid(),
@@ -126,6 +127,7 @@ FROM (
     d."position"
   FROM "p330_spaces" AS s
   CROSS JOIN "p330_groups" AS d
+  WHERE d."key" NOT IN ('housing', 'food', 'transport', 'health', 'leisure', 'income')
 ) AS n
 WHERE NOT EXISTS (
     SELECT 1 FROM "category_groups" AS g WHERE g."space_id" = n."space_id" AND g."key" = n."key"
@@ -133,7 +135,8 @@ WHERE NOT EXISTS (
   AND NOT EXISTS (
     SELECT 1 FROM "category_groups" AS g WHERE g."space_id" = n."space_id" AND lower(g."name") = lower(n."name")
   );--> statement-breakpoint
--- 4. A category the space never had (no row with its key, in any state) goes into the live group with its catalog
+-- 4. A category P330 added that the space never had (no row with its key, in any state; the thirteen of the first
+--    catalog are never added again) goes into the live group with its catalog
 --    group's key, wherever that group is now and whatever it is called, unless a category of that group already has
 --    its name (HU-E3-02). Like a seeded one, it takes its group's color (HU-E3-05).
 INSERT INTO "categories" ("id", "space_id", "group_id", "parent_category_id", "name", "key", "icon_kind", "icon_value", "color", "created_at")
@@ -149,6 +152,7 @@ FROM (
   FROM "p330_spaces" AS s
   JOIN "category_groups" AS g ON g."space_id" = s."space_id" AND g."archived_at" IS NULL
   JOIN "p330_categories" AS d ON d."group_key" = g."key"
+  WHERE d."key" NOT IN ('rent', 'utilities', 'maintenance', 'groceries', 'restaurants', 'fuel', 'public_transport', 'medical', 'pharmacy', 'entertainment', 'travel', 'salary', 'other_income')
 ) AS n
 WHERE NOT EXISTS (
     SELECT 1 FROM "categories" AS c WHERE c."space_id" = n."space_id" AND c."key" = n."key"

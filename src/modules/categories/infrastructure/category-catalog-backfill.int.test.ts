@@ -281,6 +281,28 @@ describe(`${TAG} back-fill (ruling P330)`, () => {
     expect(await db.everything()).toEqual(after);
   });
 
+  it("never adds back a group or category of the first catalog that a space no longer has", async () => {
+    const db = await openDatabase();
+    const space = await db.seededSpace("es");
+    // Salud lost its key (renamed, its categories unkeyed): its people removed it from the catalog.
+    await db.client.query(`UPDATE category_groups SET key = NULL, name = 'Bienestar' WHERE id = $1`, [
+      space.groups.get("health"),
+    ]);
+    await db.client.query(
+      `UPDATE categories SET key = NULL WHERE space_id = $1 AND key IN ('medical', 'pharmacy')`,
+      [space.spaceId],
+    );
+
+    await db.migrate();
+
+    expect((await db.groupsOf(space.spaceId)).map((g) => g.key)).not.toContain("health");
+    const keys = (await db.categoriesOf(space.spaceId)).map(([, key]) => key);
+    expect(keys).not.toEqual(expect.arrayContaining(["medical"]));
+    expect(keys).not.toEqual(expect.arrayContaining(["pharmacy"]));
+    // The new groups still arrive.
+    expect((await db.groupsOf(space.spaceId)).map((g) => g.key)).toContain("subscriptions");
+  });
+
   it("repeats DEFAULT_CATALOG in its lists, so the back-fill and the seed never drift", () => {
     const sql = readFileSync(`drizzle/${TAG}.sql`, "utf8");
     const values = (table: string) => {
