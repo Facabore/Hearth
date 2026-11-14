@@ -87,6 +87,8 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
       rolloverMode: "RESET",
       isCatchAll: false,
       savingsAccountIds: [],
+      payerMemberIds: [],
+      payersScope: null,
       categoryIds: ["cat-groceries"],
       capacityShare: "36.75",
       allocation: {

@@ -1250,7 +1250,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Add a line with a planned amount, funding and rollover mode; Σ planned never exceeds total capacity */
+        /** Add a line with a planned amount, funding, rollover mode and optional payers (D26); Σ planned never exceeds total capacity */
         post: operations["addBudgetLine"];
         delete?: never;
         options?: never;
@@ -1273,8 +1273,8 @@ export interface paths {
         options?: never;
         head?: never;
         /**
-         * Change a line's name, planned amount, funding, savings accounts, rollover mode or catch-all flag
-         * @description The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds.
+         * Change a line's name, planned amount, funding, savings accounts, rollover mode, catch-all flag or payers (D26)
+         * @description The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds. OWNER and ADMIN change any field; a current payer of the line (D26) may send only payerMemberIds and payersScope, and anything else answers 403 InsufficientRole.
          */
         patch: operations["updateBudgetLine"];
         trace?: never;
@@ -1629,6 +1629,8 @@ export interface components {
                 rolloverMode: "RESET" | "ROLLOVER" | "ADJUSTED";
                 isCatchAll: boolean;
                 savingsAccountIds: string[];
+                payerMemberIds?: string[];
+                payersScope?: ("EVERY_PERIOD" | "THIS_PERIOD") | null;
                 categoryIds: string[];
                 capacityShare: string | null;
                 allocation: {
@@ -7719,6 +7721,9 @@ export interface operations {
                     rolloverMode?: "RESET" | "ROLLOVER" | "ADJUSTED";
                     savingsAccountIds?: string[];
                     isCatchAll?: boolean;
+                    payerMemberIds?: string[];
+                    /** @enum {string} */
+                    payersScope?: "EVERY_PERIOD" | "THIS_PERIOD";
                 };
             };
         };
@@ -7777,7 +7782,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency */
+            /** @description ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, InvalidLinePayers, CurrencyMismatch, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7883,6 +7888,9 @@ export interface operations {
                     rolloverMode?: "RESET" | "ROLLOVER" | "ADJUSTED";
                     savingsAccountIds?: string[];
                     isCatchAll?: boolean;
+                    payerMemberIds?: string[];
+                    /** @enum {string} */
+                    payersScope?: "EVERY_PERIOD" | "THIS_PERIOD";
                 };
             };
         };
@@ -7941,7 +7949,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency */
+            /** @description ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, InvalidLinePayers, CurrencyMismatch, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -11097,7 +11097,7 @@
     "/api/v1/spaces/{spaceId}/plans/{planId}/lines": {
       "post": {
         "operationId": "addBudgetLine",
-        "summary": "Add a line with a planned amount, funding and rollover mode; Σ planned never exceeds total capacity",
+        "summary": "Add a line with a planned amount, funding, rollover mode and optional payers (D26); Σ planned never exceeds total capacity",
         "security": [
           {
             "cookieAuth": []
@@ -11171,6 +11171,22 @@
                   },
                   "isCatchAll": {
                     "type": "boolean"
+                  },
+                  "payerMemberIds": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "payersScope": {
+                    "type": "string",
+                    "enum": [
+                      "EVERY_PERIOD",
+                      "THIS_PERIOD"
+                    ]
                   }
                 },
                 "required": [
@@ -11243,7 +11259,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+            "description": "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, InvalidLinePayers, CurrencyMismatch, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11258,7 +11274,7 @@
     "/api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}": {
       "patch": {
         "operationId": "updateBudgetLine",
-        "summary": "Change a line's name, planned amount, funding, savings accounts, rollover mode or catch-all flag",
+        "summary": "Change a line's name, planned amount, funding, savings accounts, rollover mode, catch-all flag or payers (D26)",
         "security": [
           {
             "cookieAuth": []
@@ -11267,7 +11283,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds.",
+        "description": "The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds. OWNER and ADMIN change any field; a current payer of the line (D26) may send only payerMemberIds and payersScope, and anything else answers 403 InsufficientRole.",
         "parameters": [
           {
             "in": "path",
@@ -11341,6 +11357,22 @@
                   },
                   "isCatchAll": {
                     "type": "boolean"
+                  },
+                  "payerMemberIds": {
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    }
+                  },
+                  "payersScope": {
+                    "type": "string",
+                    "enum": [
+                      "EVERY_PERIOD",
+                      "THIS_PERIOD"
+                    ]
                   }
                 }
               }
@@ -11409,7 +11441,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+            "description": "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, InvalidLinePayers, CurrencyMismatch, UnknownCurrency",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -15253,6 +15285,26 @@
                   "items": {
                     "type": "string"
                   }
+                },
+                "payerMemberIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "payersScope": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "EVERY_PERIOD",
+                        "THIS_PERIOD"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "categoryIds": {
                   "type": "array",

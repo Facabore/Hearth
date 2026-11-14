@@ -19,6 +19,7 @@ import { ok, type Money, type Result } from "@/shared/kernel";
 import {
   ALLOCATION_RULES,
   FUNDINGS,
+  PAYERS_SCOPES,
   PLAN_STATUSES,
   ROLLOVER_MODES,
   type AllocationInput,
@@ -46,6 +47,10 @@ export const BudgetLineSchema = z.object({
   isCatchAll: z.boolean(),
   /** SAVINGS lines: the accounts whose incoming transfers are the line's spending (spec 5.4). */
   savingsAccountIds: z.array(z.string()),
+  /** D26: the members who usually pay the line, in the order named; empty when nobody does. */
+  payerMemberIds: z.array(z.string()).optional(),
+  /** D26: EVERY_PERIOD (a plan copy keeps the payers) or THIS_PERIOD; null exactly when the line has no payers. */
+  payersScope: z.enum(PAYERS_SCOPES).nullable().optional(),
   /** HU-E6-04: the categories mapped to the line; the catch-all line also consumes every unmapped one. */
   categoryIds: z.array(z.string()),
   /** HU-E6-03: the planned amount as a percentage of total capacity, two decimals ("36.75"); null without capacity. */
@@ -175,6 +180,8 @@ export const capacitySuggestionDto = (s: CapacitySuggestion): z.infer<typeof Cap
 
 /** Savings accounts per line: bounds the payload; ownership is checked by the use case. */
 const MAX_ACCOUNTS = 20;
+/** D26: payers per line; the use case checks that each is a current member who is not a VIEWER. */
+const MAX_PAYERS = 50;
 
 /** HU-E6-03: a new line; DIRECT and RESET unless given, and not the catch-all unless asked (HU-E6-04). */
 export const AddLineBodySchema = z.object({
@@ -184,6 +191,10 @@ export const AddLineBodySchema = z.object({
   rolloverMode: z.enum(ROLLOVER_MODES).optional(),
   savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
   isCatchAll: z.boolean().optional(),
+  /** D26: who usually pays the line; nobody unless given. */
+  payerMemberIds: z.array(Id).max(MAX_PAYERS).optional(),
+  /** D26: EVERY_PERIOD unless given; only with payers. */
+  payersScope: z.enum(PAYERS_SCOPES).optional(),
 });
 
 /** HU-E6-03: the body as AddBudgetLine takes it; fails only for currencies the kernel does not know. */
@@ -194,7 +205,7 @@ export const lineFromBody = (body: z.infer<typeof AddLineBodySchema>): Result<Li
 
 /**
  * HU-E6-03, HU-E6-04: what a PATCH changes, at least one field; `isCatchAll` makes the line the plan's
- * catch-all (SetCatchAllLine). Unknown fields are stripped before the check, so a body with only those is empty.
+ * catch-all (SetCatchAllLine). D26: a payer of the line who does not manage the plan sends only the payers fields. Unknown fields are stripped before the check, so a body with only those is empty.
  */
 export const UpdateLineBodySchema = z
   .object({
@@ -204,6 +215,9 @@ export const UpdateLineBodySchema = z
     rolloverMode: z.enum(ROLLOVER_MODES).optional(),
     savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
     isCatchAll: z.boolean().optional(),
+    /** D26: the whole set of payers; empty clears them and their scope. */
+    payerMemberIds: z.array(Id).max(MAX_PAYERS).optional(),
+    payersScope: z.enum(PAYERS_SCOPES).optional(),
   })
   .refine((body) => Object.values(body).some((value) => value !== undefined), {
     error: "Provide at least one field to change",
@@ -304,6 +318,8 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
     rolloverMode: line.rolloverMode,
     isCatchAll: line.isCatchAll,
     savingsAccountIds: [...line.savingsAccountIds],
+    payerMemberIds: [...line.payerMemberIds],
+    payersScope: line.payersScope,
     categoryIds: [...figure.categoryIds],
     capacityShare: percentOrNull(figure.capacityShareBasisPoints),
     allocation: {
@@ -495,7 +511,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
   "/api/v1/spaces/{spaceId}/plans/{planId}/lines": {
     post: planWrite(
       "addBudgetLine",
-      "Add a line with a planned amount, funding and rollover mode; Σ planned never exceeds total capacity",
+      "Add a line with a planned amount, funding, rollover mode and optional payers (D26); Σ planned never exceeds total capacity",
       PlanPath,
       AddLineBodySchema,
       {
@@ -503,7 +519,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
         "409":
           "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
         "422":
-          "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+          "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, InvalidLinePayers, CurrencyMismatch, UnknownCurrency",
       },
       { status: "201" },
     ),
@@ -512,7 +528,7 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
     patch: {
       ...planWrite(
         "updateBudgetLine",
-        "Change a line's name, planned amount, funding, savings accounts, rollover mode or catch-all flag",
+        "Change a line's name, planned amount, funding, savings accounts, rollover mode, catch-all flag or payers (D26)",
         LinePath,
         UpdateLineBodySchema,
         {
@@ -520,11 +536,11 @@ export const budgetingPaths: ZodOpenApiPathsObject = {
           "409":
             "PlanExceedsCapacity, BudgetLineNameTaken, CatchAllLineAlreadySet, SavingsAccountAlreadyUsed, SavingsLineNotMappable, AccountArchived, SpaceArchived",
           "422":
-            "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, CurrencyMismatch, UnknownCurrency",
+            "ValidationFailed, InvalidBudgetLineName, InvalidPlannedAmount, SavingsAccountRequired, InvalidSavingsAccount, InvalidLinePayers, CurrencyMismatch, UnknownCurrency",
         },
       ),
       description:
-        "The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds.",
+        "The body needs at least one field: an empty body, or one with only unknown fields, answers 422 ValidationFailed. Like every plan write it bumps the plan's version, even when the change repeats what the line already holds. OWNER and ADMIN change any field; a current payer of the line (D26) may send only payerMemberIds and payersScope, and anything else answers 403 InsufficientRole.",
     },
     delete: planWrite(
       "removeBudgetLine",
