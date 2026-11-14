@@ -15,6 +15,8 @@ interface SpendingNode {
   readonly total: bigint;
   /** Basis points of the parent's total, rounded half up on each level (ruling P75). */
   readonly share: number;
+  /** Ruling P327: how many expenses the node counts, only when its rows say (an account's breakdown). */
+  readonly movements?: number;
 }
 
 /**
@@ -85,18 +87,27 @@ interface Row {
   readonly parts: Map<string, Part>;
   readonly children: Map<string, Row>;
   total: bigint;
+  count: number;
 }
 
 const rowAt = (rows: Map<string, Row>, at: string, fresh: Pick<Row, "id" | "key" | "spaceId">): Row => {
   const found = rows.get(at);
   if (found !== undefined) return found;
-  const row: Row = { ...fresh, parts: new Map(), children: new Map(), total: 0n };
+  const row: Row = { ...fresh, parts: new Map(), children: new Map(), total: 0n, count: 0 };
   rows.set(at, row);
   return row;
 };
 
-const add = (row: Row, spaceId: string, name: string | null, archived: boolean, amount: bigint): void => {
+const add = (
+  row: Row,
+  spaceId: string,
+  name: string | null,
+  archived: boolean,
+  amount: bigint,
+  count: number,
+): void => {
   row.total += amount;
+  row.count += count;
   const part = row.parts.get(spaceId);
   if (part === undefined) row.parts.set(spaceId, { name, archived, amount });
   else part.amount += amount;
@@ -127,7 +138,7 @@ const ordered = <
  * stand now. An expense counts in `rollUp(categoryId)` and under the group that category sits in (HU-E3-04, HU-E3-02).
  */
 export const spendingTree = (
-  rows: readonly CategoryConsumption[],
+  rows: readonly (CategoryConsumption & { readonly count?: number })[],
   nodes: readonly TreeCategory[],
   grouping: Grouping,
 ): SpendingTree => {
@@ -136,7 +147,9 @@ export const spendingTree = (
   const spaceName = (spaceId: string): string =>
     grouping.kind === "PERSONAL" ? (grouping.spaceNames.get(spaceId) ?? "") : "";
   const groups = new Map<string, Row>();
-  for (const { categoryId, amount } of rows) {
+  // Ruling P327: an account's rows count its expenses, and only then does each node say how many it holds.
+  const counted = rows.some((row) => row.count !== undefined);
+  for (const { categoryId, amount, count = 0 } of rows) {
     const place = placeIn(tree, categoryId);
     if (place === null || amount === 0n) continue;
     const { category, subcategory } = place;
@@ -147,7 +160,7 @@ export const spendingTree = (
       key: category.groupKey,
       spaceId: groupMerges ? null : spaceId,
     });
-    add(group, spaceId, category.groupName, category.groupArchived, amount);
+    add(group, spaceId, category.groupName, category.groupArchived, amount, count);
     // Ruling P102: only a keyed category inside a merged group row merges; a custom group belongs to one space.
     const categoryMerges = groupMerges && category.categoryKey !== null;
     const row = rowAt(
@@ -159,14 +172,21 @@ export const spendingTree = (
         spaceId: categoryMerges ? null : spaceId,
       },
     );
-    add(row, spaceId, category.categoryName, category.categoryArchived, amount);
+    add(row, spaceId, category.categoryName, category.categoryArchived, amount, count);
     // Subcategories never merge (no catalog key, HU-E3-04); what was spent in the category itself is one entry.
     const entry = rowAt(row.children, subcategory === null ? "direct" : `id/${subcategory.categoryId}`, {
       id: subcategory?.categoryId ?? null,
       key: null,
       spaceId: subcategory === null ? null : spaceId,
     });
-    add(entry, spaceId, subcategory?.categoryName ?? null, subcategory?.categoryArchived ?? false, amount);
+    add(
+      entry,
+      spaceId,
+      subcategory?.categoryName ?? null,
+      subcategory?.categoryArchived ?? false,
+      amount,
+      count,
+    );
   }
 
   // Ruling P76: a merged row takes the name it has in the caller's personal space, even without spending there, and
@@ -197,6 +217,7 @@ export const spendingTree = (
     space: merges && row.spaceId !== null ? { id: row.spaceId, name: spaceName(row.spaceId) } : null,
     total: row.total,
     share: shareOf(row.total, parentTotal),
+    ...(counted ? { movements: row.count } : {}),
   });
   const subcategoriesOf = (category: Row): SubcategorySpending[] => {
     const entries = [...category.children.values()];

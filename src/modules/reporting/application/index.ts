@@ -69,11 +69,14 @@ export type {
   SpendingTree,
   SubcategorySpending,
 } from "../domain/spending-by-group";
+export type { AccountFigures, AccountMovements } from "./account-movements";
+export type { AccountMovement } from "../domain/account-flows";
 export {
   createGetSpendingByGroup,
   type GetSpendingByGroup,
   type SpendingByGroup,
   type SpendingByGroupDeps,
+  type SpendingByGroupInput,
 } from "./get-spending-by-group";
 export {
   createGetPersonalSpendingByGroup,

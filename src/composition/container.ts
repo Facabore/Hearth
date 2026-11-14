@@ -286,6 +286,7 @@ import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { clockFrom } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
+import { accountMovementsOf } from "./account-movements";
 import { accountBalancesFrom } from "./account-balances";
 
 /** Process-wide dependencies, built once from the environment. */
@@ -857,6 +858,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     savingsAccounts,
     categories: budgetCategories,
     history: planHistory,
+    // Ruling P327: an account's screen counts what it paid, received and moved, from the ledger's list (P277).
+    accountMovements: accountMovementsOf(accountsDeps.accounts, ledgerQueries),
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {

@@ -1513,7 +1513,7 @@ export interface paths {
         };
         /**
          * A space's spending in a period by category group, then category, then subcategory; computed on read
-         * @description Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total.
+         * @description Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total. With accountId (ruling P327), only what that account of the space paid.
          */
         get: operations["getSpendingByGroup"];
         put?: never;
@@ -1533,7 +1533,7 @@ export interface paths {
         };
         /**
          * The caller's consumption in a personal period by category group, category and subcategory
-         * @description The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space.
+         * @description The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space. With accountId (ruling P327), one of the caller's own accounts, what that account paid in any of those spaces instead.
          */
         get: operations["getPersonalSpendingByGroup"];
         put?: never;
@@ -8953,6 +8953,8 @@ export interface operations {
         parameters: {
             query: {
                 period: string;
+                /** @description Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404. */
+                accountId?: string;
             };
             header?: never;
             path: {
@@ -8972,6 +8974,16 @@ export interface operations {
                         spaceId: string;
                         period: components["schemas"]["Period"];
                         total: components["schemas"]["MoneyOutput"];
+                        /** @description Ruling P327: only with accountId; the breakdown is then what the account paid. */
+                        account?: {
+                            id: string;
+                            /** @description Incomes, transfers and settlements into the account. */
+                            in: components["schemas"]["MoneyOutput"];
+                            /** @description What the account paid of expenses, and transfers and settlements out of it. */
+                            out: components["schemas"]["MoneyOutput"];
+                            /** @description Transfers to the caller's other accounts, which are not spending (D21). */
+                            movedToOwnAccounts: components["schemas"]["MoneyOutput"];
+                        };
                         groups: {
                             /** @description Null only for a personal row merged by catalog key; never null in a space's own breakdown */
                             id: string | null;
@@ -8981,6 +8993,8 @@ export interface operations {
                             archived: boolean;
                             total: components["schemas"]["MoneyOutput"];
                             share: string;
+                            /** @description Ruling P327: how many expenses the node holds; only with accountId. */
+                            movements?: number;
                             categories: {
                                 /** @description Null only for a personal row merged by catalog key; never null in a space's own breakdown */
                                 id: string | null;
@@ -8990,6 +9004,8 @@ export interface operations {
                                 archived: boolean;
                                 total: components["schemas"]["MoneyOutput"];
                                 share: string;
+                                /** @description Ruling P327: how many expenses the node holds; only with accountId. */
+                                movements?: number;
                                 subcategories: {
                                     /** @description Null only for the entry of what was spent in the category itself, not in a subcategory */
                                     subcategoryId: string | null;
@@ -9013,7 +9029,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SpaceNotFound */
+            /** @description SpaceNotFound, AccountNotFound */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -9037,6 +9053,8 @@ export interface operations {
         parameters: {
             query: {
                 period: string;
+                /** @description Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404. */
+                accountId?: string;
             };
             header?: never;
             path?: never;
@@ -9055,6 +9073,16 @@ export interface operations {
                         currency: string;
                         period: components["schemas"]["Period"];
                         total: components["schemas"]["MoneyOutput"];
+                        /** @description Ruling P327: only with accountId; the breakdown is then what the account paid. */
+                        account?: {
+                            id: string;
+                            /** @description Incomes, transfers and settlements into the account. */
+                            in: components["schemas"]["MoneyOutput"];
+                            /** @description What the account paid of expenses, and transfers and settlements out of it. */
+                            out: components["schemas"]["MoneyOutput"];
+                            /** @description Transfers to the caller's other accounts, which are not spending (D21). */
+                            movedToOwnAccounts: components["schemas"]["MoneyOutput"];
+                        };
                         groups: {
                             /** @description Null for a seeded group merged across spaces by key. */
                             id: string | null;
@@ -9064,6 +9092,8 @@ export interface operations {
                             archived: boolean;
                             total: components["schemas"]["MoneyOutput"];
                             share: string;
+                            /** @description Ruling P327: how many expenses the node holds; only with accountId. */
+                            movements?: number;
                             /** @description Null for a seeded group merged across spaces by key. */
                             space: {
                                 id: string;
@@ -9083,6 +9113,8 @@ export interface operations {
                                 archived: boolean;
                                 total: components["schemas"]["MoneyOutput"];
                                 share: string;
+                                /** @description Ruling P327: how many expenses the node holds; only with accountId. */
+                                movements?: number;
                                 /** @description Null for a seeded category merged inside a merged seeded group; a custom category keeps its space. */
                                 space: {
                                     id: string;
@@ -9109,6 +9141,15 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description AccountNotFound */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

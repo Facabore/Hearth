@@ -14069,7 +14069,7 @@
       "get": {
         "operationId": "getSpendingByGroup",
         "summary": "A space's spending in a period by category group, then category, then subcategory; computed on read",
-        "description": "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total.",
+        "description": "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total. With accountId (ruling P327), only what that account of the space paid.",
         "security": [
           {
             "cookieAuth": []
@@ -14096,6 +14096,17 @@
               "maxLength": 32
             },
             "required": true
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "schema": {
+              "description": "Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "description": "Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404."
           }
         ],
         "responses": {
@@ -14114,6 +14125,34 @@
                     },
                     "total": {
                       "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "account": {
+                      "description": "Ruling P327: only with accountId; the breakdown is then what the account paid.",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "in": {
+                          "description": "Incomes, transfers and settlements into the account.",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "out": {
+                          "description": "What the account paid of expenses, and transfers and settlements out of it.",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "movedToOwnAccounts": {
+                          "description": "Transfers to the caller's other accounts, which are not spending (D21).",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "in",
+                        "out",
+                        "movedToOwnAccounts"
+                      ],
+                      "additionalProperties": false
                     },
                     "groups": {
                       "type": "array",
@@ -14146,6 +14185,12 @@
                           "share": {
                             "type": "string"
                           },
+                          "movements": {
+                            "description": "Ruling P327: how many expenses the node holds; only with accountId.",
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
                           "categories": {
                             "type": "array",
                             "items": {
@@ -14176,6 +14221,12 @@
                                 },
                                 "share": {
                                   "type": "string"
+                                },
+                                "movements": {
+                                  "description": "Ruling P327: how many expenses the node holds; only with accountId.",
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
                                 },
                                 "subcategories": {
                                   "type": "array",
@@ -14265,7 +14316,7 @@
             }
           },
           "404": {
-            "description": "SpaceNotFound",
+            "description": "SpaceNotFound, AccountNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -14291,7 +14342,7 @@
       "get": {
         "operationId": "getPersonalSpendingByGroup",
         "summary": "The caller's consumption in a personal period by category group, category and subcategory",
-        "description": "The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space.",
+        "description": "The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space. With accountId (ruling P327), one of the caller's own accounts, what that account paid in any of those spaces instead.",
         "security": [
           {
             "cookieAuth": []
@@ -14310,6 +14361,17 @@
               "maxLength": 32
             },
             "required": true
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "schema": {
+              "description": "Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "description": "Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404."
           }
         ],
         "responses": {
@@ -14329,6 +14391,34 @@
                     },
                     "total": {
                       "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "account": {
+                      "description": "Ruling P327: only with accountId; the breakdown is then what the account paid.",
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "in": {
+                          "description": "Incomes, transfers and settlements into the account.",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "out": {
+                          "description": "What the account paid of expenses, and transfers and settlements out of it.",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "movedToOwnAccounts": {
+                          "description": "Transfers to the caller's other accounts, which are not spending (D21).",
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "in",
+                        "out",
+                        "movedToOwnAccounts"
+                      ],
+                      "additionalProperties": false
                     },
                     "groups": {
                       "type": "array",
@@ -14360,6 +14450,12 @@
                           },
                           "share": {
                             "type": "string"
+                          },
+                          "movements": {
+                            "description": "Ruling P327: how many expenses the node holds; only with accountId.",
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
                           },
                           "space": {
                             "anyOf": [
@@ -14435,6 +14531,12 @@
                                 },
                                 "share": {
                                   "type": "string"
+                                },
+                                "movements": {
+                                  "description": "Ruling P327: how many expenses the node holds; only with accountId.",
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
                                 },
                                 "space": {
                                   "anyOf": [
@@ -14566,6 +14668,16 @@
           },
           "401": {
             "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "AccountNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {

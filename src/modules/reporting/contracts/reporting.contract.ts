@@ -23,6 +23,7 @@ import {
   type PersonalTrend,
   type CashFlowDays,
   type CashFlowView,
+  type AccountFigures,
   type CategorySpending,
   type SpendingByGroup,
   type SubcategorySpending,
@@ -36,6 +37,16 @@ import {
 
 /** HU-E7-01 … HU-E7-03: the period's label in the space policy, "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
 export const ReportQuerySchema = z.object({ period: z.string().min(1).max(32) });
+
+/** Ruling P327: a breakdown of what one account paid, which its own screen shows. */
+export const SpendingByGroupQuerySchema = ReportQuerySchema.extend({
+  accountId: z
+    .uuid()
+    .optional()
+    .describe(
+      "Ruling P327: only what this account paid, with how many expenses each node holds and the account's other figures; an account of another space answers 404.",
+    ),
+});
 
 /** The plan the report reads, whatever its status (ruling P33). */
 const ReportPlanSchema = z
@@ -642,7 +653,38 @@ const spendingNode = {
   total: MoneySchema,
   /** Percent of the parent's total with two decimals, each level rounded half up on its own ("56.94"). */
   share: z.string(),
+  /** Ruling P327: only in an account's breakdown. */
+  movements: z
+    .number()
+    .int()
+    .optional()
+    .describe("Ruling P327: how many expenses the node holds; only with accountId."),
 };
+
+/** Ruling P327: what the account moved in the period besides what it paid for expenses, which `total` is. */
+const AccountFiguresSchema = z
+  .object({
+    id: z.string(),
+    in: MoneySchema.describe("Incomes, transfers and settlements into the account."),
+    out: MoneySchema.describe("What the account paid of expenses, and transfers and settlements out of it."),
+    movedToOwnAccounts: MoneySchema.describe(
+      "Transfers to the caller's other accounts, which are not spending (D21).",
+    ),
+  })
+  .optional()
+  .describe("Ruling P327: only with accountId; the breakdown is then what the account paid.");
+
+const accountFiguresDto = (account: AccountFigures | undefined, currency: string) =>
+  account === undefined
+    ? {}
+    : {
+        account: {
+          id: account.id,
+          in: moneyOf(account.in, currency),
+          out: moneyOf(account.out, currency),
+          movedToOwnAccounts: moneyOf(account.movedToOwnAccounts, currency),
+        },
+      };
 
 /** HU-E7-06: one subcategory, or (`subcategoryId` and `name` null) what was spent in the category itself. */
 const SubcategorySpendingSchema = z.object({
@@ -664,6 +706,7 @@ export const SpendingByGroupSchema = z.object({
   spaceId: z.string(),
   period: PeriodSchema,
   total: MoneySchema,
+  account: AccountFiguresSchema,
   groups: z.array(
     z.object({
       ...spendingNode,
@@ -672,7 +715,10 @@ export const SpendingByGroupSchema = z.object({
   ),
 });
 
-type SpendingNodeOf = Pick<CategorySpending, "id" | "key" | "name" | "archived" | "total" | "share">;
+type SpendingNodeOf = Pick<
+  CategorySpending,
+  "id" | "key" | "name" | "archived" | "total" | "share" | "movements"
+>;
 
 const spendingNodeDto = (node: SpendingNodeOf, currency: string) => ({
   id: node.id,
@@ -681,6 +727,7 @@ const spendingNodeDto = (node: SpendingNodeOf, currency: string) => ({
   archived: node.archived,
   total: moneyOf(node.total, currency),
   share: percentOf(node.share),
+  ...(node.movements === undefined ? {} : { movements: node.movements }),
 });
 
 const subcategorySpendingDto = (entry: SubcategorySpending, currency: string) => ({
@@ -695,6 +742,7 @@ export const spendingByGroupDto = (report: SpendingByGroup): z.infer<typeof Spen
   spaceId: report.spaceId,
   period: periodDto(report.period),
   total: moneyOf(report.total, report.currency),
+  ...accountFiguresDto(report.account, report.currency),
   groups: report.groups.map((group) => ({
     ...spendingNodeDto(group, report.currency),
     categories: group.categories.map((category) => ({
@@ -726,6 +774,7 @@ export const PersonalSpendingByGroupSchema = z.object({
   /** The caller's personal-space period. */
   period: PeriodSchema,
   total: MoneySchema,
+  account: AccountFiguresSchema,
   /** Seeded groups and categories merge across spaces by catalog key (`id` and `space` null). */
   groups: z.array(
     z.object({
@@ -757,6 +806,7 @@ export const personalSpendingByGroupDto = (
   currency: report.currency,
   period: periodDto(report.period),
   total: moneyOf(report.total, report.currency),
+  ...accountFiguresDto(report.account, report.currency),
   groups: report.groups.map((group) => ({
     ...spendingNodeDto(group, report.currency),
     space: group.space,
@@ -909,15 +959,19 @@ export const reportingPaths: ZodOpenApiPathsObject = {
       summary:
         "A space's spending in a period by category group, then category, then subcategory; computed on read",
       description:
-        "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total.",
+        "Every member reads it, archived spaces included. Live expenses count by amount, whoever paid, under the tree as it is now; nodes without spending are left out and each share is of its parent's total. With accountId (ruling P327), only what that account of the space paid.",
       ...securedByUser,
-      requestParams: { path: SpacePath, query: ReportQuerySchema },
+      requestParams: { path: SpacePath, query: SpendingByGroupQuerySchema },
       responses: {
         "200": {
           description: "The groups with spending, largest first, each with its categories and subcategories",
           content: jsonContent(SpendingByGroupSchema),
         },
-        ...reportProblems,
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound, AccountNotFound",
+          "422": "ValidationFailed, InvalidPeriodLabel",
+        }),
       },
     },
   },
@@ -926,16 +980,20 @@ export const reportingPaths: ZodOpenApiPathsObject = {
       operationId: "getPersonalSpendingByGroup",
       summary: "The caller's consumption in a personal period by category group, category and subcategory",
       description:
-        "The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space.",
+        "The unified view's consumption, from the caller's own member rows only. Seeded groups, and seeded categories inside them, merge across spaces by catalog key, with id and space null; custom groups, every category inside one, and custom categories inside a seeded group keep their id and space. With accountId (ruling P327), one of the caller's own accounts, what that account paid in any of those spaces instead.",
       ...securedByUser,
-      requestParams: { query: ReportQuerySchema },
+      requestParams: { query: SpendingByGroupQuerySchema },
       responses: {
         "200": {
           description:
             "The caller's groups with consumption, largest first, in the personal space's currency",
           content: jsonContent(PersonalSpendingByGroupSchema),
         },
-        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidPeriodLabel" }),
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "AccountNotFound",
+          "422": "ValidationFailed, InvalidPeriodLabel",
+        }),
       },
     },
   },
