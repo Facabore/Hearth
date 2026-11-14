@@ -73,7 +73,7 @@ describe("another space's row (ruling P306, medium density P324)", () => {
     expect(screen.getByRole("listitem").querySelector("[aria-hidden='true']")).toHaveClass("size-9");
   });
 
-  it("says 'pagaste tú' when she paid and is not in it, and 'no te incluye' when she is in neither", () => {
+  it("says 'pagaste tú' when she paid and is not in it, and never 'no te incluye' (P329)", () => {
     renderRow(
       activityItemDto({
         transaction: transactionDto({
@@ -98,7 +98,10 @@ describe("another space's row (ruling P306, medium density P324)", () => {
         you: { memberIds: ["m-ana"], share: null, paid: null },
       }),
     );
-    expect(lineOf("Gas")).toBe("10/11/2026 · Hogar · no te incluye");
+    // Ruling P329: the API no longer lists a movement without her; one that still arrived says who recorded it.
+    expect(lineOf("Gas")).toBe("10/11/2026 · Hogar · Juan registró");
+    // Unsigned: no money of hers moved, and the words say so, never the grey alone.
+    expect(screen.getByText(/45\.000/).textContent).toMatch(/^\$/);
   });
 
   it("drops the day under Movimientos' day label and keeps the time", () => {

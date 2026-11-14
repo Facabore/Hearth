@@ -248,16 +248,12 @@ describe("the personal space shows everything (ruling P306)", () => {
     }),
     memberNames: { "m-juan": "Juan", "m-ana": "Ana" },
   });
-  const gas = activityItemDto({
-    transaction: transactionDto({ id: "t-gas", description: "Gas", date: "2026-10-28", amount: cop(45_000) }),
-    you: { memberIds: ["m-ana"], share: null, paid: null },
-  });
+  // Ruling P329: only what involves her; a movement of the household without her stays in its own Movimientos.
   const feed = [
     { kind: "group" as const, item: groceries },
     { kind: "group" as const, item: hotel },
     { kind: "own" as const, tx: octoberPage.items[0]! },
     { kind: "group" as const, item: settlement },
-    { kind: "group" as const, item: gas },
   ];
   // Inicio's route fills the two slots for the personal home of someone with other spaces.
   const home = (props: Partial<ComponentProps<typeof HomeSummary>> = {}) =>
@@ -356,7 +352,7 @@ describe("the personal space shows everything (ruling P306)", () => {
   it("merges her spaces' movements into Recientes with their space and her part, each said once (P324)", () => {
     home();
     const rows = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem");
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(4);
     // Board "Inicio personal": "Ayer · Hogar · tu parte"; the amount is her part, so the line repeats no figure.
     expect(norm(rowOf("Mercado del mes").textContent)).toBe("Mercado del mesHoy · Hogar · tu parte−$ 90.000");
     expect(within(rowOf("Mercado del mes")).getByRole("link")).toHaveAttribute(
@@ -367,7 +363,6 @@ describe("the personal space shows everything (ruling P306)", () => {
     expect(norm(rowOf("te pagó").textContent)).toBe(
       "Juan te pagó29/10/2026 · Hogar · Saldo entre ustedes+$ 50.000",
     );
-    expect(norm(rowOf("Gas").textContent)).toBe("Gas28/10/2026 · Hogar · no te incluye$ 45.000");
     // Her own row is the one Inicio always drew, opening on her personal home.
     expect(within(rowOf("Salary")).getByRole("link")).toHaveAttribute(
       "href",

@@ -23,7 +23,7 @@ type Title =
 interface Part {
   readonly amount: MoneyDto;
   readonly sign: "+" | "-" | null;
-  readonly detail: "shareOf" | "paidAndShare" | "paid" | "notYou" | "betweenYou" | "noMoney" | "recorded";
+  readonly detail: "shareOf" | "paidAndShare" | "paid" | "betweenYou" | "noMoney" | "recorded";
   /** A settlement without a description is named by who paid whom. */
   readonly title?: Title;
 }
@@ -37,7 +37,8 @@ const partOf = (item: ActivityItemDto): Part => {
     const { share, paid } = item.you;
     if (share) return { amount: share, sign: "-" as const, detail: paid ? "paidAndShare" : "shareOf" };
     if (paid) return { amount: paid, sign: "-" as const, detail: "paid" };
-    return { amount: tx.amount, sign: null, detail: "notYou" };
+    // Ruling P329: the API lists only what involves the person; one without them would say who recorded it, unsigned.
+    return { amount: tx.amount, sign: null, detail: "recorded" };
   }
   if (tx.type === "SETTLEMENT") {
     const out = tx.payerMemberId !== null && mine.has(tx.payerMemberId);
@@ -79,8 +80,9 @@ const partOf = (item: ActivityItemDto): Part => {
 /**
  * Ruling P306 (boards "Inicio personal · todo en un lugar"), amended by P324: a movement of a shared or direct space in
  * the personal Inicio's Recientes. One line names its day, its space and the person's part once: "Ayer · Hogar · tu
- * parte". The amount is the person's part with its sign; a movement without them says "no te incluye" and shows its
- * amount grey and unsigned, never color alone. The row opens the movement in its own space.
+ * parte". The amount is the person's part with its sign; one that moved no money of theirs shows its amount grey and
+ * unsigned and says why in words, never color alone. Ruling P329: only movements that involve the person are listed, so
+ * none says "no te incluye". The row opens the movement in its own space.
  */
 export function ActivityRow({
   item,
@@ -134,17 +136,15 @@ export function ActivityRow({
       ? ledger("yourPart")
       : part.detail === "paid"
         ? ledger("paidByYou")
-        : part.detail === "notYou"
-          ? t("notYou")
-          : part.detail === "betweenYou"
-            ? t("betweenYou")
-            : part.detail === "noMoney"
-              ? t("noMoney")
-              : item.recordedBy.you
-                ? t("recordedByYou")
-                : item.recordedBy.name
-                  ? t("recordedBy", { name: item.recordedBy.name })
-                  : t("recorded");
+        : part.detail === "betweenYou"
+          ? t("betweenYou")
+          : part.detail === "noMoney"
+            ? t("noMoney")
+            : item.recordedBy.you
+              ? t("recordedByYou")
+              : item.recordedBy.name
+                ? t("recordedBy", { name: item.recordedBy.name })
+                : t("recorded");
   const named = part.title;
   const title =
     tx.description ||

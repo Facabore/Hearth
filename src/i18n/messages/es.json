@@ -342,7 +342,6 @@
       "shareOf": "tu parte {share} de {total}",
       "paidAndShare": "pagaste {paid} · tu parte {share}",
       "paid": "pagaste {paid}",
-      "notYou": "no te incluye",
       "betweenYou": "Saldo entre ustedes",
       "settled": "{from} le pagó a {to}",
       "settledToYou": "{name} te pagó",
