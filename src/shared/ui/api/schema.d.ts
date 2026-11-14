@@ -707,7 +707,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Record an expense paid by members (registered or guest) or by the shared fund, shared among members */
+        /** Record an expense paid by members (registered or guest) or by the shared fund, shared among members; with paidForFund, a member's contribution to the fund and the fund's payment of the expense, linked (D26) */
         post: operations["recordExpense"];
         delete?: never;
         options?: never;
@@ -5231,6 +5231,11 @@ export interface operations {
                             units: number;
                         }[];
                     };
+                    paidForFund?: {
+                        fundAccountId: string;
+                        memberId?: string;
+                        sourceAccountId?: string | null;
+                    };
                 };
             };
         };
@@ -5280,7 +5285,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;

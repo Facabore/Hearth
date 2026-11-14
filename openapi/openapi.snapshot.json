@@ -5993,7 +5993,7 @@
     "/api/v1/spaces/{spaceId}/expenses": {
       "post": {
         "operationId": "recordExpense",
-        "summary": "Record an expense paid by members (registered or guest) or by the shared fund, shared among members",
+        "summary": "Record an expense paid by members (registered or guest) or by the shared fund, shared among members; with paidForFund, a member's contribution to the fund and the fund's payment of the expense, linked (D26)",
         "security": [
           {
             "cookieAuth": []
@@ -6244,6 +6244,36 @@
                       }
                     ],
                     "type": "object"
+                  },
+                  "paidForFund": {
+                    "type": "object",
+                    "properties": {
+                      "fundAccountId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "memberId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      },
+                      "sourceAccountId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "fundAccountId"
+                    ]
                   }
                 },
                 "required": [
@@ -6305,7 +6335,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {

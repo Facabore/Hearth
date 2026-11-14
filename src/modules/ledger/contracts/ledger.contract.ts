@@ -43,7 +43,7 @@ import type {
   TransactionPage,
   TransactionPosition,
 } from "../application";
-import { MAX_ACTIVITY } from "../application";
+import { linkedHalfOf, MAX_ACTIVITY } from "../application";
 import { EqualSplitSchema, MAX_PARTS, PercentSplitSchema, SharesSplitSchema, splitOf } from "./split-body";
 import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/application";
 
@@ -107,7 +107,11 @@ export const TransactionSchema = z.object({
   settlementReason: z.enum(["PAYMENT", "GIFT", "FORGIVENESS"]).optional(),
   /** Ruling P322: the member whose debt a SETTLEMENT paid, when the payer paid it for them; null otherwise. */
   onBehalfOfMemberId: z.string().nullable().optional(),
-  /** Ruling P322: the other half of a gift: a payment for someone and the GIFT that clears what they owed the payer. */
+  /**
+   * Ruling P322: the other half of a gift: a payment for someone and the GIFT that clears what they owed the payer.
+   * D26: on an EXPENSE paid for the fund, the contribution to the fund that paid it, and on that contribution (a
+   * TRANSFER) the expense; absent on every other expense and transfer.
+   */
   linkedTransactionId: z.string().nullable().optional(),
   createdBy: z.string(),
   createdAt: z.iso.datetime(),
@@ -158,7 +162,26 @@ const RecordExpenseFields = z.object({
 const accountOrPayments = (body: { accountId?: string; payments?: unknown }) =>
   body.accountId === undefined || body.payments === undefined;
 const accountOrPaymentsError = { error: "Send accountId or payments, not both", path: ["payments"] };
-export const RecordExpenseBodySchema = RecordExpenseFields.refine(accountOrPayments, accountOrPaymentsError);
+/**
+ * D26: the requester (or `memberId`) pays the expense for the shared fund from their own account: Hearth records their
+ * contribution to the fund and the fund's payment of the expense, linked. The fund pays, so no accountId or payments.
+ */
+const PaidForFundSchema = z.object({
+  /** The SHARED_FUND account of this space. */
+  fundAccountId: IdSchema,
+  /** The contributing member, registered or guest; the requester when absent. */
+  memberId: IdSchema.optional(),
+  /** The contributor's own account; null or absent only for a guest, who pays outside the app. */
+  sourceAccountId: IdSchema.nullable().optional(),
+});
+const fundPaysAlone = (body: { accountId?: string; payments?: unknown; paidForFund?: unknown }) =>
+  body.paidForFund === undefined || (body.accountId === undefined && body.payments === undefined);
+const fundPaysAloneError = { error: "Send paidForFund without accountId or payments", path: ["paidForFund"] };
+export const RecordExpenseBodySchema = RecordExpenseFields.extend({
+  paidForFund: PaidForFundSchema.optional(),
+})
+  .refine(accountOrPayments, accountOrPaymentsError)
+  .refine(fundPaysAlone, fundPaysAloneError);
 type RecordExpenseBody = z.infer<typeof RecordExpenseBodySchema>;
 
 /** The split as the use case takes it; EXACT amounts become Money (UnknownCurrency otherwise). */
@@ -201,6 +224,7 @@ export const expenseFromBody = (
     accountId: body.accountId,
     payments,
     split: split.value,
+    ...(body.paidForFund === undefined ? {} : { paidForFund: body.paidForFund }),
   });
 };
 
@@ -390,6 +414,10 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
           onBehalfOfMemberId: tx.onBehalfOfMemberId,
           linkedTransactionId: tx.linkedTransactionId,
         }
+      : {}),
+    // D26: the halves of an expense paid for the fund name each other; any other expense or transfer as before.
+    ...(tx.type !== "SETTLEMENT" && linkedHalfOf(tx) !== null
+      ? { linkedTransactionId: linkedHalfOf(tx) }
       : {}),
     createdBy: tx.createdBy,
     createdAt: tx.createdAt.toISOString(),
@@ -846,13 +874,13 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
   },
   "/api/v1/spaces/{spaceId}/expenses": recording(
     "recordExpense",
-    "Record an expense paid by members (registered or guest) or by the shared fund, shared among members",
+    "Record an expense paid by members (registered or guest) or by the shared fund, shared among members; with paidForFund, a member's contribution to the fund and the fund's payment of the expense, linked (D26)",
     RecordExpenseBodySchema,
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
         "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
     },
     RecordedExpenseSchema,
   ),

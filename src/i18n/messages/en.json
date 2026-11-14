@@ -126,6 +126,7 @@
     "InvalidRecurrence": "Check the schedule: the end date cannot be before the start, and at least one date must remain.",
     "InvalidRecurrenceTransition": "This recurring transaction cannot move to that state now.",
     "InvalidSavingsAccount": "Choose only your own savings accounts, each one once.",
+    "InvalidPaidForFund": "When you pay for the fund, the fund pays the expense: choose no other account or payer.",
     "InvalidLinePayers": "Choose who pays the line among the space's members, each one once. A savings line has no payers.",
     "InvalidSettlementParties": "The payer and the receiver must be different people.",
     "InvalidOnBehalfOf": "You can only pay for another member of this space, neither the payer nor the receiver.",

@@ -126,6 +126,7 @@
     "InvalidRecurrence": "Revisa la programación: la fecha final no puede ser antes del inicio y debe quedar al menos una fecha.",
     "InvalidRecurrenceTransition": "Este movimiento recurrente no puede pasar a ese estado ahora.",
     "InvalidSavingsAccount": "Elige solo tus cuentas de ahorro, cada una una sola vez.",
+    "InvalidPaidForFund": "Cuando pagas por el fondo, el fondo paga el gasto: no elijas otra cuenta ni otro pagador.",
     "InvalidLinePayers": "Elige quiénes pagan el rubro entre los miembros del espacio, cada uno una sola vez. Un rubro de ahorro no lleva quién lo paga.",
     "InvalidSettlementParties": "Quien paga y quien recibe deben ser personas distintas.",
     "InvalidOnBehalfOf": "Solo puedes pagar por otro miembro de este espacio, que no sea quien paga ni quien recibe.",
