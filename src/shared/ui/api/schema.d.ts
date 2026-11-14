@@ -8331,6 +8331,8 @@ export interface operations {
                         availableMethods: ("BY_ALLOCATION" | "EQUAL" | "PERCENT" | "EXACT" | "SHARES")[];
                         lineId: string | null;
                         payerMemberIds?: string[];
+                        /** @enum {string} */
+                        lineFunding?: "DIRECT" | "SHARED_FUND" | "SAVINGS";
                         shares: {
                             memberId: string;
                             amount: components["schemas"]["MoneyOutput"];

@@ -12257,6 +12257,14 @@
                         "type": "string"
                       }
                     },
+                    "lineFunding": {
+                      "type": "string",
+                      "enum": [
+                        "DIRECT",
+                        "SHARED_FUND",
+                        "SAVINGS"
+                      ]
+                    },
                     "shares": {
                       "anyOf": [
                         {

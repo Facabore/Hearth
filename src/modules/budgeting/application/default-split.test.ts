@@ -505,4 +505,19 @@ describe("ResolveDefaultSplit names the line's payers (D26, #316)", () => {
     expect([view.method, view.payerMemberIds]).toEqual(["EQUAL", ["member-ana"]]);
     expect(unwrap(await preview("cat-utilities"))).not.toHaveProperty("payerMemberIds");
   });
+
+  it("says how the line with payers is funded, so only a fund line is paid for the fund (D26, S4, S5)", async () => {
+    const paidBy = (funding: "DIRECT" | "SHARED_FUND") =>
+      referenceLines().map((l) =>
+        l.name === "Home"
+          ? { ...l, funding, payerMemberIds: ["member-ana"], payersScope: "EVERY_PERIOD" as const }
+          : l,
+      );
+    const direct = unwrap(await (await world({ lines: paidBy("DIRECT") })).preview("cat-groceries"));
+    expect([direct.payerMemberIds, direct.lineFunding]).toEqual([["member-ana"], "DIRECT"]);
+    const fund = unwrap(await (await world({ lines: paidBy("SHARED_FUND") })).preview("cat-groceries"));
+    expect([fund.payerMemberIds, fund.lineFunding]).toEqual([["member-ana"], "SHARED_FUND"]);
+    // A line without payers answers as before: neither field.
+    expect(unwrap(await (await world()).preview("cat-groceries"))).not.toHaveProperty("lineFunding");
+  });
 });

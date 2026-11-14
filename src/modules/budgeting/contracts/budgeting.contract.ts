@@ -295,6 +295,11 @@ export const DefaultSplitSchema = z.object({
   lineId: z.string().nullable(),
   /** D26: the members who usually pay that line, so a client can propose one as who paid; absent when nobody does. */
   payerMemberIds: z.array(z.string()).optional(),
+  /**
+   * D26: with `payerMemberIds`, that line's funding: a SHARED_FUND line is paid for the fund, any other only names who
+   * usually pays it.
+   */
+  lineFunding: z.enum(FUNDINGS).optional(),
   /** The amount shared by the default, in join order; null without an amount. */
   shares: z.array(z.object({ memberId: z.string(), amount: MoneySchema })).nullable(),
 });
@@ -304,6 +309,7 @@ export const defaultSplitDto = (view: DefaultSplitView): z.infer<typeof DefaultS
   availableMethods: [...view.availableMethods],
   lineId: view.lineId,
   ...(view.payerMemberIds === undefined ? {} : { payerMemberIds: [...view.payerMemberIds] }),
+  ...(view.lineFunding === undefined ? {} : { lineFunding: view.lineFunding }),
   shares:
     view.shares === null
       ? null

@@ -17,6 +17,8 @@ export type DefaultSplitState =
       readonly shares: readonly { readonly memberId: string; readonly amount: string }[] | null;
       /** D26: the members who usually pay the line the category consumes; absent or empty when nobody does. */
       readonly payerMemberIds?: readonly string[];
+      /** D26: that line's funding; only a SHARED_FUND line is paid for the fund. */
+      readonly lineFunding?: "DIRECT" | "SHARED_FUND" | "SAVINGS";
     };
 
 /**
@@ -59,6 +61,7 @@ export const useDefaultSplit = (input: {
                   shares:
                     data.shares?.map((s) => ({ memberId: s.memberId, amount: s.amount.amount })) ?? null,
                   payerMemberIds: data.payerMemberIds ?? [],
+                  ...(data.lineFunding === undefined ? {} : { lineFunding: data.lineFunding }),
                 }
               : { status: "none" },
           );

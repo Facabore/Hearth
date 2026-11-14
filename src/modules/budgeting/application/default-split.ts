@@ -11,7 +11,7 @@ import {
   type LocalDate,
   type Result,
 } from "@/shared/kernel";
-import type { BudgetLine } from "../domain/budget-line";
+import type { BudgetLine, Funding } from "../domain/budget-line";
 import { rolledUpCategory, type CategoryParent } from "../domain/category-rollup";
 import { lineAssignment, lineForCategory } from "../domain/plan-figures";
 import type { BudgetingDeps } from "./deps";
@@ -46,11 +46,18 @@ export interface DefaultSplit {
   readonly weights: readonly { readonly memberId: string; readonly weight: bigint }[];
   /** D26: the members who usually pay that line, so Registrar can propose one of them as who paid; absent without. */
   readonly payerMemberIds?: readonly string[];
+  /**
+   * D26: how that line is funded, with its payers: only a SHARED_FUND line is paid for the fund (S4); on any other the
+   * payers only preselect who paid (S5).
+   */
+  readonly lineFunding?: Funding;
 }
 
-/** D26: a line's payers, only when it names some, so a default without them reads exactly as before. */
+/** D26: a line's payers and its funding, only when it names some, so a default without them reads exactly as before. */
 const payersOf = (line: BudgetLine | null) =>
-  line === null || line.payerMemberIds.length === 0 ? {} : { payerMemberIds: line.payerMemberIds };
+  line === null || line.payerMemberIds.length === 0
+    ? {}
+    : { payerMemberIds: line.payerMemberIds, lineFunding: line.funding };
 
 /**
  * HU-E6-08, spec 5.3, D4: the default split of an expense. BY_ALLOCATION by the line the category consumes (its
@@ -106,6 +113,8 @@ export interface DefaultSplitView {
   readonly lineId: string | null;
   /** D26: the members who usually pay that line; absent when it names nobody, or without a line. */
   readonly payerMemberIds?: readonly string[];
+  /** D26: that line's funding, with its payers only. */
+  readonly lineFunding?: Funding;
   readonly currency: string;
   /** The amount shared by the default, in join order; null when no amount was given. */
   readonly shares: readonly { readonly memberId: string; readonly amount: bigint }[] | null;
@@ -167,7 +176,9 @@ export const createResolveDefaultSplit =
         (m) => m !== "BY_ALLOCATION" || split.method === "BY_ALLOCATION",
       ),
       lineId: split.lineId,
-      ...(split.payerMemberIds === undefined ? {} : { payerMemberIds: split.payerMemberIds }),
+      ...(split.payerMemberIds === undefined
+        ? {}
+        : { payerMemberIds: split.payerMemberIds, lineFunding: split.lineFunding }),
       currency: space.currency,
       shares,
     });

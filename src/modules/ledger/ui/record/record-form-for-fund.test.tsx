@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
@@ -42,15 +42,17 @@ const context = (funds: AccountDto[]): SharedExpenseContext => ({
   myAccounts: [BANK],
   funds,
 });
-/** The default split of Arriendo's line, which `payers` usually pay (D26). */
-const rentLine = (payers: string[] | undefined) => () =>
-  jsonResponse({
-    method: "EQUAL",
-    availableMethods: ["EQUAL", "PERCENT", "EXACT", "SHARES"],
-    lineId: "l-rent",
-    ...(payers === undefined ? {} : { payerMemberIds: payers }),
-    shares: null,
-  });
+/** The default split of Arriendo's line, which `payers` usually pay (D26); a fund line unless `lineFunding` says. */
+const rentLine =
+  (payers: string[] | undefined, lineFunding: "SHARED_FUND" | "DIRECT" = "SHARED_FUND") =>
+  () =>
+    jsonResponse({
+      method: "EQUAL",
+      availableMethods: ["EQUAL", "PERCENT", "EXACT", "SHARES"],
+      lineId: "l-rent",
+      ...(payers === undefined ? {} : { payerMemberIds: payers, lineFunding }),
+      shares: null,
+    });
 const recorded = () => jsonResponse({ ...transactionDto({ id: "t-new" }), warnings: [] }, 201);
 const form = (api: Api, shared: SharedExpenseContext) =>
   renderWithIntl(
@@ -137,5 +139,23 @@ describe("Registrar proposes who usually pays the line (D26, P328)", () => {
       ]);
       unmount();
     }
+  });
+
+  it("keeps Ana as who paid for a DIRECT line she pays, even in a space with a fund (D26, S5)", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": rentLine(["m-ana"], "DIRECT"),
+      "POST /api/v1/spaces/{spaceId}/expenses": recorded,
+    });
+    form(api, context([FUND]));
+    await enter();
+    await waitFor(() => expect(requests.some((r) => r.url.includes("default-split"))).toBe(true));
+    // Let the answer land before reading who paid.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(payerRow()).toHaveTextContent("Pagó Ana desde Bancolombia");
+    const body = await posted(requests);
+    expect(body).not.toHaveProperty("paidForFund");
+    expect(body.payments).toEqual([
+      { memberId: "m-ana", accountId: "a-bank", amount: { amount: "120000000", currency: "COP" } },
+    ]);
   });
 });

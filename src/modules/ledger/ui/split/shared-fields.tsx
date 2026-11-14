@@ -108,7 +108,10 @@ export function SharedFields({
     if (!forFund || draft.payerChosen || fund === undefined) return;
     const { payer } = draft;
     const pays =
-      defaultSplit.status === "ready" && (defaultSplit.payerMemberIds ?? []).includes(context.meMemberId);
+      defaultSplit.status === "ready" &&
+      // D26 (S4, S5): only a fund line is paid for the fund; on any other line its payers pay it themselves.
+      defaultSplit.lineFunding === "SHARED_FUND" &&
+      (defaultSplit.payerMemberIds ?? []).includes(context.meMemberId);
     if (pays && payer.kind === "ME")
       onChange({ ...draft, payer: { ...payer, kind: "FOR_FUND", fundAccountId: fund.id } });
     else if (!pays && payer.kind === "FOR_FUND")
