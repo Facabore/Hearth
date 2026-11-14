@@ -6,6 +6,7 @@ import {
   CapacityForm,
   isEditable,
   LineEditor,
+  LinePayersEditor,
   memberOf,
   ownSuggestion,
   Planner,
@@ -133,19 +134,29 @@ function LineEditorScreen({
   const t = useTranslations("budgeting.lineEditor");
   const { api } = useApis();
   const { me, space, spaces } = useViewer(spaceId);
-  const [plan, accounts, groups, list] = useSuspenseQueries({
+  const [plan, accounts, groups, list, spaceAccounts] = useSuspenseQueries({
     queries: [
       planQuery(api, spaceId, planId),
       accountsQuery(api, personalSpaceOf(spaces).id, "active"),
       categoriesQuery(api, spaceId, "active"),
       membersQuery(api, spaceId),
+      // D26: whether the space has a shared fund, so a line's payers pay for it.
+      accountsQuery(api, spaceId, "active"),
     ],
   });
+  const viewerMemberId = list.data.find((member) => member.userId === me.id)?.id ?? null;
   const line = lineId === null ? null : plan.data.lines.find((one) => one.id === lineId);
   useTitle(line === null ? t("newTitle") : t("metaTitle"));
   // Not one of the plan's lines (removed, or another plan's): not found, as the Next.js container answers.
   if (line === undefined) return <NotFoundScreen />;
   if (!canManage(space.role) || !isEditable(plan.data)) {
+    // D26: a MEMBER who pays the line still changes its payers and their scope here.
+    const payer =
+      line !== null &&
+      isEditable(plan.data) &&
+      space.role === "MEMBER" &&
+      viewerMemberId !== null &&
+      (line.payerMemberIds ?? []).includes(viewerMemberId);
     return (
       <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
         <ScreenHeader
@@ -153,6 +164,16 @@ function LineEditorScreen({
           title={line === null ? t("newTitle") : t("title", { name: line.name })}
         />
         <p className="text-base text-muted">{t("readOnly")}</p>
+        {payer ? (
+          <LinePayersEditor
+            space={space}
+            plan={plan.data}
+            line={line}
+            members={list.data}
+            viewerMemberId={viewerMemberId}
+            formats={me.preferences.effective}
+          />
+        ) : null}
       </div>
     );
   }
@@ -170,6 +191,8 @@ function LineEditorScreen({
       )}
       groups={groups.data}
       members={list.data}
+      hasFund={spaceAccounts.data.some((account) => account.type === "SHARED_FUND")}
+      viewerMemberId={viewerMemberId}
       formats={me.preferences.effective}
     />
   );

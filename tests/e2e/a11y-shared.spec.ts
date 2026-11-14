@@ -229,7 +229,11 @@ for (const colorScheme of ["light", "dark"] as const) {
         page.getByRole("heading", { level: 1, name: es.budgeting.lineEditor.newTitle }),
       ).toBeVisible();
       await scan("new line");
+      // P328: the payer sheet the "Se paga desde" row opens.
+      await page.getByRole("button", { name: new RegExp(es.budgeting.lineEditor.pay.row) }).click();
       await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
+      await scan("payer sheet");
+      await page.getByRole("button", { name: es.budgeting.lineEditor.pay.done }).click();
       await scan("new savings line");
       await page.goto(`${h}/plans/${ids.plan}/lines/${marketLine.id}`);
       // Board 05: the October plan is a draft, so the line shows no figures yet.

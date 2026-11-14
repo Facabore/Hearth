@@ -65,7 +65,10 @@ When(
       await page.getByRole("link", { name: world.t("budgeting.planner.addLine") }).click();
       await page.getByLabel(world.t("budgeting.lineEditor.field.name")).fill(name);
       await page.getByLabel(world.t("budgeting.lineEditor.field.planned")).fill(pesos(amount));
+      // P328: how the line is paid is chosen in the sheet the "Se paga desde" row opens.
+      await page.getByRole("button", { name: new RegExp(world.t("budgeting.lineEditor.pay.row")) }).click();
       await page.getByRole("radio", { name: world.t(`budgeting.funding.${funding}`) }).click();
+      await page.getByRole("button", { name: world.t("budgeting.lineEditor.pay.done") }).click();
       if (extra.savings) await page.getByRole("checkbox", { name: "Ahorros" }).check();
       if (extra.catchAll)
         await page.getByRole("checkbox", { name: world.t("budgeting.lineEditor.field.catchAll") }).click();

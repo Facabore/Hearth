@@ -164,7 +164,10 @@ export const loadCapacities = async (load: Load, spaceId: string, planId: string
   ]);
 };
 
-/** HU-E9-08: the plan, the caller's own savings accounts (P213), the active categories and the members. */
+/**
+ * HU-E9-08: the plan, the caller's own savings accounts (P213), the active categories and the members; D26: the space's
+ * own accounts, for whether it has a shared fund.
+ */
 export const loadLineEditor = async (load: Load, spaceId: string, planId: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
@@ -175,6 +178,7 @@ export const loadLineEditor = async (load: Load, spaceId: string, planId: string
     ensure(accountsQuery(api, personalSpaceOf(viewer.spaces).id, "active")),
     ensure(categoriesQuery(api, spaceId, "active")),
     ensure(membersQuery(api, spaceId)),
+    ensure(accountsQuery(api, spaceId, "active")),
   ]);
 };
 

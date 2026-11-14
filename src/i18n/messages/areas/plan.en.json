@@ -116,7 +116,6 @@
         "planned": "Planned",
         "plannedHint": "{share} of what is put in · {unallocated} left to assign",
         "plannedNewHint": "Left to assign: {unallocated}",
-        "funding": "Where does it come from?",
         "savingsAccounts": "Savings accounts",
         "otherAccount": "Another member's savings account",
         "noSavingsAccounts": "You have no savings accounts in {currency}. Create one in Accounts.",
@@ -134,14 +133,50 @@
         "confirm": "Remove"
       },
       "readOnly": "Only an Owner or an Admin edits the lines of an open plan.",
-      "fundingHint": {
-        "DIRECT": "Whoever makes the expense pays it from their own account.",
-        "SHARED_FUND": "Paid with the money each one puts into the shared fund.",
-        "SAVINGS": "Set aside in a savings account instead of being spent."
-      },
       "more": {
         "open": "More options",
         "summary": "{rollover} · {allocation}"
+      },
+      "pay": {
+        "row": "Paid from",
+        "rowScope": "Paid from · {scope}",
+        "paidBy": "Paid by {names}",
+        "and": "and",
+        "title": "How is {line} paid?",
+        "keeps": "Who answers for it does not change: {shares}.",
+        "mode": {
+          "FUND": "Out of the shared fund",
+          "PAYERS": "Paid directly by",
+          "EACH": "Everyone pays",
+          "SAVINGS": "Goes to savings"
+        },
+        "modeHint": {
+          "FUND": "Everyone puts their part into the fund",
+          "PAYERS": "Choose who. What they pay counts as their contribution",
+          "PAYERS_NO_FUND": "Choose who. Record suggests them as who paid",
+          "EACH": "Whoever records the expense pays it",
+          "SAVINGS": "Set aside in a savings account instead of spent"
+        },
+        "payers": "Who pays it",
+        "you": "{name} (you)",
+        "until": "Until when?",
+        "scope": {
+          "EVERY_PERIOD": "{monthly, select, true {Every month} other {Every period}}",
+          "THIS_PERIOD": "Only {period}"
+        },
+        "scopeRow": {
+          "EVERY_PERIOD": "{monthly, select, true {every month} other {every period}}",
+          "THIS_PERIOD": "only {period}"
+        },
+        "alsoChange": "{names} can also change it from the line.",
+        "done": "Done",
+        "chooseSomeone": "Choose at least one person.",
+        "note": {
+          "fund": "{count, plural, one {{names} pays {line}. What they pay counts as their contribution for the month.} =2 {{names} pay {line} between the two of them. What each pays counts as their contribution for the month.} other {{names} pay {line} between them. What each pays counts as their contribution for the month.}}",
+          "otherOne": "{name} puts their part, {amount}, into the fund.",
+          "othersMany": "{names} put their part into the fund.",
+          "direct": "{count, plural, one {{names} usually pays {line}.} other {{names} usually pay {line}.}} When the expense is recorded they show as who paid, and debts stay in Balances."
+        }
       }
     },
     "mapping": {

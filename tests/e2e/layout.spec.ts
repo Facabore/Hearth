@@ -1472,8 +1472,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
 
       /**
        * Inputs, choices, switches and the label of a native checkbox or radio are full targets that end on screen.
-       * Board 05 (phase 3c): the funding is a card of native radios whose whole row, the label, is the target, and the
-       * catch-all is a checkbox inside the categories card.
+       * Board 05 (phase 3c): the catch-all is a checkbox inside the categories card; P328: the funding is a row that
+       * opens its sheet.
        */
       const expectFullFields = async (what: string) => {
         const fields = page
@@ -1515,9 +1515,16 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         await expectFullFields(what);
 
         // The savings accounts appear with the Savings funding: their rows are full targets too.
+        // P328: the funding is chosen in the sheet the "Se paga desde" row opens; its radios are full targets too.
+        const payRow = page.getByRole("button", { name: new RegExp(es.budgeting.lineEditor.pay.row) });
+        const done = page.getByRole("button", { name: es.budgeting.lineEditor.pay.done });
+        await payRow.click();
         await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
+        await done.click();
         await expectFullFields(`${what} as savings`);
+        await payRow.click();
         await page.getByRole("radio", { name: es.budgeting.funding.DIRECT }).click();
+        await done.click();
 
         // U5 (#224): rollover and allocation are folded under "Más opciones", whose summary says their values.
         const more = page.getByRole("button", { name: es.budgeting.lineEditor.more.open, exact: true });

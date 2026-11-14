@@ -29,8 +29,10 @@ import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, formatNumber, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
+import { periodName } from "@/shared/ui/time/period-name";
 import { findCategory } from "@/modules/categories/ui";
 import { CarryText } from "../carry-text";
+import { usePeriodWord } from "../period-word";
 import { takesPart } from "../plan-access";
 import { rereadPlan } from "../plan-write";
 import { AllocationEditor } from "./allocation-editor";
@@ -47,13 +49,12 @@ import {
   lineDraftOf,
   lineFieldOf,
   sameSet,
-  type Funding,
   type LineDraft,
   type LineField,
   type RolloverMode,
 } from "./line-draft";
 import { removeLine, saveLine, type LineSection } from "./line-save";
-import { RadioCard } from "./radio-card";
+import { joinNames, namesOf, payerCandidates, payModeOf, type PayChoice, type PayMode } from "./payers";
 
 // Issue #182: the mapping sheet's code loads only when someone opens it, so the editor's first view carries less
 // script and its LCP stays under the budget (the pattern of P177).
@@ -62,7 +63,12 @@ const CategoryMappingSheet = dynamic(
   { ssr: false },
 );
 
-const FUNDINGS: readonly Funding[] = ["DIRECT", "SHARED_FUND", "SAVINGS"];
+// P328: the payer sheet's code loads only when someone opens it, like the mapping sheet (issue #182).
+const PayerSheet = dynamic(() => import("./payer-sheet").then((module) => module.PayerSheet), { ssr: false });
+
+/** P328: the sheet's choices in the board's order; a personal space has no fund and nobody else to pay (#170). */
+const SHARED_MODES: readonly PayMode[] = ["FUND", "PAYERS", "EACH", "SAVINGS"];
+const PERSONAL_MODES: readonly PayMode[] = ["EACH", "SAVINGS"];
 const ROLLOVERS: readonly RolloverMode[] = ["RESET", "ROLLOVER", "ADJUSTED"];
 
 /** A field's message under it: the same icon and colour as a text field's error. */
@@ -114,6 +120,8 @@ export function LineEditor({
   savingsAccounts,
   groups,
   members: everyone,
+  hasFund = false,
+  viewerMemberId = null,
   formats,
   api: injected,
 }: {
@@ -127,16 +135,21 @@ export function LineEditor({
   readonly groups: readonly CategoryGroupDto[];
   /** The space's members in join order, one allocation row each but a viewer's who holds nothing (#217). */
   readonly members: readonly SpaceMemberDto[];
+  /** D26: whether the space has a shared fund, so "Lo pagan directo" pays for it. */
+  readonly hasFund?: boolean;
+  /** The viewer's member id, so the sheet says "(tú)". */
+  readonly viewerMemberId?: string | null;
   readonly formats: Formats;
   readonly api?: Api;
 }) {
   const t = useTranslations("budgeting.lineEditor");
-  const tFunding = useTranslations("budgeting.funding");
   const tRollover = useTranslations("budgeting.rollover");
   const tReports = useTranslations("reports.lines");
   const tMapping = useTranslations("budgeting.mapping");
   const tAllocation = useTranslations("budgeting.allocation");
   const tRule = useTranslations("budgeting.rule");
+  const tPay = useTranslations("budgeting.lineEditor.pay");
+  const periodWord = usePeriodWord();
   const router = useRouter();
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -153,6 +166,7 @@ export function LineEditor({
     allocationDraftOf(line, formats),
   );
   const [mapping, setMapping] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   /** A blocked save opens the fold, and the allocation takes focus once it is on screen. */
   const focusAllocation = useRef(false);
@@ -312,6 +326,62 @@ export function LineEditor({
   };
 
   const name = errorOf("name");
+  const payersError = errorOf("payers");
+  // P328: the row and note say how the line is paid; payers keep the member list's order and drop a former member.
+  const candidates = payerCandidates(everyone);
+  const payMode = payModeOf(draft);
+  const payerNames = namesOf(draft.payerMemberIds, everyone);
+  const named = joinNames(payerNames, tPay("and"));
+  const lineName = draft.name.trim() || (line?.name ?? t("newTitle"));
+  const monthly = periodName(plan.period, space.periodPolicy).kind === "month";
+  const period = periodWord(plan.period, space.periodPolicy, formats);
+  const payTitle =
+    payMode === "PAYERS"
+      ? tPay("paidBy", { names: named, count: payerNames.length })
+      : tPay(`mode.${payMode}`);
+  const paySubtitle =
+    payMode === "PAYERS"
+      ? tPay("rowScope", {
+          scope: tPay(`scopeRow.${draft.payersScope}`, { period, monthly: String(monthly) }),
+        })
+      : tPay("row");
+  const assigned = preview.kind === "assigned" ? preview.amounts : null;
+  const assignedTo = (memberId: string) => BigInt(assigned?.[memberId] ?? "0");
+  const plannedBig = BigInt(plannedNow.amount);
+  const shares =
+    assigned === null || plannedBig <= 0n
+      ? null
+      : members
+          .filter((member) => assignedTo(member.id) > 0n)
+          .map((member) => {
+            // The board says whole percentages ("Ana 40 %"), rounded half up.
+            const whole = (assignedTo(member.id) * 200n + plannedBig) / (plannedBig * 2n);
+            return `${member.displayName} ${formatPercent(String(whole), formats)}`;
+          })
+          .join(" · ") || null;
+  const others = members.filter(
+    (member) => !draft.payerMemberIds.includes(member.id) && assignedTo(member.id) > 0n,
+  );
+  const othersNote =
+    others.length === 1
+      ? ` ${tPay("note.otherOne", {
+          name: others[0]!.displayName,
+          amount: money({ amount: String(assignedTo(others[0]!.id)), currency }),
+        })}`
+      : others.length > 1
+        ? ` ${tPay("note.othersMany", {
+            names: joinNames(
+              others.map((m) => m.displayName),
+              tPay("and"),
+            ),
+          })}`
+        : "";
+  const payNote =
+    payMode !== "PAYERS" || payerNames.length === 0
+      ? null
+      : draft.funding === "SHARED_FUND"
+        ? tPay("note.fund", { names: named, count: payerNames.length, line: lineName }) + othersNote
+        : tPay("note.direct", { names: named, count: payerNames.length, line: lineName });
   const planned = errorOf("planned");
   const savingsError = errorOf("savings");
   const catchAllError = errorOf("catchAll");
@@ -415,22 +485,32 @@ export function LineEditor({
           </p>
         </div>
 
-        {/* U5 and F16 (#224): a visible heading names the choice; board 05 lists its options as radios in a card. */}
-        <div className="flex flex-col gap-2">
-          <h2 id={`${ids}-funding`} className="text-base font-semibold text-ink">
-            {t("field.funding")}
-          </h2>
-          <RadioCard
-            labelledBy={`${ids}-funding`}
-            value={draft.funding}
-            // #170: a personal space has no shared fund, so its lines are paid directly or saved.
-            options={FUNDINGS.filter((value) => !personal || value !== "SHARED_FUND").map((value) => ({
-              value,
-              label: tFunding(value),
-              description: t(`fundingHint.${value}`),
-            }))}
-            onValueChange={(funding) => change({ funding })}
-          />
+        {/* P328, board "Editar rubro · lo paga Ana": one row says how the line is paid and opens the sheet; a note
+            under it says what that does. */}
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-describedby={
+              [payNote ? `${ids}-pay-note` : null, payersError ? `${ids}-payers-error` : null]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
+            onClick={() => setPaying(true)}
+            className="flex min-h-11 items-center justify-between gap-3 border-b border-line py-2 text-left"
+          >
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-base [overflow-wrap:anywhere] text-ink">{payTitle}</span>
+              <span className="text-sm [overflow-wrap:anywhere] text-muted">{paySubtitle}</span>
+            </span>
+            <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
+          </button>
+          {payNote ? (
+            <p id={`${ids}-pay-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
+              {payNote}
+            </p>
+          ) : null}
+          {payersError ? <FieldError id={`${ids}-payers-error`}>{payersError}</FieldError> : null}
         </div>
 
         {savings ? (
@@ -629,6 +709,23 @@ export function LineEditor({
           </Button>
         </div>
       </form>
+
+      {paying ? (
+        <PayerSheet
+          open={paying}
+          onOpenChange={setPaying}
+          lineName={lineName}
+          value={draft}
+          modes={personal ? PERSONAL_MODES : SHARED_MODES}
+          hasFund={hasFund}
+          candidates={candidates}
+          viewerMemberId={viewerMemberId}
+          period={period}
+          monthly={monthly}
+          shares={personal ? null : shares}
+          onDone={(choice: PayChoice) => change(choice, "payers")}
+        />
+      ) : null}
 
       {mapping ? (
         <CategoryMappingSheet

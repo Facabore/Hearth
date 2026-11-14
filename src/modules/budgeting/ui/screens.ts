@@ -3,4 +3,5 @@ export { Planner } from "./planner/planner";
 export { CapacityForm } from "./capacities/capacity-form";
 export { ownSuggestion } from "./capacities/capacity-draft";
 export { LineEditor } from "./line-editor/line-editor";
+export { LinePayersEditor } from "./line-editor/line-payers-editor";
 export { isEditable, memberOf } from "./plan-access";

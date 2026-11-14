@@ -116,7 +116,6 @@
         "planned": "Planeado",
         "plannedHint": "{share} de lo aportado · por repartir {unallocated}",
         "plannedNewHint": "Por repartir: {unallocated}",
-        "funding": "¿De dónde sale?",
         "savingsAccounts": "Cuentas de ahorro",
         "otherAccount": "Cuenta de ahorro de otro miembro",
         "noSavingsAccounts": "No tienes cuentas de ahorro en {currency}. Crea una en Cuentas.",
@@ -134,14 +133,50 @@
         "confirm": "Quitar"
       },
       "readOnly": "Solo Propietario y Administrador editan los rubros de un plan abierto.",
-      "fundingHint": {
-        "DIRECT": "Lo paga quien hace el gasto, desde su propia cuenta.",
-        "SHARED_FUND": "Se paga con la plata que cada uno pone en el fondo común.",
-        "SAVINGS": "Se aparta en una cuenta de ahorro en vez de gastarse."
-      },
       "more": {
         "open": "Más opciones",
         "summary": "{rollover} · {allocation}"
+      },
+      "pay": {
+        "row": "Se paga desde",
+        "rowScope": "Se paga desde · {scope}",
+        "paidBy": "{count, plural, one {Lo paga {names}} other {Lo pagan {names}}}",
+        "and": "y",
+        "title": "¿Cómo se paga {line}?",
+        "keeps": "Quién responde por él no cambia: {shares}.",
+        "mode": {
+          "FUND": "Sale del fondo común",
+          "PAYERS": "Lo pagan directo",
+          "EACH": "Cada uno paga",
+          "SAVINGS": "Va al ahorro"
+        },
+        "modeHint": {
+          "FUND": "Cada uno aporta su parte al fondo",
+          "PAYERS": "Elige quiénes. Lo que paguen cuenta como su aporte",
+          "PAYERS_NO_FUND": "Elige quiénes. Registrar los propone como quien pagó",
+          "EACH": "Quien registre el gasto lo paga",
+          "SAVINGS": "Se aparta en una cuenta de ahorro en vez de gastarse"
+        },
+        "payers": "Quiénes lo pagan",
+        "you": "{name} (tú)",
+        "until": "¿Hasta cuándo?",
+        "scope": {
+          "EVERY_PERIOD": "{monthly, select, true {Todos los meses} other {Todos los periodos}}",
+          "THIS_PERIOD": "Solo {period}"
+        },
+        "scopeRow": {
+          "EVERY_PERIOD": "{monthly, select, true {todos los meses} other {todos los periodos}}",
+          "THIS_PERIOD": "solo {period}"
+        },
+        "alsoChange": "{count, plural, one {{names} también puede cambiarlo desde el rubro.} other {{names} también pueden cambiarlo desde el rubro.}}",
+        "done": "Listo",
+        "chooseSomeone": "Elige al menos a una persona.",
+        "note": {
+          "fund": "{count, plural, one {{names} paga {line}. Lo que pague cuenta como su aporte del mes.} =2 {{names} pagan {line} entre los dos. Lo que cada uno pague cuenta como su aporte del mes.} other {{names} pagan {line} entre todos. Lo que cada uno pague cuenta como su aporte del mes.}}",
+          "otherOne": "{name} pone su parte, {amount}, en el fondo.",
+          "othersMany": "{names} ponen su parte en el fondo.",
+          "direct": "{count, plural, one {{names} suele pagar {line}.} other {{names} suelen pagar {line}.}} Al registrar el gasto aparece como quien pagó, y las deudas quedan en Saldos."
+        }
       }
     },
     "mapping": {

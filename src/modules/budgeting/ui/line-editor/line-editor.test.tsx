@@ -47,6 +47,12 @@ const show = (
 const added = () => jsonResponse(referencePlanDto({ version: 8 }), 201);
 /** U5 (#224): rollover and allocation sit folded under "Más opciones". */
 const more = () => userEvent.click(screen.getByRole("button", { name: "Más opciones" }));
+/** P328: the "Se paga desde" row opens the sheet, where `mode` is chosen and "Listo" closes it. */
+const pay = async (mode: string) => {
+  await userEvent.click(screen.getByRole("button", { name: /Se paga desde/ }));
+  await userEvent.click(await screen.findByRole("radio", { name: mode }));
+  await userEvent.click(screen.getByRole("button", { name: "Listo" }));
+};
 
 describe("line editor (HU-E9-08)", () => {
   it("shows the carry-over among the figures and explains the chosen rollover mode (#143, rulings P231 and P232)", async () => {
@@ -109,16 +115,9 @@ describe("line editor (HU-E9-08)", () => {
       );
       expect(screen.getByLabelText("Nombre")).toBeVisible();
       expect(screen.getByLabelText("Planeado")).toBeVisible();
-      expect(screen.getByRole("heading", { level: 2, name: "¿De dónde sale?" })).toBeVisible();
-      const funding = screen.getByRole("radiogroup", { name: "¿De dónde sale?" });
-      expect(within(funding).getByRole("radio", { name: "Cada uno paga" })).toHaveAccessibleDescription(
-        "Lo paga quien hace el gasto, desde su propia cuenta.",
-      );
-      expect(
-        within(funding).getByRole("radio", { name: "Sale del fondo común" }),
-      ).toHaveAccessibleDescription("Se paga con la plata que cada uno pone en el fondo común.");
-      expect(within(funding).getByRole("radio", { name: "Va al ahorro" })).toHaveAccessibleDescription(
-        "Se aparta en una cuenta de ahorro en vez de gastarse.",
+      // P328: how the line is paid is one row that opens its sheet.
+      expect(screen.getByRole("button", { name: /Se paga desde/ })).toHaveTextContent(
+        "Cada uno pagaSe paga desde",
       );
       expect(screen.getByRole("button", { name: "Elegir categorías" })).toBeVisible();
       // Folded: the controls are out of view, and the summary says their real values, never a default.
@@ -230,7 +229,7 @@ describe("line editor (HU-E9-08)", () => {
     expect(screen.queryByRole("region", { name: "Cifras del rubro" })).toBeNull();
   });
 
-  it("lays out the board: Nombre beside Planeado, the funding as radios in one card, the categories card (board 05)", async () => {
+  it("lays out the board: Nombre beside Planeado, the funding as a row that opens its sheet, the categories card (board 05, P328)", async () => {
     show(
       planLineDto({ id: "l-free", name: "Free", isCatchAll: true, categoryIds: ["c-fun"] }),
       undefined,
@@ -244,12 +243,10 @@ describe("line editor (HU-E9-08)", () => {
     expect(row).toHaveClass("grid-cols-2");
     expect(row).toContainElement(planned);
     expect(planned).toHaveAccessibleDescription("36,75 % de lo aportado · por repartir $ 0");
-    // The funding is a list of radios in one card.
-    const funding = screen.getByRole("radiogroup", { name: "¿De dónde sale?" });
-    expect(funding).toHaveClass("rounded-2xl", "border");
-    const direct = within(funding).getByRole("radio", { name: "Cada uno paga" });
-    expect(direct).toHaveAttribute("type", "radio");
-    expect(direct).toBeChecked();
+    // P328: the funding is a row that says it and opens the sheet.
+    const funding = screen.getByRole("button", { name: /Se paga desde/ });
+    expect(funding).toHaveAttribute("aria-haspopup", "dialog");
+    expect(funding).toHaveTextContent("Cada uno paga");
     // The categories card: its heading, "Elegir" on the right, the chosen chips and the catch-all checkbox.
     const card = screen.getByRole("group", { name: "Categorías" });
     const choose = within(card).getByRole("button", { name: "Elegir categorías" });
@@ -272,7 +269,7 @@ describe("line editor (HU-E9-08)", () => {
     for (const field of [
       screen.getByLabelText("Nombre"),
       screen.getByLabelText("Planeado"),
-      screen.getByRole("radiogroup", { name: "¿De dónde sale?" }),
+      screen.getByRole("button", { name: /Se paga desde/ }),
     ]) {
       expect(deferred(field)).toBeNull();
     }
@@ -291,7 +288,7 @@ describe("line editor (HU-E9-08)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Nuevo rubro" })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(screen.getByLabelText("Planeado"), "1.200.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Sale del fondo común" }));
+    await pay("Sale del fondo común");
     await more();
     expect(screen.getByRole("radio", { name: "Empieza de cero" })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
@@ -325,11 +322,17 @@ describe("line editor (HU-E9-08)", () => {
     expect(screen.queryByText(/Quién responde/)).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Nombre"), "Mercado");
     await userEvent.type(screen.getByLabelText("Planeado"), "500.000");
+    // #170: a personal space has no shared fund to offer, and nobody else to pay the line.
+    await userEvent.click(screen.getByRole("button", { name: /Se paga desde/ }));
+    const modes = await screen.findAllByRole("radio");
+    expect(modes.map((radio) => radio.closest("label")?.textContent)).toEqual([
+      "Cada uno pagaQuien registre el gasto lo paga",
+      "Va al ahorroSe aparta en una cuenta de ahorro en vez de gastarse",
+    ]);
     await userEvent.click(screen.getByRole("radio", { name: "Cada uno paga" }));
+    await userEvent.click(screen.getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(screen.queryByText(/Nadie aporta en este plan/)).not.toBeInTheDocument();
-    // #170: a personal space has no shared fund to offer.
-    expect(screen.queryByRole("radio", { name: "Sale del fondo común" })).not.toBeInTheDocument();
     expect(requests).toHaveLength(1);
     expect(await requests[0]!.json()).toMatchObject({ name: "Mercado", funding: "DIRECT" });
   });
@@ -353,7 +356,7 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(planned, "1200b000");
     expect(planned).toHaveValue("1.200.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Sale del fondo común" }));
+    await pay("Sale del fondo común");
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
     expect(await requests[0]!.json()).toMatchObject({
       name: "Rent",
@@ -366,7 +369,7 @@ describe("line editor (HU-E9-08)", () => {
     show(null, api);
     await userEvent.type(screen.getByLabelText("Nombre"), "Savings");
     await userEvent.type(screen.getByLabelText("Planeado"), "600.000");
-    await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
+    await pay("Va al ahorro");
     expect(screen.queryByRole("checkbox", { name: "Todo lo demás" })).toBeNull();
     await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
     await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
@@ -478,7 +481,7 @@ describe("line editor (HU-E9-08)", () => {
         api={api}
       />,
     );
-    await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
+    await pay("Va al ahorro");
     expect(screen.getByText("No tienes cuentas de ahorro en COP. Crea una en Cuentas.")).toBeInTheDocument();
   });
 
@@ -777,7 +780,7 @@ describe("line editor (HU-E9-08)", () => {
       await userEvent.type(screen.getByLabelText("Nombre"), "Nest egg");
       await userEvent.type(screen.getByLabelText("Planeado"), "100.000");
       await choose("Groceries");
-      await userEvent.click(screen.getByRole("radio", { name: "Va al ahorro" }));
+      await pay("Va al ahorro");
       await userEvent.click(screen.getByRole("checkbox", { name: "Ahorros" }));
       await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
       await waitFor(() => expect(router.replace).toHaveBeenCalledTimes(1));

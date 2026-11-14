@@ -300,6 +300,29 @@ describe("the Plan tab and the planner in the SPA (slice 5 of #199, ADR 0006)", 
     });
     expect(await screen.findByText(es.budgeting.lineEditor.readOnly, {}, { timeout: 5_000 })).toBeVisible();
     expect(screen.getByRole("link", { name: /Volver/ })).toHaveAttribute("href", `${HOUSEHOLD}/plans/p-nov`);
+    expect(screen.queryByRole("button", { name: /Se paga desde/ })).toBeNull();
+  });
+
+  it("lets Juan, a MEMBER who pays Rent, change its payers from the line (D26, P328)", async () => {
+    const plan = referencePlanDto();
+    const paidByJuan = {
+      ...plan,
+      lines: plan.lines.map((line) =>
+        line.id === "l-rent"
+          ? { ...line, payerMemberIds: ["m-juan"], payersScope: "EVERY_PERIOD" as const }
+          : line,
+      ),
+    };
+    renderSpa(`${HOUSEHOLD}/plans/p-nov/lines/l-rent`, {
+      ...server(),
+      "GET /api/v1/me": () => jsonResponse(meDto({ id: "u-juan", name: "Juan" })),
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdDto({ role: "MEMBER" })] }),
+      "GET /api/v1/spaces/{spaceId}/plans/{planId}": () => jsonResponse(paidByJuan),
+    });
+    expect(await screen.findByText(es.budgeting.lineEditor.readOnly, {}, { timeout: 5_000 })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Se paga desde/ })).toHaveTextContent(
+      "Lo paga JuanSe paga desde · todos los meses",
+    );
   });
 });
 

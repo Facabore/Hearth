@@ -6,6 +6,7 @@ import { decimalOf, formatNumber, type Formats, type NumberFormat } from "@/shar
 
 export type Funding = PlanLineDto["funding"];
 export type RolloverMode = PlanLineDto["rolloverMode"];
+type PayersScope = NonNullable<PlanLineDto["payersScope"]>;
 
 export interface LineDraft {
   readonly name: string;
@@ -14,6 +15,10 @@ export interface LineDraft {
   readonly rolloverMode: RolloverMode;
   readonly isCatchAll: boolean;
   readonly savingsAccountIds: readonly string[];
+  /** D26: who usually pays the line; empty when nobody does. */
+  readonly payerMemberIds: readonly string[];
+  /** D26: kept while nobody pays, so a choice made in the sheet comes back when payers are named again. */
+  readonly payersScope: PayersScope;
 }
 
 /** HU-E6-03: a new line is DIRECT, RESET and not the catch-all until the person says otherwise. */
@@ -24,6 +29,8 @@ export const NEW_LINE: LineDraft = {
   rolloverMode: "RESET",
   isCatchAll: false,
   savingsAccountIds: [],
+  payerMemberIds: [],
+  payersScope: "EVERY_PERIOD",
 };
 
 export const lineDraftOf = (line: PlanLineDto | null, formats: Pick<Formats, "numberFormat">): LineDraft =>
@@ -39,6 +46,8 @@ export const lineDraftOf = (line: PlanLineDto | null, formats: Pick<Formats, "nu
         rolloverMode: line.rolloverMode,
         isCatchAll: line.isCatchAll,
         savingsAccountIds: line.savingsAccountIds,
+        payerMemberIds: line.payerMemberIds ?? [],
+        payersScope: line.payersScope ?? "EVERY_PERIOD",
       };
 
 export interface LineBody {
@@ -48,6 +57,9 @@ export interface LineBody {
   readonly rolloverMode: RolloverMode;
   readonly isCatchAll: boolean;
   readonly savingsAccountIds: string[];
+  /** D26: sent only with payers, so a line without them asks exactly what it asked before. */
+  readonly payerMemberIds?: string[];
+  readonly payersScope?: PayersScope;
 }
 
 /** Spec 5.4: a SAVINGS line consumes transfers into its accounts, so it is never the catch-all; others name none. */
@@ -69,6 +81,10 @@ export const lineBodyOf = (
       rolloverMode: draft.rolloverMode,
       isCatchAll: savings ? false : draft.isCatchAll,
       savingsAccountIds: savings ? [...draft.savingsAccountIds] : [],
+      // D26: a savings line has no payers.
+      ...(!savings && draft.payerMemberIds.length > 0
+        ? { payerMemberIds: [...draft.payerMemberIds], payersScope: draft.payersScope }
+        : {}),
     },
   };
 };
@@ -86,9 +102,26 @@ export const lineChanges = (line: PlanLineDto, body: LineBody): Partial<LineBody
   ...(!sameSet(body.savingsAccountIds, line.savingsAccountIds)
     ? { savingsAccountIds: body.savingsAccountIds }
     : {}),
+  ...payerChanges(line, body),
 });
 
-export type LineField = "name" | "planned" | "savings" | "catchAll";
+/**
+ * D26: the payers' part of an edit. The whole set is sent when it changed (empty clears it), the scope when it
+ * changed while someone pays; a line that turns SAVINGS drops its payers on the server, so it sends none.
+ */
+const payerChanges = (line: PlanLineDto, body: LineBody): Partial<LineBody> => {
+  if (body.funding === "SAVINGS") return {};
+  const before = line.payerMemberIds ?? [];
+  const after = body.payerMemberIds ?? [];
+  const payers = after.join() === before.join() ? {} : { payerMemberIds: after };
+  const scope =
+    after.length > 0 && body.payersScope !== (line.payersScope ?? null)
+      ? { payersScope: body.payersScope }
+      : {};
+  return { ...payers, ...scope };
+};
+
+export type LineField = "name" | "planned" | "savings" | "catchAll" | "payers";
 
 const BY_CODE: Readonly<Record<string, LineField>> = {
   BudgetLineNameTaken: "name",
@@ -103,12 +136,15 @@ const BY_CODE: Readonly<Record<string, LineField>> = {
   AccountArchived: "savings",
   CatchAllLineAlreadySet: "catchAll",
   SavingsLineNotMappable: "catchAll",
+  InvalidLinePayers: "payers",
 };
 const BY_PATH: Readonly<Record<string, LineField>> = {
   name: "name",
   plannedAmount: "planned",
   savingsAccountIds: "savings",
   isCatchAll: "catchAll",
+  payerMemberIds: "payers",
+  payersScope: "payers",
 };
 
 /** Ruling P118: a code or a validation path names its field; anything else is shown above the button. */
