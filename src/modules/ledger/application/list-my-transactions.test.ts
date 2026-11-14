@@ -188,11 +188,12 @@ describe("ListMyTransactions (ruling P319)", () => {
     expect(page.items.map((i) => [i.transaction.id, i.space.name])).toEqual([
       [m.salary.id, "Personal"],
       [m.hotel.id, "Viaje"],
-      [m.juansIncome.id, "Hogar"],
       [m.groceries.id, "Hogar"],
       [m.market.id, "Personal"],
       [m.oldGas.id, "Hogar"],
     ]);
+    // Ruling P329: the income Juan received in Hogar does not involve Ana, so it stays in Hogar's own Movimientos.
+    expect(page.items.map((i) => i.transaction.id)).not.toContain(m.juansIncome.id);
     expect(page.nextPosition).toBeNull();
   });
 
@@ -220,7 +221,7 @@ describe("ListMyTransactions (ruling P319)", () => {
   it("narrows to one of Ana's spaces, totals included", async () => {
     const { m, list } = world();
     const page = unwrap(await list({ spaceId: "sp-hogar" }));
-    expect(page.items.map((i) => i.transaction.id)).toEqual(idsOf(m.juansIncome, m.groceries, m.oldGas));
+    expect(page.items.map((i) => i.transaction.id)).toEqual(idsOf(m.groceries, m.oldGas));
     expect(page.totals).toEqual({ share: pesos(100_000), income: 0n });
   });
 
@@ -234,10 +235,10 @@ describe("ListMyTransactions (ruling P319)", () => {
     const { m, list, idsOf: ids } = world();
     expect(await ids({ accountId: ACCOUNTS.bancolombia.id })).toEqual(idsOf(m.salary, m.market));
     const incomes = unwrap(await list({ type: "INCOME" }));
-    expect(incomes.items.map((i) => i.transaction.id)).toEqual(idsOf(m.salary, m.juansIncome));
+    expect(incomes.items.map((i) => i.transaction.id)).toEqual(idsOf(m.salary));
     expect(incomes.totals).toEqual({ share: 0n, income: pesos(3_000_000) });
     expect(await ids({ search: "  mercado " })).toEqual(idsOf(m.groceries));
-    expect(await ids({ search: "   " })).toHaveLength(6);
+    expect(await ids({ search: "   " })).toHaveLength(5);
   });
 
   it("reads the period of Ana's personal space: by its label, or the current one by her policy", async () => {

@@ -79,15 +79,17 @@ describe("GET /api/v1/me/activity (ruling P306)", () => {
     });
   });
 
-  it("lists newest first from the date asked, at most `limit`, settlements and movements without her included", async () => {
+  it("lists newest first from the date asked, at most `limit`, settlements and what she shares without paying", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
+    // Ruling P329: Juan's gas with Luis alone is not hers, so it stays in the household's Movimientos.
     await paysEqually(h.juan, 45_000, [h.juan.memberId, luis.memberId], h.groceries, "Gas");
+    await paysEqually(h.juan, 30_000, [h.ana.memberId, luis.memberId], h.groceries, "Water");
     const settlement = await settles(h.juan, h.juan.memberId, h.ana.memberId, 50_000);
     const items = await activityOf(h.ana);
     expect(items.map((i) => [i.transaction.type, i.you.share])).toEqual([
       ["SETTLEMENT", null],
-      ["EXPENSE", null],
+      ["EXPENSE", cop(15_000)],
     ]);
     expect(items[0]!.transaction.id).toBe(settlement.id);
     expect(items[0]!.memberNames).toEqual({ [h.juan.memberId]: "Juan", [h.ana.memberId]: "Ana" });
@@ -98,7 +100,7 @@ describe("GET /api/v1/me/activity (ruling P306)", () => {
   it("stops at `to` when asked, so a past period lists only its own movements (ruling P310)", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
-    const gas = await paysEqually(h.juan, 45_000, [h.juan.memberId, luis.memberId], h.groceries, "Gas");
+    const gas = await paysEqually(h.juan, 45_000, [h.ana.memberId, luis.memberId], h.groceries, "Gas");
     await settles(h.juan, h.juan.memberId, h.ana.memberId, 50_000);
     const items = await activityOf(h.ana, "?from=2026-10-01&to=2026-10-29");
     expect(items.map((i) => i.transaction.id)).toEqual([gas.id]);

@@ -127,6 +127,18 @@ export interface TransactionQuery {
 /** Ruling P319: the list's filter (P277) over several spaces at once, as the personal Movimientos reads them. */
 export interface TransactionsAcrossFilter extends Omit<TransactionFilter, "spaceId"> {
   readonly spaceIds: readonly string[];
+  /** Ruling P329: when given, only the movements that involve the person; absent, every movement (P327's account). */
+  readonly involving?: Involving;
+}
+
+/**
+ * Ruling P329: what involves a person, by their member rows: an expense one of them paid or has a share in, an income
+ * one received, a transfer one paid (a contribution to a fund), or a settlement one paid, received or that was made on
+ * one's behalf. Every movement of an `alwaysIn` space (the person's personal space) involves them too.
+ */
+export interface Involving {
+  readonly memberIds: readonly string[];
+  readonly alwaysIn: readonly string[];
 }
 
 /** Ruling P319 (#294): the personal Movimientos, one list over several spaces. */

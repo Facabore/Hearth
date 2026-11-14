@@ -529,3 +529,120 @@ describe("the order of a day (HU-E4-14)", () => {
     expect(await oneRowPages(twin, october(w))).toEqual(pages);
   });
 });
+
+describe("what involves the person across spaces (ruling P329)", () => {
+  it("lists another space's movement only when it involves her, every personal one, across pages", async () => {
+    const w = await sharedLedgerFixture(db, pool);
+    const ana = w.household.memberId;
+    const luis = await guestMemberFixture(pool, w.household, "Luis");
+    const wallet = await accountFixture(db, w.personal, "Nequi");
+    const at = (spaceId: string, date: string, amount: bigint) => ({
+      id: randomUUID() as TransactionId,
+      spaceId,
+      date: date as LocalDate,
+      amount,
+      currency: "COP",
+      createdBy: w.household.userId,
+      now: new Date(),
+    });
+    const inHousehold = (date: string) => at(w.household.spaceId, date, 1_000_000n);
+    const spent = (date: string, payer: string, sharer: string) =>
+      unwrap(
+        recordExpense({
+          ...inHousehold(date),
+          categoryId: w.groceries,
+          payments: [{ memberId: payer, accountId: payer === ana ? w.bank : null, amount: 1_000_000n }],
+          shares: [{ memberId: sharer, amount: 1_000_000n, splitMethod: "EQUAL" }],
+        }),
+      );
+    const received = (date: string, memberId: string) =>
+      unwrap(
+        recordIncome({
+          ...inHousehold(date),
+          categoryId: w.groceries,
+          destinationAccountId: w.fund,
+          receivingMemberId: memberId,
+        }),
+      );
+    const contributed = (date: string, memberId: string) =>
+      unwrap(
+        recordFundContribution({
+          ...inHousehold(date),
+          payerMemberId: memberId,
+          sourceAccountId: memberId === ana ? w.bank : null,
+          destinationAccountId: w.fund,
+        }),
+      );
+    const settled = (
+      date: string,
+      payer: string,
+      receiver: string,
+      onBehalfOfMemberId: string | null = null,
+    ) =>
+      unwrap(
+        recordSettlement({
+          ...inHousehold(date),
+          payerMemberId: payer,
+          receivingMemberId: receiver,
+          sourceAccountId: null,
+          destinationAccountId: null,
+          onBehalfOfMemberId,
+        }),
+      );
+    const ownMove = unwrap(
+      recordTransfer({
+        ...at(w.personal.spaceId, "2026-10-01", 500_000n),
+        sourceAccountId: w.bank,
+        destinationAccountId: wallet,
+      }),
+    );
+    const rows = [
+      ownMove,
+      spent("2026-10-02", w.pedro, w.pedro),
+      spent("2026-10-03", w.pedro, ana),
+      spent("2026-10-04", ana, w.pedro),
+      received("2026-10-05", w.pedro),
+      contributed("2026-10-06", w.pedro),
+      contributed("2026-10-07", ana),
+      settled("2026-10-08", w.pedro, ana),
+      received("2026-10-09", ana),
+      settled("2026-10-10", w.pedro, luis, ana),
+      settled("2026-10-11", w.pedro, luis),
+      settled("2026-10-12", ana, luis),
+    ];
+    const twin = new InMemoryTransactions();
+    for (const tx of rows) {
+      await repo.add(tx);
+      await twin.add(tx);
+    }
+    const notHers = new Set([rows[1], rows[4], rows[5], rows[10]].map((t) => t!.id));
+    const hers = rows
+      .filter((t) => !notHers.has(t.id))
+      .map((t) => t.id)
+      .reverse();
+    const filter = {
+      spaceIds: [w.personal.spaceId, w.household.spaceId],
+      from: "2026-10-01" as LocalDate,
+      to: "2026-10-31" as LocalDate,
+      involving: { memberIds: [ana], alwaysIn: [w.personal.spaceId] },
+    };
+    for (const source of [queries, twin]) {
+      const seen: string[] = [];
+      let after: TransactionPosition | null = null;
+      for (let pages = 0; pages < 10; pages++) {
+        const page: Transaction[] = await source.listAcross(filter, after, 2);
+        seen.push(...page.map((t) => t.id));
+        if (page.length < 2) break;
+        after = positionOf(page.at(-1)!);
+      }
+      expect(seen).toEqual(hers);
+    }
+    // Without `involving`, the list reads every movement as before (an account's screen, P327).
+    const everything = { spaceIds: filter.spaceIds, from: filter.from, to: filter.to };
+    expect(await queries.listAcross(everything, null, 50)).toHaveLength(rows.length);
+    // The totals read the same with or without it: only her shares and her incomes count.
+    expect(await queries.memberTotalsAcross(filter, [ana])).toEqual(
+      await queries.memberTotalsAcross(everything, [ana]),
+    );
+  });
+});

@@ -7,6 +7,7 @@ import type {
   Expense,
   HistoryRange,
   Income,
+  Involving,
   LedgerAccount,
   LedgerDeps,
   MemberBalanceHistory,
@@ -174,6 +175,7 @@ export class InMemoryTransactions
   /** Ruling P319: `list` over several spaces, as DrizzleLedgerQueries.listAcross reads them. */
   async listAcross(filter: TransactionsAcrossFilter, after: TransactionPosition | null, limit: number) {
     return this.matchingIn(filter.spaceIds, filter)
+      .filter((t) => filter.involving === undefined || involves(t, filter.involving))
       .filter((t) => after === null || listOrder(t, after) > 0)
       .slice(0, limit);
   }
@@ -183,6 +185,7 @@ export class InMemoryTransactions
     let share = 0n;
     let income = 0n;
     for (const t of this.matchingIn(filter.spaceIds, filter)) {
+      if (filter.involving !== undefined && !involves(t, filter.involving)) continue;
       if (t.type === "EXPENSE")
         for (const s of t.shares) if (memberIds.includes(s.memberId)) share += s.amount;
       if (t.type === "INCOME" && memberIds.includes(t.receivingMemberId)) income += t.amount;
@@ -352,6 +355,17 @@ const paidBy = (t: Transaction, memberId: string): boolean =>
   t.type === "EXPENSE"
     ? t.payments.some((p) => p.memberId === memberId)
     : "payerMemberId" in t && t.payerMemberId === memberId;
+
+/** Ruling P329: the movement involves one of the member rows, or belongs to an `alwaysIn` space, as PostgreSQL reads it. */
+const involves = (t: Transaction, f: Involving): boolean => {
+  if (f.alwaysIn.includes(t.spaceId)) return true;
+  const theirs = (memberId: string | null | undefined) => memberId != null && f.memberIds.includes(memberId);
+  if (t.type === "EXPENSE")
+    return t.payments.some((p) => theirs(p.memberId)) || t.shares.some((s) => theirs(s.memberId));
+  if (t.type === "INCOME") return theirs(t.receivingMemberId);
+  if (t.type === "TRANSFER") return theirs(t.payerMemberId);
+  return theirs(t.payerMemberId) || theirs(t.receivingMemberId) || theirs(t.onBehalfOfMemberId);
+};
 
 /** Ruling P277: the account paid the transaction, received it or moved it, as the PostgreSQL query reads it. */
 const touches = (t: Transaction, accountId: string): boolean =>

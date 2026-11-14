@@ -25,6 +25,7 @@ export type {
   DefaultSplitQuery,
   DefaultSplitSource,
   HistoryRange,
+  Involving,
   LedgerAccount,
   LedgerCategory,
   MemberBalanceHistory,

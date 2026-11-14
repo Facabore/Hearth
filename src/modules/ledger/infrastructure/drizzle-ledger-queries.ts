@@ -20,9 +20,11 @@ import {
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate } from "@/shared/kernel";
+import type { RecentQuery } from "../application/list-my-activity";
 import type {
   BalanceMovement,
   HistoryRange,
+  Involving,
   MemberBalanceHistory,
   MemberMoneyTotals,
   SpaceDebtMovements,
@@ -107,7 +109,13 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
     const rows = await db
       .select()
       .from(transactions)
-      .where(and(this.matchingIn(inArray(transactions.spaceId, spaceIds), filter), pastPosition(after)))
+      .where(
+        and(
+          this.matchingIn(inArray(transactions.spaceId, spaceIds), filter),
+          this.involving(filter.involving),
+          pastPosition(after),
+        ),
+      )
       .orderBy(...listOrder)
       .limit(limit);
     return loadTransactions(db, rows);
@@ -141,17 +149,20 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
           inArray(theirs.memberId, members),
         ),
       )
-      .where(this.matchingIn(inArray(transactions.spaceId, spaceIds), filter));
+      .where(
+        and(
+          this.matchingIn(inArray(transactions.spaceId, spaceIds), filter),
+          this.involving(filter.involving),
+        ),
+      );
     return { share: BigInt(row?.share ?? "0"), income: BigInt(row?.income ?? "0") };
   }
 
-  /** Ruling P306: the live transactions of several spaces from `from`, in `list`'s order; `[]` without valid ids. */
-  async recentIn(
-    spaceIds: readonly string[],
-    from: LocalDate,
-    limit: number,
-    to?: LocalDate,
-  ): Promise<Transaction[]> {
+  /**
+   * Ruling P306: the live transactions of several spaces from `from`, in `list`'s order, that involve one of the member
+   * rows (ruling P329); `[]` without valid ids.
+   */
+  async recentIn({ spaceIds, from, to, involving }: RecentQuery, limit: number): Promise<Transaction[]> {
     const ids = spaceIds.filter(isUuid);
     if (ids.length === 0) return [];
     const db = this.tm.executor();
@@ -164,6 +175,7 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
           isNull(transactions.deletedAt),
           gte(transactions.date, from),
           to === undefined ? undefined : lte(transactions.date, to),
+          this.involving({ memberIds: involving, alwaysIn: [] }),
         ),
       )
       .orderBy(...listOrder)
@@ -854,6 +866,41 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
       fundContributions: BigInt(row?.contributions ?? "0"),
       contributionsOutsideTheApp: BigInt(row?.contributionsOutside ?? "0"),
     };
+  }
+
+  /**
+   * Ruling P329: the movements that involve one of the member rows, by the row's payer, receiver or the one a settlement
+   * was made for, or an expense's payments and shares; and every movement of the `alwaysIn` spaces. No condition when
+   * `f` is absent, and none matches without a valid member or space.
+   */
+  private involving(f: Involving | undefined) {
+    if (f === undefined) return undefined;
+    const db = this.tm.executor();
+    const members = f.memberIds.filter(isUuid);
+    const always = f.alwaysIn.filter(isUuid);
+    const theirs =
+      members.length === 0
+        ? []
+        : [
+            inArray(transactions.payerMemberId, members),
+            inArray(transactions.receivingMemberId, members),
+            inArray(transactions.onBehalfOfMemberId, members),
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(payments)
+                .where(and(eq(payments.transactionId, transactions.id), inArray(payments.memberId, members))),
+            ),
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(shares)
+                .where(and(eq(shares.transactionId, transactions.id), inArray(shares.memberId, members))),
+            ),
+          ];
+    return (
+      or(always.length === 0 ? undefined : inArray(transactions.spaceId, always), ...theirs) ?? sql`false`
+    );
   }
 
   private matching(f: TransactionFilter) {

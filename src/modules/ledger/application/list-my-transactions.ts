@@ -82,6 +82,7 @@ export interface MyTransactionsDeps extends ActivityDescriptionDeps {
  * Ruling P319 (#294): the personal Movimientos. The live movements of every current space of the caller, personal one
  * included, within one period of the personal space, filtered as a space's list is (P277), in its order (P43), each
  * described as Inicio describes it (P306), with the caller's share and received incomes over the whole filtered period.
+ * Ruling P329: another space's movement is listed only when it involves the caller.
  */
 export const createListMyTransactions =
   (deps: MyTransactionsDeps): ListMyTransactions =>
@@ -134,9 +135,12 @@ export const createListMyTransactions =
     const summed = new Set(spaces.filter((s) => s.currency === home.currency).map((s) => s.id));
     const places = await deps.places.placesOf(input.userId);
     const memberIds = places.filter((p) => summed.has(p.spaceId)).map((p) => p.memberId as string);
+    // Ruling P329: another space's movement only when it involves the caller, by any of their member rows; every one of
+    // the personal space. Filtered in the read, so the page and its cursor count only what is listed.
+    const involving = { memberIds: places.map((p) => p.memberId as string), alwaysIn: [personal.id] };
     // One extra row tells whether another page exists.
     const [rows, totals] = await Promise.all([
-      deps.query.listAcross(filter, input.after, input.limit + 1),
+      deps.query.listAcross({ ...filter, involving }, input.after, input.limit + 1),
       summed.size === 0
         ? { share: 0n, income: 0n }
         : deps.query.memberTotalsAcross({ ...filter, spaceIds: [...summed] }, memberIds),

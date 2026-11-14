@@ -114,7 +114,12 @@ const category = (id: string, name: string, parentCategoryId: string | null, sty
   ({ id, name, parentCategoryId, style }) as Category;
 
 const world = (transactions: readonly Transaction[] = [groceries, settlement, hotel, gas]) => {
-  const asked: { spaceIds: readonly string[]; from: LocalDate; limit: number }[] = [];
+  const asked: {
+    spaceIds: readonly string[];
+    from: LocalDate;
+    involving: readonly string[];
+    limit: number;
+  }[] = [];
   const deps: MyActivityDeps = {
     spaces: {
       listForUser: async (userId) =>
@@ -162,8 +167,8 @@ const world = (transactions: readonly Transaction[] = [groceries, settlement, ho
         ].filter((row) => spaceIds.includes(row.spaceId)),
     },
     recent: {
-      recentIn: async (spaceIds, from, limit) => {
-        asked.push({ spaceIds, from, limit });
+      recentIn: async ({ spaceIds, from, involving }, limit) => {
+        asked.push({ spaceIds, from, involving, limit });
         return transactions.filter((tx) => spaceIds.includes(tx.spaceId)).slice(0, limit);
       },
     },
@@ -187,7 +192,15 @@ describe("ListMyActivity (ruling P306)", () => {
   it("lists the movements of Ana's shared spaces only, from the date asked, never a personal space", async () => {
     const w = world();
     const items = unwrap(await w.list({ userId: "u-ana", from: FROM, limit: 10 }));
-    expect(w.asked).toEqual([{ spaceIds: ["sp-hogar", "sp-viaje"], from: FROM, limit: 10 }]);
+    // Ruling P329: only what involves one of her member rows, whichever space it is in.
+    expect(w.asked).toEqual([
+      {
+        spaceIds: ["sp-hogar", "sp-viaje"],
+        from: FROM,
+        involving: ["m-ana-personal", "m-ana", "m-ana-viaje"],
+        limit: 10,
+      },
+    ]);
     expect(items.map((i) => [i.transaction.id, i.space.name, i.space.color])).toEqual([
       ["tx-groceries", "Hogar", "SKY"],
       ["tx-settle", "Hogar", "SKY"],
