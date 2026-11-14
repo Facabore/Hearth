@@ -667,7 +667,7 @@ export interface paths {
         };
         /**
          * The caller's movements in every current space, one period, newest first, with their totals
-         * @description Ruling P319 (#294): the personal Movimientos. The live movements of the caller's personal space and of every shared and direct space they currently belong to (archived spaces left out), within one period of the personal space, in Movimientos' order, each with its space, who recorded it and the caller's part of it.
+         * @description Ruling P319 (#294): the personal Movimientos. The live movements of the caller's personal space and, per ruling P329, those of every shared and direct space they currently belong to (archived spaces left out) that involve them (an expense they paid or share in, an income they received, a transfer they paid, a settlement they paid, received or that was made on their behalf), within one period of the personal space, in Movimientos' order, each with its space, who recorded it and the caller's part of it.
          */
         get: operations["listMyTransactions"];
         put?: never;
@@ -687,7 +687,7 @@ export interface paths {
         };
         /**
          * What happened lately in the caller's shared and direct spaces, newest first
-         * @description Ruling P306: the live movements of every shared and direct space the caller currently belongs to, dated `from` or later, in Movimientos' order, each with its space, who recorded it and the caller's part of it. Personal spaces are never listed: the caller reads their own as Movimientos does, and no one else's is reachable.
+         * @description Ruling P306, amended by P329: the live movements of every shared and direct space the caller currently belongs to that involve them (an expense they paid or share in, an income they received, a transfer they paid, a settlement they paid, received or that was made on their behalf), dated `from` or later, in Movimientos' order, each with its space, who recorded it and the caller's part of it. Personal spaces are never listed: the caller reads their own as Movimientos does, and no one else's is reachable.
          */
         get: operations["listMyActivity"];
         put?: never;
