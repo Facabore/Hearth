@@ -12,7 +12,7 @@ import type { Formats } from "@/shared/ui/format/formatters";
 import { periodName } from "@/shared/ui/time/period-name";
 import { usePeriodWord } from "../period-word";
 import { ifMatch, planWrite } from "../plan-write";
-import { joinNames, namesOf, payerCandidates, type PayChoice } from "./payers";
+import { joinNames, namesOf, payerCandidates, type SheetChoice } from "./payers";
 
 const PayerSheet = dynamic(() => import("./payer-sheet").then((module) => module.PayerSheet), { ssr: false });
 
@@ -49,7 +49,7 @@ export function LinePayersEditor({
   const names = namesOf(payers, members);
   const monthly = periodName(plan.period, space.periodPolicy).kind === "month";
   const period = periodWord(plan.period, space.periodPolicy, formats);
-  const save = async (choice: PayChoice) => {
+  const save = async (choice: SheetChoice) => {
     if (pending) return;
     setProblem(null);
     setPending(true);
@@ -92,7 +92,7 @@ export function LinePayersEditor({
           open={open}
           onOpenChange={setOpen}
           lineName={line.name}
-          value={{ funding: line.funding, payerMemberIds: payers, payersScope: scope }}
+          value={{ mode: "PAYERS", payerMemberIds: payers, payersScope: scope }}
           modes={["PAYERS"]}
           hasFund={line.funding === "SHARED_FUND"}
           candidates={payerCandidates(members)}
@@ -100,6 +100,7 @@ export function LinePayersEditor({
           period={period}
           monthly={monthly}
           shares={null}
+          namesOf={(ids) => joinNames(namesOf(ids, members), t("and"))}
           onDone={(choice) => void save(choice)}
         />
       ) : null}

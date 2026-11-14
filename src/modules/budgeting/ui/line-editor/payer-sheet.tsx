@@ -4,15 +4,7 @@ import { useTranslations } from "next-intl";
 import { useId, useState } from "react";
 import { Button, Icon, Sheet } from "@/shared/ui";
 import type { SpaceMemberDto } from "@/shared/ui/api/dto";
-import {
-  choiceFor,
-  joinNames,
-  namesOf,
-  payModeOf,
-  type PayChoice,
-  type PayMode,
-  type PayersScope,
-} from "./payers";
+import type { PayMode, PayersScope, SheetChoice } from "./payers";
 
 const SCOPES: readonly PayersScope[] = ["EVERY_PERIOD", "THIS_PERIOD"];
 
@@ -34,12 +26,13 @@ export function PayerSheet({
   period,
   monthly,
   shares,
+  namesOf,
   onDone,
 }: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly lineName: string;
-  readonly value: PayChoice;
+  readonly value: SheetChoice;
   /** The modes offered, in the board's order; just PAYERS for a payer who does not manage the plan. */
   readonly modes: readonly PayMode[];
   readonly hasFund: boolean;
@@ -51,11 +44,13 @@ export function PayerSheet({
   readonly monthly: boolean;
   /** "Ana 40 % · Juan 35 % · Sofía 25 %": who answers for the line; null when nobody has a share. */
   readonly shares: string | null;
-  readonly onDone: (choice: PayChoice) => void;
+  /** "Ana y Juan": the members' names joined as the language joins them. */
+  readonly namesOf: (memberIds: readonly string[]) => string;
+  readonly onDone: (choice: SheetChoice) => void;
 }) {
   const t = useTranslations("budgeting.lineEditor.pay");
   const ids = useId();
-  const [mode, setMode] = useState<PayMode>(() => payModeOf(value));
+  const [mode, setMode] = useState<PayMode>(value.mode);
   const [payers, setPayers] = useState<readonly string[]>(value.payerMemberIds);
   const [scope, setScope] = useState<PayersScope>(value.payersScope);
   const [missing, setMissing] = useState(false);
@@ -64,7 +59,7 @@ export function PayerSheet({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setMode(payModeOf(value));
+      setMode(value.mode);
       setPayers(value.payerMemberIds);
       setScope(value.payersScope);
       setMissing(false);
@@ -84,14 +79,10 @@ export function PayerSheet({
       setMissing(true);
       return;
     }
-    onDone(
-      payersOnly && payers.length === 0
-        ? { ...value, payerMemberIds: [] }
-        : choiceFor(mode, payers, scope, hasFund),
-    );
+    onDone({ mode, payerMemberIds: payers, payersScope: scope });
     onOpenChange(false);
   };
-  const named = joinNames(namesOf(payers, candidates), t("and"));
+  const named = namesOf(payers);
   const checkboxes = (
     <fieldset
       aria-describedby={missing ? `${ids}-missing` : undefined}

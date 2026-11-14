@@ -54,7 +54,7 @@ import {
   type RolloverMode,
 } from "./line-draft";
 import { removeLine, saveLine, type LineSection } from "./line-save";
-import { joinNames, namesOf, payerCandidates, payModeOf, type PayChoice, type PayMode } from "./payers";
+import { choiceFor, joinNames, namesOf, payerCandidates, payModeOf, type PayMode } from "./payers";
 
 // Issue #182: the mapping sheet's code loads only when someone opens it, so the editor's first view carries less
 // script and its LCP stays under the budget (the pattern of P177).
@@ -715,7 +715,7 @@ export function LineEditor({
           open={paying}
           onOpenChange={setPaying}
           lineName={lineName}
-          value={draft}
+          value={{ mode: payMode, payerMemberIds: draft.payerMemberIds, payersScope: draft.payersScope }}
           modes={personal ? PERSONAL_MODES : SHARED_MODES}
           hasFund={hasFund}
           candidates={candidates}
@@ -723,7 +723,10 @@ export function LineEditor({
           period={period}
           monthly={monthly}
           shares={personal ? null : shares}
-          onDone={(choice: PayChoice) => change(choice, "payers")}
+          namesOf={(ids) => joinNames(namesOf(ids, everyone), tPay("and"))}
+          onDone={(choice) =>
+            change(choiceFor(choice.mode, choice.payerMemberIds, choice.payersScope, hasFund), "payers")
+          }
         />
       ) : null}
 

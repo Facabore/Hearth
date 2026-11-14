@@ -9,6 +9,16 @@ export type PayersScope = NonNullable<PlanLineDto["payersScope"]>;
  */
 export type PayMode = "FUND" | "PAYERS" | "EACH" | "SAVINGS";
 
+/**
+ * What the sheet answers: the mode and, for PAYERS, who and how long. The caller turns it into a `PayChoice`, so the
+ * sheet's chunk carries none of this module's code (it stays apart from the editor's route chunk).
+ */
+export interface SheetChoice {
+  readonly mode: PayMode;
+  readonly payerMemberIds: readonly string[];
+  readonly payersScope: PayersScope;
+}
+
 /** The part of a line draft the sheet edits. */
 export interface PayChoice {
   readonly funding: Funding;
