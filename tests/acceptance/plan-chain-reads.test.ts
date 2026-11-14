@@ -114,11 +114,12 @@ describe("a plan's carry-over chain is read in one batch, whatever its length (A
     const long = await statementCounts(await chainOf(MONTHS), "2026-11");
     expect(long).toEqual(short);
     // Measured 2026-11-09 with seven plans, before: plan 61, lines 64, member-matrix 67, fund-contributions 65, trend 68.
+    // D26 (#316): the fund report reads what each member paid for the fund by category, one statement more (17 → 18).
     expect(long).toEqual({
       plan: 14,
       lines: 15,
       "member-matrix": 16,
-      "fund-contributions": 17,
+      "fund-contributions": 18,
       trend: 15,
     });
   });
