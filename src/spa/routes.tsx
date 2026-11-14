@@ -81,6 +81,7 @@ const ledger = () => import("./ledger/queries");
 
 /** Slice 3's loaders, likewise. */
 const manage = () => import("./manage/loaders");
+const accountScreen = () => import("./accounts/screen");
 
 /** The shared spaces' loaders, likewise. */
 const sharedSpaces = () => import("./spaces/loaders");
@@ -284,6 +285,36 @@ const newAccountRoute = createRoute({
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "NewAccountPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/accounts"), "NewAccountRoute"),
+});
+
+/**
+ * Ruling P327 (#315): an account's own screen, its movements or (`?view=stats`) its statistics in `?period=`; `?tx=`
+ * opens a row's detail over it. One that is gone is not found.
+ */
+const accountRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "accounts/$accountId",
+  staticData: { ...stackedScreen, areas: ["accounts"] },
+  validateSearch: (search: Record<string, unknown>) => ({
+    period: textParam(search.period),
+    view: textParam(search.view) === "stats" ? ("stats" as const) : undefined,
+    tx: textParam(search.tx),
+  }),
+  loaderDeps: ({ search }) => ({ period: search.period, tx: search.tx }),
+  loader: async ({ context, params, deps, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await accountScreen()).loadAccountScreen(
+        { ...context, cause },
+        params.spaceId,
+        params.accountId,
+        deps.period,
+        deps.tx,
+      ),
+    ),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "AccountPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/account"), "AccountRoute"),
 });
 
 /** Issue 169: an account's edit form; one that is gone is not found. */
@@ -677,6 +708,7 @@ export const routeTree = rootRoute.addChildren([
     editRecurrenceRoute,
     accountsRoute,
     newAccountRoute,
+    accountRoute,
     editAccountRoute,
     categoriesRoute,
     spaceSettingsRoute,

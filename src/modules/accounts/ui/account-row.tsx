@@ -1,26 +1,26 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { paletteVars, SymbolIcon, VisuallyHidden } from "@/shared/ui";
+import { paletteVars, SymbolIcon } from "@/shared/ui";
 import type { AccountDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { colorOf } from "./account-look";
 import { rateText } from "./account-sections";
 
 /**
- * HU-E9-03, the Accounts artboard's row: type icon and color, name, details and balance. Issue 169: with `editHref`, the
- * icon, name and details are the link to the account's edit screen.
+ * HU-E9-03, the Accounts artboard's row: type icon and color, name, details and balance. Ruling P327 (amends issue
+ * 169): with `href`, the icon, name and details are the link to the account's own screen.
  */
 export function AccountRow({
   account,
   formats,
   actions,
-  editHref,
+  href,
 }: {
   readonly account: AccountDto;
   readonly formats: Formats;
   readonly actions?: ReactNode;
-  readonly editHref?: string;
+  readonly href?: string;
 }) {
   const t = useTranslations("accounts");
   const color = colorOf(account);
@@ -77,9 +77,9 @@ export function AccountRow({
   );
   return (
     <li aria-labelledby={`account-${account.id}`} className="flex min-h-row-lg items-center gap-3 py-1.5">
-      {editHref ? (
-        <Link href={editHref} className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl">
-          {look} <VisuallyHidden>{t("edit.action")}</VisuallyHidden>
+      {href ? (
+        <Link href={href} className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl">
+          {look}
         </Link>
       ) : (
         look

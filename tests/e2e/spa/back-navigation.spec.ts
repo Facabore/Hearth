@@ -92,7 +92,11 @@ test.describe("back navigation (ruling P307)", () => {
     await expect(page).toHaveURL(cuentas);
     await expect(dialog(page, es.accounts.newTitle)).toBeHidden();
 
-    await page.getByRole("link", { name: /^Efectivo.*Editar/ }).click();
+    // Ruling P327: the row opens the account's own screen, and Configurar its edit form.
+    await page.getByRole("link", { name: /^Efectivo/ }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Efectivo" })).toBeVisible();
+    const account = page.url();
+    await page.getByRole("link", { name: es.accounts.screen.configure }).click();
     await page.getByLabel("Nombre").fill("Efectivo diario");
     await page.getByRole("link", { name: es.common.back }).click();
     const changes = dialog(page, es.accounts.discard.edit);
@@ -100,7 +104,7 @@ test.describe("back navigation (ruling P307)", () => {
     await expect(page.getByLabel("Nombre")).toHaveValue("Efectivo diario");
     await page.goBack();
     await changes.getByRole("button", { name: es.accounts.discard.confirm }).click();
-    await expect(page).toHaveURL(cuentas);
+    await expect(page).toHaveURL(account);
   });
 
   test("a movement saved, edited or reopened is one Back from the list", async ({ page }) => {

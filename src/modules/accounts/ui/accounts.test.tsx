@@ -360,18 +360,27 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
     expect(screen.queryByRole("link", { name: "Nueva cuenta" })).toBeNull();
   });
 
-  it("opens an active account's edit screen from its row, never a hidden one's (issue 169)", () => {
+  it("opens every account's own screen from its row, a hidden one's too, which keeps its Mostrar (ruling P327)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
-    const bank = screen.getByRole("listitem", { name: /Bancolombia/ });
-    expect(within(bank).getByRole("link", { name: /^Bancolombia.*Editar$/ })).toHaveAttribute(
-      "href",
-      "/spaces/sp-personal/accounts/a-bank/edit",
-    );
+    // The same accounts as before, each row now a link to its own screen.
+    expect(
+      screen
+        .getAllByRole("link", { name: /^(Bancolombia|Nequi|Visa|Old wallet)/ })
+        .map((link) => [
+          link.textContent?.match(/^(Bancolombia|Nequi|Visa|Old wallet)/)?.[0],
+          link.getAttribute("href"),
+        ]),
+    ).toEqual([
+      ["Bancolombia", "/spaces/sp-personal/accounts/a-bank"],
+      ["Nequi", "/spaces/sp-personal/accounts/a-nequi"],
+      ["Visa", "/spaces/sp-personal/accounts/a-visa"],
+      ["Old wallet", "/spaces/sp-personal/accounts/a-old"],
+    ]);
     const hidden = screen.getByRole("region", { name: "Ocultas" });
-    expect(within(hidden).queryByRole("link")).toBeNull();
+    expect(within(hidden).getByRole("button", { name: "Mostrar Old wallet" })).toBeVisible();
   });
 
-  it("lets an ADMIN edit a fund, and a MEMBER who may not manage funds only see it (issue 169)", () => {
+  it("opens a fund's own screen for an ADMIN and for a MEMBER who may not manage funds alike (ruling P327)", () => {
     const shared = (role: "ADMIN" | "MEMBER") =>
       renderWithIntl(
         <AccountsScreen
@@ -383,13 +392,16 @@ describe("accounts screen: the add button and the empty states (U4, U1)", () => 
         />,
       );
     const admin = shared("ADMIN");
-    expect(screen.getByRole("link", { name: /Editar$/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: new RegExp(`^${fund.name}`) })).toHaveAttribute(
       "href",
-      `/spaces/sp-household/accounts/${fund.id}/edit`,
+      `/spaces/sp-household/accounts/${fund.id}`,
     );
     admin.unmount();
     shared("MEMBER");
-    expect(screen.queryByRole("link", { name: /Editar$/ })).toBeNull();
+    expect(screen.getByRole("link", { name: new RegExp(`^${fund.name}`) })).toHaveAttribute(
+      "href",
+      `/spaces/sp-household/accounts/${fund.id}`,
+    );
   });
 
   it("in a direct space says each person pays from their own accounts and offers nothing to create", () => {

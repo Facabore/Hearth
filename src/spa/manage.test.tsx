@@ -1,18 +1,21 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { en, es } from "@/i18n/messages/full";
 import type { AccountDto, CategoryGroupDto, MeDto, SpaceDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
+  activityItemDto,
   categoryDto,
   cop,
   groupDto,
   householdSpace,
   meDto,
+  normalized,
   octoberPage,
   patchedMe,
   spaceDto,
+  transactionDto,
 } from "../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import { loadedAreas, renderSpa, speak, watchMissingMessages } from "../../tests/support/ui/spa";
@@ -419,5 +422,137 @@ describe("the accounts, categories and settings areas' copy (ruling P276)", () =
     expect(await screen.findByText(en.settings.numbersAndDates)).toBeVisible();
     expect(loadedAreas(spa)).toEqual(["en:settings", "es:settings"]);
     expect(missing()).toEqual([]);
+  });
+});
+
+describe("an account's own screen in the SPA (ruling P327, #315)", () => {
+  const NOVEMBER = { label: "2026-11", startDate: "2026-11-01", endDate: "2026-11-30" };
+  /** What an account's screen reads besides what Cuentas does: its movements and its breakdown, by `accountId`. */
+  const accountReads = (routes: Record<string, FakeHandler>): Record<string, FakeHandler> => {
+    const breakdown = {
+      period: NOVEMBER,
+      total: cop(2_000_000),
+      account: { id: "a-bank", in: cop(3_200_000), out: cop(2_500_000), movedToOwnAccounts: cop(500_000) },
+      groups: [
+        {
+          id: "g-home",
+          key: "housing",
+          name: "Vivienda",
+          archived: false,
+          total: cop(2_000_000),
+          share: "100.00",
+          movements: 1,
+          categories: [
+            {
+              id: "c-rent",
+              key: "rent",
+              name: "Arriendo",
+              archived: false,
+              total: cop(2_000_000),
+              share: "100.00",
+              movements: 1,
+              subcategories: [],
+            },
+          ],
+        },
+      ],
+    };
+    return {
+      ...routes,
+      "GET /api/v1/me/transactions": () =>
+        jsonResponse({
+          period: NOVEMBER,
+          totals: { share: cop(0), income: cop(0) },
+          items: [
+            activityItemDto({
+              transaction: transactionDto({
+                id: "t-rent",
+                description: "Arriendo noviembre",
+                date: "2026-11-01",
+                amount: cop(2_000_000),
+                payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(2_000_000) }],
+              }),
+              you: { memberIds: ["m-ana"], share: cop(1_000_000), paid: cop(2_000_000) },
+            }),
+          ],
+          nextCursor: null,
+        }),
+      "GET /api/v1/me/reports/spending-by-group": () => jsonResponse({ currency: "COP", ...breakdown }),
+      "GET /api/v1/spaces/{spaceId}/reports/spending-by-group": (_, { spaceId }) =>
+        jsonResponse({ spaceId, ...breakdown, account: { ...breakdown.account, id: "a-fund" } }),
+      "GET /api/v1/spaces/{spaceId}/transactions": () =>
+        jsonResponse({ ...octoberPage, period: NOVEMBER, items: [] }),
+    };
+  };
+  const queryOf = (requests: Request[], path: RegExp) =>
+    requests
+      .filter((r) => r.method === "GET" && path.test(new URL(r.url).pathname))
+      .map((r) => Object.fromEntries(new URL(r.url).searchParams));
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-13T15:00:00.000Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("opens from its row in Cuentas on its movements across her spaces, then its statistics, and Configurar opens its edit form", async () => {
+    const { routes } = server();
+    const spa = renderSpa(ACCOUNTS, accountReads(routes));
+    await userEvent.click(await screen.findByRole("link", { name: /^Bancolombia/ }, { timeout: 5_000 }));
+
+    await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/a-bank`));
+    expect(await screen.findByRole("heading", { level: 1, name: "Bancolombia" })).toBeVisible();
+    expect(document.title).toBe("Bancolombia · Hearth");
+    expect(normalized(screen.getByRole("region", { name: "Saldo de hoy" }).textContent)).toContain("$ 1.000");
+    expect(await screen.findByText(/entró/)).toHaveTextContent(
+      /entró\s\+\$\s3\.200\.000 · salió\s−\$\s2\.500\.000/,
+    );
+    expect(normalized(screen.getByRole("link", { name: /Arriendo noviembre/ }).textContent)).toBe(
+      "Arriendo noviembreHogar · tu parte $ 1.000.000−$ 2.000.000",
+    );
+    // A personal account reads its movements across every space of hers, and its breakdown, by its id.
+    expect(queryOf(spa.requests, /\/me\/transactions$/)).toContainEqual({ accountId: "a-bank", limit: "50" });
+    // Every read of the breakdown is the account's: the personal one without it is never asked for here.
+    const reports = queryOf(spa.requests, /\/me\/reports\/spending-by-group$/);
+    expect(reports.length).toBeGreaterThan(0);
+    expect(reports).toEqual(reports.map(() => ({ period: "2026-11", accountId: "a-bank" })));
+
+    await userEvent.click(screen.getByRole("link", { name: "Estadísticas" }));
+    await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/a-bank?view=stats`));
+    expect(await screen.findByText("gastó", { exact: false })).toHaveTextContent(
+      /gastó\s\$\s2\.000\.000 · movió\s\$\s500\.000 a tus cuentas/,
+    );
+    const groups = screen.getByRole("list", { name: "En qué se gastó" });
+    expect(normalized(within(groups).getByRole("listitem").textContent)).toBe(
+      "Vivienda100 % · Arriendo · 1 movimiento$ 2.000.000",
+    );
+
+    await userEvent.click(screen.getByRole("link", { name: "Configurar" }));
+    await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/a-bank/edit`));
+    expect(await screen.findByLabelText("Nombre")).toHaveValue("Bancolombia");
+  });
+
+  it("opens a shared fund's screen for a MEMBER, with the space's movements by the fund and no Configurar", async () => {
+    const { routes, state } = server();
+    state.spaces = [spaceDto(), householdSpace({ role: "MEMBER" })];
+    state.accounts = [
+      accountDto({ id: "a-fund", name: "Fondo de Hogar", type: "SHARED_FUND", balance: cop(2_070_000) }),
+    ];
+    const spa = renderSpa("/spaces/sp-household/accounts", accountReads(routes));
+    await userEvent.click(await screen.findByRole("link", { name: /^Fondo de Hogar/ }, { timeout: 5_000 }));
+
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-household/accounts/a-fund"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Fondo de Hogar" })).toBeVisible();
+    expect(await screen.findByText("No hay movimientos en este período.")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Configurar" })).toBeNull();
+    expect(queryOf(spa.requests, /\/spaces\/sp-household\/transactions$/)).toContainEqual({
+      accountId: "a-fund",
+      limit: "50",
+    });
+    const reports = queryOf(spa.requests, /\/spaces\/sp-household\/reports\/spending-by-group$/);
+    expect(reports.length).toBeGreaterThan(0);
+    expect(reports).toEqual(reports.map(() => ({ period: "2026-11", accountId: "a-fund" })));
   });
 });

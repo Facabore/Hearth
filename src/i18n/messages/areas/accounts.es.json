@@ -81,7 +81,6 @@
     },
     "restore": "Mostrar {name}",
     "edit": {
-      "action": "Editar",
       "type": "Tipo: {type}",
       "save": "Guardar cambios"
     },
@@ -112,6 +111,20 @@
       "starterBody": "Efectivo, cuenta bancaria, billetera digital, tarjeta de crédito y ahorros, en cero.",
       "fundsTitle": "Este espacio aún no tiene fondos",
       "directTitle": "Este espacio no tiene cuentas"
+    },
+    "screen": {
+      "balanceToday": "Saldo de hoy",
+      "configure": "Configurar",
+      "views": "Vistas de la cuenta",
+      "movements": "Movimientos",
+      "statistics": "Estadísticas",
+      "flows": "entró <b>{in}</b> · salió <b>{out}</b>",
+      "spent": "gastó <b>{spent}</b>",
+      "spentAndMoved": "gastó <b>{spent}</b> · movió <b>{moved}</b> a tus cuentas",
+      "byGroup": "En qué se gastó",
+      "movementCount": "{count, plural, one {# movimiento} other {# movimientos}}",
+      "nothingPaid": "Esta cuenta no pagó gastos en este período.",
+      "transfersNote": "Las transferencias entre tus cuentas no cuentan como gasto."
     }
   }
 }

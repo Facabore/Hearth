@@ -110,8 +110,11 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(
         page.getByRole("button", { name: es.accounts.restore.replace("{name}", "Old wallet") }),
       ).toBeVisible();
-      // Issue 169: a row opens its account's edit screen.
-      await page.getByRole("link", { name: new RegExp(`^Bancolombia.*${es.accounts.edit.action}$`) }).click();
+      // Ruling P327: a row opens the account's own screen, whose Configurar opens its edit screen.
+      await page.getByRole("link", { name: /^Bancolombia/ }).click();
+      await expect(page.getByRole("heading", { level: 1, name: "Bancolombia" })).toBeVisible();
+      await scan("account screen");
+      await page.getByRole("link", { name: es.accounts.screen.configure }).click();
       await expect(page.getByRole("heading", { name: es.accounts.edit.title })).toBeVisible();
       await scan("edit an account");
       // P292: board B1 · 07 drops the rows' archive button; the account's own screen hides it.

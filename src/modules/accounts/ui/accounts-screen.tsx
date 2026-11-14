@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { controlsFor } from "@/modules/spaces/ui";
 import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto, SpaceDto } from "@/shared/ui/api/dto";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
+import { canManageAccounts } from "./account-access";
 import { RestoreAccountButton, StarterAccountsButton } from "./account-actions";
 import { AccountRow } from "./account-row";
 import { sectionsOf, totalOf } from "./account-sections";
@@ -41,7 +41,9 @@ export function AccountsScreen({
   );
   const shared = kind === "SHARED";
   // Only a shared space's OWNER or ADMIN creates or edits funds; a direct space has no accounts; a personal one always may.
-  const canManage = kind === "PERSONAL" || (shared && controlsFor(role, kind).manageFunds);
+  const canManage = canManageAccounts(kind, role);
+  // Ruling P327: every row opens the account's own screen, for every member who sees the list.
+  const hrefOf = (accountId: string) => `/spaces/${spaceId}/accounts/${accountId}`;
   const nothing = list.items.length === 0;
   // Issue 169: with no active account the totals say nothing, so the empty state stands in for them; a personal
   // space also offers its starter accounts (archived ones stay listed below and keep their names).
@@ -135,12 +137,7 @@ export function AccountsScreen({
             </div>
             <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
               {section.accounts.map((account) => (
-                <AccountRow
-                  key={account.id}
-                  account={account}
-                  formats={formats}
-                  editHref={canManage ? `/spaces/${spaceId}/accounts/${account.id}/edit` : undefined}
-                />
+                <AccountRow key={account.id} account={account} formats={formats} href={hrefOf(account.id)} />
               ))}
             </ul>
           </section>
@@ -157,6 +154,7 @@ export function AccountsScreen({
                 key={account.id}
                 account={account}
                 formats={formats}
+                href={hrefOf(account.id)}
                 actions={<RestoreAccountButton spaceId={spaceId} account={account} />}
               />
             ))}

@@ -81,7 +81,6 @@
     },
     "restore": "Show {name}",
     "edit": {
-      "action": "Edit",
       "type": "Type: {type}",
       "save": "Save changes"
     },
@@ -112,6 +111,20 @@
       "starterBody": "Cash, bank account, digital wallet, credit card and savings, at zero.",
       "fundsTitle": "This space has no funds yet",
       "directTitle": "This space has no accounts"
+    },
+    "screen": {
+      "balanceToday": "Today's balance",
+      "configure": "Settings",
+      "views": "Account views",
+      "movements": "Movements",
+      "statistics": "Statistics",
+      "flows": "in <b>{in}</b> · out <b>{out}</b>",
+      "spent": "spent <b>{spent}</b>",
+      "spentAndMoved": "spent <b>{spent}</b> · moved <b>{moved}</b> to your accounts",
+      "byGroup": "What it was spent on",
+      "movementCount": "{count, plural, one {# movement} other {# movements}}",
+      "nothingPaid": "This account paid no expenses in this period.",
+      "transfersNote": "Transfers between your accounts don't count as spending."
     }
   }
 }

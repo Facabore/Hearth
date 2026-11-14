@@ -49,6 +49,11 @@ export const NewAccountPending = () => (
   <SpaceScreenPending title={useTranslations("accounts")("newTitle")} back="/accounts" shape="form" />
 );
 
+/** Ruling P327: an account's own screen, under Cuentas until its name is read. */
+export const AccountPending = () => (
+  <SpaceScreenPending title={useTranslations("accounts")("title")} back="/accounts" shape="list" />
+);
+
 export const EditAccountPending = () => (
   <SpaceScreenPending title={useTranslations("accounts")("edit.title")} back="/accounts" shape="form" />
 );
