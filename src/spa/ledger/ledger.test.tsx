@@ -482,6 +482,16 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?tx=t-dinner"));
   });
 
+  it("shows the sheet again instead of an edit of either half of an expense paid for the fund (D26, P328)", async () => {
+    const dinner = octoberPage.items.find((item) => item.id === "t-dinner")!;
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () =>
+        jsonResponse({ ...dinner, linkedTransactionId: "t-contribution" }),
+    });
+    const spa = renderSpa("/spaces/sp-personal/transactions/t-dinner/edit", routes);
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal/transactions?tx=t-dinner"));
+  });
+
   it("gives a viewer no Registrar button, and her link to the form names her role instead (#207)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace({ role: "VIEWER" })] }),

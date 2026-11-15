@@ -1,12 +1,6 @@
 import { useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
-import {
-  actionsFor,
-  lineWatchOf,
-  peopleOf,
-  sharedContextOf,
-  type SharedExpenseContext,
-} from "@/modules/ledger/ui";
+import { lineWatchOf, peopleOf, sharedContextOf, type SharedExpenseContext } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import type { MemberDto, TransactionDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
@@ -87,7 +81,10 @@ const accountsOf = (tx: TransactionDto): ReadonlySet<string> =>
     ),
   );
 
-/** Ruling P191: the edit form's data; a transaction that is gone is not found, one the viewer may not edit is not editable. */
+/**
+ * Ruling P191: the edit form's data; a transaction that is gone is not found. Whether the viewer may edit it is the
+ * route's to ask (`actionsFor`), so the record route, which shares this module, never loads that rule.
+ */
 export const useEdit = (viewer: Viewer, transactionId: string) => {
   const { api } = useApis();
   const spaceId = viewer.space.id;
@@ -111,10 +108,5 @@ export const useEdit = (viewer: Viewer, transactionId: string) => {
     accounts: accounts.data.filter((a) => a.archivedAt === null || used.has(a.id)),
     groups: groups.data,
     shared,
-    actions: actionsFor(
-      tx,
-      { userId: viewer.me.id, role: viewer.space.role, memberId: shared?.meMemberId ?? null },
-      shared?.members ?? [],
-    ),
   } as const;
 };

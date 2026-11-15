@@ -1,7 +1,7 @@
 import { getRouteApi, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useTranslations } from "use-intl";
-import { EditTransactionForm, originOf, withTx } from "@/modules/ledger/ui";
+import { actionsFor, EditTransactionForm, originOf, withTx } from "@/modules/ledger/ui";
 import { NotFoundScreen, ProblemNotice } from "@/shared/ui";
 import { useApis } from "../api";
 import { useEdit } from "../ledger/form-hooks";
@@ -33,7 +33,13 @@ export function EditTransactionScreen() {
   if (edit.missing) return <NotFoundScreen />;
   if (!edit.tx) return <ProblemNotice problem={edit.problem} />;
   const origin = originOf(returnTo, spaceId);
-  if (!edit.actions.edit) return <ShowSheet href={withTx(origin, transactionId)} />;
+  const { shared } = edit;
+  const actions = actionsFor(
+    edit.tx,
+    { userId: viewer.me.id, role: viewer.space.role, memberId: shared?.meMemberId ?? null },
+    shared?.members ?? [],
+  );
+  if (!actions.edit) return <ShowSheet href={withTx(origin, transactionId)} />;
   return (
     <div className="mx-auto max-w-[560px]">
       <EditTransactionForm
