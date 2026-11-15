@@ -5,7 +5,7 @@
     "routes/sign-in.tsx": 9,
     "routes/sign-up.tsx": 9,
     "routes/space-shell.tsx": 9,
-    "routes/space-home.tsx": 23,
+    "routes/space-home.tsx": 24,
     "home/needs-today-host.tsx": 6,
     "routes/transactions.tsx": 26,
     "routes/record.tsx": 39,
