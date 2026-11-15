@@ -426,7 +426,10 @@ describe("line editor (HU-E9-08)", () => {
     expect(figures).toContain("Planeado$ 1.470.000");
     expect(figures).toContain("Gastado$ 1.300.000");
     expect(figures).toContain("Disponible$ 170.000");
-    expect(screen.getByText("36,75 % de lo aportado · por repartir $ 0")).toBeInTheDocument();
+    // P335: the note's amount is its own whole element, so the note reads as one text.
+    expect(normalized(screen.getByText(/de lo aportado/).textContent)).toBe(
+      "36,75 % de lo aportado · por repartir $ 0",
+    );
     await userEvent.clear(screen.getByLabelText("Planeado"));
     await userEvent.type(screen.getByLabelText("Planeado"), "1.500.000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
@@ -607,7 +610,7 @@ describe("line editor (HU-E9-08)", () => {
     await more();
     expect(screen.queryByRole("button", { name: "Quitar rubro" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Cifras del rubro" })).toBeNull();
-    expect(screen.getByText("Por repartir: $ 0")).toBeInTheDocument();
+    expect(normalized(screen.getByText(/^Por repartir:/).textContent)).toBe("Por repartir: $ 0");
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plans/p-nov",

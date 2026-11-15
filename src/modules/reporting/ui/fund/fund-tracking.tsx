@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { absolute } from "@/modules/balances/ui";
 import { Badge, Icon } from "@/shared/ui";
 import type { FundTrackingDto, MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { periodName } from "@/shared/ui/time/period-name";
 import { barWidth } from "../lines/bar";
@@ -21,11 +22,10 @@ const MemberFundSheet = dynamic(
 );
 
 // The owe ink, never `text-owe`: the plain owe color fails AA contrast below 18.66 px and these figures are small.
-// An amount never breaks across lines (AGENTS.md): each figure keeps to one line, and a tile or a member's figure that
-// does not fit beside the others moves whole to the next row; `flex-1` keeps the ones on a row equally wide.
-const FIGURE = "text-base font-semibold whitespace-nowrap tabular-nums";
+// P335: each figure is an `Amount`, whole on one line, and a tile or a member's figure that does not fit beside the
+// others moves whole to the next row; `flex-1` keeps the ones on a row equally wide.
+const FIGURE = "text-base font-semibold";
 const TILE = "flex flex-1 flex-col rounded-xl border px-3 py-2.5";
-const MEMBER_FIGURE = "whitespace-nowrap tabular-nums";
 
 /**
  * HU-E9-10 (the Fund artboard, board E9-10 04 under ruling P272): the API's totals of what is expected, contributed
@@ -69,22 +69,26 @@ export function FundTracking({
         <dl className="flex flex-wrap gap-2">
           <div className={`${TILE} border-line bg-surface`}>
             <dt className="text-sm text-muted">{t("expected")}</dt>
-            <dd className={FIGURE}>{money(fund.totals.expected)}</dd>
+            <Amount as="dd" className={FIGURE}>
+              {money(fund.totals.expected)}
+            </Amount>
           </div>
           <div className={`${TILE} border-line bg-surface`}>
             <dt className="text-sm text-muted">{t("actual")}</dt>
-            <dd className={FIGURE}>{money(fund.totals.actual)}</dd>
+            <Amount as="dd" className={FIGURE}>
+              {money(fund.totals.actual)}
+            </Amount>
           </div>
           {/* "Falta" says the direction in a word, so the amount is written without its sign. */}
           <div className={`${TILE} ${short ? "border-transparent bg-owe-soft" : "border-line bg-surface"}`}>
             <dt className={`text-sm ${short ? "text-owe-ink" : "text-muted"}`}>
               {t(short ? "missing" : "difference")}
             </dt>
-            <dd data-field="difference" className={FIGURE + (short ? " text-owe-ink" : "")}>
+            <Amount as="dd" data-field="difference" className={FIGURE + (short ? " text-owe-ink" : "")}>
               {short
                 ? money(absolute(fund.totals.difference))
                 : formatSignedMoney(fund.totals.difference, formats)}
-            </dd>
+            </Amount>
           </div>
         </dl>
       </section>
@@ -139,20 +143,25 @@ export function FundTracking({
                 <dl className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
                   <div className="flex flex-1 flex-col">
                     <dt className="text-muted">{t("expected")}</dt>
-                    <dd className={`font-medium ${MEMBER_FIGURE}`}>{money(row.expected)}</dd>
+                    <Amount as="dd" className="font-medium">
+                      {money(row.expected)}
+                    </Amount>
                   </div>
                   <div className="flex flex-1 flex-col">
                     <dt className="text-muted">{t("actual")}</dt>
-                    <dd className={`font-medium ${MEMBER_FIGURE}`}>{money(row.actual)}</dd>
+                    <Amount as="dd" className="font-medium">
+                      {money(row.actual)}
+                    </Amount>
                   </div>
                   <div className="flex flex-1 flex-col text-right">
                     <dt className="text-muted">{t("difference")}</dt>
-                    <dd
+                    <Amount
+                      as="dd"
                       data-field="difference"
-                      className={`font-semibold ${MEMBER_FIGURE}${isNegative(row.difference) ? " text-owe-ink" : ""}`}
+                      className={`font-semibold${isNegative(row.difference) ? " text-owe-ink" : ""}`}
                     >
                       {formatSignedMoney(row.difference, formats)}
-                    </dd>
+                    </Amount>
                   </div>
                 </dl>
               </li>

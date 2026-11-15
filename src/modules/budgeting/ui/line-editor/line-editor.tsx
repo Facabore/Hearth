@@ -15,6 +15,7 @@ import {
   TextField,
 } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
+import { Amount, AmountText } from "@/shared/ui/atoms/amount";
 import type {
   AccountDto,
   BudgetPlanDto,
@@ -409,8 +410,8 @@ export function LineEditor({
           <h2 id={`${ids}-figures`} className="sr-only">
             {t("figures")}
           </h2>
-          {/* An amount never breaks across lines (AGENTS.md): each figure keeps to one line, and one that does not fit
-              beside the others moves whole to the next row; `flex-1` keeps the ones on a row equally wide. */}
+          {/* P335: each figure keeps to one line, and one that does not fit beside the others moves whole to the next
+              row; `flex-1` keeps the ones on a row equally wide. */}
           <dl className="flex flex-wrap gap-2">
             {(
               [
@@ -421,7 +422,9 @@ export function LineEditor({
             ).map(([key, value]) => (
               <div key={key} className="flex flex-1 flex-col">
                 <dt className="text-sm text-muted">{tReports(key)}</dt>
-                <dd className="font-semibold whitespace-nowrap text-ink tabular-nums">{money(value)}</dd>
+                <Amount as="dd" className="font-semibold text-ink">
+                  {money(value)}
+                </Amount>
               </div>
             ))}
             {line.carryOverFrom ? (
@@ -473,17 +476,19 @@ export function LineEditor({
             />
           </div>
           <p id={`${ids}-planned-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
-            {
-              // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
-              !personal && preview.kind === "noCapacity"
-                ? tAllocation("noCapacity")
-                : line?.capacityShare != null
-                  ? t("field.plannedHint", {
-                      share: formatPercent(line.capacityShare, formats),
-                      unallocated: money(plan.unallocated),
-                    })
-                  : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
-            }
+            <AmountText
+              text={
+                // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
+                !personal && preview.kind === "noCapacity"
+                  ? tAllocation("noCapacity")
+                  : line?.capacityShare != null
+                    ? t("field.plannedHint", {
+                        share: formatPercent(line.capacityShare, formats),
+                        unallocated: money(plan.unallocated),
+                      })
+                    : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
+              }
+            />
           </p>
         </div>
 
@@ -509,7 +514,7 @@ export function LineEditor({
           </button>
           {payNote ? (
             <p id={`${ids}-pay-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
-              {payNote}
+              <AmountText text={payNote} />
             </p>
           ) : null}
           {payersError ? <FieldError id={`${ids}-payers-error`}>{payersError}</FieldError> : null}
@@ -647,7 +652,7 @@ export function LineEditor({
               />
             </button>
             <p id={`${ids}-more-summary`} className="px-1 text-sm [overflow-wrap:anywhere] text-muted">
-              {summary}
+              <AmountText text={summary} />
             </p>
           </div>
           <div id={`${ids}-more`} hidden={!moreOpen} className="flex flex-col gap-4">

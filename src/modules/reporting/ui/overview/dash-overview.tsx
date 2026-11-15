@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Badge, VisuallyHidden } from "@/shared/ui";
 import type { MemberMatrixDto, MoneyDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { formatMoney, formatPercent, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { NodeLabel } from "../by-group/node-label";
 import { treeOf } from "../by-group/spending-tree";
@@ -86,7 +87,7 @@ function GroupsPanel({
                 <NodeLabel name={row.name} />
               </span>
               {row.archived ? <Badge>{t("byGroup.archived")}</Badge> : null}
-              <span className="ml-auto font-semibold">{formatMoney(row.total, formats)}</span>
+              <Amount className="ml-auto font-semibold">{formatMoney(row.total, formats)}</Amount>
               <span className="w-16 text-right text-sm text-muted">{formatPercent(row.share, formats)}</span>
             </span>
             <span aria-hidden="true" className="block h-2 w-full overflow-hidden rounded-full bg-track">

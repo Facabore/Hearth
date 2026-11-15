@@ -3,13 +3,16 @@
 import { useTranslations } from "next-intl";
 import { Sheet } from "@/shared/ui";
 import type { FundTrackingDto, MoneyDto } from "@/shared/ui/api/dto";
+import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 
 type FundRow = FundTrackingDto["members"][number];
 
-// An amount never breaks across lines (AGENTS.md): the row's words wrap beside it instead.
-const AMOUNT = "shrink-0 text-right text-base font-semibold whitespace-nowrap tabular-nums";
-const ROW = "flex items-start justify-between gap-3 border-b border-line py-3";
+// P335: a row's words wrap beside its amount, and the amount moves whole under them when they do not fit.
+const AMOUNT = `${AMOUNT_ROW_AMOUNT} text-base font-semibold`;
+const ROW = `${AMOUNT_ROW} items-start border-b border-line py-3`;
+const LABEL = `${AMOUNT_ROW_LABEL} flex flex-col`;
 
 /**
  * P328, board "Por persona · detalle de Ana · #316": what a member has to put in for the period ("Le toca", the hero,
@@ -58,13 +61,12 @@ export function MemberFundSheet({
     <Sheet open={open} onOpenChange={onOpenChange} title={t("title", { name, period })}>
       <div className="flex flex-col">
         <p className="text-sm text-muted">{t("share")}</p>
-        {/* One line at any size: a nine-digit amount fits a 320 px phone in the smaller type. */}
-        <p
-          data-amount
-          className="text-3xl font-semibold whitespace-nowrap tabular-nums text-ink min-[360px]:text-4xl"
-        >
-          {money(expected)}
-        </p>
+        {/* P335: one line at any width, font or number of digits; the figure scales with the sheet's width. */}
+        <HeroAmount
+          amount={money(expected)}
+          size="2.25rem"
+          className="leading-[1.1] font-semibold text-ink"
+        />
         {percent === null ? null : (
           <p className="text-sm text-muted">
             {t("ofFund", { percent: formatPercent(String(percent), formats), total: money(all) })}
@@ -73,19 +75,17 @@ export function MemberFundSheet({
         <ul className="mt-3 flex flex-col">
           {lines.map((line) => (
             <li key={line.lineId} className={ROW}>
-              <span className="flex min-w-0 flex-col">
+              <span className={LABEL}>
                 <span className="text-base [overflow-wrap:anywhere] text-ink">{line.name}</span>
                 <span className="text-sm text-muted">
                   {t("paidLine", { state: BigInt(line.amount.amount) > 0n ? "paid" : "pending" })}
                 </span>
               </span>
-              <span data-amount className={AMOUNT}>
-                {money(BigInt(line.amount.amount))}
-              </span>
+              <Amount className={AMOUNT}>{money(BigInt(line.amount.amount))}</Amount>
             </li>
           ))}
           <li className={ROW}>
-            <span className="flex min-w-0 flex-col">
+            <span className={LABEL}>
               <span className="text-base [overflow-wrap:anywhere] text-ink">
                 {t("toFund", { space: spaceName })}
               </span>
@@ -93,18 +93,14 @@ export function MemberFundSheet({
                 {t("toFundNote", { actual: money(intoFund), expected: money(throughFund) })}
               </span>
             </span>
-            <span data-amount className={AMOUNT}>
-              {money(throughFund)}
-            </span>
+            <Amount className={AMOUNT}>{money(throughFund)}</Amount>
           </li>
           {/* "Le faltan" says the direction in words, so the amount carries no sign; color is never the only signal. */}
-          <li className="flex items-center justify-between gap-3 py-3">
-            <span className="text-base font-semibold text-ink">{left > 0n ? t("left") : t("settled")}</span>
-            {left > 0n ? (
-              <span data-amount className={`${AMOUNT} text-owe-ink`}>
-                {money(left)}
-              </span>
-            ) : null}
+          <li className={`${AMOUNT_ROW} items-center py-3`}>
+            <span className={`${AMOUNT_ROW_LABEL} text-base font-semibold text-ink`}>
+              {left > 0n ? t("left") : t("settled")}
+            </span>
+            {left > 0n ? <Amount className={`${AMOUNT} text-owe-ink`}>{money(left)}</Amount> : null}
           </li>
         </ul>
       </div>

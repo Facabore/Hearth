@@ -139,11 +139,13 @@ describe("planner (HU-E9-08)", () => {
     expect(within(shares).getByText("40,00 %").tagName).toBe("STRONG");
   });
 
-  it("never breaks the capacity's total across lines (AGENTS.md)", () => {
+  it("never breaks the capacity's total across lines, and scales it to the card's width (AGENTS.md, P335)", () => {
     show();
     const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
     const total = within(card).getByText("$ 4.000.000");
-    expect(total).toHaveClass("text-3xl", "whitespace-nowrap");
+    expect(total).toHaveClass("whitespace-nowrap");
+    expect(total.className).toContain("cqi");
+    expect(total.style.getPropertyValue("--amount-size")).toBe("1.875rem");
     expect(total.className).not.toContain("overflow-wrap");
   });
 

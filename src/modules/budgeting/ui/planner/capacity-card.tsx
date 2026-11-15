@@ -1,6 +1,8 @@
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import type { MoneyDto } from "@/shared/ui/api/dto";
+import { AmountText } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 
 export interface CapacityRow {
@@ -50,10 +52,12 @@ export function CapacityCard({
           {t(personal ? "capacityPersonal" : "capacity")}
         </h2>
         <p className="text-sm [overflow-wrap:anywhere] text-muted">
-          {t(personal ? "unallocatedPersonal" : "unallocated", { amount: money(unallocated) })}
+          <AmountText
+            text={t(personal ? "unallocatedPersonal" : "unallocated", { amount: money(unallocated) })}
+          />
         </p>
       </div>
-      <p className="text-3xl font-semibold whitespace-nowrap text-ink">{money(total)}</p>
+      <HeroAmount amount={money(total)} size="1.875rem" className="leading-[1.2] font-semibold text-ink" />
       {shared.length > 0 ? (
         <div data-share-bar aria-hidden="true" className="flex h-2 gap-0.5 overflow-hidden rounded-full">
           {shared.map((row, index) => (
@@ -68,7 +72,7 @@ export function CapacityCard({
       <p className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm text-ink">
         {rows.map((row) => (
           <span key={row.memberId} className="[overflow-wrap:anywhere]">
-            {t("memberAmount", { name: row.name, amount: money(row.amount) })}
+            <AmountText text={t("memberAmount", { name: row.name, amount: money(row.amount) })} />
             {row.share === null ? null : (
               <>
                 {" · "}

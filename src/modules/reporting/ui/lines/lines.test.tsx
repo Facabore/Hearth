@@ -60,7 +60,9 @@ describe("line dashboard (HU-E9-10)", () => {
     const figures = [...document.querySelectorAll("[data-figure]")];
     expect(figures.length).toBeGreaterThan(1);
     for (const amount of figures) {
-      expect(amount).toHaveClass("shrink-0", "whitespace-nowrap");
+      // P335: whole on one line, beside the name while they fit and under it when not.
+      expect(amount).toHaveClass("whitespace-nowrap", "ml-auto");
+      expect(amount.parentElement).toHaveClass("flex-wrap");
       expect(amount.className).not.toContain("overflow-wrap");
     }
   });

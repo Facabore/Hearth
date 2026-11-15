@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { CashFlowDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { formatDate, formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { chipClass, PlanTabs } from "../plan-tabs";
 import { calendarHref } from "../views";
@@ -129,8 +130,7 @@ function FlowSummary({
       <h2 id="flow-summary">
         <VisuallyHidden>{t("summary")}</VisuallyHidden>
       </h2>
-      {/* An amount never breaks across lines (AGENTS.md): two figures to a row while they fit, and one that does not
-          moves whole to its own row. */}
+      {/* P335: two figures to a row while they fit, and one that does not moves whole to its own row. */}
       <dl className="flex flex-wrap gap-3">
         {(
           [
@@ -142,7 +142,9 @@ function FlowSummary({
         ).map(([key, value]) => (
           <div key={key} className="flex grow basis-[calc(50%-0.375rem)] flex-col">
             <dt className="text-sm text-muted">{t(key)}</dt>
-            <dd className="font-semibold whitespace-nowrap tabular-nums">{money(value)}</dd>
+            <Amount as="dd" className="font-semibold">
+              {money(value)}
+            </Amount>
           </div>
         ))}
       </dl>

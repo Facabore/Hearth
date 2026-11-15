@@ -25,8 +25,8 @@ describe("unified personal view (HU-E9-11)", () => {
     const paid = screen.getByRole("region", { name: "Lo que pagaste" });
     expect(normalized(paid.textContent)).toContain("Lo que pagaste$ 2.625.000");
     // The hero is the only large figure: the paid amount is a line of body text.
-    expect(within(hero).getByText("$ 1.575.000")).toHaveClass("text-3xl");
-    expect(within(paid).getByText("$ 2.625.000")).not.toHaveClass("text-3xl");
+    expect(within(hero).getByText("$ 1.575.000").style.getPropertyValue("--amount-size")).toBe("1.875rem");
+    expect(within(paid).getByText("$ 2.625.000").style.getPropertyValue("--amount-size")).toBe("");
     // Folded, the answer and the breakdown stay out of the way.
     const button = within(paid).getByRole("button", { name: "¿Por qué es distinto?" });
     expect(button).toHaveAttribute("aria-expanded", "false");

@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { usePeriodText } from "@/shared/ui";
 import type { PlanLineDto, SpaceDto } from "@/shared/ui/api/dto";
+import { AmountText } from "@/shared/ui/atoms/amount";
 import { formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 
 /**
@@ -25,9 +26,14 @@ export function CarryText({
   const period = periodText(carryOverFrom.period, policy, formats);
   return (
     <span className="text-sm text-muted [overflow-wrap:anywhere]">
-      {carryOverFrom.closed
-        ? t("carryOver", { amount: formatSignedMoney(line.carryOver, formats), period })
-        : t("carryOverPending", { period })}
+      {/* P335: the words wrap, the signed amount stays whole. */}
+      <AmountText
+        text={
+          carryOverFrom.closed
+            ? t("carryOver", { amount: formatSignedMoney(line.carryOver, formats), period })
+            : t("carryOverPending", { period })
+        }
+      />
     </span>
   );
 }

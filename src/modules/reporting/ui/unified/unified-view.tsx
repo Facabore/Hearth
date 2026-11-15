@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/shared/ui";
 import type { MoneyDto, UnifiedViewDto } from "@/shared/ui/api/dto";
+import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { useOriginText, type Origin } from "../origin";
 
@@ -63,7 +65,11 @@ export function UnifiedView({
           <p id={`${base}-spent`} className="text-sm text-muted">
             {t("spent")}
           </p>
-          <p className="text-3xl font-semibold whitespace-nowrap tabular-nums">{money(consumption.total)}</p>
+          <HeroAmount
+            amount={money(consumption.total)}
+            size="1.875rem"
+            className="leading-[1.2] font-semibold"
+          />
           <p className="text-sm text-muted">{t("consumptionHint")}</p>
         </section>
         <section aria-labelledby={`${base}-paid`} className="mt-2 flex flex-col border-t border-line pt-2">
@@ -71,7 +77,7 @@ export function UnifiedView({
             <span id={`${base}-paid`} className="text-muted">
               {t("paid")}
             </span>
-            <span className="font-semibold whitespace-nowrap tabular-nums">{money(cashOut.total)}</span>
+            <Amount className="font-semibold">{money(cashOut.total)}</Amount>
           </div>
           <button
             type="button"
@@ -100,11 +106,11 @@ export function UnifiedView({
                     ? [{ label: tr("outsideTheApp"), amount: cashOut.outsideTheApp }]
                     : []),
                 ].map((row) => (
-                  <div key={row.label} className="flex justify-between gap-3 py-2.5">
-                    <dt className="min-w-0 text-muted [overflow-wrap:anywhere]">{row.label}</dt>
-                    <dd className="shrink-0 text-right font-semibold whitespace-nowrap">
+                  <div key={row.label} className={`${AMOUNT_ROW} items-baseline py-2.5`}>
+                    <dt className={`${AMOUNT_ROW_LABEL} text-muted [overflow-wrap:anywhere]`}>{row.label}</dt>
+                    <Amount as="dd" className={`${AMOUNT_ROW_AMOUNT} font-semibold`}>
                       {money(row.amount)}
-                    </dd>
+                    </Amount>
                   </div>
                 ))}
               </dl>
@@ -125,9 +131,9 @@ export function UnifiedView({
                 <li
                   key={`${row.key ?? row.category?.id ?? index}`}
                   aria-labelledby={nameId}
-                  className={`flex justify-between gap-3 px-3.5 py-3 ${origin ? "items-center" : "items-baseline"}`}
+                  className={`${AMOUNT_ROW} px-3.5 py-3 ${origin ? "items-center" : "items-baseline"}`}
                 >
-                  <span className="flex min-w-0 flex-col">
+                  <span className={`${AMOUNT_ROW_LABEL} flex flex-col`}>
                     <span id={nameId} className="font-semibold [overflow-wrap:anywhere]">
                       {row.space ? tr("spaceScoped", { space: row.space.name, name: row.name }) : row.name}
                     </span>
@@ -137,9 +143,7 @@ export function UnifiedView({
                       </span>
                     ) : null}
                   </span>
-                  <span className="shrink-0 text-right font-semibold whitespace-nowrap tabular-nums">
-                    {money(row.amount)}
-                  </span>
+                  <Amount className={`${AMOUNT_ROW_AMOUNT} font-semibold`}>{money(row.amount)}</Amount>
                 </li>
               );
             })}

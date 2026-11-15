@@ -6,6 +6,8 @@ import { useId, useMemo, useRef, useState } from "react";
 import { Button, NumberField, ProblemNotice, Sheet, usePeriodText } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
+import { Amount, AmountText } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import type { Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { currencyOf } from "@/shared/ui/format/currencies";
@@ -179,17 +181,21 @@ export function CapacityForm({
                   />
                 </div>
               ) : (
-                <p className="text-2xl font-semibold whitespace-nowrap tabular-nums text-ink">
-                  {money(stored?.amount ?? zero)}
-                </p>
+                <HeroAmount
+                  amount={money(stored?.amount ?? zero)}
+                  size="1.5rem"
+                  className="leading-[1.333] font-semibold text-ink"
+                />
               )}
               {suggested !== null ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-accent-soft p-3 text-sm text-ink">
                   <p className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
-                    {t("capacity.suggestion", {
-                      amount: money(suggested),
-                      period: periodText(suggestion!.period, space.periodPolicy, formats),
-                    })}
+                    <AmountText
+                      text={t("capacity.suggestion", {
+                        amount: money(suggested),
+                        period: periodText(suggestion!.period, space.periodPolicy, formats),
+                      })}
+                    />
                   </p>
                   {editable ? (
                     <Button
@@ -220,17 +226,22 @@ export function CapacityForm({
         {/* Board 04: one tinted bar, the stored total on the left and each member's stored share on the right. */}
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-xl bg-track px-4 py-3 text-sm text-ink tabular-nums">
           <p className="[overflow-wrap:anywhere]">
-            {t("capacity.total")} <strong className="font-semibold">{money(plan.totalCapacity)}</strong>
+            {t("capacity.total")}{" "}
+            <Amount as="strong" className="font-semibold">
+              {money(plan.totalCapacity)}
+            </Amount>
           </p>
           <p className="[overflow-wrap:anywhere] text-muted">
-            {plan.capacities
-              .map((capacity) => {
-                const name = names.get(capacity.memberId) ?? "—";
-                return capacity.share === null
-                  ? t("planner.memberAmount", { name, amount: money(capacity.amount) })
-                  : t("capacity.memberShare", { name, share: formatPercent(capacity.share, formats) });
-              })
-              .join(" · ")}
+            <AmountText
+              text={plan.capacities
+                .map((capacity) => {
+                  const name = names.get(capacity.memberId) ?? "—";
+                  return capacity.share === null
+                    ? t("planner.memberAmount", { name, amount: money(capacity.amount) })
+                    : t("capacity.memberShare", { name, share: formatPercent(capacity.share, formats) });
+                })
+                .join(" · ")}
+            />
           </p>
         </div>
 

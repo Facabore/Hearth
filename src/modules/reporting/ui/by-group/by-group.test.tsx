@@ -168,10 +168,12 @@ describe("spending by group (HU-E9-10)", () => {
     expect(screen.getByText(/Total de Food/).closest("p")).toHaveFocus();
   });
 
-  it("never breaks a level's total across lines (AGENTS.md)", async () => {
+  it("never breaks a level's total across lines, and scales it to the width it has (AGENTS.md, P335)", async () => {
     show();
-    const totals = () => document.querySelector("p[tabindex='-1']")!.lastElementChild!;
-    expect(totals()).toHaveClass("text-3xl", "whitespace-nowrap");
+    const totals = () => document.querySelector("p[tabindex='-1'] [data-amount]") as HTMLElement;
+    expect(totals()).toHaveClass("whitespace-nowrap");
+    expect(totals().className).toContain("cqi");
+    expect(totals().style.getPropertyValue("--amount-size")).toBe("1.875rem");
     await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
     expect(totals()).toHaveClass("whitespace-nowrap");
     expect(totals().className).not.toContain("overflow-wrap");

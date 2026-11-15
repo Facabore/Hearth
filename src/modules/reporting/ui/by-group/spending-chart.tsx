@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { startTransition, useEffect, useOptimistic, useRef } from "react";
 import { Badge, Icon } from "@/shared/ui";
 import type { MoneyDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 import { DrillBreadcrumb } from "./drill-breadcrumb";
 import { useOriginText } from "../origin";
@@ -85,9 +87,11 @@ export function SpendingChart({
           </span>
           <span>{t(`hint.${HINTS[Math.min(trail.length, HINTS.length - 1)]!}`)}</span>
         </span>
-        <span className="text-3xl font-semibold whitespace-nowrap">
-          {formatMoney(node?.total ?? total, formats)}
-        </span>
+        <HeroAmount
+          amount={formatMoney(node?.total ?? total, formats)}
+          size="1.875rem"
+          className="leading-[1.2] font-semibold"
+        />
       </p>
       <ul aria-label={label} className="overflow-hidden rounded-2xl border border-line bg-surface">
         {rows.map((row) => {
@@ -108,9 +112,9 @@ export function SpendingChart({
                   ) : null}
                 </span>
                 <span className="ml-auto flex shrink-0 items-center gap-2">
-                  <span data-cell className="text-base font-semibold">
+                  <Amount data-cell className="text-base font-semibold">
                     {formatMoney(row.total, formats)}
-                  </span>
+                  </Amount>
                   <span data-cell className="w-16 text-right text-sm">
                     {formatPercent(row.share, formats)}
                   </span>

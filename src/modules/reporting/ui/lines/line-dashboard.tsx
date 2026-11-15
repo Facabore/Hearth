@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { CarryText } from "@/modules/budgeting/ui";
 import { Badge, VisuallyHidden } from "@/shared/ui";
 import type { LineDashboardDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/shared/ui/atoms/amount";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { barWidth } from "./bar";
 
@@ -16,8 +17,10 @@ const onPlan = (line: Pick<Line, "state" | "available">) =>
 
 const TRACK = "block h-1.5 w-full overflow-hidden rounded-full bg-track";
 // The owe ink for a negative figure: the plain owe color fails AA contrast below 18.66 px. Its sign says it too.
-// An amount never breaks across lines (AGENTS.md): the name wraps beside it instead.
-const FIGURE = "shrink-0 text-right font-semibold whitespace-nowrap tabular-nums";
+// P335: the name wraps beside its figure, and the figure moves whole under the name when they do not fit.
+const ROW = `${AMOUNT_ROW} items-baseline`;
+const NAME = `${AMOUNT_ROW_LABEL} font-semibold text-ink [overflow-wrap:anywhere]`;
+const FIGURE = `${AMOUNT_ROW_AMOUNT} font-semibold`;
 const tone = (value: { readonly amount: string }) => (isNegative(value) ? " text-owe-ink" : " text-ink");
 
 /**
@@ -123,13 +126,13 @@ export function LineList({
             aria-labelledby={nameId}
             className="flex flex-col gap-1.5 py-3"
           >
-            <div className="flex items-baseline justify-between gap-3">
-              <span id={nameId} data-name className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">
+            <div className={ROW}>
+              <span id={nameId} data-name className={NAME}>
                 {line.name}
               </span>
-              <span data-figure className={FIGURE + (done ? " text-ink" : tone(line.available))}>
+              <Amount data-figure className={FIGURE + (done ? " text-ink" : tone(line.available))}>
                 {done ? t("onPlan") : available(line.available)}
-              </span>
+              </Amount>
             </div>
             {line.overspent || (line.state === "HIGH" && !done) ? (
               <span className="flex flex-wrap gap-2">
@@ -167,17 +170,13 @@ export function LineList({
           aria-labelledby={`${base}-unbudgeted`}
           className="flex flex-col gap-1.5 py-3"
         >
-          <div className="flex items-baseline justify-between gap-3">
-            <span
-              id={`${base}-unbudgeted`}
-              data-name
-              className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]"
-            >
+          <div className={ROW}>
+            <span id={`${base}-unbudgeted`} data-name className={NAME}>
               {t("unbudgeted")}
             </span>
-            <span data-figure className={FIGURE + tone(unbudgeted.available)}>
+            <Amount data-figure className={FIGURE + tone(unbudgeted.available)}>
               {available(unbudgeted.available)}
-            </span>
+            </Amount>
           </div>
           <span aria-hidden="true" className={TRACK}>
             <span

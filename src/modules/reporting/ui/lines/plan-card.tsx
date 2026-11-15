@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Icon } from "@/shared/ui";
 import type { LineDashboardDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import { AmountText } from "@/shared/ui/atoms/amount";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { periodName } from "@/shared/ui/time/period-name";
 
@@ -79,9 +80,13 @@ export function PlanCard({
     return (
       <Link href={href} className="flex min-h-11 flex-col justify-center gap-1.5 text-sm text-muted">
         <span className="[overflow-wrap:anywhere]">
-          {overspent
-            ? t("ofPlanOver", { over: overBy, planned: money(totals.planned) })
-            : t("ofPlan", { planned: money(totals.planned) })}
+          <AmountText
+            text={
+              overspent
+                ? t("ofPlanOver", { over: overBy, planned: money(totals.planned) })
+                : t("ofPlan", { planned: money(totals.planned) })
+            }
+          />
         </span>
         <span
           data-plan-bar
@@ -90,7 +95,11 @@ export function PlanCard({
         >
           <span className="block h-full rounded-full bg-accent" style={{ width: `${spentShare(totals)}%` }} />
         </span>
-        {overText ? <span className="[overflow-wrap:anywhere] text-owe-ink">{overText}</span> : null}
+        {overText ? (
+          <span className="[overflow-wrap:anywhere] text-owe-ink">
+            <AmountText text={overText} />
+          </span>
+        ) : null}
       </Link>
     );
   const name = periodName(dashboard.period, policy);
@@ -109,12 +118,20 @@ export function PlanCard({
           </span>
           <span className="text-muted"> · </span>
           <span className="text-muted">
-            {overspent
-              ? t("overspent", { over: overBy, planned: money(totals.planned) })
-              : t("left", { available: money(totals.available), planned: money(totals.planned) })}
+            <AmountText
+              text={
+                overspent
+                  ? t("overspent", { over: overBy, planned: money(totals.planned) })
+                  : t("left", { available: money(totals.available), planned: money(totals.planned) })
+              }
+            />
           </span>
         </span>
-        {overText ? <span className="[overflow-wrap:anywhere] text-owe-ink">{overText}</span> : null}
+        {overText ? (
+          <span className="[overflow-wrap:anywhere] text-owe-ink">
+            <AmountText text={overText} />
+          </span>
+        ) : null}
       </span>
       <Icon name="chevronRight" size={18} className="shrink-0 text-muted" />
     </Link>
