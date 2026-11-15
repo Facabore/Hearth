@@ -156,14 +156,14 @@ describe("the home's recent rows say which day they are from (#216, F10)", () =>
       { locale: language },
     );
 
-  it("reads Hoy with the time today, Ayer yesterday, and the date before that, in the person's formats", () => {
+  it("reads Hoy with the time today, Ayer yesterday, and the day as Movimientos labels it before that (P324, P327)", () => {
     home();
     const [today, yesterday, lastWeek] = rows();
     expect(today).toContain("Lunch");
     expect(today).toContain("Hoy · 14:32 · ");
     expect(yesterday).toContain("Ayer · ");
     expect(yesterday).not.toContain("18:02");
-    expect(lastWeek).toContain("5/10/2026 · ");
+    expect(lastWeek).toContain("5 oct · ");
     expect(lastWeek).not.toContain("Hoy");
     expect(lastWeek).not.toContain("Ayer");
   });
@@ -179,7 +179,24 @@ describe("the home's recent rows say which day they are from (#216, F10)", () =>
         today="2026-10-13"
       />,
     );
-    expect(rows()[2]).toContain("2026/10/5 · ");
+    // P327: the month goes before the day in YMD, as Movimientos' day labels put it.
+    expect(rows()[2]).toContain("oct 5 · ");
+  });
+
+  it("names a day of another year with its year, as Movimientos does (P327)", () => {
+    renderWithIntl(
+      <HomeSummary
+        spaceId="sp-personal"
+        policy={{ kind: "MONTHLY", day: 1 }}
+        page={page}
+        accounts={[accountDto()]}
+        context={rowContext}
+        today="2027-01-02"
+      />,
+    );
+    const [, , lastWeek] = rows();
+    expect(lastWeek).toContain("5 oct 2026 · ");
+    expect(lastWeek).not.toContain("/");
   });
 
   it("speaks English in the English catalog", () => {
@@ -281,6 +298,16 @@ describe("the personal space shows everything (ruling P306)", () => {
     within(screen.getByRole("region", { name: "Recientes" }))
       .getAllByRole("listitem")
       .find((row) => row.textContent?.includes(name))!;
+
+  it("names an older day of her own movement as her spaces' rows do, never as a numeric date (P324, P327)", () => {
+    home();
+    const own = norm(rowOf("Salary").textContent);
+    const shared = norm(rowOf("Mercado del mes").textContent);
+    expect(own).toContain("25 oct · ");
+    expect(own).not.toMatch(/\d\/\d/);
+    // Her spaces' rows already said the day this way (e4ea705f).
+    expect(shared).toContain("Hoy · Hogar");
+  });
 
   it("shows one hero, her month, and one line of what it holds, with no parts to open (P324)", async () => {
     const { container } = home();

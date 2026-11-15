@@ -3,7 +3,8 @@ import { useTranslations } from "next-intl";
 import { categoryPath, CategoryIcon, findCategory } from "@/modules/categories/ui";
 import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
 import type { CategoryGroupDto, MoneyDto, TransactionDto } from "@/shared/ui/api/dto";
-import { formatDate, formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { formatDayMonthYear } from "@/shared/ui/format/day-month";
+import { formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
 import { kindOf } from "./movement-kind";
@@ -56,6 +57,7 @@ export function TransactionRow({
   };
 }) {
   const t = useTranslations("ledger");
+  const common = useTranslations("common");
   const { formats, viewerZone, groups, accountNames, memberNames } = context;
   const you = context.viewerMemberId ?? null;
   const name = (id: string | null) => (id ? (accountNames[id] ?? "") : "");
@@ -67,8 +69,19 @@ export function TransactionRow({
   let category: string | null = null;
   // Issue #216: a list not grouped by day names it: "Hoy · 14:32", "Ayer", then the date; only today keeps its time.
   const day = today === undefined ? null : relativeDay(tx.date, today);
+  // Ruling P327: an older day as Movimientos labels it ("10 nov", "10 nov 2025" outside today's year), as Recientes'
+  // rows of her other spaces do.
   if (today !== undefined)
-    meta.push(day === "today" || day === "yesterday" ? t(`day.${day}`) : formatDate(tx.date, formats));
+    meta.push(
+      day === "today" || day === "yesterday"
+        ? t(`day.${day}`)
+        : formatDayMonthYear(
+            tx.date,
+            common(`monthShort.${Number(tx.date.slice(5, 7)) as 1}`),
+            formats,
+            today,
+          ),
+    );
   // P324 (amends P284): Movimientos (`card`) groups rows by day and keeps them to two lines, so a row there leaves its
   // time to the detail sheet; only a record made in another zone still says when and where ("05:30 · Madrid").
   const elsewhere = tx.timeZone !== undefined && tx.timeZone !== null && tx.timeZone !== viewerZone;
