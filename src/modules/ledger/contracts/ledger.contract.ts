@@ -21,7 +21,7 @@ import {
   map,
   ok,
   type LocalDate,
-  type Money,
+  Money,
   type Result,
 } from "@/shared/kernel";
 import { PALETTE } from "@/shared/kernel/style";
@@ -46,7 +46,7 @@ import type {
 } from "../application";
 import { checkPartsFor, linkedHalfOf, MAX_ACTIVITY } from "../application";
 import { EqualSplitSchema, MAX_PARTS, PercentSplitSchema, SharesSplitSchema, splitOf } from "./split-body";
-import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/application";
+import type { DirectSplit, DirectSplitCounterpart, PeopleSplit } from "@/modules/spaces/application";
 
 // Length rules live in the domain (InvalidDescription, 200 characters); the cap only bounds payload size.
 const Description = z.string().max(1000).optional();
@@ -632,10 +632,22 @@ const DirectCounterpartSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
- * P331: who the expense was for. `mine` is the requester's part (zero when it was not for them) and `theirs` the
- * counterpart's, positive; both add up to the amount exactly.
+ * P331: who the expense was for. `mine` is the requester's part (zero when it was not for them), `theirs` the
+ * counterpart's, and each of `others` one more person's; every person's part is positive and all of them add up to
+ * the amount exactly.
  */
-const DirectPartsSchema = z.object({ mine: MoneySchema, theirs: MoneySchema });
+const DirectPartsSchema = z.object({
+  mine: MoneySchema,
+  theirs: MoneySchema,
+  others: z
+    .array(z.object({ counterpart: DirectCounterpartSchema, amount: MoneySchema }))
+    .min(1)
+    .max(MAX_PARTS)
+    .optional()
+    .describe(
+      "P331: more people the expense was for. Each part is recorded, in one transaction with the others, as an expense paid by the requester in that pair's direct space (created on first use) with that person as its only participant, and `mine`, when positive, as an expense of the requester's personal space.",
+    ),
+});
 
 /**
  * HU-E1-13: the requester pays the whole amount from one of their own accounts and it takes the default
@@ -669,54 +681,122 @@ export type DirectSplitExpense = Pick<
   readonly pairShares?: PairShares;
 };
 
-/** P331: the parts in money, in the expense's currency and adding up to it exactly. */
-const partsOf = (amount: Money, parts: z.infer<typeof DirectPartsSchema>): Result<PairShares> => {
-  const mine = moneyFromDto(parts.mine);
-  if (!mine.ok) return mine;
-  const theirs = moneyFromDto(parts.theirs);
-  if (!theirs.ok) return theirs;
-  const checked = checkPartsFor(amount, mine.value, [theirs.value]);
-  return checked.ok ? ok({ mine: mine.value, theirs: theirs.value }) : checked;
+/** P331: one person's direct split, or several people's parts with the requester's own. */
+export type DirectSplitRequest =
+  | {
+      readonly kind: "ONE";
+      readonly counterpart: DirectSplitCounterpart;
+      readonly expense: DirectSplitExpense;
+    }
+  | {
+      readonly kind: "MANY";
+      readonly people: readonly {
+        readonly counterpart: DirectSplitCounterpart;
+        readonly expense: DirectSplitExpense;
+      }[];
+      readonly own: DirectSplitExpense | null;
+    };
+
+const counterpartOf = (counterpart: z.infer<typeof DirectCounterpartSchema>): DirectSplitCounterpart =>
+  counterpart.kind === "MEMBER"
+    ? { memberId: counterpart.memberId }
+    : { guest: { displayName: counterpart.displayName, contactEmail: counterpart.contactEmail } };
+
+const moneyList = (dtos: readonly z.infer<typeof MoneySchema>[]): Result<Money[]> => {
+  const list: Money[] = [];
+  for (const dto of dtos) {
+    const money = moneyFromDto(dto);
+    if (!money.ok) return money;
+    list.push(money.value);
+  }
+  return ok(list);
 };
 
-export const directSplitFromBody = (
-  body: DirectSplitBody,
-): Result<{ counterpart: DirectSplitCounterpart; expense: DirectSplitExpense }> => {
+/** P331: each further person's part is an expense of its own that they alone share. */
+const partFor = (expense: DirectSplitExpense, part: Money, nothing: Money): DirectSplitExpense => ({
+  ...expense,
+  amount: part,
+  pairShares: { mine: nothing, theirs: part },
+});
+
+export const directSplitFromBody = (body: DirectSplitBody): Result<DirectSplitRequest> => {
   const amount = moneyFromDto(body.amount);
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
-  const pairShares = body.parts === undefined ? ok(undefined) : partsOf(amount.value, body.parts);
-  if (!pairShares.ok) return pairShares;
-  const { counterpart } = body;
+  const expense: DirectSplitExpense = {
+    description: body.description,
+    ...when.value,
+    amount: amount.value,
+    accountId: body.accountId,
+    categoryKey: body.categoryKey,
+  };
+  const counterpart = counterpartOf(body.counterpart);
+  const { parts } = body;
+  if (parts === undefined) return ok({ kind: "ONE", counterpart, expense });
+  const others = parts.others ?? [];
+  const monies = moneyList([parts.mine, parts.theirs, ...others.map((other) => other.amount)]);
+  if (!monies.ok) return monies;
+  const [mine, theirs, ...rest] = monies.value as [Money, Money, ...Money[]];
+  const checked = checkPartsFor(amount.value, mine, [theirs, ...rest]);
+  if (!checked.ok) return checked;
+  if (others.length === 0) {
+    return ok({ kind: "ONE", counterpart, expense: { ...expense, pairShares: { mine, theirs } } });
+  }
+  const nothing = Money.ofMinor(0n, amount.value.currency.code);
+  if (!nothing.ok) return nothing;
   return ok({
-    counterpart:
-      counterpart.kind === "MEMBER"
-        ? { memberId: counterpart.memberId }
-        : { guest: { displayName: counterpart.displayName, contactEmail: counterpart.contactEmail } },
-    expense: {
-      description: body.description,
-      ...when.value,
-      amount: amount.value,
-      accountId: body.accountId,
-      categoryKey: body.categoryKey,
-      ...(pairShares.value === undefined ? {} : { pairShares: pairShares.value }),
-    },
+    kind: "MANY",
+    people: [
+      { counterpart, expense: partFor(expense, theirs, nothing.value) },
+      ...others.map((other, index) => ({
+        counterpart: counterpartOf(other.counterpart),
+        expense: partFor(expense, rest[index]!, nothing.value),
+      })),
+    ],
+    own: mine.isZero() ? null : { ...expense, amount: mine },
   });
 };
 
 /** The direct space the split was recorded in, whether this split created it, and the expense. */
-export const DirectSplitSchema = z.object({
+const RecordedDirectSplitSchema = z.object({
   spaceId: z.string(),
   created: z.boolean(),
   expense: RecordedExpenseSchema,
 });
+export const DirectSplitSchema = RecordedDirectSplitSchema.extend({
+  others: z
+    .array(RecordedDirectSplitSchema)
+    .optional()
+    .describe("P331: each further person's part, in the order of `parts.others`, with its direct space."),
+  personal: z
+    .object({ spaceId: z.string(), expense: RecordedExpenseSchema })
+    .optional()
+    .describe("P331: the requester's own part, recorded in their personal space, when there were others."),
+});
 
-export const directSplitDto = (split: DirectSplit<RecordedExpense>): z.infer<typeof DirectSplitSchema> => ({
+const recordedSplitDto = (
+  split: DirectSplit<RecordedExpense>,
+): z.infer<typeof RecordedDirectSplitSchema> => ({
   spaceId: split.spaceId,
   created: split.created,
   expense: recordedExpenseDto(split.recorded),
 });
+
+export const directSplitDto = (split: DirectSplit<RecordedExpense>): z.infer<typeof DirectSplitSchema> =>
+  recordedSplitDto(split);
+
+/** P331: the first person's part leads, as a one-person split's does; the others and the requester's own follow. */
+export const peopleSplitDto = (split: PeopleSplit<RecordedExpense>): z.infer<typeof DirectSplitSchema> => {
+  const [first, ...others] = split.people;
+  return {
+    ...recordedSplitDto(first!),
+    others: others.map(recordedSplitDto),
+    ...(split.own === null
+      ? {}
+      : { personal: { spaceId: split.own.spaceId, expense: recordedExpenseDto(split.own.recorded) } }),
+  };
+};
 
 const SpacePath = z.object({ spaceId: z.string() });
 const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
@@ -1109,7 +1189,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
   "/api/v1/direct-splits": {
     post: {
       operationId: "splitWithPerson",
-      summary: "Split an expense with one person through your two-member direct space, created on first use",
+      summary:
+        "Split an expense with one person through your two-member direct space, created on first use, or say who among several it was for (P331)",
       ...securedByUser,
       requestParams: { header: IdempotencyHeader },
       requestBody: { content: jsonContent(DirectSplitBodySchema) },
@@ -1123,7 +1204,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired`,
         }),
       },
     },

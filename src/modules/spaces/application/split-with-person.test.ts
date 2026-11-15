@@ -6,9 +6,11 @@ import { createDirectSpace } from "../domain/direct-space";
 import { createPersonalSpace, type Space, type SpaceId, type SpaceMemberId } from "../domain/space";
 import { createSpaceAccess } from "./space-access";
 import {
+  createSplitWithPeople,
   createSplitWithPerson,
   type DirectExpenseRecorder,
   type DirectSplitCounterpart,
+  type SplitWithPersonDeps,
 } from "./split-with-person";
 
 const now = new Date("2026-10-14T12:00:00Z");
@@ -70,7 +72,7 @@ const world = (
       return result;
     },
   };
-  const split = createSplitWithPerson<string, string>({
+  const deps: SplitWithPersonDeps<string, string> = {
     access: createSpaceAccess(store),
     spaces: store,
     direct: store,
@@ -87,8 +89,10 @@ const world = (
     ids: sequentialIds("id"),
     clock: new FixedClock(now),
     tm: options.rollback ? rollingBack : memoryTm,
-  });
-  return { store, seeded, recorded, rolledBack, split };
+  };
+  const split = createSplitWithPerson<string, string>(deps);
+  const splitPeople = createSplitWithPeople<string, string>(deps);
+  return { store, seeded, recorded, rolledBack, split, splitPeople };
 };
 const byAna = (counterpart: DirectSplitCounterpart) => ({
   userId: "u-ana",
@@ -396,5 +400,91 @@ describe("SplitWithPerson and archived spaces (HU-E1-09, HU-E1-13)", () => {
       spaceId: "id-7",
       created: true,
     });
+  });
+});
+
+describe("SplitWithPeople: an expense that was for several people (P331)", () => {
+  const forPeople = (
+    people: readonly { counterpart: DirectSplitCounterpart; expense: string }[],
+    own: string | null,
+  ) => ({ userId: "u-ana", userName: "Ana", locale: "es", people, own });
+
+  it("records each part in its pair's direct space, created on first use, and Ana's own in her personal space", async () => {
+    const w = world();
+    const result = unwrap(
+      await w.splitPeople(
+        forPeople(
+          [
+            { counterpart: { memberId: JUAN.id }, expense: "Juan 50,000" },
+            { counterpart: { guest: { displayName: "Pedro" } }, expense: "Pedro 50,000" },
+          ],
+          "Ana 50,000",
+        ),
+      ),
+    );
+    const [withJuan, withPedro] = directSpaces(w.store);
+    expect(result).toEqual({
+      people: [
+        { spaceId: withJuan!.id, created: true, recorded: `expense in ${withJuan!.id}` },
+        { spaceId: withPedro!.id, created: true, recorded: `expense in ${withPedro!.id}` },
+      ],
+      own: { spaceId: "space-ana", recorded: "expense in space-ana" },
+    });
+    expect([withJuan!.name, withPedro!.name]).toEqual(["Ana & Juan", "Ana & Pedro"]);
+    expect(w.recorded).toEqual([
+      { spaceId: withJuan!.id, userId: "u-ana", expense: "Juan 50,000" },
+      { spaceId: withPedro!.id, userId: "u-ana", expense: "Pedro 50,000" },
+      { spaceId: "space-ana", userId: "u-ana", expense: "Ana 50,000" },
+    ]);
+  });
+
+  it("records nothing personal when the expense was not for Ana", async () => {
+    const w = world();
+    const result = unwrap(
+      await w.splitPeople(
+        forPeople(
+          [
+            { counterpart: { memberId: JUAN.id }, expense: "Juan" },
+            { counterpart: { guest: { displayName: "Pedro" } }, expense: "Pedro" },
+          ],
+          null,
+        ),
+      ),
+    );
+    expect(result.own).toBeNull();
+    expect(w.recorded.map((r) => r.expense)).toEqual(["Juan", "Pedro"]);
+  });
+
+  it("refuses all and keeps nothing when one part is refused, a person is named twice or nobody is named", async () => {
+    const refusing = world({
+      rollback: true,
+      recordExpense: async (input) =>
+        input.expense === "Pedro" ? err(domainError("CategoryNotFound")) : ok(""),
+    });
+    const twoGuests = forPeople(
+      [
+        { counterpart: { guest: { displayName: "Marta" } }, expense: "Marta" },
+        { counterpart: { guest: { displayName: "Pedro" } }, expense: "Pedro" },
+      ],
+      "Ana",
+    );
+    expect(codeOf(await refusing.splitPeople(twoGuests))).toBe("CategoryNotFound");
+    expect(refusing.rolledBack).toEqual([
+      { code: "CategoryNotFound", directSpaces: ["id-1", "id-4"], seeded: ["id-1", "id-4"] },
+    ]);
+    expect(directSpaces(refusing.store)).toEqual([]);
+    expect(refusing.recorded).toEqual([]);
+
+    const w = world({ rollback: true });
+    const juanTwice = forPeople(
+      [
+        { counterpart: { memberId: JUAN.id }, expense: "Juan" },
+        { counterpart: { memberId: JUAN.id }, expense: "Juan again" },
+      ],
+      null,
+    );
+    expect(codeOf(await w.splitPeople(juanTwice))).toBe("InvalidDirectCounterpart");
+    expect(w.recorded).toEqual([]);
+    expect(codeOf(await w.splitPeople(forPeople([], "Ana")))).toBe("ParticipantsRequired");
   });
 });

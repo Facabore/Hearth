@@ -127,6 +127,21 @@ const directSpaceFor = async (
   });
 };
 
+/** Resolves the person's direct space and records their expense there (HU-E1-13). */
+const recordWith = async <E, T>(
+  deps: SplitWithPersonDeps<E, T>,
+  requester: Requester,
+  counterpart: DirectSplitCounterpart,
+  expense: E,
+): Promise<Result<DirectSplit<T>>> => {
+  const resolved = await directSpaceFor(deps, requester, counterpart);
+  if (!resolved.ok) return resolved;
+  const { spaceId, created } = resolved.value;
+  const recorded = await deps.recordExpense({ spaceId, userId: requester.userId, expense });
+  if (!recorded.ok) return recorded;
+  return ok({ spaceId, created, recorded: recorded.value });
+};
+
 /**
  * HU-E1-13: splits an expense with one person through their two-member DIRECT space, created on the first
  * split and reused after it. Space and expense are recorded in one transaction, so a refused expense
@@ -135,11 +150,52 @@ const directSpaceFor = async (
 export const createSplitWithPerson =
   <E, T>(deps: SplitWithPersonDeps<E, T>): SplitWithPerson<E, T> =>
   (input) =>
-    deps.tm.run(async () => {
-      const resolved = await directSpaceFor(deps, input, input.counterpart);
-      if (!resolved.ok) return resolved;
-      const { spaceId, created } = resolved.value;
-      const recorded = await deps.recordExpense({ spaceId, userId: input.userId, expense: input.expense });
-      if (!recorded.ok) return recorded;
-      return ok({ spaceId, created, recorded: recorded.value });
+    deps.tm.run(() => recordWith(deps, input, input.counterpart, input.expense));
+
+/** P331: an expense that was for several people, each person's part with them and the recorder's own part. */
+export interface SplitWithPeopleInput<E> extends Requester {
+  /** Each other person with their part, as an expense of its own; at least one. */
+  readonly people: readonly { readonly counterpart: DirectSplitCounterpart; readonly expense: E }[];
+  /** The recorder's own part, recorded in their personal space; null when the expense was not for them. */
+  readonly own: E | null;
+}
+
+export interface PeopleSplit<T> {
+  /** Each person's part, in the order given, with the direct space it was recorded in. */
+  readonly people: readonly DirectSplit<T>[];
+  /** The recorder's own part in their personal space, or null. */
+  readonly own: { readonly spaceId: string; readonly recorded: T } | null;
+}
+
+export type SplitWithPeople<E, T> = (input: SplitWithPeopleInput<E>) => Promise<Result<PeopleSplit<T>>>;
+
+/**
+ * P331: records each person's part as an expense of the pair's direct space (created on first use, HU-E1-13) and the
+ * recorder's own part in their personal space, all in one transaction: a refused part refuses all, and nothing is
+ * stored. Each part's recording takes its space's money lock before reading its membership (issue #89). A person
+ * named twice is refused (InvalidDirectCounterpart), since their parts would land in one space as two debts.
+ */
+export const createSplitWithPeople =
+  <E, T>(deps: SplitWithPersonDeps<E, T>): SplitWithPeople<E, T> =>
+  (input) =>
+    deps.tm.run<PeopleSplit<T>>(async () => {
+      if (input.people.length === 0) return err(domainError("ParticipantsRequired"));
+      const people: DirectSplit<T>[] = [];
+      for (const { counterpart, expense } of input.people) {
+        const split = await recordWith(deps, input, counterpart, expense);
+        if (!split.ok) return split;
+        if (people.some((p) => p.spaceId === split.value.spaceId))
+          return err(domainError("InvalidDirectCounterpart", { reason: "repeated" }));
+        people.push(split.value);
+      }
+      if (input.own === null) return ok({ people, own: null });
+      const personal = (await deps.spaces.listForUser(input.userId)).find((s) => s.kind === "PERSONAL");
+      if (personal === undefined) return err(domainError("SpaceNotFound"));
+      const own = await deps.recordExpense({
+        spaceId: personal.id,
+        userId: input.userId,
+        expense: input.own,
+      });
+      if (!own.ok) return own;
+      return ok({ people, own: { spaceId: personal.id, recorded: own.value } });
     });

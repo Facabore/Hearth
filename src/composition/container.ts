@@ -239,6 +239,7 @@ import {
   createSpaceAccess,
   createUpdateSpaceSettings,
   createArchiveSpace,
+  createSplitWithPeople,
   createSplitWithPerson,
   createRemoveGuestMember,
   createClaimGuestPlace,
@@ -274,6 +275,8 @@ import {
   type StoredPeriodSource,
   type UpdateSpaceSettings,
   type ArchiveSpace,
+  type SplitWithPeople,
+  type SplitWithPersonDeps,
   type SplitWithPerson,
   type RemoveGuestMember,
   type LeaveSpace,
@@ -339,6 +342,8 @@ export interface Container extends RouteDeps {
     readonly changeMemberRole: ChangeMemberRole;
     readonly archiveSpace: ArchiveSpace;
     readonly splitWithPerson: SplitWithPerson<DirectSplitExpense, RecordedExpense>;
+    /** P331: an expense that was for several people, each part in its pair's direct space. */
+    readonly splitWithPeople: SplitWithPeople<DirectSplitExpense, RecordedExpense>;
     readonly removeGuest: RemoveGuestMember;
     readonly createGuestClaim: CreateGuestClaim;
     readonly claimGuestPlace: ClaimGuestPlace;
@@ -703,6 +708,18 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       () => undefined,
     );
   };
+  // HU-E1-13, P331: one person's split and several people's parts share how a direct space is found and recorded in.
+  const directSplitDeps: SplitWithPersonDeps<DirectSplitExpense, RecordedExpense> = {
+    access,
+    spaces: spaceRepository,
+    direct: spaceRepository,
+    onCreated: onSpaceCreated,
+    recordExpense: ({ spaceId, userId, expense }) =>
+      recordExpenseByCategoryKey({ spaceId, userId, ...expense }),
+    ids,
+    clock,
+    tm,
+  };
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
@@ -1012,17 +1029,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         spaces: spaceRepository,
         netBalances: createGetMemberNetBalances(ledgerQueries),
       }),
-      splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>({
-        access,
-        spaces: spaceRepository,
-        direct: spaceRepository,
-        onCreated: onSpaceCreated,
-        recordExpense: ({ spaceId, userId, expense }) =>
-          recordExpenseByCategoryKey({ spaceId, userId, ...expense }),
-        ids,
-        clock,
-        tm,
-      }),
+      splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>(directSplitDeps),
+      splitWithPeople: createSplitWithPeople<DirectSplitExpense, RecordedExpense>(directSplitDeps),
       removeGuest: createRemoveGuestMember({ ...lifecycleDeps, invitations: invitationRepository }),
       createGuestClaim: createCreateGuestClaim(claimsDeps),
       claimGuestPlace: createClaimGuestPlace(claimsDeps),

@@ -896,7 +896,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Split an expense with one person through your two-member direct space, created on first use */
+        /** Split an expense with one person through your two-member direct space, created on first use, or say who among several it was for (P331) */
         post: operations["splitWithPerson"];
         delete?: never;
         options?: never;
@@ -6395,6 +6395,21 @@ export interface operations {
                     parts?: {
                         mine: components["schemas"]["Money"];
                         theirs: components["schemas"]["Money"];
+                        /** @description P331: more people the expense was for. Each part is recorded, in one transaction with the others, as an expense paid by the requester in that pair's direct space (created on first use) with that person as its only participant, and `mine`, when positive, as an expense of the requester's personal space. */
+                        others?: {
+                            counterpart: {
+                                /** @constant */
+                                kind: "MEMBER";
+                                memberId: string;
+                            } | {
+                                /** @constant */
+                                kind: "GUEST";
+                                displayName: string;
+                                /** Format: email */
+                                contactEmail?: string;
+                            };
+                            amount: components["schemas"]["Money"];
+                        }[];
                     };
                 };
             };
@@ -6410,6 +6425,17 @@ export interface operations {
                         spaceId: string;
                         created: boolean;
                         expense: components["schemas"]["RecordedExpense"];
+                        /** @description P331: each further person's part, in the order of `parts.others`, with its direct space. */
+                        others?: {
+                            spaceId: string;
+                            created: boolean;
+                            expense: components["schemas"]["RecordedExpense"];
+                        }[];
+                        /** @description P331: the requester's own part, recorded in their personal space, when there were others. */
+                        personal?: {
+                            spaceId: string;
+                            expense: components["schemas"]["RecordedExpense"];
+                        };
                     };
                 };
             };
@@ -6440,7 +6466,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired */
             422: {
                 headers: {
                     [name: string]: unknown;

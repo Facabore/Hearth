@@ -94,10 +94,14 @@ export type { ClaimLinkRepository } from "./invitation-repository";
 export { createRemoveGuestMember, type RemoveGuestDeps, type RemoveGuestMember } from "./remove-guest-member";
 export type { DirectSpaceRepository, MemberInSpace } from "./direct-space-repository";
 export {
+  createSplitWithPeople,
   createSplitWithPerson,
   type DirectExpenseRecorder,
   type DirectSplit,
   type DirectSplitCounterpart,
+  type PeopleSplit,
+  type SplitWithPeople,
+  type SplitWithPeopleInput,
   type SplitWithPerson,
   type SplitWithPersonDeps,
   type SplitWithPersonInput,

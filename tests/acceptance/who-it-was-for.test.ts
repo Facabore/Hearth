@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
+import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { GET as listSpaces } from "@/app/api/v1/spaces/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
 import { setContainerForTests, type Container } from "@/composition/container";
@@ -30,7 +31,10 @@ interface Recorded {
   created: boolean;
   expense: TransactionDto;
 }
-type WhoItWasForDto = Recorded & Record<string, unknown>;
+interface WhoItWasForDto extends Recorded {
+  others?: Recorded[];
+  personal?: { spaceId: string; expense: TransactionDto };
+}
 
 const juanOf = (h: Household): Counterpart => ({ kind: "MEMBER", memberId: h.juan.memberId });
 const pedro: Counterpart = { kind: "GUEST", displayName: "Pedro" };
@@ -50,6 +54,18 @@ const record = (user: TestUser, body: unknown) =>
 const recorded = async (response: Response): Promise<WhoItWasForDto> => {
   expect(response.status).toBe(201);
   return (await response.json()) as WhoItWasForDto;
+};
+const expensesOf = async (user: TestUser, spaceId: string): Promise<TransactionDto[]> => {
+  const response = await call(
+    listTransactions,
+    "GET",
+    `/api/v1/spaces/${spaceId}/transactions?period=2026-10`,
+    {
+      user,
+      params: { spaceId },
+    },
+  );
+  return ((await response.json()) as { items: TransactionDto[] }).items;
 };
 const directSpacesOf = async (user: TestUser) => {
   const response = await call(listSpaces, "GET", "/api/v1/spaces", { user });
@@ -81,6 +97,8 @@ describe("who an expense was for, with one other person (P331, HU-E1-13)", () =>
       [ana, cop(120_000)],
       [juan, cop(-120_000)],
     ]);
+    expect(split.others).toBeUndefined();
+    expect(split.personal).toBeUndefined();
   });
 
   it("keeps half and half when Tú and one person split equally and no parts are sent (HU-E1-13 unchanged)", async () => {
@@ -114,13 +132,99 @@ describe("who an expense was for, with one other person (P331, HU-E1-13)", () =>
   });
 });
 
-describe("parts that cannot be (P331)", () => {
-  it("refuses parts that do not add up, a person's part that is not positive and another currency", async () => {
+describe("who an expense was for, with several people (P331)", () => {
+  it("records Juan's and the new guest Pedro's parts in their pair spaces, and nothing personal without Tú", async () => {
+    const h = await household();
+    const body = dinner(h, 150_000, juanOf(h), {
+      mine: cop(0),
+      theirs: cop(75_000),
+      others: [{ counterpart: pedro, amount: cop(75_000) }],
+    });
+    const split = await recorded(await record(h.ana, body));
+    expect(split.others).toHaveLength(1);
+    const withPedro = split.others![0]!;
+    expect(split.personal).toBeUndefined();
+    expect((await directSpacesOf(h.ana)).sort()).toEqual(["Ana & Juan", "Ana & Pedro"]);
+    for (const part of [split, withPedro]) {
+      const [ana, other] = await pairOf(h.ana, part.spaceId);
+      expect(part.expense).toMatchObject({
+        description: "Cena",
+        amount: cop(75_000),
+        payments: [{ memberId: ana, accountId: h.ana.account, amount: cop(75_000) }],
+        shares: [{ memberId: other, amount: cop(75_000) }],
+      });
+      expect(await balancesOf(h.ana, part.spaceId)).toEqual([
+        [ana, cop(75_000)],
+        [other, cop(-75_000)],
+      ]);
+    }
+    expect(withPedro.created).toBe(true);
+    expect(await expensesOf(h.ana, h.ana.personal.spaceId)).toEqual([]);
+  });
+
+  it("records Tú's part in the personal space and each part exactly: 100,000 COP among Ana, Juan and Luis", async () => {
+    const h = await household();
+    const luis = await joinHousehold(h, "Luis", "MEMBER");
+    const body = dinner(h, 100_000, juanOf(h), {
+      mine: cop(33_334),
+      theirs: cop(33_333),
+      others: [{ counterpart: { kind: "MEMBER", memberId: luis.memberId }, amount: cop(33_333) }],
+    });
+    const split = await recorded(await record(h.ana, body));
+    const parts = [split, ...split.others!];
+    expect(parts.map((p) => p.expense.amount)).toEqual([cop(33_333), cop(33_333)]);
+    expect(split.personal).toMatchObject({
+      spaceId: h.ana.personal.spaceId,
+      expense: {
+        amount: cop(33_334),
+        payments: [{ accountId: h.ana.account, amount: cop(33_334) }],
+      },
+    });
+    const personal = await expensesOf(h.ana, h.ana.personal.spaceId);
+    expect(personal.map((t) => [t.description, t.amount])).toEqual([["Cena", cop(33_334)]]);
+    expect(personal[0]!.shares).toHaveLength(1);
+    // Saldos: each debt with the right person, in that pair's space.
+    for (const [user, part] of [
+      [h.juan, split],
+      [luis, split.others![0]!],
+    ] as const) {
+      const [ana, other] = await pairOf(user, part.spaceId);
+      expect(await balancesOf(user, part.spaceId)).toEqual([
+        [ana, cop(33_333)],
+        [other, cop(-33_333)],
+      ]);
+    }
+  });
+
+  it("stores nothing at all when one part is refused: no expense with Juan and no space for the new guest", async () => {
+    const h = await household();
+    const before = await recorded(await record(h.ana, dinner(h, 20_000, juanOf(h))));
+    const namesake: Counterpart = { kind: "GUEST", displayName: "ana" };
+    const body = dinner(h, 150_000, juanOf(h), {
+      mine: cop(50_000),
+      theirs: cop(50_000),
+      others: [{ counterpart: namesake, amount: cop(50_000) }],
+    });
+    expect(await problemOf(await record(h.ana, body))).toEqual([409, "MemberNameTaken"]);
+    expect((await expensesOf(h.ana, before.spaceId)).map((t) => t.id)).toEqual([before.expense.id]);
+    expect(await directSpacesOf(h.ana)).toEqual(["Ana & Juan"]);
+    expect(await expensesOf(h.ana, h.ana.personal.spaceId)).toEqual([]);
+  });
+
+  it("refuses parts that do not add up, a person's part that is not positive and a person ticked twice", async () => {
     const h = await household();
     const refusals: [unknown, [number, string]][] = [
       [{ mine: cop(0), theirs: cop(70_000) }, [409, "SharesDoNotMatchAmount"]],
+      [
+        { mine: cop(0), theirs: cop(60_000), others: [{ counterpart: pedro, amount: cop(50_000) }] },
+        [409, "SharesDoNotMatchAmount"],
+      ],
       [{ mine: cop(120_000), theirs: cop(0) }, [422, "InvalidSplit"]],
       [{ mine: cop(-10_000), theirs: cop(130_000) }, [422, "InvalidSplit"]],
+      [
+        { mine: cop(0), theirs: cop(60_000), others: [{ counterpart: juanOf(h), amount: cop(60_000) }] },
+        [422, "InvalidDirectCounterpart"],
+      ],
       [{ mine: { amount: "0", currency: "USD" }, theirs: cop(120_000) }, [422, "CurrencyMismatch"]],
     ];
     for (const [parts, problem] of refusals)

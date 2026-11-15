@@ -28,6 +28,7 @@ const body = (overrides: Record<string, unknown> = {}) =>
 describe("direct-split bodies (HU-E1-13)", () => {
   it("names a new guest, or a member, and keeps the expense as RecordExpenseByCategoryKey takes it", () => {
     expect(unwrap(directSplitFromBody(body()))).toEqual({
+      kind: "ONE",
       counterpart: { guest: { displayName: "Pedro", contactEmail: undefined } },
       expense: {
         description: "Dinner",
@@ -38,7 +39,7 @@ describe("direct-split bodies (HU-E1-13)", () => {
       },
     });
     const member = body({ counterpart: { kind: "MEMBER", memberId: "member-pedro" } });
-    expect(unwrap(directSplitFromBody(member)).counterpart).toEqual({ memberId: "member-pedro" });
+    expect(unwrap(directSplitFromBody(member))).toMatchObject({ counterpart: { memberId: "member-pedro" } });
   });
 
   it("refuses currencies the kernel does not know", () => {

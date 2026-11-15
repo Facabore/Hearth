@@ -8549,7 +8549,7 @@
     "/api/v1/direct-splits": {
       "post": {
         "operationId": "splitWithPerson",
-        "summary": "Split an expense with one person through your two-member direct space, created on first use",
+        "summary": "Split an expense with one person through your two-member direct space, created on first use, or say who among several it was for (P331)",
         "security": [
           {
             "cookieAuth": []
@@ -8668,6 +8668,70 @@
                       },
                       "theirs": {
                         "$ref": "#/components/schemas/Money"
+                      },
+                      "others": {
+                        "description": "P331: more people the expense was for. Each part is recorded, in one transaction with the others, as an expense paid by the requester in that pair's direct space (created on first use) with that person as its only participant, and `mine`, when positive, as an expense of the requester's personal space.",
+                        "minItems": 1,
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "counterpart": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "const": "MEMBER"
+                                    },
+                                    "memberId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 64
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "memberId"
+                                  ]
+                                },
+                                {
+                                  "type": "object",
+                                  "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "const": "GUEST"
+                                    },
+                                    "displayName": {
+                                      "type": "string",
+                                      "maxLength": 200
+                                    },
+                                    "contactEmail": {
+                                      "type": "string",
+                                      "maxLength": 254,
+                                      "format": "email",
+                                      "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                                    }
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "displayName"
+                                  ]
+                                }
+                              ],
+                              "type": "object"
+                            },
+                            "amount": {
+                              "$ref": "#/components/schemas/Money"
+                            }
+                          },
+                          "required": [
+                            "counterpart",
+                            "amount"
+                          ]
+                        }
                       }
                     },
                     "required": [
@@ -8702,6 +8766,47 @@
                     },
                     "expense": {
                       "$ref": "#/components/schemas/RecordedExpense"
+                    },
+                    "others": {
+                      "description": "P331: each further person's part, in the order of `parts.others`, with its direct space.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "created": {
+                            "type": "boolean"
+                          },
+                          "expense": {
+                            "$ref": "#/components/schemas/RecordedExpense"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "created",
+                          "expense"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "personal": {
+                      "description": "P331: the requester's own part, recorded in their personal space, when there were others.",
+                      "type": "object",
+                      "properties": {
+                        "spaceId": {
+                          "type": "string"
+                        },
+                        "expense": {
+                          "$ref": "#/components/schemas/RecordedExpense"
+                        }
+                      },
+                      "required": [
+                        "spaceId",
+                        "expense"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -8745,7 +8850,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired",
             "content": {
               "application/problem+json": {
                 "schema": {
