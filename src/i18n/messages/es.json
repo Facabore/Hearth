@@ -628,7 +628,6 @@
     "split": {
       "title": "Quién pagó y para quién",
       "payer": "Pagó",
-      "payerTitle": "Quién pagó",
       "from": "Desde",
       "guestPays": "{name} es invitado: pagó fuera de la app, así que no hay cuenta que elegir.",
       "fundPays": "Sale de la cuenta {fund}. Nadie queda debiendo por este gasto.",
@@ -664,23 +663,11 @@
       },
       "incomplete": "Escribe el valor de cada persona.",
       "done": "Listo",
-      "paidBy": "<b>Pagó</b> {payer}",
-      "paidFrom": "<b>Pagó</b> {payer} desde {account}",
-      "paidForFund": "<b>Pagaste</b> por {fund} desde {account}",
       "split": "División",
-      "line": "{who} · {how}",
       "with": {
         "one": "Con {a}",
         "two": "Con {a} y {b}",
         "many": "Con {count} personas"
-      },
-      "how": {
-        "HALF": "mitad y mitad",
-        "EQUAL": "partes iguales",
-        "PERCENT": "por porcentaje",
-        "EXACT": "por montos",
-        "SHARES": "por partes",
-        "BY_ALLOCATION": "según el plan"
       },
       "addGuests": "Agregar a alguien",
       "addGuestsHint": "Alguien sin cuenta que pagó o participa"
@@ -696,6 +683,7 @@
       "guestName": "Nombre de quien no usa Hearth",
       "add": "Agregar",
       "otherPaid": "{name} lo pagó con su plata: no se mueve ninguna de tus cuentas.",
+      "onlyBetween": "Solo entre tú y {name}",
       "line": {
         "yourPart": "Tu parte",
         "owesYou": "Te debe",

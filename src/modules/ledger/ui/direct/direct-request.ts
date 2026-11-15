@@ -21,14 +21,18 @@ export const directBodyOf = (
   choice: DirectChoice,
   categoryKey: string,
   parts?: unknown,
+  paidBy?: "COUNTERPART",
 ): Record<string, unknown> => {
+  // P333: the counterpart paid with their own money, so no account of the recorder's goes.
+  const dropped = paidBy === undefined ? ["categoryId"] : ["categoryId", "accountId"];
   return {
-    ...Object.fromEntries(Object.entries(body).filter(([field]) => field !== "categoryId")),
+    ...Object.fromEntries(Object.entries(body).filter(([field]) => !dropped.includes(field))),
     counterpart:
       choice.kind === "MEMBER"
         ? { kind: "MEMBER", memberId: choice.memberId }
         : { kind: "GUEST", displayName: choice.displayName.trim() },
     categoryKey,
     ...(parts === undefined ? {} : { parts }),
+    ...(paidBy === undefined ? {} : { paidBy }),
   };
 };

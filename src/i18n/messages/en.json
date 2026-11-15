@@ -628,7 +628,6 @@
     "split": {
       "title": "Who paid and for whom",
       "payer": "Paid by",
-      "payerTitle": "Who paid",
       "from": "From",
       "guestPays": "{name} is a guest: they paid outside the app, so there is no account to choose.",
       "fundPays": "It comes out of {fund}. Nobody owes anything for this expense.",
@@ -664,23 +663,11 @@
       },
       "incomplete": "Enter a value for each person.",
       "done": "Done",
-      "paidBy": "<b>Paid by</b> {payer}",
-      "paidFrom": "<b>Paid by</b> {payer} from {account}",
-      "paidForFund": "<b>You paid</b> for {fund} from {account}",
       "split": "Split",
-      "line": "{who} · {how}",
       "with": {
         "one": "With {a}",
         "two": "With {a} and {b}",
         "many": "With {count} people"
-      },
-      "how": {
-        "HALF": "half and half",
-        "EQUAL": "equal shares",
-        "PERCENT": "by percentage",
-        "EXACT": "by amounts",
-        "SHARES": "by shares",
-        "BY_ALLOCATION": "per the plan"
       },
       "addGuests": "Add someone",
       "addGuestsHint": "Someone without an account who paid or takes part"
@@ -696,6 +683,7 @@
       "guestName": "Name of someone who doesn't use Hearth",
       "add": "Add",
       "otherPaid": "{name} paid with their own money: none of your accounts moves.",
+      "onlyBetween": "Only between you and {name}",
       "line": {
         "yourPart": "Your part",
         "owesYou": "Owes you",

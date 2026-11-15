@@ -8655,9 +8655,18 @@
                     "$ref": "#/components/schemas/Money"
                   },
                   "accountId": {
+                    "description": "The requester's account they paid from; required unless `paidBy` is COUNTERPART (P333).",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  "paidBy": {
+                    "description": "P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester names none, and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent.",
+                    "type": "string",
+                    "enum": [
+                      "REQUESTER",
+                      "COUNTERPART"
+                    ]
                   },
                   "parts": {
                     "description": "P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart.",
@@ -8743,8 +8752,7 @@
                 "required": [
                   "counterpart",
                   "categoryKey",
-                  "amount",
-                  "accountId"
+                  "amount"
                 ]
               }
             }
@@ -8850,7 +8858,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired, AccountRequired",
             "content": {
               "application/problem+json": {
                 "schema": {

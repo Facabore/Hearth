@@ -102,7 +102,9 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
     expect(await axeViolations(container)).toEqual([]);
     const sheet = await openWho();
     const payers = within(within(sheet).getByRole("radiogroup", { name: "Pagó" })).getAllByRole("radio");
-    expect(payers.map((radio) => radio.textContent)).toEqual(["Tú"]);
+    // P333 (board panel 3): Tú and the people the recorder shares a space with.
+    expect(payers.map((radio) => radio.textContent)).toEqual(["Tú", "Juan", "Luis", "Carlos (invitado)"]);
+    expect(payers[0]).toBeChecked();
     expect(within(sheet).getByRole("radiogroup", { name: "Desde" })).toBeInTheDocument();
     expect(person(sheet, "Tú")).toBeChecked();
     expect(lineOf(sheet, "Tú")).toBe("Tu parte");
@@ -354,5 +356,79 @@ describe("saving a personal expense for someone else (P172)", () => {
     const sheet = await openWho();
     expect(within(sheet).getAllByRole("checkbox")).toHaveLength(1);
     expect(within(sheet).getByRole("button", { name: "Agregar a alguien" })).toBeInTheDocument();
+  });
+});
+
+describe("someone else paid, from the personal space (P333, board panel 3)", () => {
+  const payer = (sheet: HTMLElement, name: string) =>
+    within(within(sheet).getByRole("radiogroup", { name: "Pagó" })).getByRole("radio", { name });
+
+  it("offers the people as who paid; Juan paying hides Desde and leaves only Tú and Juan to tick", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
+    form(api);
+    await dinner();
+    const sheet = await openWho();
+    expect(
+      within(within(sheet).getByRole("radiogroup", { name: "Pagó" }))
+        .getAllByRole("radio")
+        .map((radio) => radio.textContent),
+    ).toEqual(["Tú", "Juan", "Luis", "Carlos (invitado)"]);
+    await userEvent.click(payer(sheet, "Juan"));
+    expect(
+      within(sheet).getByText("Juan lo pagó con su plata: no se mueve ninguna de tus cuentas."),
+    ).toBeInTheDocument();
+    expect(within(sheet).queryByRole("radiogroup", { name: "Desde" })).not.toBeInTheDocument();
+    expect(person(sheet, "Tú")).toBeChecked();
+    expect(person(sheet, "Juan")).toBeChecked();
+    expect(lineOf(sheet, "Tú")).toBe("Le debes a Juan");
+    expect(lineOf(sheet, "Juan")).toBe("Su parte");
+    expect(person(sheet, "Luis")).toBeDisabled();
+    expect(lineOf(sheet, "Luis")).toBe("Solo entre tú y Juan");
+    expect(await axeViolations(document.body)).toEqual([]);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    expect(whoRow()).toHaveTextContent("Pagó Juan · le debes $ 60.000");
+    await save();
+    const body = await posted(requests);
+    expect(body).toMatchObject({
+      counterpart: { kind: "MEMBER", memberId: "m-juan-d" },
+      paidBy: "COUNTERPART",
+    });
+    expect(body).not.toHaveProperty("accountId");
+    expect(body).not.toHaveProperty("parts");
+  });
+
+  it("sends Tú's whole part when Juan paid it all for Tú", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
+    form(api);
+    await dinner();
+    const sheet = await openWho();
+    await userEvent.click(payer(sheet, "Juan"));
+    await userEvent.click(person(sheet, "Juan"));
+    expect(lineOf(sheet, "Juan")).toBe("No le toca nada");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    expect(whoRow()).toHaveTextContent("Pagó Juan · le debes $ 120.000");
+    await save();
+    expect(await posted(requests)).toMatchObject({
+      paidBy: "COUNTERPART",
+      parts: { mine: cop(120_000), theirs: cop(0) },
+    });
+  });
+
+  it("adds someone without Hearth who paid, from the + of Pagó", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-new", true) });
+    form(api);
+    await dinner("50000");
+    const sheet = await openWho();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Agregar a alguien que pagó" }));
+    await userEvent.type(within(sheet).getByLabelText("Nombre de quien no usa Hearth"), "Marta");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Agregar" }));
+    expect(payer(sheet, "Marta (invitado)")).toBeChecked();
+    expect(person(sheet, "Marta")).toBeChecked();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    await save();
+    expect(await posted(requests)).toMatchObject({
+      counterpart: { kind: "GUEST", displayName: "Marta" },
+      paidBy: "COUNTERPART",
+    });
   });
 });

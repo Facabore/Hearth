@@ -6390,7 +6390,13 @@ export interface operations {
                     timeZone?: string;
                     categoryKey: string;
                     amount: components["schemas"]["Money"];
-                    accountId: string;
+                    /** @description The requester's account they paid from; required unless `paidBy` is COUNTERPART (P333). */
+                    accountId?: string;
+                    /**
+                     * @description P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester names none, and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent.
+                     * @enum {string}
+                     */
+                    paidBy?: "REQUESTER" | "COUNTERPART";
                     /** @description P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart. */
                     parts?: {
                         mine: components["schemas"]["Money"];
@@ -6466,7 +6472,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired, AccountRequired */
             422: {
                 headers: {
                     [name: string]: unknown;

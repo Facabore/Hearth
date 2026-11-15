@@ -40,7 +40,14 @@ import type { Person } from "../direct/counterparts";
 // A type only: no runtime code of the edit modules enters the record route (P191, P198).
 import type { RecordInitial } from "../edit/edit-initial";
 import { categoryKeyOf, directBodyOf } from "../direct/direct-request";
-import { forWhomOrder, initialForWhom, ME, othersTicked, personalRequestOf } from "../direct/personal-split";
+import {
+  forWhomOrder,
+  initialForWhom,
+  ME,
+  myShareOf,
+  othersTicked,
+  personalRequestOf,
+} from "../direct/personal-split";
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
 import { useWhoPaidLine } from "../split/who-paid-line";
@@ -524,7 +531,13 @@ export function RecordForm({
       if (splitting && categoryKey !== null) {
         const { data, error, response } = await api.POST("/api/v1/direct-splits", {
           params: { header: { "idempotency-key": key } },
-          body: directBodyOf(built.body, splitting.counterpart, categoryKey, splitting.parts) as never,
+          body: directBodyOf(
+            built.body,
+            splitting.counterpart,
+            categoryKey,
+            splitting.parts,
+            splitting.paidBy,
+          ) as never,
         });
         if (response.ok && data) {
           renew();
@@ -598,11 +611,30 @@ export function RecordForm({
   );
   const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
   // P333 (board "Registrar: una fila"): "Pagaste tú con Bancolombia · para Juan y Ana".
+  // P333: "Pagó Juan · le debes $ 60.000" when someone else paid.
+  const otherPayer =
+    forWhom.payer === ME
+      ? null
+      : (known.find((p) => p.memberId === forWhom.payer)?.name ??
+        forWhom.guests.find((g) => g.id === forWhom.payer)?.name ??
+        "");
+  const myShare =
+    otherPayer === null
+      ? null
+      : myShareOf(forWhom, {
+          people: known,
+          amount: positiveMinor,
+          currency: space.currency,
+          numberFormat: formats.numberFormat,
+        });
   const personalLine = whoPaidLine({
-    payer: { kind: "ME", account: nameOf(accountId) },
+    payer:
+      otherPayer === null
+        ? { kind: "ME", account: nameOf(accountId) }
+        : { kind: "OTHER", name: otherPayer, owesThem: true },
     meIncluded: forWhom.draft.selected.includes(ME),
     others: othersTicked(forWhom, known).map((other) => other.name),
-    myShare: null,
+    myShare: myShare === null ? null : formatMoney({ amount: myShare, currency: space.currency }, formats),
   });
 
   // Ruling P333: who paid and whom it was for are one summary row, always on screen, so a problem in it is never folded

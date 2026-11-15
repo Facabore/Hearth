@@ -204,29 +204,41 @@ export interface PersonalWhoPaidSheetProps {
  * equal parts, amounts or percentages. Each debt is recorded in the pair's direct space.
  */
 export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
-  const { forWhom, onForWhom, people } = props;
+  const { forWhom, onForWhom, people, meId } = props;
   const t = useTranslations("ledger.who");
   const names = useTranslations("members");
   const tAccounts = useTranslations("accounts");
   const guestName = (name: string) => `${name} ${names("guestSuffix")}`;
+  const everyone = [
+    ...people.map((p) => ({ id: p.memberId, name: p.isGuest ? guestName(p.name) : p.name, first: p.name })),
+    ...forWhom.guests.map((g) => ({ id: g.id, name: guestName(g.name), first: g.name })),
+  ];
+  const paying = everyone.find((p) => p.id === forWhom.payer);
+  /** P333: someone else paying makes it theirs and the recorder's only, so both are ticked. */
+  const paidBy = (payer: string, guests = forWhom.guests): PersonalForWhom =>
+    payer === meId
+      ? { ...forWhom, guests, payer }
+      : { guests, payer, draft: { ...forWhom.draft, chosen: true, selected: [meId, payer] } };
+  const newGuest = (name: string) => ({ id: `new-${forWhom.guests.length + 1}`, name });
   return (
     <WhoPaidSheet
       open={props.open}
       onOpenChange={props.onOpenChange}
       description={props.title}
-      payers={[{ value: props.meId, label: t("you") }]}
-      payer={props.meId}
-      onPayer={() => undefined}
-      accounts={props.accounts}
+      payers={[{ value: meId, label: t("you") }, ...everyone.map((p) => ({ value: p.id, label: p.name }))]}
+      payer={forWhom.payer}
+      onPayer={(payer) => onForWhom(paidBy(payer))}
+      onAddPayerByName={(name) => {
+        const guest = newGuest(name);
+        onForWhom(paidBy(guest.id, [...forWhom.guests, guest]));
+      }}
+      payerNote={paying ? t("otherPaid", { name: paying.first }) : null}
+      accounts={paying ? null : props.accounts}
       accountId={props.accountId}
       onAccount={props.onAccount}
-      people={[
-        { id: props.meId, name: t("you") },
-        ...people.map((p) => ({ id: p.memberId, name: p.isGuest ? guestName(p.name) : p.name })),
-        ...forWhom.guests.map((g) => ({ id: g.id, name: guestName(g.name) })),
-      ]}
-      meId={props.meId}
-      paidById={props.meId}
+      people={[{ id: meId, name: t("you") }, ...everyone]}
+      meId={meId}
+      paidById={forWhom.payer}
       memberIds={props.memberIds}
       draft={forWhom.draft}
       onDraft={(draft: ShareDraft) => onForWhom({ ...forWhom, draft })}
@@ -235,16 +247,27 @@ export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
       currency={props.currency}
       formats={props.formats}
       planShares={null}
-      onAddByName={(name) => {
-        const id = `new-${forWhom.guests.length + 1}`;
-        onForWhom({
-          guests: [...forWhom.guests, { id, name }],
-          draft: { ...forWhom.draft, chosen: true, selected: [...forWhom.draft.selected, id] },
-        });
-      }}
+      // P333: a debt between two other people is not the recorder's to record.
+      lockedReason={
+        paying
+          ? (id) => (id === meId || id === paying.id ? null : t("onlyBetween", { name: paying.first }))
+          : undefined
+      }
+      onAddByName={
+        paying
+          ? undefined
+          : (name) => {
+              const guest = newGuest(name);
+              onForWhom({
+                ...forWhom,
+                guests: [...forWhom.guests, guest],
+                draft: { ...forWhom.draft, chosen: true, selected: [...forWhom.draft.selected, guest.id] },
+              });
+            }
+      }
       hint={t("hint")}
       newAccount={
-        props.newAccountHref
+        props.newAccountHref && !paying
           ? { href: props.newAccountHref, label: tAccounts("new"), empty: tAccounts("picker.empty") }
           : undefined
       }

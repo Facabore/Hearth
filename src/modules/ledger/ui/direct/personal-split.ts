@@ -12,16 +12,60 @@ export interface NewGuest {
   readonly name: string;
 }
 
-/** P331, P333: whom a personal expense was for, and how it is split. */
+/** P331, P333: who paid a personal expense, whom it was for, and how it is split. */
 export interface PersonalForWhom {
+  /** ME, or (P333) the person who paid with their own money: one of the people or a new guest. */
+  readonly payer: string;
   readonly draft: ShareDraft;
   readonly guests: readonly NewGuest[];
 }
 
 export const initialForWhom = (): PersonalForWhom => ({
+  payer: ME,
   draft: { method: "EQUAL", selected: [ME], values: {}, chosen: false },
   guests: [],
 });
+
+/**
+ * P333: someone else paying makes the expense theirs and the recorder's only (a debt between two other people is not
+ * the recorder's to record), so both are ticked; the recorder paying keeps whom it was for.
+ */
+export const withPayer = (forWhom: PersonalForWhom, payer: string): PersonalForWhom =>
+  payer === ME
+    ? { ...forWhom, payer }
+    : { ...forWhom, payer, draft: { ...forWhom.draft, chosen: true, selected: [ME, payer] } };
+
+const shareCheck = (
+  forWhom: PersonalForWhom,
+  input: {
+    readonly people: readonly Person[];
+    readonly amount: string;
+    readonly currency: string;
+    readonly numberFormat: NumberFormat;
+  },
+) =>
+  previewSplit({
+    method: forWhom.draft.method as ShareMethod,
+    amount: input.amount,
+    currency: input.currency,
+    numberFormat: input.numberFormat,
+    participants: participantsOf(forWhom.draft, forWhomOrder(input.people, forWhom.guests)),
+  });
+
+/** P333: the recorder's part in minor units, or null while it cannot be told. */
+export const myShareOf = (
+  forWhom: PersonalForWhom,
+  input: {
+    readonly people: readonly Person[];
+    readonly amount: string | null;
+    readonly currency: string;
+    readonly numberFormat: NumberFormat;
+  },
+): string | null => {
+  if (input.amount === null || forWhom.draft.method === "BY_ALLOCATION") return null;
+  const check = shareCheck(forWhom, { ...input, amount: input.amount });
+  return check.ok ? (check.shares.find((share) => share.memberId === ME)?.amount ?? null) : null;
+};
 
 /** The order the split rounds in: the recorder first, then the people, then the new guests. */
 export const forWhomOrder = (people: readonly Person[], guests: readonly NewGuest[]): string[] => [
@@ -68,30 +112,46 @@ export const personalRequestOf = (
   | {
       readonly kind: "DIRECT";
       readonly counterpart: Counterpart;
+      /** P333: the counterpart paid, with their own money. */
+      readonly paidBy?: "COUNTERPART";
       readonly parts?: {
         readonly mine: MoneyDto;
         readonly theirs: MoneyDto;
         readonly others?: readonly { readonly counterpart: Counterpart; readonly amount: MoneyDto }[];
       };
     } => {
-  const others = othersTicked(forWhom, input.people);
-  if (others.length === 0) return { kind: "OWN" };
   const counterpartOf = (id: string): Counterpart => {
     const guest = forWhom.guests.find((g) => g.id === id);
     return guest ? { kind: "GUEST", displayName: guest.name } : { kind: "MEMBER", memberId: id };
   };
   const { draft } = forWhom;
+  // P333: someone else paid: one expense in their direct space, of which the recorder owes their own part.
+  if (forWhom.payer !== ME) {
+    const counterpart = counterpartOf(forWhom.payer);
+    if (!draft.selected.includes(ME)) return { kind: "INVALID" };
+    if (draft.method === "EQUAL" && draft.selected.includes(forWhom.payer))
+      return { kind: "DIRECT", counterpart, paidBy: "COUNTERPART" };
+    if (input.amount === null || draft.method === "BY_ALLOCATION") return { kind: "INVALID" };
+    const check = shareCheck(forWhom, { ...input, amount: input.amount });
+    if (!check.ok) return { kind: "INVALID" };
+    const part = (id: string): MoneyDto => ({
+      amount: check.shares.find((s) => s.memberId === id)?.amount ?? "0",
+      currency: input.currency,
+    });
+    return {
+      kind: "DIRECT",
+      counterpart,
+      paidBy: "COUNTERPART",
+      parts: { mine: part(ME), theirs: part(forWhom.payer) },
+    };
+  }
+  const others = othersTicked(forWhom, input.people);
+  if (others.length === 0) return { kind: "OWN" };
   const [first, ...rest] = others;
   if (draft.method === "EQUAL" && others.length === 1 && draft.selected.includes(ME))
     return { kind: "DIRECT", counterpart: counterpartOf(first!.id) };
   if (input.amount === null || draft.method === "BY_ALLOCATION") return { kind: "INVALID" };
-  const check = previewSplit({
-    method: draft.method as ShareMethod,
-    amount: input.amount,
-    currency: input.currency,
-    numberFormat: input.numberFormat,
-    participants: participantsOf(draft, forWhomOrder(input.people, forWhom.guests)),
-  });
+  const check = shareCheck(forWhom, { ...input, amount: input.amount });
   if (!check.ok) return { kind: "INVALID" };
   const money = (id: string): MoneyDto => ({
     amount: check.shares.find((s) => s.memberId === id)?.amount ?? "0",

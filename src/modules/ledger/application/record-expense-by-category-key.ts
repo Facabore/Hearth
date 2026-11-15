@@ -28,26 +28,34 @@ export type RecordExpenseByCategoryKeyInput = Omit<RecordExpenseInput, "category
   readonly categoryKey: string;
   /** P331: the parts of a pair's expense; when absent, the default split (spec 5.3, HU-E6-08). */
   readonly pairShares?: PairShares;
+  /**
+   * P333 (P168 amended): the other member of a two-member space paid, with their own money and no account; the
+   * recorder names no account then.
+   */
+  readonly paidByOther?: boolean;
 };
 
 export type RecordExpenseByCategoryKey = (
   input: RecordExpenseByCategoryKeyInput,
 ) => Promise<Result<RecordedExpense>>;
 
-/** P331: EXACT parts for the two members of the space, the recorder's first; anyone else makes it not a pair. */
-const pairSplit = async (
+/** P331, P333: the other member of a two-member space; anyone else makes it not a pair. */
+const otherOf = async (
   deps: Pick<LedgerDeps, "members">,
   space: SpaceMembership,
-  shares: PairShares,
-): Promise<Result<SplitInput>> => {
+): Promise<Result<string>> => {
   const others = (await deps.members.listCurrent(space.spaceId)).filter((m) => m.id !== space.memberId);
-  if (others.length !== 1) return err(domainError("InvalidSplit", { reason: "notAPair" }));
-  const parts = [
-    { memberId: space.memberId, amount: shares.mine },
-    { memberId: others[0]!.id, amount: shares.theirs },
-  ];
-  return ok({ method: "EXACT", participants: parts.filter((p) => !p.amount.isZero()) });
+  return others.length === 1 ? ok(others[0]!.id) : err(domainError("InvalidSplit", { reason: "notAPair" }));
 };
+
+/** P331: EXACT parts for the two members, the recorder's first; a part of zero leaves that member out. */
+const pairSplit = (me: string, other: string, shares: PairShares): SplitInput => ({
+  method: "EXACT",
+  participants: [
+    { memberId: me, amount: shares.mine },
+    { memberId: other, amount: shares.theirs },
+  ].filter((p) => !p.amount.isZero()),
+});
 
 /**
  * HU-E1-13: records an expense whose category is named by its catalog key (D11), as a direct split does in
@@ -61,13 +69,22 @@ export const createRecordExpenseByCategoryKey =
     },
     recordExpense: RecordExpense,
   ): RecordExpenseByCategoryKey =>
-  async ({ categoryKey, pairShares, ...input }) => {
+  async ({ categoryKey, pairShares, paidByOther = false, ...input }) => {
     const writer = await authorizeWriter(deps, input.spaceId, input.userId);
     if (!writer.ok) return writer;
     const category = await deps.categoryKeys.findByKey(writer.value.spaceId, categoryKey);
     if (category === null) return err(domainError("CategoryNotFound"));
-    if (pairShares === undefined) return recordExpense({ ...input, categoryId: category.id });
-    const split = await pairSplit(deps, writer.value, pairShares);
-    if (!split.ok) return split;
-    return recordExpense({ ...input, categoryId: category.id, split: split.value });
+    if (pairShares === undefined && !paidByOther) return recordExpense({ ...input, categoryId: category.id });
+    const other = await otherOf(deps, writer.value);
+    if (!other.ok) return other;
+    const { accountId, ...rest } = input;
+    return recordExpense({
+      ...(paidByOther
+        ? { ...rest, payments: [{ memberId: other.value, accountId: null, amount: input.amount }] }
+        : { ...rest, ...(accountId === undefined ? {} : { accountId }) }),
+      categoryId: category.id,
+      ...(pairShares === undefined
+        ? {}
+        : { split: pairSplit(writer.value.memberId, other.value, pairShares) }),
+    });
   };

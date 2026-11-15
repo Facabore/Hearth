@@ -6,6 +6,7 @@ import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route"
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, startTestApp, type TestUser } from "../support/app";
 import {
+  balanceOf,
   balancesOf,
   cop,
   household,
@@ -229,6 +230,59 @@ describe("who an expense was for, with several people (P331)", () => {
     ];
     for (const [parts, problem] of refusals)
       expect(await problemOf(await record(h.ana, dinner(h, 120_000, juanOf(h), parts)))).toEqual(problem);
+    expect(await directSpacesOf(h.ana)).toEqual([]);
+  });
+});
+
+const withoutAccount = (body: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(body).filter(([field]) => field !== "accountId"));
+
+describe("someone else paid, recorded from the personal space (P333, P168 amended)", () => {
+  /** Juan paid for Ana's dinner with his own money: Ana records it from her personal space, naming no account. */
+  const paidByJuan = (h: Household, pesos: number, parts?: unknown) => {
+    return { ...withoutAccount(dinner(h, pesos, juanOf(h), parts)), paidBy: "COUNTERPART" };
+  };
+
+  it("records Juan as who paid, with no account, and Ana owing him her half", async () => {
+    const h = await household();
+    const split = await recorded(await record(h.ana, paidByJuan(h, 120_000)));
+    const [ana, juan] = await pairOf(h.ana, split.spaceId);
+    expect(split.expense).toMatchObject({
+      amount: cop(120_000),
+      payments: [{ memberId: juan, accountId: null, amount: cop(120_000) }],
+    });
+    expect(await balancesOf(h.ana, split.spaceId)).toEqual([
+      [ana, cop(-60_000)],
+      [juan, cop(60_000)],
+    ]);
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(2_000_000));
+  });
+
+  it("records it all for Ana when only Tú is ticked: she owes Juan the whole amount", async () => {
+    const h = await household();
+    const body = paidByJuan(h, 120_000, { mine: cop(120_000), theirs: cop(0) });
+    const split = await recorded(await record(h.ana, body));
+    const [ana, juan] = await pairOf(h.ana, split.spaceId);
+    expect(split.expense.shares.map((s) => [s.memberId, s.amount])).toEqual([[ana, cop(120_000)]]);
+    expect(await balancesOf(h.ana, split.spaceId)).toEqual([
+      [ana, cop(-120_000)],
+      [juan, cop(120_000)],
+    ]);
+  });
+
+  it("refuses others besides Juan, a part of Ana's that is not positive, and no account when Ana paid", async () => {
+    const h = await household();
+    const others = paidByJuan(h, 120_000, {
+      mine: cop(60_000),
+      theirs: cop(30_000),
+      others: [{ counterpart: { kind: "GUEST", displayName: "Pedro" }, amount: cop(30_000) }],
+    });
+    expect(await problemOf(await record(h.ana, others))).toEqual([422, "InvalidSplit"]);
+    const notMine = paidByJuan(h, 120_000, { mine: cop(0), theirs: cop(120_000) });
+    expect(await problemOf(await record(h.ana, notMine))).toEqual([422, "InvalidSplit"]);
+    const noAccount = withoutAccount(dinner(h, 120_000, juanOf(h)));
+    expect(await problemOf(await record(h.ana, noAccount))).toEqual([422, "AccountRequired"]);
     expect(await directSpacesOf(h.ana)).toEqual([]);
   });
 });

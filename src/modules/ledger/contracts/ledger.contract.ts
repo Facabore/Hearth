@@ -665,7 +665,15 @@ export const DirectSplitBodySchema = z.object({
   timeZone: TimeZoneName.optional(),
   categoryKey: z.string().min(1).max(64),
   amount: MoneySchema,
-  accountId: IdSchema,
+  accountId: IdSchema.optional().describe(
+    "The requester's account they paid from; required unless `paidBy` is COUNTERPART (P333).",
+  ),
+  paidBy: z
+    .enum(["REQUESTER", "COUNTERPART"])
+    .optional()
+    .describe(
+      "P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester names none, and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent.",
+    ),
   parts: DirectPartsSchema.optional().describe(
     "P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart.",
   ),
@@ -680,6 +688,8 @@ export type DirectSplitExpense = Pick<
   readonly categoryKey: string;
   /** P331: the requester's and the counterpart's parts; absent for the default split. */
   readonly pairShares?: PairShares;
+  /** P333: the counterpart paid, with their own money and no account. */
+  readonly paidByOther?: boolean;
 };
 
 /** P331: one person's direct split, or several people's parts with the requester's own. */
@@ -725,16 +735,29 @@ export const directSplitFromBody = (body: DirectSplitBody): Result<DirectSplitRe
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
+  const byCounterpart = body.paidBy === "COUNTERPART";
+  if (!byCounterpart && body.accountId === undefined) return err(domainError("AccountRequired"));
   const expense: DirectSplitExpense = {
     description: body.description,
     ...when.value,
     amount: amount.value,
-    accountId: body.accountId,
     categoryKey: body.categoryKey,
+    ...(byCounterpart ? { paidByOther: true } : { accountId: body.accountId! }),
   };
   const counterpart = counterpartOf(body.counterpart);
   const { parts } = body;
   if (parts === undefined) return ok({ kind: "ONE", counterpart, expense });
+  // P333: what the counterpart paid is only between the two; the requester's own part is what they owe.
+  if (byCounterpart) {
+    if (parts.others !== undefined)
+      return err(domainError("InvalidSplit", { reason: "othersPaidByCounterpart" }));
+    const pair = moneyList([parts.mine, parts.theirs]);
+    if (!pair.ok) return pair;
+    const [mine, theirs] = pair.value as [Money, Money];
+    const owed = checkPartsFor(amount.value, theirs, [mine]);
+    if (!owed.ok) return owed;
+    return ok({ kind: "ONE", counterpart, expense: { ...expense, pairShares: { mine, theirs } } });
+  }
   const others = parts.others ?? [];
   const monies = moneyList([parts.mine, parts.theirs, ...others.map((other) => other.amount)]);
   if (!monies.ok) return monies;
@@ -1205,7 +1228,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired, AccountRequired`,
         }),
       },
     },

@@ -58,6 +58,10 @@ export interface WhoPaidSheetProps {
   readonly onAddPerson?: (() => void) | undefined;
   /** "+ Agregar a alguien" asks for a name here instead: someone without Hearth, a guest once saved (P331). */
   readonly onAddByName?: ((name: string) => void) | undefined;
+  /** The "+" of "Pagó" asks for a name here instead: someone without Hearth paid (P333, personal space). */
+  readonly onAddPayerByName?: ((name: string) => void) | undefined;
+  /** P333: why someone cannot be ticked ("Solo entre tú y Juan"), or null when they can. */
+  readonly lockedReason?: ((id: string) => string | null) | undefined;
   /** A line under the list (P331: where each debt is kept). */
   readonly hint?: string | undefined;
   /** Under "Desde": a link to create an account that comes back to the form (N7), and what to say when there is none. */
@@ -76,7 +80,7 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
   const t = useTranslations("ledger.who");
   const ts = useTranslations("ledger.split");
   const common = useTranslations("common");
-  const [naming, setNaming] = useState(false);
+  const [naming, setNaming] = useState<"payer" | "person" | null>(null);
   const [name, setName] = useState("");
 
   const planned = draft.method === "BY_ALLOCATION";
@@ -163,11 +167,27 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
 
   const addByName = () => {
     const trimmed = name.trim();
-    if (trimmed === "" || !props.onAddByName) return;
-    props.onAddByName(trimmed);
+    const add = naming === "payer" ? props.onAddPayerByName : props.onAddByName;
+    if (trimmed === "" || !add) return;
+    add(trimmed);
     setName("");
-    setNaming(false);
+    setNaming(null);
   };
+  const nameField = (
+    <div className="flex flex-col gap-2">
+      <TextField
+        id="who-new-guest"
+        label={t("guestName")}
+        autoComplete="off"
+        value={name}
+        onChange={(event) => setName(event.target.value)}
+      />
+      <Button variant="secondary" className="self-start" disabled={name.trim() === ""} onClick={addByName}>
+        {t("add")}
+      </Button>
+    </div>
+  );
+  const onAddPayer = props.onAddPayer ?? (props.onAddPayerByName ? () => setNaming("payer") : undefined);
 
   return (
     <Sheet
@@ -203,11 +223,11 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               onValueChange={props.onPayer}
               options={props.payers.map((option) => ({ value: option.value, label: wrapped(option.label) }))}
             />
-            {props.onAddPayer ? (
+            {onAddPayer ? (
               <button
                 type="button"
                 aria-label={t("addPayer")}
-                onClick={props.onAddPayer}
+                onClick={onAddPayer}
                 className="flex size-11 items-center justify-center rounded-full border border-line bg-surface text-ink"
               >
                 <Icon name="plus" size={18} />
@@ -246,6 +266,7 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               </Link>
             </>
           ) : null}
+          {naming === "payer" ? nameField : null}
           {props.payerNote ? <p className="text-sm text-muted">{props.payerNote}</p> : null}
         </section>
         <section className="flex flex-col gap-2 border-t border-line pt-3">
@@ -260,6 +281,7 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               const ticked = selected.includes(person.id);
               const share = shares.find((s) => s.memberId === person.id);
               const typed = !planned && draft.method !== "EQUAL" && ticked;
+              const locked = props.lockedReason?.(person.id) ?? null;
               return (
                 <li
                   key={person.id}
@@ -270,7 +292,7 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
                     <input
                       type="checkbox"
                       checked={ticked}
-                      disabled={planned}
+                      disabled={planned || locked !== null}
                       onChange={() => toggle(person.id)}
                       aria-describedby={`who-line-${person.id}`}
                       className="size-[22px] shrink-0 accent-accent"
@@ -280,7 +302,7 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
                         {person.name}
                       </span>
                       <span id={`who-line-${person.id}`} className="text-sm text-muted">
-                        {lineOf(person.id, ticked)}
+                        {locked ?? lineOf(person.id, ticked)}
                       </span>
                     </span>
                   </label>
@@ -315,28 +337,12 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               );
             })}
           </ul>
-          {props.onAddByName && naming ? (
-            <div className="flex flex-col gap-2">
-              <TextField
-                id="who-new-guest"
-                label={t("guestName")}
-                autoComplete="off"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-              <Button
-                variant="secondary"
-                className="self-start"
-                disabled={name.trim() === ""}
-                onClick={addByName}
-              >
-                {t("add")}
-              </Button>
-            </div>
+          {props.onAddByName && naming === "person" ? (
+            nameField
           ) : props.onAddPerson || props.onAddByName ? (
             <button
               type="button"
-              onClick={props.onAddPerson ?? (() => setNaming(true))}
+              onClick={props.onAddPerson ?? (() => setNaming("person"))}
               className="flex min-h-11 items-center gap-2 self-start text-base font-semibold text-accent"
             >
               <Icon name="plus" size={18} />
