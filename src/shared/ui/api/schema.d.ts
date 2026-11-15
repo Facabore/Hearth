@@ -1544,6 +1544,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/referrals/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The first name of a referral link's owner (D27), public
+         * @description Answers only the referrer's first name. An unknown code and a malformed one answer the same 404, so the answer helps nobody tell one from the other.
+         */
+        get: operations["previewReferral"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/referrals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in person's referral link, points and the people who joined with it (D27) */
+        get: operations["getMyReferrals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/referrer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make the owner of a referral code the signed-in person's referrer (D27)
+         * @description Accepted only when the code is not the person's own, they have no referrer yet and their account was created less than 24 hours ago. The same claim again answers 204 too.
+         */
+        post: operations["claimReferrer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9179,6 +9236,147 @@ export interface operations {
                 };
             };
             /** @description ValidationFailed, InvalidPeriodLabel */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    previewReferral: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The referrer's first name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The first word of the referrer's name; never their email or id. */
+                        firstName: string;
+                    };
+                };
+            };
+            /** @description ReferralCodeNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getMyReferrals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person's referrals */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The person's referral code, created the first time it is read. */
+                        code: string;
+                        /** @description The link the code is shared as: <origin>/r/<code>. */
+                        link: string;
+                        /** @description One per referral whose person confirmed their email; counted on read, never stored. */
+                        points: number;
+                        /** @description The people who joined with the link, newest first; never their email or id. */
+                        items: {
+                            firstName: string;
+                            /**
+                             * Format: date
+                             * @description The day the account was created, in the referrer's time zone.
+                             */
+                            joinedOn: string;
+                            /** @description Whether it earns its point: the referred person confirmed their email. */
+                            counts: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    claimReferrer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The code's owner is the person's referrer */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ReferralCodeNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description OwnReferralCode, AlreadyReferred, ReferralWindowClosed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
             422: {
                 headers: {
                     [name: string]: unknown;

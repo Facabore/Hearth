@@ -211,6 +211,17 @@ import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-aut
 import { BuiltInInstallationRules } from "@/modules/identity/infrastructure/built-in-installation-rules";
 import { DrizzleUserProfiles } from "@/modules/identity/infrastructure/drizzle-user-profiles";
 import {
+  createClaimReferrer,
+  createGetMyReferrals,
+  createPreviewReferral,
+  type ClaimReferrer,
+  type GetMyReferrals,
+  type PreviewReferral,
+  type ReferralsDeps,
+} from "@/modules/referrals/application";
+import { cryptoReferralRandom } from "@/modules/referrals/infrastructure/crypto-referral-random";
+import { DrizzleReferrals } from "@/modules/referrals/infrastructure/drizzle-referrals";
+import {
   createAcceptInvitation,
   createAddGuestMember,
   createAddGuestMembers,
@@ -420,6 +431,12 @@ export interface Container extends RouteDeps {
     readonly getSpendingByGroup: GetSpendingByGroup;
     readonly getPersonalSpendingByGroup: GetPersonalSpendingByGroup;
     readonly getCashFlow: GetCashFlow;
+  };
+  /** D27: the person's referral link and points, a link's public preview and the claim after sign-up. */
+  readonly referrals: {
+    readonly getMine: GetMyReferrals;
+    readonly preview: PreviewReferral;
+    readonly claim: ClaimReferrer;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -905,6 +922,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     options.provisionUser ??
     (async (u: AuthUser) =>
       map(await createPersonalSpace({ userId: u.id, name: u.name, locale: u.locale }), () => undefined));
+  const referralStore = new DrizzleReferrals(tm);
+  const referralsDeps: ReferralsDeps = {
+    codes: referralStore,
+    referrals: referralStore,
+    // D27: the identity module's accounts (name, confirmed email, creation), which referrals never import.
+    people: profiles,
+    random: cryptoReferralRandom,
+    clock,
+    // The SPA's link page (`/r/<code>`); the URL carries only the code.
+    referralUrl: (code) => new URL(`/r/${code}`, env.BETTER_AUTH_URL).toString(),
+  };
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -1162,6 +1190,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
           };
         },
       }),
+    },
+    referrals: {
+      getMine: createGetMyReferrals(referralsDeps),
+      preview: createPreviewReferral(referralsDeps),
+      claim: createClaimReferrer(referralsDeps),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
