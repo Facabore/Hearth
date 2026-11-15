@@ -13,6 +13,7 @@ export type {
 } from "../domain/transaction";
 export { linkedHalfOf } from "../domain/transaction";
 export type { AllocationSplit, SplitInput } from "../domain/split";
+export { checkPartsFor } from "../domain/split";
 export type { LedgerDeps } from "./deps";
 export type {
   AccountBalances,
@@ -90,6 +91,7 @@ export {
 export {
   createRecordExpenseByCategoryKey,
   type CategoryKeyReader,
+  type PairShares,
   type RecordExpenseByCategoryKey,
   type RecordExpenseByCategoryKeyInput,
 } from "./record-expense-by-category-key";

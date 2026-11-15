@@ -679,6 +679,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     {
       access,
       spaceLocks: spaceRepository,
+      members: spaceRepository,
       categoryKeys: {
         findByKey: async (spaceId, key) => {
           const category = (await categoriesDeps.categories.listCategories(spaceId)).find(

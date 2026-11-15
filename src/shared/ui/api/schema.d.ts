@@ -6391,6 +6391,11 @@ export interface operations {
                     categoryKey: string;
                     amount: components["schemas"]["Money"];
                     accountId: string;
+                    /** @description P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart. */
+                    parts?: {
+                        mine: components["schemas"]["Money"];
+                        theirs: components["schemas"]["Money"];
+                    };
                 };
             };
         };
@@ -6426,7 +6431,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict */
+            /** @description MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6435,7 +6440,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit */
             422: {
                 headers: {
                     [name: string]: unknown;

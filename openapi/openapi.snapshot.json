@@ -8658,6 +8658,22 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  "parts": {
+                    "description": "P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart.",
+                    "type": "object",
+                    "properties": {
+                      "mine": {
+                        "$ref": "#/components/schemas/Money"
+                      },
+                      "theirs": {
+                        "$ref": "#/components/schemas/Money"
+                      }
+                    },
+                    "required": [
+                      "mine",
+                      "theirs"
+                    ]
                   }
                 },
                 "required": [
@@ -8719,7 +8735,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
+            "description": "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8729,7 +8745,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit",
             "content": {
               "application/problem+json": {
                 "schema": {

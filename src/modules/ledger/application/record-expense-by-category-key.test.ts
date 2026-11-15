@@ -21,6 +21,7 @@ const setup = (overrides: Partial<LedgerDeps> = {}) => {
     {
       access: fixture.deps.access,
       spaceLocks: fixture.deps.spaceLocks,
+      members: fixture.deps.members,
       categoryKeys: {
         findByKey: async (spaceId, key) => (spaceId === "space-ana" ? (catalog[key] ?? null) : null),
       },
@@ -72,6 +73,17 @@ describe("RecordExpenseByCategoryKey (HU-E1-13, D11)", () => {
     const { record, store } = setup({ access: fakeSpaceAccess(membership({ role: "VIEWER" })) });
     expect(codeOf(await record({ ...market, categoryKey: "no-such-key" }))).toBe("InsufficientRole");
     expect(codeOf(await record({ ...market, categoryKey: "groceries" }))).toBe("InsufficientRole");
+    expect(store.rows).toEqual([]);
+  });
+
+  it("refuses a pair's parts in a space that is not a pair (P331) and records nothing", async () => {
+    const { record, store } = setup();
+    const pairShares = { mine: money(0n), theirs: money(5_000_000n) };
+    const result = await record({ ...market, categoryKey: "groceries", pairShares });
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "InvalidSplit", details: { reason: "notAPair" } },
+    });
     expect(store.rows).toEqual([]);
   });
 });

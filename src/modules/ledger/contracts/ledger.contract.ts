@@ -33,6 +33,7 @@ import type {
   EditChanges,
   LedgerWarning,
   MyTransactionPage,
+  PairShares,
   PaymentInput,
   RecordedExpense,
   RecordExpenseInput,
@@ -43,7 +44,7 @@ import type {
   TransactionPage,
   TransactionPosition,
 } from "../application";
-import { linkedHalfOf, MAX_ACTIVITY } from "../application";
+import { checkPartsFor, linkedHalfOf, MAX_ACTIVITY } from "../application";
 import { EqualSplitSchema, MAX_PARTS, PercentSplitSchema, SharesSplitSchema, splitOf } from "./split-body";
 import type { DirectSplit, DirectSplitCounterpart } from "@/modules/spaces/application";
 
@@ -631,11 +632,17 @@ const DirectCounterpartSchema = z.discriminatedUnion("kind", [
 ]);
 
 /**
+ * P331: who the expense was for. `mine` is the requester's part (zero when it was not for them) and `theirs` the
+ * counterpart's, positive; both add up to the amount exactly.
+ */
+const DirectPartsSchema = z.object({ mine: MoneySchema, theirs: MoneySchema });
+
+/**
  * HU-E1-13: the requester pays the whole amount from one of their own accounts and it takes the default
  * split with the other person (spec 5.3, HU-E6-08): EQUAL, as a new direct space has no plan, and
  * BY_ALLOCATION once an ACTIVE plan of the space allocates the category's line. The category is a catalog
  * key of the default categories every direct space is seeded with (HU-E3-01, D11), since a new space's
- * category ids are not known yet.
+ * category ids are not known yet. P331: `parts` says instead who the expense was for.
  */
 export const DirectSplitBodySchema = z.object({
   counterpart: DirectCounterpartSchema,
@@ -646,6 +653,9 @@ export const DirectSplitBodySchema = z.object({
   categoryKey: z.string().min(1).max(64),
   amount: MoneySchema,
   accountId: IdSchema,
+  parts: DirectPartsSchema.optional().describe(
+    "P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart.",
+  ),
 });
 type DirectSplitBody = z.infer<typeof DirectSplitBodySchema>;
 
@@ -655,6 +665,18 @@ export type DirectSplitExpense = Pick<
   "description" | "date" | "occurredAt" | "timeZone" | "amount" | "accountId"
 > & {
   readonly categoryKey: string;
+  /** P331: the requester's and the counterpart's parts; absent for the default split. */
+  readonly pairShares?: PairShares;
+};
+
+/** P331: the parts in money, in the expense's currency and adding up to it exactly. */
+const partsOf = (amount: Money, parts: z.infer<typeof DirectPartsSchema>): Result<PairShares> => {
+  const mine = moneyFromDto(parts.mine);
+  if (!mine.ok) return mine;
+  const theirs = moneyFromDto(parts.theirs);
+  if (!theirs.ok) return theirs;
+  const checked = checkPartsFor(amount, mine.value, [theirs.value]);
+  return checked.ok ? ok({ mine: mine.value, theirs: theirs.value }) : checked;
 };
 
 export const directSplitFromBody = (
@@ -664,6 +686,8 @@ export const directSplitFromBody = (
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
+  const pairShares = body.parts === undefined ? ok(undefined) : partsOf(amount.value, body.parts);
+  if (!pairShares.ok) return pairShares;
   const { counterpart } = body;
   return ok({
     counterpart:
@@ -676,6 +700,7 @@ export const directSplitFromBody = (
       amount: amount.value,
       accountId: body.accountId,
       categoryKey: body.categoryKey,
+      ...(pairShares.value === undefined ? {} : { pairShares: pairShares.value }),
     },
   });
 };
@@ -1097,8 +1122,8 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "401": "Unauthenticated",
           "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
           "409":
-            "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+            "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict",
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit`,
         }),
       },
     },

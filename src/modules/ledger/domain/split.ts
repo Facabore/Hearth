@@ -111,3 +111,22 @@ export const splitShares = (
     })),
   );
 };
+
+/**
+ * P331: who an expense recorded from the personal Registrar was for. The recorder's own part (zero when it was not for
+ * them) and each other person's part, positive, all in the expense's currency and adding up to it exactly: each other
+ * person's part becomes what they owe the recorder.
+ */
+export const checkPartsFor = (amount: Money, mine: Money, theirs: readonly Money[]): Result<void> => {
+  const foreign = [mine, ...theirs].find((part) => part.currency.code !== amount.currency.code);
+  if (foreign !== undefined)
+    return err(
+      domainError("CurrencyMismatch", { expected: amount.currency.code, actual: foreign.currency.code }),
+    );
+  if (theirs.length === 0) return err(domainError("ParticipantsRequired"));
+  if (mine.isNegative()) return invalid("shareNotPositive");
+  const people = positiveShares(theirs.map((part) => part.minor));
+  if (!people.ok) return people;
+  const total = people.value.reduce((a, b) => a + b, mine.minor);
+  return total === amount.minor ? ok(undefined) : err(domainError("SharesDoNotMatchAmount"));
+};
