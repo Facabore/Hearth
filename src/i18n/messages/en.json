@@ -706,6 +706,46 @@
       },
       "hint": "Each debt stays in your space with that person and in Balances. Someone who doesn't use Hearth is added as a guest."
     },
+    "personTransfer": {
+      "mode": "Who the transfer is with",
+      "modes": {
+        "OWN": "Your accounts",
+        "TO": "To someone",
+        "FROM": "From someone"
+      },
+      "to": "To {name}",
+      "toMeta": "To whom",
+      "fromPerson": "From {name}",
+      "fromMeta": "From whom",
+      "choosePerson": "Choose someone",
+      "personTitle": {
+        "TO": "To whom?",
+        "FROM": "From whom?"
+      },
+      "from": "From {account}",
+      "into": "Into {account}",
+      "yourAccount": "Your account",
+      "in": "In {space}",
+      "newDirect": "Your space with {name}",
+      "spaceTitle": "In which space?",
+      "newDirectNote": "Created when you save, just for the two of you.",
+      "youOwed": "Space · you owed them {amount} there",
+      "theyOwed": "Space · they owed you {amount} there",
+      "even": "Space · nobody owed anything there",
+      "space": "Space",
+      "effect": {
+        "partial": "You pay {amount} toward your debt with {name}; you still owe them {rest}.",
+        "settle": "You settle your debt with {name}.",
+        "over": "You settle your debt of {debt} and {name} ends up owing you {rest}.",
+        "owes": "{name} ends up owing you {total}.",
+        "theirPartial": "{name} pays {amount} toward their debt with you; they still owe you {rest}.",
+        "theirSettle": "{name} settles their debt with you.",
+        "theirOver": "{name} settles their debt of {debt} and you end up owing them {rest}.",
+        "youOwe": "You end up owing {name} {total}."
+      },
+      "only": "Only in the space {space}.",
+      "noPeople": "You don't share a space with anyone yet: share one to transfer to them."
+    },
     "direct": {
       "noKey": "This category belongs only to your space {space}. Choose a default category to split the expense."
     }

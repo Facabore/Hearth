@@ -17,7 +17,7 @@ import {
 import { AccountPicker } from "@/modules/accounts/ui";
 import { controlsFor } from "@/modules/spaces/ui";
 import { activeTree, categoryPath, groupsForKind, type CategoryChoice } from "@/modules/categories/ui";
-import { Button, Icon, ProblemNotice, ScreenHeader } from "@/shared/ui";
+import { Button, ChoiceGroup, Icon, ProblemNotice, ScreenHeader } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
@@ -51,6 +51,7 @@ import {
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
 import { useWhoPaidLine } from "../split/who-paid-line";
+import type { PersonTransfer, TransferMode } from "./person-transfer";
 import { AmountField } from "./amount-field";
 import { CategoryTiles } from "./category-tiles";
 import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
@@ -93,6 +94,12 @@ const PersonalWhoPaidSheet = dynamic(
 const CategorySheet = dynamic(() => import("./category-sheet").then((module) => module.CategorySheet), {
   ssr: false,
 });
+
+/** P334: a transfer to or from someone, its rows and sheets in a chunk that loads when "A alguien" is chosen. */
+const PersonTransferRows = dynamic(
+  () => import("./person-transfer-rows").then((module) => module.PersonTransferRows),
+  { ssr: false },
+);
 
 /** Ruling P305: the spaces to record in, in a chunk of its own that loads on the first tap. */
 const SpaceSheet = dynamic(() => import("./space-sheet").then((module) => module.SpaceSheet), { ssr: false });
@@ -362,6 +369,8 @@ export function RecordForm({
   // The picker brings the dialog's code with it, so it loads on the first tap, not with the form (ADR 0004).
   const [pickerOpened, setPickerOpened] = useState(false);
   const [whoOpen, setWhoOpen] = useState(false);
+  // P334: a personal transfer between the recorder's own accounts, or to or from someone.
+  const [transfer, setTransfer] = useState<PersonTransfer>({ mode: "OWN", personId: null, placeIndex: 0 });
   const whoPaidLine = useWhoPaidLine();
   const [keylessTried, setKeylessTried] = useState(false);
   // Issue #215: what the person entered or chose, against what the form opened with; leaving asks only while they
@@ -382,7 +391,12 @@ export function RecordForm({
     shared && split && kind === "EXPENSE"
       ? { split, memberIds: shared.members.map((member) => member.id) }
       : undefined;
-  const built = requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
+  // P334: to or from someone, only the recorder's account takes part, as an income's does.
+  const toSomeone = !edit && space.kind === "PERSONAL" && kind === "TRANSFER" && transfer.mode !== "OWN";
+  const transferPerson = toSomeone ? people?.find((p) => p.memberId === transfer.personId) : undefined;
+  const built = toSomeone
+    ? requestOf({ ...draft, kind: "INCOME", category: null }, space.currency, formats.numberFormat)
+    : requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
   // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
   const typed = parseDecimal(amount, formats.numberFormat);
   const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
@@ -401,7 +415,9 @@ export function RecordForm({
   // A split with someone is its own request (P172): choosing someone else makes a new draft, so a new key.
   const splitting = personal?.kind === "DIRECT" ? personal : null;
   const { key, renew } = useIdempotencyKey(
-    built.ok ? JSON.stringify({ body: built.body, direct: splitting }) : "",
+    built.ok
+      ? JSON.stringify({ body: built.body, direct: splitting, transfer: toSomeone ? transfer : null })
+      : "",
   );
   const categoryKey = categoryKeyOf(live, category);
   const days = {
@@ -526,6 +542,36 @@ export function RecordForm({
           setProblem(failed);
           setPending(false);
         }
+        return;
+      }
+      // P334: a settlement with the person, in the space chosen for it (their direct space made on first use).
+      if (toSomeone && transferPerson) {
+        // Loaded on save, so the record route's own script does not carry it (ADR 0004).
+        const { personTransferRequest } = await import("./person-transfer");
+        const request = personTransferRequest(transfer, transferPerson, {
+          ...built.body,
+          accountId: built.body.accountId,
+        });
+        const sent =
+          request.path === "space"
+            ? await api.POST("/api/v1/spaces/{spaceId}/settlements", {
+                params: { path: { spaceId: request.spaceId }, header: { "idempotency-key": key } },
+                body: request.body as never,
+              })
+            : await api.POST("/api/v1/direct-settlements", {
+                params: { header: { "idempotency-key": key } },
+                body: request.body as never,
+              });
+        if (sent.response.ok && sent.data) {
+          renew();
+          const saved = sent.data as { id?: string; spaceId?: string; settlement?: { id: string } };
+          const savedIn = request.path === "space" ? request.spaceId : saved.spaceId!;
+          savedToast("TRANSFER", savedIn, saved.settlement?.id ?? saved.id);
+          leaveSheet(router, afterSaveUrl(savedIn, undefined, returnTo), () => router.refresh());
+          return;
+        }
+        setProblem(problemFrom(sent.error, sent.response));
+        setPending(false);
         return;
       }
       if (splitting && categoryKey !== null) {
@@ -724,6 +770,25 @@ export function RecordForm({
             placeholder={t("form.descriptionPlaceholder")}
             error={errorOf("description")}
           />
+          {/* P334 (board "Transferencia a alguien"): the recorder's own accounts, to someone or from someone. */}
+          {kind === "TRANSFER" && !edit && space.kind === "PERSONAL" ? (
+            <ChoiceGroup
+              layout="chips"
+              label={t("personTransfer.mode")}
+              value={transfer.mode}
+              onValueChange={(mode: TransferMode) =>
+                setTransfer((current) => ({
+                  ...current,
+                  mode,
+                  personId: current.personId ?? people?.[0]?.memberId ?? null,
+                }))
+              }
+              options={(["OWN", "TO", "FROM"] as const).map((mode) => ({
+                value: mode,
+                label: t(`personTransfer.modes.${mode}`),
+              }))}
+            />
+          ) : null}
           {kind === "TRANSFER" ? null : (
             <CategoryTiles
               groups={groups}
@@ -775,6 +840,20 @@ export function RecordForm({
                   }}
                   errorId={errorOf("account") ? "record-account-error" : undefined}
                 />
+              ) : toSomeone ? (
+                <PersonTransferRows
+                  people={people ?? []}
+                  transfer={transfer}
+                  onChange={setTransfer}
+                  accountName={nameOf(accountId)}
+                  onPickAccount={() => setSheet("account")}
+                  accountError={errorOf("account")}
+                  amount={positiveMinor}
+                  currency={space.currency}
+                  formats={formats}
+                  api={api}
+                  Row={SummaryRow}
+                />
               ) : sharedRows ? null : (
                 accountRow(
                   "account",
@@ -785,7 +864,7 @@ export function RecordForm({
                   fixedAccounts,
                 )
               )}
-              {kind === "TRANSFER"
+              {kind === "TRANSFER" && !toSomeone
                 ? accountRow(
                     "toAccount",
                     t("form.to"),
@@ -868,7 +947,8 @@ export function RecordForm({
             disabled={
               pending ||
               (!built.ok && built.field === "split") ||
-              (personal?.kind === "INVALID" && positiveMinor !== null)
+              (personal?.kind === "INVALID" && positiveMinor !== null) ||
+              (toSomeone && !transferPerson)
             }
             aria-describedby={warning ? "record-line-warning" : undefined}
           >

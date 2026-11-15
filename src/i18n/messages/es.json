@@ -706,6 +706,46 @@
       },
       "hint": "Cada deuda queda en tu espacio con esa persona y en Saldos. Si alguien no usa Hearth, se agrega como invitado."
     },
+    "personTransfer": {
+      "mode": "A quién va la transferencia",
+      "modes": {
+        "OWN": "Tus cuentas",
+        "TO": "A alguien",
+        "FROM": "De alguien"
+      },
+      "to": "A {name}",
+      "toMeta": "A quién",
+      "fromPerson": "De {name}",
+      "fromMeta": "De quién",
+      "choosePerson": "Elegir persona",
+      "personTitle": {
+        "TO": "¿A quién?",
+        "FROM": "¿De quién?"
+      },
+      "from": "Desde {account}",
+      "into": "Hacia {account}",
+      "yourAccount": "Tu cuenta",
+      "in": "En {space}",
+      "newDirect": "Tu espacio con {name}",
+      "spaceTitle": "¿En qué espacio?",
+      "newDirectNote": "Se crea al guardar, solo para ustedes dos.",
+      "youOwed": "Espacio · ahí le debías {amount}",
+      "theyOwed": "Espacio · ahí te debía {amount}",
+      "even": "Espacio · ahí no se debían nada",
+      "space": "Espacio",
+      "effect": {
+        "partial": "Abonas {amount} a tu deuda con {name}; aún le debes {rest}.",
+        "settle": "Saldas tu deuda con {name}.",
+        "over": "Saldas tu deuda de {debt} y {name} queda debiéndote {rest}.",
+        "owes": "{name} queda debiéndote {total}.",
+        "theirPartial": "{name} abona {amount} a su deuda contigo; aún te debe {rest}.",
+        "theirSettle": "{name} salda su deuda contigo.",
+        "theirOver": "{name} salda su deuda de {debt} y quedas debiéndole {rest}.",
+        "youOwe": "Quedas debiéndole {total} a {name}."
+      },
+      "only": "Solo en el espacio {space}.",
+      "noPeople": "Aún no compartes un espacio con nadie: comparte uno para transferirle."
+    },
     "direct": {
       "noKey": "Esta categoría es solo de tu espacio {space}. Elige una categoría predeterminada para dividir el gasto."
     }

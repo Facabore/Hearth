@@ -100,7 +100,7 @@ describe("record form save feedback (ruling P196)", () => {
 
   it("announces Gasto guardado after a split with someone", async () => {
     const people: Person[] = [
-      { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan" },
+      { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan", places: [] },
     ];
     const { api } = fakeApi({
       "POST /api/v1/direct-splits": () =>
@@ -153,7 +153,7 @@ describe("record form save feedback (ruling P196)", () => {
 
   it("goes back after a split with someone, and Ver opens it in the direct space (issue #172)", async () => {
     const people: Person[] = [
-      { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan" },
+      { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan", places: [] },
     ];
     const { api } = fakeApi({
       "POST /api/v1/direct-splits": () =>

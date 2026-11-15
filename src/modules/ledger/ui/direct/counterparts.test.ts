@@ -23,10 +23,44 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
         "sp-ana-carlos": [memberDto({ id: "m-ana-c" }), guestDto({ id: "m-carlos", displayName: "Carlos" })],
       },
     });
+    const direct = (spaceId: string, name: string, theirs: string, mine: string) => ({
+      spaceId,
+      name,
+      kind: "DIRECT",
+      theirMemberId: theirs,
+      myMemberId: mine,
+    });
+    const household = (theirs: string) => ({
+      spaceId: "sp-household",
+      name: householdSpace().name,
+      kind: "SHARED",
+      theirMemberId: theirs,
+      myMemberId: ana.id,
+    });
+    // P334: where a transfer with each can go: the direct space first (to be made when there is none), then the groups.
+    const notYet = { spaceId: null, name: null, kind: "DIRECT", theirMemberId: null, myMemberId: null };
     expect(people).toEqual([
-      { memberId: "m-carlos", name: "Carlos", isGuest: true, directSpace: "Ana & Carlos" },
-      { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan" },
-      { memberId: "m-luis", name: "Luis", isGuest: false, directSpace: null },
+      {
+        memberId: "m-carlos",
+        name: "Carlos",
+        isGuest: true,
+        directSpace: "Ana & Carlos",
+        places: [direct("sp-ana-carlos", "Ana & Carlos", "m-carlos", "m-ana-c")],
+      },
+      {
+        memberId: "m-juan-d",
+        name: "Juan",
+        isGuest: false,
+        directSpace: "Ana & Juan",
+        places: [direct("sp-ana-juan", "Ana & Juan", "m-juan-d", "m-ana-d"), household("m-juan-h")],
+      },
+      {
+        memberId: "m-luis",
+        name: "Luis",
+        isGuest: false,
+        directSpace: null,
+        places: [notYet, household("m-luis")],
+      },
     ]);
   });
 
@@ -44,6 +78,7 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
         "sp-trip": [ana, memberDto({ id: "m-luis-t", userId: "u-luis", displayName: "Luis" })],
       },
     });
-    expect(people).toEqual([{ memberId: "m-luis", name: "Luis", isGuest: false, directSpace: null }]);
+    expect(people).toMatchObject([{ memberId: "m-luis", name: "Luis", isGuest: false, directSpace: null }]);
+    expect(people[0]!.places.map((place) => place.spaceId)).toEqual([null, "sp-household", "sp-trip"]);
   });
 });

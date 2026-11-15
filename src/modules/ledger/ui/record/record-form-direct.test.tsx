@@ -36,9 +36,9 @@ const mine = categoryDto({ id: "c-mine", name: "Mine", key: null });
 const groups = [groupDto({ id: "g-food", name: "Food", categories: [groceries, mine] })];
 const accounts = [accountDto({ id: "a-bank", name: "Bancolombia", type: "BANK" })];
 const PEOPLE: Person[] = [
-  { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan" },
-  { memberId: "m-luis", name: "Luis", isGuest: false, directSpace: null },
-  { memberId: "m-carlos", name: "Carlos", isGuest: true, directSpace: "Ana & Carlos" },
+  { memberId: "m-juan-d", name: "Juan", isGuest: false, directSpace: "Ana & Juan", places: [] },
+  { memberId: "m-luis", name: "Luis", isGuest: false, directSpace: null, places: [] },
+  { memberId: "m-carlos", name: "Carlos", isGuest: true, directSpace: "Ana & Carlos", places: [] },
 ];
 const form = (api: Api, extra: Partial<RecordFormProps> = {}) =>
   renderWithIntl(
