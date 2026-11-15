@@ -30,11 +30,20 @@ export function SignUpFormContainer({
   next = "/",
   invitation,
   api: injected,
+  invitedBy,
+  afterSignUp,
 }: {
   /** Already made safe by the page (`safeNext`, ruling P157). */
   readonly next?: string;
   readonly invitation?: string;
   readonly api?: Api;
+  /** D27: the first name of the person whose referral link the visitor opened. */
+  readonly invitedBy?: string;
+  /**
+   * D27: runs once the account exists, before the route moves on, with the new session (the referral's claim). A
+   * failure is its own to ignore: the account is made either way.
+   */
+  readonly afterSignUp?: () => Promise<void>;
 }) {
   const router = useRouter();
   const t = useTranslations("auth.signUp");
@@ -57,6 +66,7 @@ export function SignUpFormContainer({
         },
       });
       if (response.ok) {
+        if (afterSignUp) await afterSignUp().catch(() => undefined);
         router.replace(next);
         router.refresh();
         return;
@@ -93,6 +103,7 @@ export function SignUpFormContainer({
       problem={problem && where === "form" ? problem : null}
       signInHref={signInHref}
       trustHref={trustHrefOf(next, invitation)}
+      {...(invitedBy === undefined ? {} : { invitedBy })}
     />
   );
 }

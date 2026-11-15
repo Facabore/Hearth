@@ -41,9 +41,11 @@ describe("the first screen's chunks, preloaded by the HTML (ADR 0004, 2026-10-28
     expect(modulesOf("/settings")).toEqual(["routes/settings"]);
     // Ruling P276: New space has a chunk of its own, without the Settings form and its copy.
     expect(modulesOf("/spaces/new")).toEqual(["routes/new-space"]);
-    // Every screen with an address of its own: all the routes with a path but "/", a redirect, and the space's shell.
+    // Every screen with an address of its own: all the routes with a path but "/" and D27's referral link, which are
+    // redirects, and the space's shell.
     const paths = readFileSync("src/spa/routes.tsx", "utf8").match(/\n {2}path: "/g)!.length;
-    expect(table).toHaveLength(paths - 2);
+    expect(table).toHaveLength(paths - 3);
+    expect(table.map((route) => route.pattern)).not.toContain("/r/$code");
   });
 
   it("preloads the files of the screen the address names, a static segment before a parameter", () => {

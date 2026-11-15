@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Button, ProblemNotice, TextField } from "@/shared/ui";
+import { Avatar, Button, ProblemNotice, TextField } from "@/shared/ui";
 import type { Problem } from "@/shared/ui/api/problem";
 import { PasswordField } from "./password-field";
 
@@ -20,6 +20,8 @@ export interface SignUpFormProps {
   readonly signInHref?: string;
   /** Ruling P290: the trust page, keeping the same two, so its way back returns here as it was. */
   readonly trustHref?: string;
+  /** D27: the first name of the person whose referral link the visitor opened; none draws no chip. */
+  readonly invitedBy?: string;
 }
 
 /**
@@ -34,6 +36,7 @@ export function SignUpForm({
   problem,
   signInHref = "/sign-in",
   trustHref = "/trust",
+  invitedBy,
 }: SignUpFormProps) {
   const t = useTranslations("auth");
   const [mismatch, setMismatch] = useState(false);
@@ -57,6 +60,13 @@ export function SignUpForm({
   };
   return (
     <form onSubmit={submit} className="flex flex-col gap-3" noValidate>
+      {invitedBy ? (
+        // D27, board "3 · Crear cuenta invitado": who invited the visitor, above the title.
+        <p className="flex min-h-12 items-center gap-2 rounded-2xl bg-accent-soft px-3 py-2 text-[15px] font-medium text-ink [overflow-wrap:anywhere]">
+          <Avatar name={invitedBy} size={28} tone="dark" />
+          {t("signUp.invitedBy", { name: invitedBy })}
+        </p>
+      ) : null}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-ink">{t("signUp.title")}</h1>
         <p className="text-muted">{t("signUp.subtitle")}</p>

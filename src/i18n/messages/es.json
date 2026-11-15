@@ -241,7 +241,8 @@
       "passwordMismatch": "Las contraseñas no coinciden.",
       "closedTitle": "El registro está cerrado",
       "closedBody": "Pídele una invitación a alguien de tu hogar.",
-      "trust": "Lo que tienes que saber"
+      "trust": "Lo que tienes que saber",
+      "invitedBy": "{name} te invitó a Hearth"
     }
   },
   "shell": {

@@ -11,7 +11,7 @@ import { ThemeSync } from "@/shared/ui/theme/theme-sync";
 import { ScreenError } from "./app-error";
 import { guardSession, leaveWhenSignedIn, type RouterContext } from "./guards";
 import { AreaMessages, loadAreas, withAreas } from "./i18n";
-import { signUpModeQuery, spacesQuery } from "./queries";
+import { meQuery, signUpModeQuery, spacesQuery } from "./queries";
 import { textParam, textsParam } from "./search";
 import { loadShell } from "./shell";
 
@@ -64,6 +64,21 @@ const signUpRoute = createRoute({
     invitation: textsParam(search.invitation),
   }),
   component: lazyRouteComponent(() => import("./routes/sign-up"), "SignUpScreen"),
+});
+
+/**
+ * D27: a referral link. A visitor's device remembers the code and opens sign-up, which names the referrer; a signed-in
+ * person already has an account, so the link remembers nothing and opens their home.
+ */
+const referralRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "r/$code",
+  beforeLoad: async ({ context, params }) => {
+    const me = await context.queryClient.ensureQueryData(meQuery(context.apis.sessionApi));
+    if (me) throw redirect({ href: "/", replace: true });
+    (await import("./referrals/link")).rememberReferral(params.code);
+    throw redirect({ href: "/sign-up", replace: true });
+  },
 });
 
 /** Ruling P125: "/" opens the signed-in person's personal space. */
@@ -693,6 +708,7 @@ const editLineRoute = createRoute({
 export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
   openRoute.addChildren([invitationRoute, claimRoute, verifyEmailRoute, trustRoute]),
+  referralRoute,
   indexRoute,
   settingsRoute,
   newSpaceRoute,

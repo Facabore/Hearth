@@ -41,3 +41,57 @@ describe("sign-up's way to the trust page (issue #146, ruling P290)", () => {
     expect(screen.getByRole("link", { name: "Lo que tienes que saber" })).toHaveAttribute("href", "/trust");
   });
 });
+
+describe("sign-up through a referral link (D27, board 3)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const fill = async () => {
+    await userEvent.type(screen.getByLabelText("Nombre"), "Ana");
+    await userEvent.type(screen.getByLabelText("Correo electrónico"), "ana@example.com");
+    await userEvent.type(screen.getByLabelText("Contraseña"), "123456789012");
+    await userEvent.type(screen.getByLabelText("Confirmar contraseña"), "123456789012");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+  };
+
+  it("names who invited the visitor above the title", () => {
+    renderWithIntl(<SignUpFormContainer api={fakeApi({}).api} invitedBy="Fabián" />);
+    const chip = screen.getByText("Fabián te invitó a Hearth");
+    expect(chip).toBeVisible();
+    expect(chip.compareDocumentPosition(screen.getByRole("heading", { name: "Crea tu cuenta" }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("claims the link once the account exists, before moving on, and moves on even when the claim fails", async () => {
+    const order: string[] = [];
+    const { api } = fakeApi({
+      "POST /api/v1/auth/sign-up": () => (order.push("sign-up"), jsonResponse({ user: meDto() }, 201)),
+    });
+    router.replace.mockImplementation(() => void order.push("replace"));
+    renderWithIntl(
+      <SignUpFormContainer
+        api={api}
+        afterSignUp={async () => {
+          order.push("claim");
+          throw new Error("offline");
+        }}
+      />,
+    );
+    await fill();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    expect(order).toEqual(["sign-up", "claim", "replace"]);
+  });
+
+  it("without a link shows no chip and sends only the sign-up, as before", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/auth/sign-up": () => jsonResponse({ user: meDto() }, 201),
+    });
+    renderWithIntl(<SignUpFormContainer api={api} />);
+    expect(screen.queryByText(/te invitó a Hearth/)).toBeNull();
+    await fill();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    expect(requests.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual([
+      "POST /api/v1/auth/sign-up",
+    ]);
+  });
+});
