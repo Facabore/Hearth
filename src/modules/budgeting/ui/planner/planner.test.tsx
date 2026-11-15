@@ -92,6 +92,36 @@ describe("planner (HU-E9-08)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("says who pays a line with payers, as its editor does (D26, P328)", () => {
+    const base = referencePlanDto();
+    const withPayers = (id: string, payerMemberIds: string[]) =>
+      base.lines.map((line) => (line.id === id ? { ...line, payerMemberIds } : line));
+    const meta = (name: string) =>
+      normalized(within(screen.getByRole("listitem", { name })).getByText(/Según aportes/).textContent);
+    const { unmount } = show({ plan: referencePlanDto({ lines: withPayers("l-rent", ["m-ana"]) }) });
+    expect(meta("Rent")).toBe("Lo paga Ana · Según aportes · Empieza de cero");
+    unmount();
+    show({
+      plan: referencePlanDto({
+        lines: withPayers("l-rent", ["m-ana", "m-juan"]).map((line) =>
+          line.id === "l-home" ? { ...line, payerMemberIds: ["m-juan"] } : line,
+        ),
+      }),
+    });
+    expect(meta("Rent")).toBe("Lo pagan Ana y Juan · Según aportes · Empieza de cero");
+    // A direct line with a payer names them too, as its editor's row does.
+    expect(meta("Home")).toBe("Lo paga Juan · Según aportes · Empieza de cero");
+  });
+
+  it("still says the fund pays a fund line with no payers", () => {
+    show();
+    expect(
+      normalized(
+        within(screen.getByRole("listitem", { name: "Rent" })).getByText(/Según aportes/).textContent,
+      ),
+    ).toBe("Sale del fondo común · Según aportes · Empieza de cero");
+  });
+
   it("draws the capacity as a card: the total, Por repartir beside its heading and a two-tone bar of the shares (board 01)", () => {
     show();
     const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });

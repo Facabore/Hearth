@@ -25,6 +25,7 @@ import {
 import { CarryText } from "../carry-text";
 import { CopyNotice } from "../copy-notice";
 import { allocationDraftOf, previewOf } from "../line-editor/allocation";
+import { joinNames, namesOf, payModeOf } from "../line-editor/payers";
 import { usePeriodWord } from "../period-word";
 import { PlanStatusBadge } from "../plan-status-badge";
 import { canCloseOn, canManage, closesFrom, isEditable, takesCategories, takesPart } from "../plan-access";
@@ -121,6 +122,18 @@ export function Planner({
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
   const word = periodWord(plan.period, space.periodPolicy, formats);
+  // D26, P328: a line with payers reads who pays it, as its editor's row does ("Lo pagan Ana y Juan"); any other line
+  // how it is paid ("Sale del fondo común").
+  const paidBy = (line: PlanLineDto) => {
+    const payers = namesOf(line.payerMemberIds ?? [], members);
+    return payModeOf({ funding: line.funding, payerMemberIds: line.payerMemberIds ?? [] }) === "PAYERS" &&
+      payers.length > 0
+      ? t("lineEditor.pay.paidBy", {
+          names: joinNames(payers, t("lineEditor.pay.and")),
+          count: payers.length,
+        })
+      : t(`funding.${line.funding}`);
+  };
 
   const lifecycle = async (action: LifecycleAction) => {
     // A second click can arrive before the re-render that disables the button.
@@ -288,7 +301,7 @@ export function Planner({
                               rollover: t(`rollover.${line.rolloverMode}`),
                             })
                         : t("planner.meta", {
-                            funding: t(`funding.${line.funding}`),
+                            funding: paidBy(line),
                             rule: ruleOf(line),
                             rollover: t(`rollover.${line.rolloverMode}`),
                           })}
