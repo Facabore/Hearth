@@ -50,11 +50,11 @@ export function NavLinks({
   // `min-w-0`: the four tabs share the bar evenly, so Registrar stays in its middle (P302); a label wider than its tab
   // (Movimientos at 320 px) spills evenly around it instead of pushing Registrar aside.
   const item =
-    "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-xs text-muted aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
+    "flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-muted min-[360px]:text-xs aria-[current=page]:text-accent lg:flex-none lg:flex-row lg:justify-start lg:gap-3 lg:rounded-xl lg:px-3 lg:text-base";
   return (
     <nav
       aria-label={t("main")}
-      className="fixed inset-x-0 bottom-0 z-10 flex h-[calc(76px+env(safe-area-inset-bottom))] items-center border-t border-line bg-surface px-4 pb-[env(safe-area-inset-bottom)] lg:inset-y-0 lg:right-auto lg:h-auto lg:w-[240px] lg:flex-col lg:items-stretch lg:gap-2 lg:border-t-0 lg:border-r lg:p-4"
+      className="fixed inset-x-0 bottom-0 z-10 flex h-[calc(76px+env(safe-area-inset-bottom))] items-center border-t border-line bg-surface px-2 pb-[env(safe-area-inset-bottom)] min-[360px]:px-4 lg:inset-y-0 lg:right-auto lg:h-auto lg:w-[240px] lg:flex-col lg:items-stretch lg:gap-2 lg:border-t-0 lg:border-r lg:p-4"
     >
       <div className="hidden lg:mb-6 lg:block">
         <Logo />

@@ -1135,7 +1135,8 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         expect
           .soft(Math.abs(record.x + record.width / 2 - viewport.width / 2), `${path}: Registrar is centered`)
           .toBeLessThanOrEqual(1);
-        // A label wider than its tab (Movimientos at 320 px) spills evenly around it, and no two labels touch.
+        // A label wider than its tab (Movimientos at 320 px) spills evenly around it, and no two labels touch: at least
+        // 4 px apart, so "Inicio" and "Movimientos" never read as one word (staging check, 2026-11-15).
         const labels = (await links.evaluateAll((els) =>
           els
             .map((el) => {
@@ -1155,7 +1156,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           if (index > 0) {
             expect
               .soft(label.x, `${path}: ${label.label} does not touch ${labels[index - 1]!.label}`)
-              .toBeGreaterThan(labels[index - 1]!.right);
+              .toBeGreaterThanOrEqual(labels[index - 1]!.right + 4);
           }
         });
 
