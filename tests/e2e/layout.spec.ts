@@ -418,6 +418,70 @@ const overflowCulprits = (page: Page) =>
       });
   });
 
+/**
+ * Ruling P335: each amount on the page (the shared `Amount` marks it `data-amount`) as the browser lays it out: how
+ * many lines its text takes, where it ends, and the box it must stay inside (its card, row or section) and the viewport.
+ */
+const amountsIn = (scope: Locator) =>
+  scope.locator("[data-amount]").evaluateAll((els) =>
+    els
+      .filter((el) => el.getClientRects().length > 0)
+      .map((el) => {
+        // The visible text only: a visually hidden label ("Disponible") sits off the line, in a 1 px box.
+        const hidden = (node: Node) => {
+          for (let up = node.parentElement; up && up !== el.parentElement; up = up.parentElement)
+            if (getComputedStyle(up).position === "absolute") return true;
+          return false;
+        };
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        const rects: DOMRect[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (hidden(node)) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          rects.push(...[...range.getClientRects()].filter((r) => r.width > 0));
+        }
+        // Boxes of different sizes on one line start at different heights: a new line starts below the last one.
+        rects.sort((a, b) => a.top - b.top);
+        let lines = 0;
+        let bottom = -Infinity;
+        for (const rect of rects) {
+          if (rect.top >= bottom - 1) lines += 1;
+          bottom = Math.max(bottom, rect.bottom);
+        }
+        const box = (
+          el.closest("li, [class*='rounded-2xl'], section") ?? document.body
+        ).getBoundingClientRect();
+        return {
+          text: (el.textContent ?? "").replace(/\s+/g, " "),
+          lines,
+          left: Math.min(...rects.map((r) => r.left)),
+          right: Math.max(...rects.map((r) => r.right)),
+          boxLeft: box.left,
+          boxRight: box.right,
+          edge: document.documentElement.clientWidth,
+        };
+      }),
+  );
+
+/** Every amount in `scope` keeps to one line, inside its box and inside the viewport (P335). Returns how many. */
+const expectAmountsWhole = async (scope: Locator, what: string) => {
+  const amounts = await amountsIn(scope);
+  for (const amount of amounts) {
+    expect.soft(amount.lines, `${what}: ${amount.text} keeps to one line`).toBe(1);
+    expect
+      .soft(amount.right, `${what}: ${amount.text} ends inside its box`)
+      .toBeLessThanOrEqual(amount.boxRight + 0.5);
+    expect
+      .soft(amount.left, `${what}: ${amount.text} starts inside its box`)
+      .toBeGreaterThanOrEqual(amount.boxLeft - 0.5);
+    expect
+      .soft(amount.right, `${what}: ${amount.text} ends on screen`)
+      .toBeLessThanOrEqual(amount.edge + 0.5);
+  }
+  return amounts.length;
+};
+
 /** Overflow in px, and on failure the list of culprits in the message. Keeps the assertion strict. */
 const overflowReport = async (page: Page, what: string) => {
   const overflow = await horizontalOverflow(page);
@@ -696,6 +760,7 @@ for (const wideFont of [false, true]) {
           await settle(page);
           const { overflow, message } = await overflowReport(page, path);
           expect.soft(overflow, message).toBeLessThanOrEqual(0);
+          await expectAmountsWhole(page.locator("body"), path);
         };
         // Ruling P290: the trust page, which sign-up links to, as a visitor reads it.
         for (const path of ["/sign-in?expired=1", "/sign-up", "/sign-in", "/trust"]) await check(path);
@@ -900,7 +965,7 @@ for (const wideFont of [false, true]) {
     }
 
     for (const viewport of [PHONE, SMALL_PHONE]) {
-      test(`a member's balance history fits ${viewport.width} px with a 15-digit amount, and has a way back to Saldos (HU-E9-07, P176)`, async ({
+      test(`a member's balance history, Saldos and Inicio keep a 15-digit amount whole on one line at ${viewport.width} px, and the history has a way back to Saldos (HU-E9-07, P176, P335)`, async ({
         page,
       }) => {
         await page.setViewportSize(viewport);
@@ -914,6 +979,8 @@ for (const wideFont of [false, true]) {
         ).toHaveCount(1);
         const { overflow, message } = await overflowReport(page, "the history");
         expect(overflow, message).toBeLessThanOrEqual(0);
+        // P335: the two figures, the row's balance and its change, each on one line inside its card or row.
+        expect(await expectAmountsWhole(page.locator("main"), "the history")).toBeGreaterThanOrEqual(4);
 
         const back = page.getByRole("link", { name: es.common.back, exact: true });
         await expect(back).toBeVisible();
@@ -926,6 +993,24 @@ for (const wideFont of [false, true]) {
         await back.click();
         await expect(page).toHaveURL(new RegExp(`/spaces/${sharedId}/balances$`));
         await expect(page.getByRole("link", { name: new RegExp(HISTORY_GUEST) })).toBeVisible();
+        await settle(page);
+        // Saldos: the hero, the suggestion's amount and every member's, whole and on screen.
+        const saldos = await overflowReport(page, "Saldos");
+        expect.soft(saldos.overflow, saldos.message).toBeLessThanOrEqual(0);
+        await expect(page.getByTestId("balances-hero-amount")).toBeVisible();
+        expect(await expectAmountsWhole(page.locator("main"), "Saldos")).toBeGreaterThanOrEqual(4);
+
+        // Inicio: the space's hero holds the 15-digit total of the period.
+        await page.goto(`/spaces/${sharedId}`);
+        await settle(page);
+        const hero = page.locator("[data-hero-amount]");
+        await expect(hero).toHaveText(/1\.234\.567\.890\.124/);
+        const inicio = await overflowReport(page, "Inicio");
+        expect.soft(inicio.overflow, inicio.message).toBeLessThanOrEqual(0);
+        expect(await expectAmountsWhole(page.locator("[data-hero]"), "Inicio's hero")).toBeGreaterThanOrEqual(
+          1,
+        );
+        expect(await expectAmountsWhole(page.locator("main"), "Inicio")).toBeGreaterThanOrEqual(1);
       });
     }
   });
