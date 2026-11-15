@@ -119,3 +119,15 @@ export const ensureCurrentParties = async (
   const current = new Set<string>((await deps.members.listCurrent(spaceId)).map((m) => m.id));
   return parties.every((id) => current.has(id)) ? ok(undefined) : err(domainError("NotASpaceMember"));
 };
+
+/**
+ * P331, P333, P334: the other member of a two-member (direct) space, read after the writer took the space's lock; anyone
+ * else makes it not a pair (InvalidSplit `notAPair`).
+ */
+export const pairCounterpart = async (
+  deps: Pick<LedgerDeps, "members">,
+  space: SpaceMembership,
+): Promise<Result<string>> => {
+  const others = (await deps.members.listCurrent(space.spaceId)).filter((m) => m.id !== space.memberId);
+  return others.length === 1 ? ok(others[0]!.id) : err(domainError("InvalidSplit", { reason: "notAPair" }));
+};

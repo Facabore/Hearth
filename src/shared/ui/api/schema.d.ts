@@ -887,6 +887,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/direct-settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transfer money to or from one person through your two-member direct space, created on first use (P334) */
+        post: operations["settleWithPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/direct-splits": {
         parameters: {
             query?: never;
@@ -6350,6 +6367,93 @@ export interface operations {
                 };
             };
             /** @description NotASpaceMember */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    settleWithPerson: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    counterpart: {
+                        /** @constant */
+                        kind: "MEMBER";
+                        memberId: string;
+                    } | {
+                        /** @constant */
+                        kind: "GUEST";
+                        displayName: string;
+                        /** Format: email */
+                        contactEmail?: string;
+                    };
+                    /** @enum {string} */
+                    direction: "TO" | "FROM";
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    amount: components["schemas"]["Money"];
+                    accountId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The direct space, whether this transfer created it, and the settlement */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        spaceId: string;
+                        created: boolean;
+                        settlement: components["schemas"]["Transaction"];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description MemberNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;

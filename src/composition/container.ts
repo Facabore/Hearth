@@ -104,6 +104,7 @@ import {
   createRecordExpenseByCategoryKey,
   createRecordFundContribution,
   createRecordIncome,
+  createRecordPairSettlement,
   createRecordSettlement,
   createRecordTransfer,
   createDefineRecurrence,
@@ -156,13 +157,17 @@ import {
   type RecordFundContribution,
   type RecordIncome,
   type RecordSettlement,
+  type Transaction,
   type RecordTransfer,
 } from "@/modules/ledger/application";
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
 import { DrizzleTransactionRepository } from "@/modules/ledger/infrastructure/drizzle-transaction-repository";
 import { DrizzleRecurrenceRepository } from "@/modules/ledger/infrastructure/drizzle-recurrence-repository";
-import type { DirectSplitExpense } from "@/modules/ledger/contracts/ledger.contract";
+import type {
+  DirectSettlementTransfer,
+  DirectSplitExpense,
+} from "@/modules/ledger/contracts/ledger.contract";
 import {
   createArchiveCategory,
   createArchiveCategoryGroup,
@@ -344,6 +349,8 @@ export interface Container extends RouteDeps {
     readonly splitWithPerson: SplitWithPerson<DirectSplitExpense, RecordedExpense>;
     /** P331: an expense that was for several people, each part in its pair's direct space. */
     readonly splitWithPeople: SplitWithPeople<DirectSplitExpense, RecordedExpense>;
+    /** P334: a transfer to or from one person, through their direct space (created on first use). */
+    readonly settleWithPerson: SplitWithPerson<DirectSettlementTransfer, Transaction>;
     readonly removeGuest: RemoveGuestMember;
     readonly createGuestClaim: CreateGuestClaim;
     readonly claimGuestPlace: ClaimGuestPlace;
@@ -720,6 +727,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     tm,
   };
+  // P334: a transfer to or from someone, as a settlement in their direct space, found or created as a split is.
+  const recordPairSettlement = createRecordPairSettlement(
+    { access, spaceLocks: spaceRepository, members: spaceRepository },
+    createRecordSettlement(ledgerDeps),
+  );
+  const directSettlementDeps: SplitWithPersonDeps<DirectSettlementTransfer, Transaction> = {
+    ...directSplitDeps,
+    recordExpense: ({ spaceId, userId, expense }) => recordPairSettlement({ spaceId, userId, ...expense }),
+  };
   const createPersonalSpace = createCreatePersonalSpace({
     spaces: spaceRepository,
     ids,
@@ -1031,6 +1047,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       }),
       splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>(directSplitDeps),
       splitWithPeople: createSplitWithPeople<DirectSplitExpense, RecordedExpense>(directSplitDeps),
+      settleWithPerson: createSplitWithPerson<DirectSettlementTransfer, Transaction>(directSettlementDeps),
       removeGuest: createRemoveGuestMember({ ...lifecycleDeps, invitations: invitationRepository }),
       createGuestClaim: createCreateGuestClaim(claimsDeps),
       claimGuestPlace: createClaimGuestPlace(claimsDeps),

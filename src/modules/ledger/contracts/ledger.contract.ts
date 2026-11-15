@@ -34,6 +34,7 @@ import type {
   LedgerWarning,
   MyTransactionPage,
   PairShares,
+  RecordPairSettlementInput,
   PaymentInput,
   RecordedExpense,
   RecordExpenseInput,
@@ -822,6 +823,59 @@ export const peopleSplitDto = (split: PeopleSplit<RecordedExpense>): z.infer<typ
   };
 };
 
+/**
+ * P334: a transfer to someone (TO: the requester pays them from `accountId`) or from someone (FROM: they pay the
+ * requester into it), recorded as a settlement (P322) between the two in their direct space, created on first use
+ * (D16). A group the two share takes the same transfer through `POST …/settlements`.
+ */
+export const DirectSettlementBodySchema = z.object({
+  counterpart: DirectCounterpartSchema,
+  direction: z.enum(["TO", "FROM"]),
+  description: Description,
+  date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
+  amount: MoneySchema,
+  accountId: IdSchema,
+});
+
+/** P334: the transfer as the composition root hands it to RecordPairSettlement. */
+export type DirectSettlementTransfer = Omit<RecordPairSettlementInput, "spaceId" | "userId">;
+
+export const directSettlementFromBody = (
+  body: z.infer<typeof DirectSettlementBodySchema>,
+): Result<{ counterpart: DirectSplitCounterpart; transfer: DirectSettlementTransfer }> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
+  return ok({
+    counterpart: counterpartOf(body.counterpart),
+    transfer: {
+      description: body.description,
+      ...when.value,
+      amount: amount.value,
+      direction: body.direction,
+      accountId: body.accountId,
+    },
+  });
+};
+
+/** P334: the direct space the transfer was recorded in, whether it created it, and the settlement. */
+export const DirectSettlementSchema = z.object({
+  spaceId: z.string(),
+  created: z.boolean(),
+  settlement: TransactionSchema,
+});
+
+export const directSettlementDto = (
+  split: DirectSplit<Transaction>,
+): z.infer<typeof DirectSettlementSchema> => ({
+  spaceId: split.spaceId,
+  created: split.created,
+  settlement: transactionDto(split.recorded),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const IdempotencyHeader = z.object({ "idempotency-key": z.string().max(255).optional() });
 const TransactionPath = SpacePath.extend({ transactionId: z.string() });
@@ -1206,6 +1260,28 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "409": "TransactionNotConverted, ConversionSuperseded, PeriodClosed, SpaceArchived",
           "412": "PreconditionFailed",
           "422": "NotASpaceMember",
+        }),
+      },
+    },
+  },
+  "/api/v1/direct-settlements": {
+    post: {
+      operationId: "settleWithPerson",
+      summary:
+        "Transfer money to or from one person through your two-member direct space, created on first use (P334)",
+      ...securedByUser,
+      requestParams: { header: IdempotencyHeader },
+      requestBody: { content: jsonContent(DirectSettlementBodySchema) },
+      responses: {
+        "201": {
+          description: "The direct space, whether this transfer created it, and the settlement",
+          content: jsonContent(DirectSettlementSchema),
+        },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "MemberNotFound, AccountNotFound",
+          "409": "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
         }),
       },
     },

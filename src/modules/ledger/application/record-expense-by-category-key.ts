@@ -1,7 +1,6 @@
-import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
-import type { SpaceMembership } from "@/modules/spaces/application";
+import { domainError, err, type Money, type Result } from "@/shared/kernel";
 import type { SplitInput } from "../domain/split";
-import { authorizeWriter } from "./checks";
+import { authorizeWriter, pairCounterpart } from "./checks";
 import type { LedgerDeps } from "./deps";
 import type { LedgerCategory } from "./ports";
 import type { RecordedExpense, RecordExpense, RecordExpenseInput } from "./record-expense";
@@ -39,15 +38,6 @@ export type RecordExpenseByCategoryKey = (
   input: RecordExpenseByCategoryKeyInput,
 ) => Promise<Result<RecordedExpense>>;
 
-/** P331, P333: the other member of a two-member space; anyone else makes it not a pair. */
-const otherOf = async (
-  deps: Pick<LedgerDeps, "members">,
-  space: SpaceMembership,
-): Promise<Result<string>> => {
-  const others = (await deps.members.listCurrent(space.spaceId)).filter((m) => m.id !== space.memberId);
-  return others.length === 1 ? ok(others[0]!.id) : err(domainError("InvalidSplit", { reason: "notAPair" }));
-};
-
 /** P331: EXACT parts for the two members, the recorder's first; a part of zero leaves that member out. */
 const pairSplit = (me: string, other: string, shares: PairShares): SplitInput => ({
   method: "EXACT",
@@ -75,7 +65,7 @@ export const createRecordExpenseByCategoryKey =
     const category = await deps.categoryKeys.findByKey(writer.value.spaceId, categoryKey);
     if (category === null) return err(domainError("CategoryNotFound"));
     if (pairShares === undefined && !paidByOther) return recordExpense({ ...input, categoryId: category.id });
-    const other = await otherOf(deps, writer.value);
+    const other = await pairCounterpart(deps, writer.value);
     if (!other.ok) return other;
     const { accountId, ...rest } = input;
     return recordExpense({

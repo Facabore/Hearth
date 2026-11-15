@@ -58,6 +58,11 @@ export {
   type RecordSettlement,
   type RecordSettlementInput,
 } from "./record-settlement";
+export {
+  createRecordPairSettlement,
+  type RecordPairSettlement,
+  type RecordPairSettlementInput,
+} from "./record-pair-settlement";
 export { createGetTransaction, type GetTransaction } from "./get-transaction";
 export {
   createListTransactions,
