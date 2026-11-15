@@ -201,11 +201,30 @@ describe("fund tracking (HU-E9-10)", () => {
       const sheet = await screen.findByRole("dialog", { name: "Ana · noviembre" });
       const text = normalized(sheet.textContent);
       expect(text).toContain("Le toca$ 1.680.000");
-      expect(text).toContain("42 % del plan de $ 4.000.000");
+      // P328: the total is what the fund pays (the lines paid with it), never the whole plan.
+      expect(text).toContain("42 % de lo que sale del fondo ($ 4.000.000)");
+      expect(text).not.toContain("del plan");
       expect(text).toContain("Arriendolo paga directo · ya pagado$ 1.200.000");
       expect(text).toContain("Al fondo de Householdaportó $ 160.000 de $ 480.000$ 480.000");
       expect(text).toContain("Le faltan$ 320.000");
       expect(await axeViolations(sheet)).toEqual([]);
+    });
+
+    it("says in English that the share is of what the fund pays", async () => {
+      renderWithIntl(
+        <FundTracking
+          fund={anaPaysRent()}
+          members={HOUSEHOLD_MEMBERS}
+          space={householdDto()}
+          formats={BUILT_IN_FORMATS}
+        />,
+        { locale: "en" },
+      );
+      await userEvent.click(screen.getByRole("button", { name: /Ana/ }));
+      const sheet = await screen.findByRole("dialog");
+      const text = normalized(sheet.textContent);
+      expect(text).toContain("42 % of what the fund pays ($ 4.000.000)");
+      expect(text).not.toContain("plan");
     });
 
     it("says a member with nothing left is up to date, with no line paid directly", async () => {

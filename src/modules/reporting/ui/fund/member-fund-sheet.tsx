@@ -13,8 +13,9 @@ const ROW = "flex items-start justify-between gap-3 border-b border-line py-3";
 
 /**
  * P328, board "Por persona · detalle de Ana · #316": what a member has to put in for the period ("Le toca", the hero,
- * and their share of what the plan expects through the fund), one row per line they pay directly with what they paid
- * on it (D26), the rest that goes into the fund with what they put in, and what is left ("Le faltan") or "Al día".
+ * and their share of what the fund pays: the lines paid with it, not the whole plan), one row per line they pay
+ * directly with what they paid on it (D26), the rest that goes into the fund with what they put in, and what is left
+ * ("Le faltan") or "Al día".
  */
 export function MemberFundSheet({
   open,
@@ -34,7 +35,7 @@ export function MemberFundSheet({
   /** The period in a word ("noviembre"). */
   readonly period: string;
   readonly spaceName: string;
-  /** What the plan expects through the fund from everyone (the report's totals). */
+  /** What the plan expects through the fund from everyone (the report's totals): the lines it pays, not the plan. */
   readonly total: MoneyDto;
   readonly formats: Pick<Formats, "numberFormat">;
 }) {
@@ -66,7 +67,7 @@ export function MemberFundSheet({
         </p>
         {percent === null ? null : (
           <p className="text-sm text-muted">
-            {t("ofPlan", { percent: formatPercent(String(percent), formats), total: money(all) })}
+            {t("ofFund", { percent: formatPercent(String(percent), formats), total: money(all) })}
           </p>
         )}
         <ul className="mt-3 flex flex-col">

@@ -328,7 +328,7 @@
         "open": "See what {name} has to put in",
         "title": "{name} · {period}",
         "share": "Their part",
-        "ofPlan": "{percent} of the {total} plan",
+        "ofFund": "{percent} of what the fund pays ({total})",
         "paidLine": "{state, select, paid {paid directly · already paid} other {paid directly · not yet}}",
         "toFund": "Into the {space} fund",
         "toFundNote": "put in {actual} of {expected}",
