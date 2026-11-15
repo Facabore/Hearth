@@ -48,18 +48,16 @@ describe("direct split request (HU-E1-13, ruling P172)", () => {
       amount: { amount: "12000000", currency: "COP" },
       accountId: "a-bank",
     };
-    expect(directBodyOf(body, { kind: "MEMBER", memberId: "m-juan-d", name: "Juan" }, "restaurants")).toEqual(
-      {
-        description: "Cena",
-        date: "2026-10-31",
-        occurredAt: "x",
-        timeZone: "America/Bogota",
-        amount: { amount: "12000000", currency: "COP" },
-        accountId: "a-bank",
-        counterpart: { kind: "MEMBER", memberId: "m-juan-d" },
-        categoryKey: "restaurants",
-      },
-    );
+    expect(directBodyOf(body, { kind: "MEMBER", memberId: "m-juan-d" }, "restaurants")).toEqual({
+      description: "Cena",
+      date: "2026-10-31",
+      occurredAt: "x",
+      timeZone: "America/Bogota",
+      amount: { amount: "12000000", currency: "COP" },
+      accountId: "a-bank",
+      counterpart: { kind: "MEMBER", memberId: "m-juan-d" },
+      categoryKey: "restaurants",
+    });
     expect(directBodyOf(body, { kind: "GUEST", displayName: " Marta " }, "restaurants").counterpart).toEqual({
       kind: "GUEST",
       displayName: "Marta",

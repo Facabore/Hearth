@@ -116,10 +116,12 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { people });
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
-    await userEvent.click(screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" }));
-    await userEvent.click(await screen.findByRole("radio", { name: /Juan/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    // P333: Juan is ticked in "¿Quién pagó y para quién?".
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: /^Juan/ }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await saved("Gasto guardado");
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-ana-juan/transactions", { scroll: false });
   });
@@ -167,10 +169,12 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { people, returnTo: `/spaces/${PERSONAL.id}` });
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
-    await userEvent.click(screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" }));
-    await userEvent.click(await screen.findByRole("radio", { name: /Juan/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Seguir con Juan" }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar y dividir" }));
+    // P333: Juan is ticked in "¿Quién pagó y para quién?".
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(within(sheet).getByRole("checkbox", { name: /^Juan/ }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await saved("Gasto guardado");
     expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}`, { scroll: false });
     await userEvent.click(screen.getByRole("button", { name: "Ver" }));
@@ -229,7 +233,7 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { space: HOUSEHOLD, accounts: [], shared });
     await userEvent.type(screen.getByLabelText("Monto"), "2000000");
     await chooseGroceries();
-    await userEvent.click(screen.getByRole("button", { name: /Pagas tú|Pagó/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
     await userEvent.click(await screen.findByRole("radio", { name: "Fondo Hogar" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));

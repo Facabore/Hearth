@@ -216,6 +216,13 @@ describe("initialOf (ruling P192)", () => {
         shared,
       }).split!.payer,
     ).toEqual({ kind: "FUND", accountId: "a-fund" });
+    // P333 (P168 amended): another registered member who paid with their own money, no account.
+    expect(
+      initialOf(sharedExpense([["m-ana", 100_000, "EQUAL"]], { memberId: "m-juan", accountId: null }), {
+        ...base,
+        shared,
+      }).split!.payer,
+    ).toEqual({ kind: "MEMBER", memberId: "m-juan" });
   });
 
   it("builds no split for an income or a transfer, even in a shared space", () => {

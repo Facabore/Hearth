@@ -73,7 +73,7 @@ const enter = async () => {
   await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
   await userEvent.click(await screen.findByRole("radio", { name: "Arriendo" }));
 };
-const payerRow = () => screen.getByRole("button", { name: /Pagas tú|Pagó|Pagaste/ });
+const payerRow = () => screen.getByRole("button", { name: /Quién pagó y para quién/ });
 const posted = async (requests: Request[]) => {
   await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
   await waitFor(() => expect(requests.some((r) => r.method === "POST")).toBe(true));
@@ -88,7 +88,7 @@ describe("Registrar proposes who usually pays the line (D26, P328)", () => {
     });
     const { container } = form(api, context([FUND]));
     await enter();
-    await waitFor(() => expect(payerRow()).toHaveTextContent("Pagaste por Fondo Hogar desde Bancolombia"));
+    await waitFor(() => expect(payerRow()).toHaveTextContent("Pagaste por Fondo Hogar con Bancolombia"));
     const body = await posted(requests);
     expect(body.paidForFund).toEqual({ fundAccountId: "a-fund", sourceAccountId: "a-bank" });
     expect(body).not.toHaveProperty("payments");
@@ -105,11 +105,11 @@ describe("Registrar proposes who usually pays the line (D26, P328)", () => {
     await enter();
     await waitFor(() => expect(payerRow()).toHaveTextContent("Pagaste por Fondo Hogar"));
     await userEvent.click(payerRow());
-    const sheet = await screen.findByRole("dialog", { name: "Quién pagó" });
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
     expect(sheet).toHaveTextContent("Lo que pagaste cuenta como tu aporte a Fondo Hogar.");
-    await userEvent.click(screen.getByRole("radio", { name: "Ana (tú)" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Tú" }));
     await userEvent.click(screen.getByRole("button", { name: "Listo" }));
-    expect(payerRow()).toHaveTextContent("Pagó Ana desde Bancolombia");
+    expect(payerRow()).toHaveTextContent("Pagaste tú con Bancolombia");
     const body = await posted(requests);
     expect(body.payments).toEqual([
       { memberId: "m-ana", accountId: "a-bank", amount: { amount: "120000000", currency: "COP" } },
@@ -132,7 +132,7 @@ describe("Registrar proposes who usually pays the line (D26, P328)", () => {
       const { unmount } = form(api, context([...funds]));
       await enter();
       await waitFor(() => expect(requests.some((r) => r.url.includes("default-split"))).toBe(true));
-      expect(payerRow()).toHaveTextContent("Pagó Ana desde Bancolombia");
+      expect(payerRow()).toHaveTextContent("Pagaste tú con Bancolombia");
       const body = await posted(requests);
       expect(body.payments).toEqual([
         { memberId: "m-ana", accountId: "a-bank", amount: { amount: "120000000", currency: "COP" } },
@@ -151,7 +151,7 @@ describe("Registrar proposes who usually pays the line (D26, P328)", () => {
     await waitFor(() => expect(requests.some((r) => r.url.includes("default-split"))).toBe(true));
     // Let the answer land before reading who paid.
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
-    expect(payerRow()).toHaveTextContent("Pagó Ana desde Bancolombia");
+    expect(payerRow()).toHaveTextContent("Pagaste tú con Bancolombia");
     const body = await posted(requests);
     expect(body).not.toHaveProperty("paidForFund");
     expect(body.payments).toEqual([

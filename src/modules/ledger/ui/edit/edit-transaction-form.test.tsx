@@ -365,8 +365,7 @@ describe("the edit form is the compact record form (#171)", () => {
     expectPageWithKeypad();
     // Who paid replaces the account chip (P168); the division sits under Más opciones (#171).
     expect(chipNames()).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /^Pagó / })).toBeVisible();
-    expect(screen.getByRole("button", { name: /División/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Quién pagó y para quién/ })).toBeVisible();
     expect(screen.getAllByRole("button").at(-1)).toHaveAccessibleName("Guardar cambios");
   });
 });

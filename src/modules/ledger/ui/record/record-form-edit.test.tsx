@@ -124,7 +124,7 @@ describe("record form in edit mode (ruling P191)", () => {
       "href",
       "/spaces/sp-personal/transactions?tx=t-1",
     );
-    expect(screen.queryByRole("button", { name: /Dividir con alguien/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Quién pagó y para quién/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Guardar gasto" })).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
 
@@ -166,7 +166,7 @@ describe("record form in edit mode (ruling P191)", () => {
         api={api}
       />,
     );
-    expect(screen.getByRole("button", { name: /Dividir con alguien/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Quién pagó y para quién/ })).toBeInTheDocument();
     expect(screen.getByRole("tablist")).toBeInTheDocument();
   });
 
@@ -302,10 +302,9 @@ describe("a shared expense in edit mode (ruling P192)", () => {
         edit={value}
       />,
     );
-    expect(screen.getByRole("button", { name: /Pagas tú|Pagó/ })).toHaveTextContent(
-      "Pagó Ana desde Bancolombia",
+    expect(screen.getByRole("button", { name: /Quién pagó y para quién/ })).toHaveTextContent(
+      "Pagaste tú con Bancolombia · para ti y Juan",
     );
-    expect(screen.getByRole("button", { name: /División/ })).toHaveTextContent(/Con Ana y Juan/);
     // The plan's split is asked 250 ms after the category last changed; in an edit it is never asked.
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(requests).toEqual([]);

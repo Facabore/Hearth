@@ -4,13 +4,15 @@ import type { NumberFormat } from "@/shared/ui/format/formatters";
 import { previewSplit, type ParticipantValue, type SplitCheck, type SplitMethod } from "./split-math";
 
 /**
- * Ruling P168 (D9): who paid. The recorder pays from an account they own; a guest pays outside the app (no account);
- * a shared fund pays with no payer member (HU-E4-10). Another registered member cannot be the payer: only an
- * account's owner may record its debit.
+ * Ruling P168 (D9), amended by P333: who paid. The recorder pays from an account they own; a guest pays outside the app
+ * (no account); another registered member paid with their own money (no account: none of their accounts moves); a
+ * shared fund pays with no payer member (HU-E4-10).
  */
 export type Payer =
   | { readonly kind: "ME"; readonly memberId: string; readonly accountId: string | null }
   | { readonly kind: "GUEST"; readonly memberId: string }
+  /** P333: a registered member other than the recorder, who paid with their own money. */
+  | { readonly kind: "MEMBER"; readonly memberId: string }
   | { readonly kind: "FUND"; readonly accountId: string }
   /**
    * D26, P328: "pagaste por el fondo": the recorder pays from their account for the fund, which Hearth records as their
@@ -34,15 +36,18 @@ export interface SplitDraft {
   readonly payerChosen?: boolean;
 }
 
+/** How an expense is shared, without who paid: what "Para quién fue" edits (P333). */
+export type ShareDraft = Pick<SplitDraft, "method" | "selected" | "values" | "chosen">;
+
 /** The selected members in the space's join order, with what was typed for each. */
-export const participantsOf = (draft: SplitDraft, memberIds: readonly string[]): ParticipantValue[] =>
+export const participantsOf = (draft: ShareDraft, memberIds: readonly string[]): ParticipantValue[] =>
   memberIds
     .filter((id) => draft.selected.includes(id))
     .map((memberId) => ({ memberId, value: draft.values[memberId] ?? "" }));
 
 /** The preview to show: null while there is no amount, or while the plan's split waits for the API's shares. */
 export const splitCheckOf = (
-  draft: SplitDraft,
+  draft: ShareDraft,
   input: {
     readonly amount: string | null;
     readonly currency: string;
@@ -96,7 +101,7 @@ export const sharedPartsOf = (
           payments: [
             payer.kind === "FUND"
               ? { memberId: null, accountId: payer.accountId, amount }
-              : payer.kind === "GUEST"
+              : payer.kind === "GUEST" || payer.kind === "MEMBER"
                 ? { memberId: payer.memberId, accountId: null, amount }
                 : { memberId: payer.memberId, accountId: payer.accountId, amount },
           ],

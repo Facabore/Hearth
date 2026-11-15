@@ -128,13 +128,13 @@ describe("a VIEWER in the split (ruling P293)", () => {
         initial={initialSplitDraft(HOGAR)}
       />,
     );
-    const row = screen.getByRole("button", { name: /División/ });
-    expect(row).toHaveTextContent("Con 3 personas · partes iguales");
+    const row = screen.getByRole("button", { name: /Quién pagó y para quién/ });
+    expect(row).toHaveTextContent("Pagaste tú con Bancolombia · para 3 personas");
     await user.click(row);
-    const sheet = await screen.findByRole("dialog", { name: "Cómo se divide" });
-    expect(within(sheet).getByRole("checkbox", { name: "Juan" })).toBeChecked();
-    expect(within(sheet).getByRole("checkbox", { name: /Pedro/ })).toBeChecked();
-    const sofi = within(sheet).getByRole("checkbox", { name: "Sofi" });
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    expect(within(sheet).getByRole("checkbox", { name: /^Juan/ })).toBeChecked();
+    expect(within(sheet).getByRole("checkbox", { name: /^Pedro/ })).toBeChecked();
+    const sofi = within(sheet).getByRole("checkbox", { name: /^Sofi/ });
     expect(sofi).not.toBeChecked();
     // Whoever records can still add her by hand, if she really took part in the expense.
     await user.click(sofi);
@@ -200,8 +200,8 @@ describe("adding guests from the split sheet (P309, S6)", () => {
     renderWithIntl(
       <Harness api={api} amount="30000000" seen={(draft) => drafts.push(draft)} context={context} />,
     );
-    await user.click(screen.getByRole("button", { name: /División/ }));
-    const split = await screen.findByRole("dialog", { name: "Cómo se divide" });
+    await user.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+    const split = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
     await user.click(within(split).getByRole("button", { name: "Agregar a alguien" }));
     const guests = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     await user.type(within(guests).getByLabelText("Nombre"), "Pedro");
@@ -218,17 +218,14 @@ describe("adding guests from the split sheet (P309, S6)", () => {
       selected: ["m-ana", "m-juan", "m-pedro", "m-marta"],
       chosen: true,
     });
-    const back = screen.getByRole("dialog", { name: "Cómo se divide" });
-    expect(within(back).getByRole("checkbox", { name: "Pedro (invitado)" })).toBeChecked();
-    expect(within(back).getByRole("checkbox", { name: "Marta (invitado)" })).toBeChecked();
-    // Ruling P324 (S6): who paid has a sheet of its own, and the guests added are offered there too.
-    await user.click(within(back).getByRole("button", { name: "Listo" }));
-    await user.click(screen.getByRole("button", { name: /^Pagó Ana/ }));
-    const payers = await screen.findByRole("dialog", { name: "Quién pagó" });
-    expect(within(payers).getByRole("radio", { name: "Marta (invitado)" })).toBeInTheDocument();
+    const back = screen.getByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    expect(within(back).getByRole("checkbox", { name: /^Pedro \(invitado\)/ })).toBeChecked();
+    expect(within(back).getByRole("checkbox", { name: /^Marta \(invitado\)/ })).toBeChecked();
+    // P333: the guests added are offered as who paid too, in the same sheet.
+    expect(within(back).getByRole("radio", { name: "Marta (invitado)" })).toBeInTheDocument();
   });
 
-  it("adds a guest who paid from the payer sheet, offers them as the payer and ticks them in the split", async () => {
+  it("adds a guest who paid from the + of Pagó: they are who paid and are ticked (P333)", async () => {
     const user = userEvent.setup();
     const { api } = fakeApi({
       "GET /api/v1/spaces/{spaceId}/default-split": EQUAL,
@@ -242,24 +239,21 @@ describe("adding guests from the split sheet (P309, S6)", () => {
     renderWithIntl(
       <Harness api={api} amount="30000000" seen={(draft) => drafts.push(draft)} context={context} />,
     );
-    const row = screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" });
-    expect(row).toHaveTextContent("Quién pagó");
+    const row = screen.getByRole("button", { name: /Quién pagó y para quién/ });
+    expect(row).toHaveTextContent("Pagaste tú con Bancolombia · para ti y Juan");
     await user.click(row);
-    const payers = await screen.findByRole("dialog", { name: "Quién pagó" });
-    // One decision: who paid and from where, nothing about the split.
-    expect(within(payers).queryByRole("radiogroup", { name: "Cómo se divide" })).not.toBeInTheDocument();
-    expect(within(payers).queryByRole("checkbox")).not.toBeInTheDocument();
-    await user.click(within(payers).getByRole("button", { name: "Agregar a alguien" }));
+    const payers = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await user.click(within(payers).getByRole("button", { name: "Agregar a alguien que pagó" }));
     const guests = await screen.findByRole("dialog", { name: "Agregar invitados a Household" });
     await user.type(within(guests).getByLabelText("Nombre"), "Pedro");
     await user.click(within(guests).getByRole("button", { name: "Agregar invitado" }));
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: /Agregar invitados/ })).not.toBeInTheDocument(),
     );
-    const back = screen.getByRole("dialog", { name: "Quién pagó" });
-    await user.click(within(back).getByRole("radio", { name: "Pedro (invitado)" }));
+    const back = screen.getByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    expect(within(back).getByRole("radio", { name: "Pedro (invitado)" })).toBeChecked();
     expect(
-      within(back).getByText("Pedro es invitado: pagó fuera de la app, así que no hay cuenta que elegir."),
+      within(back).getByText("Pedro lo pagó con su plata: no se mueve ninguna de tus cuentas."),
     ).toBeInTheDocument();
     expect(drafts.at(-1)).toMatchObject({
       payer: { kind: "GUEST", memberId: "m-pedro" },
@@ -279,8 +273,11 @@ describe("adding guests from the split sheet (P309, S6)", () => {
       space: { id: "sp-household", name: "Household", ...viewer },
     };
     renderWithIntl(<Harness api={api} amount="30000000" seen={() => undefined} context={context} />);
-    await user.click(screen.getByRole("button", { name: /División/ }));
-    const split = await screen.findByRole("dialog", { name: "Cómo se divide" });
+    await user.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+    const split = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
     expect(within(split).queryByRole("button", { name: "Agregar a alguien" })).not.toBeInTheDocument();
+    expect(
+      within(split).queryByRole("button", { name: "Agregar a alguien que pagó" }),
+    ).not.toBeInTheDocument();
   });
 });

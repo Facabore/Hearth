@@ -619,8 +619,7 @@
       "save": {
         "EXPENSE": "Guardar gasto",
         "INCOME": "Guardar ingreso",
-        "TRANSFER": "Guardar transferencia",
-        "DIRECT": "Guardar y dividir"
+        "TRANSFER": "Guardar transferencia"
       },
       "amountUnreadable": "Escribe un monto como {example}.",
       "accountRequired": "Elige una cuenta.",
@@ -686,23 +685,40 @@
       "addGuests": "Agregar a alguien",
       "addGuestsHint": "Alguien sin cuenta que pagó o participa"
     },
+    "who": {
+      "title": "¿Quién pagó y para quién?",
+      "paid": "Pagó",
+      "from": "Desde",
+      "forWhom": "Para quién fue",
+      "you": "Tú",
+      "addPayer": "Agregar a alguien que pagó",
+      "addPerson": "Agregar a alguien",
+      "guestName": "Nombre de quien no usa Hearth",
+      "add": "Agregar",
+      "otherPaid": "{name} lo pagó con su plata: no se mueve ninguna de tus cuentas.",
+      "line": {
+        "yourPart": "Tu parte",
+        "owesYou": "Te debe",
+        "youOwe": "Le debes a {payer}",
+        "theirPart": "Su parte",
+        "owes": "Le debe a {payer}",
+        "notYou": "No te toca nada",
+        "notThem": "No le toca nada"
+      },
+      "youPaid": "Pagaste tú con {account}",
+      "youPaidNoAccount": "Pagaste tú",
+      "forFundPaid": "Pagaste por {fund} con {account}",
+      "paidBy": "Pagó {payer}",
+      "youOweAmount": "le debes {amount}",
+      "ti": "ti",
+      "for": {
+        "one": "para {a}",
+        "two": "para {a} y {b}",
+        "many": "para {count} personas"
+      },
+      "hint": "Cada deuda queda en tu espacio con esa persona y en Saldos. Si alguien no usa Hearth, se agrega como invitado."
+    },
     "direct": {
-      "open": "Dividir con alguien",
-      "shared": "¿Lo compartiste?",
-      "row": "¿Lo compartiste? Dividir con alguien",
-      "title": "Dividir con alguien",
-      "intro": "El gasto queda en un espacio solo para ustedes dos; si ya existe, se usa el mismo.",
-      "people": "Personas con las que compartes un espacio",
-      "existing": "Ya tienen «{space}»: se usa ese",
-      "new": "Se crea un espacio para los dos",
-      "guestOf": "De «{space}»",
-      "guestsNote": "Los invitados de un grupo, como un hogar o un viaje, no aparecen aquí: solo existen en ese grupo.",
-      "newGuest": "O alguien que no usa Hearth",
-      "guestName": "Nombre del nuevo invitado",
-      "use": "Usar",
-      "continue": "Seguir con {name}",
-      "with": "Con {name} · mitad y mitad",
-      "remove": "Quitar la división con {name}",
       "noKey": "Esta categoría es solo de tu espacio {space}. Elige una categoría predeterminada para dividir el gasto."
     }
   },

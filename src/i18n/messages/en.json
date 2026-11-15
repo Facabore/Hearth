@@ -619,8 +619,7 @@
       "save": {
         "EXPENSE": "Save expense",
         "INCOME": "Save income",
-        "TRANSFER": "Save transfer",
-        "DIRECT": "Save and split"
+        "TRANSFER": "Save transfer"
       },
       "amountUnreadable": "Type an amount like {example}.",
       "accountRequired": "Choose an account.",
@@ -686,23 +685,40 @@
       "addGuests": "Add someone",
       "addGuestsHint": "Someone without an account who paid or takes part"
     },
+    "who": {
+      "title": "Who paid, and who was it for?",
+      "paid": "Paid",
+      "from": "From",
+      "forWhom": "Who it was for",
+      "you": "You",
+      "addPayer": "Add someone who paid",
+      "addPerson": "Add someone",
+      "guestName": "Name of someone who doesn't use Hearth",
+      "add": "Add",
+      "otherPaid": "{name} paid with their own money: none of your accounts moves.",
+      "line": {
+        "yourPart": "Your part",
+        "owesYou": "Owes you",
+        "youOwe": "You owe {payer}",
+        "theirPart": "Their part",
+        "owes": "Owes {payer}",
+        "notYou": "Nothing for you",
+        "notThem": "Nothing for them"
+      },
+      "youPaid": "You paid with {account}",
+      "youPaidNoAccount": "You paid",
+      "forFundPaid": "You paid for {fund} with {account}",
+      "paidBy": "{payer} paid",
+      "youOweAmount": "you owe {amount}",
+      "ti": "you",
+      "for": {
+        "one": "for {a}",
+        "two": "for {a} and {b}",
+        "many": "for {count} people"
+      },
+      "hint": "Each debt stays in your space with that person and in Balances. Someone who doesn't use Hearth is added as a guest."
+    },
     "direct": {
-      "open": "Split with someone",
-      "shared": "Did you share it?",
-      "row": "Did you share it? Split with someone",
-      "title": "Split with someone",
-      "intro": "The expense goes to a space for just the two of you; if it exists, it is reused.",
-      "people": "People you share a space with",
-      "existing": "You already have \"{space}\": it is reused",
-      "new": "A space for the two of you is created",
-      "guestOf": "From \"{space}\"",
-      "guestsNote": "A group's guests, such as a household's or a trip's, are not listed here: they exist only in that group.",
-      "newGuest": "Or someone who does not use Hearth",
-      "guestName": "New guest's name",
-      "use": "Use",
-      "continue": "Continue with {name}",
-      "with": "With {name} · half each",
-      "remove": "Remove the split with {name}",
       "noKey": "This category belongs only to your space {space}. Choose a default category to split the expense."
     }
   },

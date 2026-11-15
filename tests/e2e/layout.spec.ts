@@ -293,7 +293,7 @@ const historyPath = async (
 
 /**
  * A split with a guest whose name is as long as a real one (HU-E9-06, P172), recorded through the API: the person's
- * "Dividir con alguien" sheet then lists a person with a direct space. Once per page.
+ * "¿Quién pagó y para quién?" sheet then lists a person with a direct space (P333). Once per page.
  */
 const GUEST_NAME = "Carlos Alberto Rodríguez Hernández de la Vega";
 const withDirectSpace = new WeakSet<Page>();
@@ -598,7 +598,7 @@ const sheets: {
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
       await page.locator("#record-amount").fill("300000");
-      await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
+      await page.getByRole("button", { name: new RegExp(es.ledger.split.title) }).click();
     },
   },
   {
@@ -608,9 +608,9 @@ const sheets: {
       await ensureDirectSpace(page, spaceId);
       await page.reload();
       await expect(page.locator("[data-ready='true']")).toBeAttached();
-      await page.getByRole("button", { name: es.ledger.direct.row }).click();
-      // Someone picked, so the footer's action is enabled and is the last control to reach.
-      await page.getByRole("radio", { name: new RegExp(GUEST_NAME) }).click();
+      await page.getByRole("button", { name: new RegExp(es.ledger.split.title) }).click();
+      // P333: the guest with the long name is ticked, so their line and amount share the row with it.
+      await page.getByRole("checkbox", { name: new RegExp(GUEST_NAME) }).click();
     },
   },
   {
@@ -2046,7 +2046,7 @@ test.describe("sheets fit the screen and only their body scrolls", () => {
     await page.reload();
     await expect(page.locator("[data-ready='true']")).toBeAttached();
     await page.locator("#record-amount").fill("300000");
-    await page.getByRole("button", { name: new RegExp(es.ledger.split.split) }).click();
+    await page.getByRole("button", { name: new RegExp(es.ledger.split.title) }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("radio", { name: es.ledger.split.methods.PERCENT }).click();
     const shares = dialog.getByLabel(new RegExp(`^${es.ledger.split.valueOf.replace("{name}", "")}`));

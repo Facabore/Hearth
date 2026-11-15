@@ -1,17 +1,14 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
-import { controlsFor, LazyAddGuestsSheet, memberLabel } from "@/modules/spaces/ui";
+import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, Sheet, cn, numberInputProps } from "@/shared/ui";
-import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { parseDecimal } from "@/shared/ui/format/amount-input";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
 import { preferredAccountId, readLastAccount } from "../record/last-account";
-import type { SharedExpenseContext } from "./shared-context";
 import { equalPercents, remainingPercent, SPLIT_METHODS, type SplitMethod } from "./split-math";
 import { isUntouched, splitFailureMessage, type SplitFailure } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
@@ -44,8 +41,8 @@ export interface SplitSheetProps extends PayerChoiceProps {
   /** Ruling P309 (S6): when given, the sheet offers "Agregar a alguien", which opens the add-guests sheet. */
   readonly onAddGuests?: () => void;
   /**
-   * Ruling P324 (S6): false where who paid has a sheet of its own (Registrar's "Quién pagó" row): the sheet then holds
-   * only how it is split and for whom. A recurrence still asks who pays here (board E9-09 02).
+   * Ruling P324 (S6): false where who paid is asked elsewhere: the sheet then holds only how it is split and for whom. A
+   * recurrence asks who pays here (board E9-09 02); Registrar asks both in its own sheet (P333).
    */
   readonly withPayer?: boolean;
 }
@@ -53,7 +50,7 @@ export interface SplitSheetProps extends PayerChoiceProps {
 const payerValue = (payer: SplitDraft["payer"]) =>
   payer.kind === "ME"
     ? `me:${payer.memberId}`
-    : payer.kind === "GUEST"
+    : payer.kind === "GUEST" || payer.kind === "MEMBER"
       ? `guest:${payer.memberId}`
       : payer.kind === "FOR_FUND"
         ? `forfund:${payer.fundAccountId}`
@@ -421,113 +418,5 @@ export function SplitSheet(props: SplitSheetProps) {
         </div>
       )}
     </Sheet>
-  );
-}
-
-export interface PayerSheetProps extends PayerChoiceProps {
-  readonly open: boolean;
-  readonly onOpenChange: (open: boolean) => void;
-  /** The expense in one line, shown under the sheet's title. */
-  readonly title: string;
-  /** Ruling P309: when given, the sheet offers "Agregar a alguien", for a guest who paid outside the app. */
-  readonly onAddGuests?: () => void;
-}
-
-/**
- * Ruling P324 (S5, S6): Registrar's "Quién pagó" row opens this sheet, which holds what the split sheet held for who
- * paid: the recorder, a guest or a fund, and the account the recorder paid from. One decision, so Listo always closes it.
- */
-export function PayerSheet({ open, onOpenChange, title, onAddGuests, ...choice }: PayerSheetProps) {
-  const t = useTranslations("ledger.split");
-  return (
-    <Sheet
-      open={open}
-      onOpenChange={onOpenChange}
-      title={t("payerTitle")}
-      description={title}
-      footer={
-        <div className="flex flex-col gap-3">
-          {onAddGuests ? <AddSomeone onClick={onAddGuests} /> : null}
-          <Button size="lg" onClick={() => onOpenChange(false)}>
-            {t("done")}
-          </Button>
-        </div>
-      }
-    >
-      <PayerChoice {...choice} heading={false} />
-    </Sheet>
-  );
-}
-
-/** Which of a shared expense's two sheets is open: how it is split, or who paid. */
-export type SharedSheet = "split" | "payer" | null;
-
-export type SharedSplitSheetProps = Omit<
-  SplitSheetProps,
-  "open" | "onOpenChange" | "members" | "myAccounts" | "funds" | "onAddGuests" | "withPayer"
-> & {
-  readonly context: SharedExpenseContext;
-  readonly api: Api;
-  readonly sheet: SharedSheet;
-  readonly onSheetChange: (sheet: SharedSheet) => void;
-};
-
-/**
- * Ruling P309 (S6): the sheets of a shared expense, how it is split and who paid (ruling P324). Whoever may add guests
- * to the space (`controlsFor`) gets "Agregar a alguien" in both: it opens the add-guests sheet over them, and the guests
- * it adds come back ticked (a choice of the person's own, so the plan's split no longer replaces it) and offered as who
- * paid, until the members read again holds them.
- */
-export function SharedSplitSheet({ context, api, sheet, onSheetChange, ...props }: SharedSplitSheetProps) {
-  const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState<readonly MemberDto[]>([]);
-  const members = [
-    ...context.members,
-    ...added.filter((guest) => !context.members.some((member) => member.id === guest.id)),
-  ];
-  const space = context.space;
-  const mayAdd = space !== undefined && controlsFor(space.role, space.kind).addGuest;
-  const selectAdded = (guests: readonly MemberDto[]) => {
-    setAdded((before) => [...before, ...guests]);
-    const ids = guests.map((guest) => guest.id);
-    const { draft } = props;
-    props.onChange({
-      ...draft,
-      method: draft.method === "BY_ALLOCATION" ? "EQUAL" : draft.method,
-      selected: [...draft.selected.filter((id) => !ids.includes(id)), ...ids],
-      chosen: true,
-    });
-  };
-  const addGuests = mayAdd ? { onAddGuests: () => setAdding(true) } : {};
-  const choice = {
-    members,
-    meUserId: props.meUserId,
-    myAccounts: context.myAccounts,
-    funds: context.funds,
-    draft: props.draft,
-    onChange: props.onChange,
-  };
-  return (
-    <>
-      <SplitSheet
-        {...props}
-        {...choice}
-        open={sheet === "split"}
-        onOpenChange={(open) => onSheetChange(open ? "split" : null)}
-        withPayer={false}
-        {...addGuests}
-      />
-      <PayerSheet
-        {...choice}
-        open={sheet === "payer"}
-        onOpenChange={(open) => onSheetChange(open ? "payer" : null)}
-        title={props.title}
-        forFund={props.forFund}
-        {...addGuests}
-      />
-      {adding && space ? (
-        <LazyAddGuestsSheet open onOpenChange={setAdding} space={space} api={api} onAdded={selectAdded} />
-      ) : null}
-    </>
   );
 }

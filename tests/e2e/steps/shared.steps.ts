@@ -13,11 +13,15 @@ const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 /** The page person's own row reads "<name> (tú)"; anyone else's their name. */
 const labelOf = (world: World, name: string) =>
   name === world.user!.name ? world.t("members.you", { name }) : name;
-/** Ruling P324: the split sheet holds the method and the people; who paid has a sheet of its own. */
+/** In "¿Quién pagó y para quién?" the page person is "Tú" (P333). */
+const whoLabelOf = (world: World, name: string) =>
+  name === world.user!.name ? world.t("ledger.who.you") : name;
+/** Ruling P333: one sheet holds who paid, from where, whom it was for and how it is split. */
 const splitSheet = (page: Page, world: World) =>
-  page.getByRole("dialog", { name: world.t("ledger.split.method") });
-const payerSheet = (page: Page, world: World) =>
-  page.getByRole("dialog", { name: world.t("ledger.split.payerTitle") });
+  page.getByRole("dialog", { name: world.t("ledger.who.title") });
+/** Registrar's one row, "Pagaste tú con Bancolombia · para ti y Juan" over "Quién pagó y para quién". */
+const whoRow = (page: Page, world: World) =>
+  page.getByRole("button", { name: new RegExp(world.t("ledger.split.title")) });
 
 Given(
   "{string} is signed in and {string} has the members {string} and {string}",
@@ -63,7 +67,7 @@ const pick = async (page: Page, world: World, pesos: string, category: string) =
 const shareOf = async (page: Page, world: World, name: string) =>
   norm(
     await splitSheet(page, world)
-      .getByRole("listitem", { name: labelOf(world, name) })
+      .getByRole("listitem", { name: whoLabelOf(world, name) })
       .textContent(),
   );
 
@@ -80,24 +84,16 @@ When(
   ) => {
     await openForm(page, world);
     await pick(page, world, pesos, category);
-    // The payer row reads "Pagó Ana desde <cuenta>" (ruling P291): it is found by its verb, before the payer's name.
-    const paid = world
-      .t("ledger.split.paidFrom")
-      .split("{payer}")[0]!
-      .replace(/<\/?b>/g, "")
-      .trim();
-    await page.getByRole("button", { name: new RegExp(`^${paid} `) }).click();
-    const payer = payerSheet(page, world);
-    await payer
-      .getByRole("radiogroup", { name: world.t("ledger.split.from") })
+    // P333: one row opens one sheet: the account the page person paid from, then the people and the method.
+    await whoRow(page, world).click();
+    const sheet = splitSheet(page, world);
+    await sheet
+      .getByRole("radiogroup", { name: world.t("ledger.who.from") })
       .getByRole("radio", { name: account })
       .click();
-    await payer.getByRole("button", { name: world.t("ledger.split.done") }).click();
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.split.split")) }).click();
-    const sheet = splitSheet(page, world);
     await sheet.getByRole("radio", { name: world.t("ledger.split.methods.EQUAL") }).click();
     for (const name of [a, b])
-      await expect(sheet.getByRole("checkbox", { name: labelOf(world, name) })).toBeChecked();
+      await expect(sheet.getByRole("checkbox", { name: whoLabelOf(world, name) })).toBeChecked();
   },
 );
 
@@ -173,10 +169,8 @@ When(
 Then(
   /^the split "([^"]+)" is preselected with ([\d,]+) COP for "([^"]+)" and ([\d,]+) COP for "([^"]+)"$/,
   async ({ page, world }, method: string, ana: string, a: string, juan: string, b: string) => {
-    const row = page.getByRole("button", { name: new RegExp(world.t("ledger.split.split")) });
-    // The row reads "Con Ana y Juan · según el plan" (U2); the sheet's radio is named by the method itself.
-    await expect(row).toContainText(world.t(`ledger.split.how.${method}`));
-    await row.click();
+    // P333: the row says who paid and for whom; the sheet's radio is named by the method itself.
+    await whoRow(page, world).click();
     await expect(
       splitSheet(page, world).getByRole("radio", { name: world.t(METHOD_KEYS[method]!) }),
     ).toBeChecked();

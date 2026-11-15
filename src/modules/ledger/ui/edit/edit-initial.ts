@@ -36,9 +36,11 @@ const payerOf = (tx: TransactionDto, shared: SharedExpenseContext): Payer => {
   const paid = tx.payments[0]!;
   if (paid.memberId === null) return { kind: "FUND", accountId: paid.accountId! };
   const member = shared.members.find((m) => m.id === paid.memberId);
-  return member && member.userId === null
-    ? { kind: "GUEST", memberId: paid.memberId }
-    : { kind: "ME", memberId: paid.memberId, accountId: paid.accountId };
+  if (member && member.userId === null) return { kind: "GUEST", memberId: paid.memberId };
+  // P333 (P168 amended): another member who paid with their own money, so no account of theirs moved.
+  if (paid.accountId === null && paid.memberId !== shared.meMemberId)
+    return { kind: "MEMBER", memberId: paid.memberId };
+  return { kind: "ME", memberId: paid.memberId, accountId: paid.accountId };
 };
 
 /** Ruling P192: the split as the form shows it; one the form cannot type back (SHARES, the plan's) becomes percents. */

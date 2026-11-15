@@ -39,9 +39,11 @@ import { nowIn } from "@/shared/ui/time/when";
 import type { Person } from "../direct/counterparts";
 // A type only: no runtime code of the edit modules enters the record route (P191, P198).
 import type { RecordInitial } from "../edit/edit-initial";
-import { categoryKeyOf, directBodyOf, type DirectChoice } from "../direct/direct-request";
+import { categoryKeyOf, directBodyOf } from "../direct/direct-request";
+import { forWhomOrder, initialForWhom, ME, othersTicked, personalRequestOf } from "../direct/personal-split";
 import { initialSplitDraft, type SharedExpenseContext } from "../split/shared-context";
 import { SharedFields } from "../split/shared-fields";
+import { useWhoPaidLine } from "../split/who-paid-line";
 import { AmountField } from "./amount-field";
 import { CategoryTiles } from "./category-tiles";
 import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
@@ -75,8 +77,9 @@ import { whenLabel, type When } from "./when-label";
 const DateTimeSheet = dynamic(() => import("./date-time-sheet").then((module) => module.DateTimeSheet), {
   ssr: false,
 });
-const SplitWithPersonSheet = dynamic(
-  () => import("../direct/split-with-person-sheet").then((module) => module.SplitWithPersonSheet),
+/** P331, P333: a personal expense's "¿Quién pagó y para quién?", in a chunk that loads on the first tap. */
+const PersonalWhoPaidSheet = dynamic(
+  () => import("../split/who-paid-sheets").then((module) => module.PersonalWhoPaidSheet),
   { ssr: false },
 );
 /** Ruling P291: the category picker of board B1 · 03, in a chunk of its own that loads when it first opens. */
@@ -185,7 +188,7 @@ export interface RecordFormProps {
   readonly profileZone?: string;
   /** A shared or direct space: its expense names who paid and how it is split instead of one account (P168). */
   readonly shared?: SharedExpenseContext;
-  /** The people the recorder shares a space with: a personal space's expense can be split with one (P172). */
+  /** The people the recorder shares a space with: a personal expense may be for them too (P172, P331). */
   readonly people?: readonly Person[];
   readonly api?: Api;
   /** Edits a transaction instead of recording one: no split with someone, no plan's split (P192), and no kind tabs
@@ -346,16 +349,18 @@ export function RecordForm({
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [direct, setDirect] = useState<DirectChoice | null>(null);
-  const [directOpened, setDirectOpened] = useState(false);
+  // P331, P333: whom a personal expense was for; the recorder alone until they tick someone else.
+  const [forWhom, setForWhom] = useState(initialForWhom);
+  const [whoOpened, setWhoOpened] = useState(false);
   // The picker brings the dialog's code with it, so it loads on the first tap, not with the form (ADR 0004).
   const [pickerOpened, setPickerOpened] = useState(false);
-  const [directOpen, setDirectOpen] = useState(false);
+  const [whoOpen, setWhoOpen] = useState(false);
+  const whoPaidLine = useWhoPaidLine();
   const [keylessTried, setKeylessTried] = useState(false);
   // Issue #215: what the person entered or chose, against what the form opened with; leaving asks only while they
   // differ. The default split may change the method by itself (P167), so only who paid and a chosen split count.
   const enteredOf = (typed: unknown[]) =>
-    JSON.stringify([...typed, category, accountId, toAccountId, direct, split?.payer, split?.chosen]);
+    JSON.stringify([...typed, category, accountId, toAccountId, forWhom, split?.payer, split?.chosen]);
   const entered = enteredOf([amount, description, chosenWhen]);
   // P305: what another space's form handed over is the person's typing too, so it counts as entered.
   const [pristine] = useState(() => (carried ? enteredOf(["", "", null]) : entered));
@@ -371,9 +376,23 @@ export function RecordForm({
       ? { split, memberIds: shared.members.map((member) => member.id) }
       : undefined;
   const built = requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
+  // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
+  const typed = parseDecimal(amount, formats.numberFormat);
+  const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
+  const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
+  // P331, P333: a new personal expense says who paid and whom it was for in one row, so its account row gives way.
+  const personalWho = !edit && kind === "EXPENSE" && space.kind === "PERSONAL";
+  const known = people ?? [];
+  const personal = personalWho
+    ? personalRequestOf(forWhom, {
+        people: known,
+        amount: positiveMinor,
+        currency: space.currency,
+        numberFormat: formats.numberFormat,
+      })
+    : null;
   // A split with someone is its own request (P172): choosing someone else makes a new draft, so a new key.
-  const canSplit = !edit && people !== undefined && kind === "EXPENSE" && space.kind === "PERSONAL";
-  const splitting = canSplit ? direct : null;
+  const splitting = personal?.kind === "DIRECT" ? personal : null;
   const { key, renew } = useIdempotencyKey(
     built.ok ? JSON.stringify({ body: built.body, direct: splitting }) : "",
   );
@@ -386,10 +405,6 @@ export function RecordForm({
   const label = whenLabel(when, today, formats, days);
   const nameOf = (id: string | null) =>
     [...accounts, ...(shared?.myAccounts ?? [])].find((a) => a.id === id)?.name ?? null;
-  // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
-  const typed = parseDecimal(amount, formats.numberFormat);
-  const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
-  const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
   // #142 (P235, P236): only an expense of the form's own space, never a split with someone nor an edit.
   const chosenCategory = category ? (category.subcategoryId ?? category.categoryId) : null;
   const warning =
@@ -509,7 +524,7 @@ export function RecordForm({
       if (splitting && categoryKey !== null) {
         const { data, error, response } = await api.POST("/api/v1/direct-splits", {
           params: { header: { "idempotency-key": key } },
-          body: directBodyOf(built.body, splitting, categoryKey) as never,
+          body: directBodyOf(built.body, splitting.counterpart, categoryKey, splitting.parts) as never,
         });
         if (response.ok && data) {
           renew();
@@ -582,13 +597,17 @@ export function RecordForm({
     kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
   );
   const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
-  const directName = direct ? (direct.kind === "MEMBER" ? direct.name : direct.displayName) : "";
+  // P333 (board "Registrar: una fila"): "Pagaste tú con Bancolombia · para Juan y Ana".
+  const personalLine = whoPaidLine({
+    payer: { kind: "ME", account: nameOf(accountId) },
+    meIncluded: forWhom.draft.selected.includes(ME),
+    others: othersTicked(forWhom, known).map((other) => other.name),
+    myShare: null,
+  });
 
-  // Ruling P324 (S5): how a shared expense is split and who paid are two summary rows, always on screen, so a problem
-  // in either is never folded away (it replaced Más opciones, issue #171). U11 (#222): a personal expense's split with
-  // someone is a row too; a person already chosen stays on screen.
+  // Ruling P333: who paid and whom it was for are one summary row, always on screen, so a problem in it is never folded
+  // away (it replaced Más opciones, issue #171, and P324's two rows).
   const sharedRows = Boolean(sharedExpense && shared && split);
-  const offersDirect = canSplit && !direct;
   const chipErrors = (["account", "toAccount", "when"] as const).flatMap((field) => {
     const error = errorOf(field);
     return error ? [{ field, error }] : [];
@@ -690,40 +709,9 @@ export function RecordForm({
               error={errorOf("category")}
             />
           )}
-          {/* U11 (#222): under the category, the way to split the expense with someone; a chosen person replaces it. */}
-          {/* Ruling P324 (S5, board "Registrar gasto"): flat summary rows, each opening its sheet: how it is split, who
-              paid and from which account, and the date. A row that does not apply to the kind or space is not drawn. */}
+          {/* Ruling P324 (S5, board "Registrar gasto"), amended by P333: flat summary rows, each opening its sheet: who
+              paid and for whom, and the date. A row that does not apply to the kind or space is not drawn. */}
           <div className="flex flex-col">
-            {/* U11 (#222): a personal expense's split with someone; a chosen person replaces the row. */}
-            {offersDirect ? (
-              <SummaryRow
-                value={t("direct.open")}
-                meta={t("direct.shared")}
-                ariaLabel={t("direct.row")}
-                onClick={() => {
-                  setDirectOpened(true);
-                  setDirectOpen(true);
-                }}
-              />
-            ) : null}
-            {canSplit && direct ? (
-              <div className="flex items-center gap-2 border-b border-line">
-                <span className="flex min-w-0 flex-1 flex-col py-2">
-                  <span className="truncate text-base text-ink">
-                    {t("direct.with", { name: directName })}
-                  </span>
-                  <span className="text-sm text-muted">{t("split.method")}</span>
-                </span>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={t("direct.remove", { name: directName })}
-                  onClick={() => setDirect(null)}
-                >
-                  <Icon name="close" />
-                </Button>
-              </div>
-            ) : null}
             {/* A shared expense names who paid instead of one account (P168). Never unmounted while it applies (P167). */}
             {sharedRows && shared && split ? (
               <SharedFields
@@ -745,16 +733,26 @@ export function RecordForm({
               />
             ) : null}
             <div role="group" aria-label={t("form.details")} className="flex flex-col">
-              {sharedRows
-                ? null
-                : accountRow(
-                    "account",
-                    accountLabel,
-                    nameOf(accountId),
-                    "account",
-                    t("form.chooseAccount"),
-                    fixedAccounts,
-                  )}
+              {personalWho ? (
+                <SummaryRow
+                  value={personalLine}
+                  meta={t("split.title")}
+                  onClick={() => {
+                    setWhoOpened(true);
+                    setWhoOpen(true);
+                  }}
+                  errorId={errorOf("account") ? "record-account-error" : undefined}
+                />
+              ) : sharedRows ? null : (
+                accountRow(
+                  "account",
+                  accountLabel,
+                  nameOf(accountId),
+                  "account",
+                  t("form.chooseAccount"),
+                  fixedAccounts,
+                )
+              )}
               {kind === "TRANSFER"
                 ? accountRow(
                     "toAccount",
@@ -835,19 +833,37 @@ export function RecordForm({
             type="submit"
             size="lg"
             className="w-full"
-            disabled={pending || (!built.ok && built.field === "split")}
+            disabled={
+              pending ||
+              (!built.ok && built.field === "split") ||
+              (personal?.kind === "INVALID" && positiveMinor !== null)
+            }
             aria-describedby={warning ? "record-line-warning" : undefined}
           >
-            {edit ? t("edit.save") : t(`form.save.${splitting ? "DIRECT" : kind}`)}
+            {edit ? t("edit.save") : t(`form.save.${kind}`)}
           </Button>
         </div>
       )}
-      {directOpened && people ? (
-        <SplitWithPersonSheet
-          open={directOpen}
-          onOpenChange={setDirectOpen}
-          people={people}
-          onChoose={setDirect}
+      {whoOpened && personalWho ? (
+        <PersonalWhoPaidSheet
+          open={whoOpen}
+          onOpenChange={setWhoOpen}
+          title={sharedTitle}
+          accounts={accounts}
+          accountId={accountId}
+          onAccount={(id) => {
+            setAccountId(id);
+            clear("account");
+          }}
+          people={known}
+          newAccountHref={newAccountHref}
+          forWhom={forWhom}
+          onForWhom={setForWhom}
+          meId={ME}
+          memberIds={forWhomOrder(known, forWhom.guests)}
+          amount={positiveMinor}
+          currency={space.currency}
+          formats={formats}
         />
       ) : null}
       {kind === "TRANSFER" || !pickerOpened ? null : (

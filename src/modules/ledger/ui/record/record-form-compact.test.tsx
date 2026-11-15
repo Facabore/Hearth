@@ -85,6 +85,8 @@ const household = (api: Api, options: { edit?: RecordEdit } = {}) =>
     />,
   );
 const amount = () => screen.getByLabelText("Monto");
+// P333: who paid and whom it was for are one row, in a personal and a shared space alike.
+const whoRow = () => screen.getByRole("button", { name: /Quién pagó y para quién/ });
 
 /** Whether `a` comes before `b` in the document. */
 const before = (a: Element, b: Element) =>
@@ -122,15 +124,14 @@ describe("the amount takes the form's keypad (ruling P291, board B1 · 01)", () 
 });
 
 describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Registrar gasto)", () => {
-  it("runs kind chips, amount, description, category chips, the split, account and date rows, the keypad and Guardar, axe clean", async () => {
+  it("runs kind chips, amount, description, category chips, who paid and for whom, the date, the keypad and Guardar, axe clean", async () => {
     const { container } = personal(fakeApi({}).api);
     const order = [
       screen.getByRole("tablist"),
       amount(),
       screen.getByLabelText("Descripción"),
       screen.getByRole("group", { name: "Categoría" }),
-      screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" }),
-      screen.getByRole("button", { name: /^Cuenta/ }),
+      whoRow(),
       screen.getByTestId("when-chip"),
       screen.getByRole("button", { name: "Borrar" }),
       screen.getByRole("button", { name: "Guardar gasto" }),
@@ -139,22 +140,19 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("runs a shared expense's rows as the board does: how it is split, who paid, then the date (P324, S5)", () => {
+  it("runs a shared expense's rows as the board does: who paid and for whom, then the date (P333)", () => {
     household(fakeApi({}).api);
     const order = [
       screen.getByRole("group", { name: "Categoría" }),
-      screen.getByRole("button", { name: /División/ }),
-      screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" }),
+      whoRow(),
       screen.getByTestId("when-chip"),
       screen.getByRole("button", { name: "Borrar" }),
       screen.getByRole("button", { name: "Guardar gasto" }),
     ];
     for (const [i, element] of order.slice(1).entries()) expect(before(order[i]!, element)).toBe(true);
     // Each row is flat and two lines: its value over its meta, and a chevron.
-    expect(screen.getByRole("button", { name: /División/ })).toHaveTextContent("Cómo se divide");
-    expect(screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" })).toHaveTextContent(
-      "Quién pagó",
-    );
+    expect(whoRow()).toHaveTextContent("Pagaste tú con Bancolombia · para ti y Juan");
+    expect(screen.queryByRole("button", { name: /División/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("when-chip")).toHaveTextContent("Fecha");
   });
 
@@ -180,7 +178,7 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
     const lastRow = ["000", "0", "Borrar"].map((name) => screen.getByRole("button", { name }));
     // The fields scroll in the height the sheet gives them; the keypad and Guardar never shrink nor scroll.
     expect(fields).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
-    expect(fields).toContainElement(screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" }));
+    expect(fields).toContainElement(whoRow());
     expect(controls).toHaveClass("shrink-0");
     expect(save).toHaveClass("shrink-0");
     for (const key of lastRow) {
@@ -198,7 +196,9 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
   it("names the account and the date and time in summary rows, the space first (P308); the account and date open", async () => {
     personal(fakeApi({}).api);
     const chips = screen.getByRole("group", { name: "Detalles del movimiento" });
-    expect(within(chips).getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
+    expect(within(chips).getByRole("button", { name: /Quién pagó y para quién/ })).toHaveTextContent(
+      "Pagaste tú con Bancolombia",
+    );
     expect(within(chips).getByTestId("when-chip")).toHaveTextContent("Hoy · 23:30");
     expect(within(chips).queryByText(spaceDto().name)).toBeNull();
     // Ruling P308: the space is named above the kind tabs, since what follows depends on it.
@@ -209,8 +209,8 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
     ).toBeTruthy();
     expect(within(chips).getAllByRole("button")).toHaveLength(2);
     for (const chip of within(chips).getAllByRole("button")) expect(chip).toHaveClass("min-h-11");
-    await userEvent.click(within(chips).getByRole("button", { name: /Cuenta/ }));
-    expect(screen.getByRole("dialog", { name: "Cuenta" })).toBeInTheDocument();
+    await userEvent.click(within(chips).getByRole("button", { name: /Quién pagó y para quién/ }));
+    expect(await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" })).toBeInTheDocument();
   });
 
   it("chooses a category from its tile, and a subcategory from its chip, a second tap clearing it", async () => {
@@ -369,21 +369,20 @@ describe("a category created from the picker (ruling P308)", () => {
   });
 });
 
-describe("the split and who paid are rows always on screen (P324, S5; they replaced Más opciones, #171)", () => {
-  it("has no Más opciones in a personal space: the split with someone is a row of its own (U11, #222)", () => {
+describe("who paid and for whom is a row always on screen (P333; it replaced Más opciones, #171)", () => {
+  it("has no Más opciones in a personal space: who paid and for whom is a row of its own (U11, #222)", () => {
     personal(fakeApi({}).api);
     expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "¿Lo compartiste? Dividir con alguien" })).toBeVisible();
+    expect(whoRow()).toBeVisible();
   });
 
-  it("shows who paid and how it is split with no Más opciones, and keeps Guardar last", () => {
+  it("shows who paid and for whom with no Más opciones, and keeps Guardar last", () => {
     household(fakeApi({}).api);
     expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
-    // Board "Registrar gasto": "Pagó Ana desde Bancolombia" in plain text, no bold, before the keypad.
-    const payer = screen.getByRole("button", { name: "Pagó Ana desde Bancolombia" });
+    // Board "Registrar: una fila": the row in plain text, no bold, before the keypad.
+    const payer = whoRow();
     expect(payer).toBeVisible();
     expect(payer.querySelector("strong")).toBeNull();
-    expect(screen.getByRole("button", { name: /División/ })).toBeVisible();
     expect(before(payer, screen.getByRole("button", { name: "Borrar" }))).toBe(true);
     const buttons = screen.getAllByRole("button");
     expect(buttons.at(-1)).toHaveAccessibleName("Guardar gasto");
@@ -409,9 +408,10 @@ describe("the split and who paid are rows always on screen (P324, S5; they repla
     await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
     await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
     await waitFor(() => expect(requests.some((r) => r.url.includes("default-split"))).toBe(true));
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /División/ })).toHaveTextContent("según el plan"),
-    );
+    await userEvent.click(whoRow());
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await waitFor(() => expect(within(sheet).getByRole("radio", { name: "Según el plan" })).toBeChecked());
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(await requests.find((r) => r.method === "POST")!.json()).not.toHaveProperty("split");
@@ -431,10 +431,10 @@ describe("the split and who paid are rows always on screen (P324, S5; they repla
         },
       }),
     });
-    expect(screen.getByRole("button", { name: /División/ })).toBeVisible();
+    expect(whoRow()).toBeVisible();
   });
 
-  it("shows the API's split problem under the split row, never hidden", async () => {
+  it("shows the API's split problem under the row, never hidden", async () => {
     const { api } = fakeApi({
       "GET /api/v1/spaces/{spaceId}/default-split": () =>
         jsonResponse({ method: "EQUAL", availableMethods: ["EQUAL"], lineId: null, shares: [] }),
@@ -448,9 +448,7 @@ describe("the split and who paid are rows always on screen (P324, S5; they repla
     expect(await screen.findByText("Revisa cómo se divide el gasto.")).toBeVisible();
     // There is no Menos opciones to fold the problem away.
     expect(screen.queryByRole("button", { name: /^(Más|Menos) opciones$/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /División/ })).toHaveAccessibleDescription(
-      "Revisa cómo se divide el gasto.",
-    );
+    expect(whoRow()).toHaveAccessibleDescription("Revisa cómo se divide el gasto.");
   });
 });
 

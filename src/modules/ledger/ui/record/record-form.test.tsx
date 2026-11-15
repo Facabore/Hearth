@@ -53,6 +53,9 @@ const form = (api: Api, kind: RecordKind = "EXPENSE") =>
     />,
   );
 const recorded = () => jsonResponse(transactionDto({ id: "t-new" }), 201);
+// P333: a personal expense's account is chosen in "¿Quién pagó y para quién?", opened from its one row.
+const whoRow = () => screen.getByRole("button", { name: /Quién pagó y para quién/ });
+const whoSheet = () => screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
 const enterMarket = async () => {
   await userEvent.type(screen.getByLabelText("Monto"), "85000");
   await userEvent.type(screen.getByLabelText("Descripción"), "Market");
@@ -64,8 +67,8 @@ describe("the account picker can create an account and come back (N7)", () => {
   it("links to New account with a returnTo back to this form, with the type being recorded", async () => {
     const { api } = fakeApi({});
     form(api);
-    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
-    expect(screen.getByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
+    await userEvent.click(whoRow());
+    expect(await screen.findByRole("link", { name: "Nueva cuenta" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/accounts/new?returnTo=%2Fspaces%2Fsp-personal%2Fnew",
     );
@@ -95,8 +98,8 @@ describe("the account picker can create an account and come back (N7)", () => {
         api={api}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
-    expect(screen.getByText("No hay cuentas para elegir. Crea una nueva.")).toBeInTheDocument();
+    await userEvent.click(whoRow());
+    expect(await screen.findByText("No hay cuentas para elegir. Crea una nueva.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Nueva cuenta" })).toBeInTheDocument();
   });
 });
@@ -239,26 +242,28 @@ describe("the account a new movement starts on (issue #208)", () => {
     const first = formOn(api, accounts);
     await enterMarket();
     await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
-    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
-    await userEvent.click(within(screen.getByRole("dialog")).getByRole("radio", { name: /Visa/ }));
+    await userEvent.click(whoRow());
+    const sheet = await whoSheet();
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Visa/ }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(await requests[0]!.json()).toMatchObject({ accountId: "a-visa" });
 
     first.unmount();
     formOn(fakeApi({}).api, accounts);
-    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Visa");
+    expect(whoRow()).toHaveTextContent("Visa");
   });
 
   it("is never a savings account while another one exists, when nothing was paid yet", () => {
     formOn(fakeApi({}).api, [savings, ...accounts]);
-    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
+    expect(whoRow()).toHaveTextContent("Bancolombia");
   });
 
   it("leaves a remembered account the form no longer offers for the first one", () => {
     localStorage.setItem("hearth.lastAccount", "a-archived");
     formOn(fakeApi({}).api, accounts);
-    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveTextContent("Bancolombia");
+    expect(whoRow()).toHaveTextContent("Bancolombia");
   });
 });
 
@@ -380,7 +385,7 @@ describe("record form (HU-E9-03)", () => {
     );
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
-    expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveAccessibleDescription("Elige una cuenta.");
+    expect(whoRow()).toHaveAccessibleDescription("Elige una cuenta.");
     expect(requests).toHaveLength(0);
   });
 
@@ -404,7 +409,7 @@ describe("record form (HU-E9-03)", () => {
     [
       "AccountArchived",
       "button",
-      /Cuenta/,
+      /Quién pagó y para quién/,
       "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.",
     ],
   ] as const)("shows %s next to its field and keeps the draft", async (code, role, field, message) => {
@@ -591,13 +596,9 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await save();
     const message = "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.";
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Cuenta/ })).toHaveAccessibleDescription(message),
-    );
-    await userEvent.click(screen.getByRole("button", { name: /Cuenta/ }));
-    await userEvent.click(
-      within(screen.getByRole("dialog", { name: "Cuenta" })).getByRole("radio", { name: /Visa/ }),
-    );
+    await waitFor(() => expect(whoRow()).toHaveAccessibleDescription(message));
+    await userEvent.click(whoRow());
+    await userEvent.click(within(await whoSheet()).getByRole("radio", { name: /Visa/ }));
     expect(screen.queryByText(message)).toBeNull();
   });
 

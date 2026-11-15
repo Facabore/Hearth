@@ -6,7 +6,7 @@ import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { accountDto, guestDto, memberDto, normalized } from "../../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
-import { PayerSheet, SplitSheet } from "./split-sheet";
+import { SplitSheet } from "./split-sheet";
 import type { SplitDraft } from "./split-request";
 import type { DefaultSplitState } from "./use-default-split";
 
@@ -474,82 +474,5 @@ describe("the split sheet without who paid (ruling P324, S6, board Cómo se divi
     unmount();
     sheetWith();
     expect(within(split()).queryByRole("button", { name: "Agregar a alguien" })).not.toBeInTheDocument();
-  });
-});
-
-describe("the payer sheet (ruling P324, S5, S6)", () => {
-  function PayerHarness({
-    seen,
-    onAddGuests,
-  }: {
-    seen?: (draft: SplitDraft) => void;
-    onAddGuests?: () => void;
-  }) {
-    const [draft, setDraft] = useState(start);
-    const [open, setOpen] = useState(true);
-    return (
-      <PayerSheet
-        open={open}
-        onOpenChange={setOpen}
-        title="Mercado · $ 300.000 · Household"
-        members={MEMBERS}
-        meUserId="u-ana"
-        myAccounts={[BANK, accountDto({ id: "a-visa", name: "Visa", type: "CREDIT_CARD" })]}
-        funds={[FUND]}
-        draft={draft}
-        onChange={(next) => {
-          seen?.(next);
-          setDraft(next);
-        }}
-        {...(onAddGuests ? { onAddGuests } : {})}
-      />
-    );
-  }
-  const payers = () => screen.getByRole("dialog", { name: "Quién pagó" });
-
-  it("holds who paid and the account, with the guest's and the fund's notes, and nothing of the split", async () => {
-    const drafts: SplitDraft[] = [];
-    renderWithIntl(<PayerHarness seen={(d) => drafts.push(d)} />);
-    expect(payers()).toHaveAccessibleDescription("Mercado · $ 300.000 · Household");
-    expect(within(payers()).queryByRole("radiogroup", { name: "Cómo se divide" })).not.toBeInTheDocument();
-    expect(within(payers()).queryByRole("checkbox")).not.toBeInTheDocument();
-    const who = within(payers()).getByRole("radiogroup", { name: "Pagó" });
-    expect(
-      within(who)
-        .getAllByRole("radio")
-        .map((r) => r.textContent),
-    ).toEqual(["Ana (tú)", "Pedro (invitado)", "Fondo Hogar"]);
-    await userEvent.click(within(payers()).getByRole("radio", { name: "Visa" }));
-    await userEvent.click(within(who).getByRole("radio", { name: "Pedro (invitado)" }));
-    expect(
-      within(payers()).getByText(
-        "Pedro es invitado: pagó fuera de la app, así que no hay cuenta que elegir.",
-      ),
-    ).toBeInTheDocument();
-    expect(within(payers()).queryByRole("radiogroup", { name: "Desde" })).not.toBeInTheDocument();
-    await userEvent.click(within(who).getByRole("radio", { name: "Fondo Hogar" }));
-    expect(
-      within(payers()).getByText("Sale de la cuenta Fondo Hogar. Nadie queda debiendo por este gasto."),
-    ).toBeInTheDocument();
-    expect(drafts.map((d) => d.payer)).toEqual([
-      { kind: "ME", memberId: "m-ana", accountId: "a-visa" },
-      { kind: "GUEST", memberId: "m-pedro" },
-      { kind: "FUND", accountId: "a-fund" },
-    ]);
-    // Who paid is never the person's split work, so the plan's split may still apply (P167).
-    expect(drafts.every((d) => !d.chosen)).toBe(true);
-    expect(await axeViolations(document.body)).toEqual([]);
-    await userEvent.click(within(payers()).getByRole("button", { name: "Listo" }));
-    expect(screen.queryByRole("dialog", { name: "Quién pagó" })).not.toBeInTheDocument();
-  });
-
-  it("offers Agregar a alguien only when it is given a way to add guests", async () => {
-    let asked = 0;
-    const { unmount } = renderWithIntl(<PayerHarness onAddGuests={() => (asked += 1)} />);
-    await userEvent.click(within(payers()).getByRole("button", { name: "Agregar a alguien" }));
-    expect(asked).toBe(1);
-    unmount();
-    renderWithIntl(<PayerHarness />);
-    expect(within(payers()).queryByRole("button", { name: "Agregar a alguien" })).not.toBeInTheDocument();
   });
 });

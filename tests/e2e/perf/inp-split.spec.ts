@@ -69,9 +69,9 @@ test("INP stays within budget while editing a split on a 4× slower CPU (rulings
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.locator("#record-amount").pressSequentially("300000");
   await chooseCategory(page, /./);
-  await page.getByRole("button", { name: /División/ }).click();
+  await page.getByRole("button", { name: /Quién pagó y para quién/ }).click();
   await page.getByRole("radio", { name: "Porcentaje" }).click();
-  await page.getByLabel(/^Valor de Inp/).pressSequentially("40");
+  await page.getByLabel(/^Valor de Tú/).pressSequentially("40");
   await page.getByLabel(/^Valor de Juan/).pressSequentially("60");
   const inp = await page.evaluate(() => (window as unknown as { __inp: number }).__inp);
   console.log(`INP of the split editor ${inp} ms (budget ${budgets.metrics.inpMs} ms)`);
