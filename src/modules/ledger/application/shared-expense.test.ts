@@ -118,7 +118,7 @@ describe("payers and participants of a shared expense (HU-E4-07, Review Focus 2)
     ["a payer who is not a member", paidBy("member-marta", null), "NotASpaceMember"],
     ["no participants", { split: equal() }, "ParticipantsRequired"],
     ["no payments", { payments: [] }, "PaymentsRequired"],
-    ["a registered payer without an account", paidBy("member-juan", null), "AccountRequired"],
+    ["the recorder paying without an account", paidBy("member-ana", null), "AccountRequired"],
     ["a guest payer with an account", paidBy("member-pedro", ACCOUNTS.bancolombia.id), "GuestHasNoAccounts"],
     ["Juan paying from Ana's account", paidBy("member-juan", ACCOUNTS.bancolombia.id), "AccountNotOwned"],
     [
@@ -161,6 +161,22 @@ describe("payers and participants of a shared expense (HU-E4-07, Review Focus 2)
     expect(codeOf(await record({ ...byPedro, userId: "u-luis" }))).toBe("ok");
     expect(codeOf(await record({ ...byPedro, userId: "u-sofi" }))).toBe("InsufficientRole");
     expect(codeOf(await record({ ...byPedro, userId: "u-marta" }))).toBe("SpaceNotFound");
+  });
+});
+
+describe("another registered member paid with their own money (P333, P168 amended)", () => {
+  it("records Juan as the payer with no account, so only who owes whom changes", async () => {
+    const { deps, store } = householdLedger();
+    const byJuan = groceries(300_000n, {
+      payments: [{ memberId: "member-juan", accountId: null, amount: cop(300_000n) }],
+    });
+    expect(codeOf(await createRecordExpense(deps)(byJuan))).toBe("ok");
+    const tx = lastExpense(store.rows);
+    expect(tx.payments).toEqual([{ memberId: "member-juan", accountId: null, amount: 30_000_000n }]);
+    expect(sharesOf(tx)).toEqual([
+      ["member-ana", 15_000_000n],
+      ["member-juan", 15_000_000n],
+    ]);
   });
 });
 

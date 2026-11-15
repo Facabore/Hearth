@@ -123,7 +123,8 @@ export const TransactionSchema = z.object({
 
 /**
  * HU-E4-07/10: one payment. `memberId` is a member of the space (registered or guest) and `accountId`
- * that member's own account, or null (or absent) for a guest, who pays outside the app; a null
+ * that member's own account, or null (or absent) for a guest, who pays outside the app, and (P333) for a
+ * registered member other than the requester, who paid with their own money and whose accounts do not move; a null
  * `memberId` names the space's shared fund as payer, and `accountId` is then the fund (spec 5.2).
  */
 export const PaymentBodySchema = z.object({

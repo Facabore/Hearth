@@ -194,8 +194,12 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
         "AccountNotOwned",
       ],
       [
-        "a registered payer with no account",
-        paidBy(h, h.ana, 80_000, { split: both, payments: juanPays(undefined) }),
+        // P333 (P168 amended): another member may pay with no account, the recorder never.
+        "the recorder paying with no account",
+        paidBy(h, h.ana, 80_000, {
+          split: both,
+          payments: [{ memberId: h.ana.memberId, accountId: undefined, amount: cop(80_000) }],
+        }),
         422,
         "AccountRequired",
       ],

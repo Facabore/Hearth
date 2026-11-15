@@ -8,14 +8,19 @@ import type { LedgerDeps } from "./deps";
 export interface PaymentInput {
   /** The paying member, registered or guest; null for a payment from the shared fund (HU-E4-10). */
   readonly memberId: string | null;
-  /** The payer's own account, the shared fund when `memberId` is null, or null for a guest. */
+  /**
+   * The payer's own account, the shared fund when `memberId` is null, or null for a guest or (P333) another registered
+   * member who paid with their own money.
+   */
   readonly accountId: string | null;
   readonly amount: Money;
 }
 
 /**
- * Spec 5.2: memberId is null only for the shared fund; accountId is null only for a guest. A
- * personal account is debited only by its owner (D9); any member who records money may spend the fund.
+ * Spec 5.2: memberId is null only for the shared fund. A personal account is debited only by its owner (D9); any member
+ * who records money may spend the fund. P333 (P168 amended): accountId is null for a guest and for a registered member
+ * other than the recorder, who paid with their own money: the expense records only who owes whom and moves none of
+ * their accounts. The recorder always names the account they paid from.
  */
 const paymentOf = async (
   deps: Pick<LedgerDeps, "accounts">,
@@ -35,6 +40,10 @@ const paymentOf = async (
       accountId: fund.id,
       amount,
     }));
+  }
+  const paidBy = members.find((m) => m.id === memberId);
+  if (accountId === null && paidBy?.userId != null && paidBy.userId !== userId) {
+    return ok({ memberId, accountId: null, amount });
   }
   const debit = { required: true, debitedBy: userId };
   return map(await partyAccount(deps, members, memberId, accountId, debit), (account) => ({
