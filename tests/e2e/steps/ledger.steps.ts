@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { BUILT_IN_FORMATS, formatDate } from "../../../src/shared/ui/format/formatters";
 import { Given, Then, When } from "../support/fixtures";
 import { minor, shown } from "../support/money";
-import { chooseCategory } from "../support/record";
+import { chooseCategory, openWhoPaid, payFrom, payFromChoices } from "../support/record";
 import type { World } from "../support/world";
 
 const DAY_KEYS: Record<string, string> = {
@@ -76,8 +76,8 @@ When(
     await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
     await page.getByLabel(world.t("ledger.form.description")).fill(description);
     await chooseCategory(page, category);
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.form.account")) }).click();
-    await page.getByRole("radio", { name: new RegExp(account) }).click();
+    // P333: the account is chosen in "¿Quién pagó y para quién?", opened from the form's one row.
+    await payFrom(page, account);
     await page.getByRole("button", { name: world.t("ledger.form.save.EXPENSE") }).click();
     await expect(page).toHaveURL(/\/transactions/);
   },
@@ -251,10 +251,10 @@ Then(
   async ({ page, world }, account: string) => {
     await expect(page.getByRole("region", { name: world.t("accounts.archived") })).toContainText(account);
     await openForm(page, world);
-    await page.getByRole("button", { name: new RegExp(world.t("ledger.form.account")) }).click();
-    const sheet = page.getByRole("dialog", { name: world.t("ledger.form.account") });
-    await expect(sheet.getByRole("radio").first()).toBeVisible();
-    await expect(sheet.getByRole("radio", { name: new RegExp(account) })).toHaveCount(0);
+    // P333: the accounts paid from are the "Desde" chips of "¿Quién pagó y para quién?".
+    const from = payFromChoices(await openWhoPaid(page));
+    await expect(from.getByRole("radio").first()).toBeVisible();
+    await expect(from.getByRole("radio", { name: new RegExp(account) })).toHaveCount(0);
   },
 );
 

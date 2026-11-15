@@ -5,7 +5,7 @@ import { en, es } from "../../src/i18n/messages/full";
 import { BASE_URL } from "./support/base-url";
 import { Person } from "./support/people";
 import { categoryIdsByKey, clientOf, seedHome, seedHousehold, seedRecurrence } from "./support/plan-seed";
-import { chooseCategory, openCategoryPicker } from "./support/record";
+import { chooseCategory, openCategoryPicker, openWhoPaid } from "./support/record";
 import {
   archiveStarterAccounts,
   get,
@@ -502,11 +502,12 @@ const sheets: {
       page.getByRole("button", { name: es.shell.space.current.replace("{name}", "Personal") }).click(),
   },
   {
-    name: "account picker",
+    // P333: the personal form's accounts are the "Desde" chips of "¿Quién pagó y para quién?".
+    name: "who paid and for whom sheet",
     path: "new",
     open: async (page) => {
       await expect(page.locator("[data-ready='true']")).toBeAttached();
-      await page.getByRole("button", { name: new RegExp(`^${es.ledger.form.account}`) }).click();
+      await openWhoPaid(page);
     },
   },
   {

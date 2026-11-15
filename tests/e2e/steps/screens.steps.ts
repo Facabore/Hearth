@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
+import { openWhoPaid } from "../support/record";
 import type { World } from "../support/world";
 
 const escaped = (path: string) => path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -81,13 +82,14 @@ When(
 
 When("{string} opens the account picker of the form", async ({ page, world }, name: string) => {
   expect(name).toBe(world.user!.name);
-  await page.getByRole("button", { name: new RegExp(world.t("ledger.form.account")) }).click();
+  // P333: the personal form's accounts are offered in "¿Quién pagó y para quién?".
+  await openWhoPaid(page);
 });
 
 Then("the picker explains that there are no accounts", async ({ page, world }) => {
   await expect(
     page
-      .getByRole("dialog", { name: world.t("ledger.form.account") })
+      .getByRole("dialog", { name: world.t("ledger.who.title") })
       .getByText(world.t("accounts.picker.empty")),
   ).toBeVisible();
 });
@@ -96,7 +98,7 @@ When("{string} chooses {string} in the picker", async ({ page, world }, name: st
   expect(name).toBe(world.user!.name);
   expect(action).toBe(world.t("accounts.new"));
   await page
-    .getByRole("dialog", { name: world.t("ledger.form.account") })
+    .getByRole("dialog", { name: world.t("ledger.who.title") })
     .getByRole("link", { name: action })
     .click();
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/accounts/new\\?returnTo=`));
@@ -116,8 +118,10 @@ When(
 Then("the new expense form is shown with the account {string}", async ({ page, world }, account: string) => {
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/new$`));
   await expect(page.locator("[data-ready='true']")).toBeAttached();
+  // P333: the one row reads "Pagaste tú con <account>" over "Quién pagó y para quién".
+  const paid = world.t("ledger.who.youPaid", { account });
   await expect(
-    page.getByRole("button", { name: new RegExp(`${world.t("ledger.form.account")}\\s*${account}`) }),
+    page.getByRole("button", { name: new RegExp(`${world.t("ledger.split.title")}\\s*${paid}`) }),
   ).toBeVisible();
 });
 
