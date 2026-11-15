@@ -3,7 +3,8 @@ import { useTranslations } from "next-intl";
 import { CategoryIcon } from "@/modules/categories/ui";
 import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
 import type { ActivityItemDto, MoneyDto } from "@/shared/ui/api/dto";
-import { formatDate, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { formatDayMonthYear } from "@/shared/ui/format/day-month";
+import { formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
 import { withTx } from "../detail/tx-href";
@@ -113,6 +114,7 @@ export function ActivityRow({
 }) {
   const t = useTranslations("home.feed");
   const ledger = useTranslations("ledger");
+  const common = useTranslations("common");
   const tx = item.transaction;
   const part = partOf(item);
   const day = relativeDay(tx.date, today);
@@ -124,7 +126,17 @@ export function ActivityRow({
       when.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
     }
   } else {
-    when.push(day === "today" || day === "yesterday" ? ledger(`day.${day}`) : formatDate(tx.date, formats));
+    // Ruling P327: the day as Movimientos labels it ("Ayer", "10 nov", "10 nov 2025" outside today's year).
+    when.push(
+      day === "today" || day === "yesterday"
+        ? ledger(`day.${day}`)
+        : formatDayMonthYear(
+            tx.date,
+            common(`monthShort.${Number(tx.date.slice(5, 7)) as 1}`),
+            formats,
+            today,
+          ),
+    );
     if (day === "today" && tx.occurredAt && tx.timeZone && tx.timeZone === viewerZone)
       when.push(formatTimeAt(tx.occurredAt, tx.timeZone, formats));
   }

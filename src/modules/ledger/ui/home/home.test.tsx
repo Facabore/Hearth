@@ -361,7 +361,7 @@ describe("the personal space shows everything (ruling P306)", () => {
     );
     expect(norm(rowOf("Hotel").textContent)).toBe("HotelAyer · Viaje Cartagena · tu parte−$ 70.000");
     expect(norm(rowOf("te pagó").textContent)).toBe(
-      "Juan te pagó29/10/2026 · Hogar · Saldo entre ustedes+$ 50.000",
+      "Juan te pagó29 oct · Hogar · Saldo entre ustedes+$ 50.000",
     );
     // Her own row is the one Inicio always drew, opening on her personal home.
     expect(within(rowOf("Salary")).getByRole("link")).toHaveAttribute(
@@ -408,11 +408,11 @@ describe("the personal space shows everything (ruling P306)", () => {
       .getAllByRole("listitem")
       .map((row) => norm(row.textContent));
     expect(rows).toEqual([
-      "Le perdonaste la deuda a Juan29/10/2026 · Hogar · No se movió dinero$ 10.000",
-      "Luis te perdonó la deuda29/10/2026 · Hogar · No se movió dinero$ 10.000",
-      "Se lo regalaste a Juan29/10/2026 · Hogar · No se movió dinero$ 10.000",
-      "Luis te lo regaló29/10/2026 · Hogar · No se movió dinero$ 10.000",
-      "Luis le perdonó la deuda a Juan29/10/2026 · Hogar · No se movió dinero$ 10.000",
+      "Le perdonaste la deuda a Juan29 oct · Hogar · No se movió dinero$ 10.000",
+      "Luis te perdonó la deuda29 oct · Hogar · No se movió dinero$ 10.000",
+      "Se lo regalaste a Juan29 oct · Hogar · No se movió dinero$ 10.000",
+      "Luis te lo regaló29 oct · Hogar · No se movió dinero$ 10.000",
+      "Luis le perdonó la deuda a Juan29 oct · Hogar · No se movió dinero$ 10.000",
     ]);
     const first = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem")[0]!;
     const amount = [...first.querySelectorAll("span")].find((span) => norm(span.textContent) === "$ 10.000");

@@ -87,7 +87,7 @@ describe("another space's row (ruling P306, medium density P324)", () => {
         you: { memberIds: ["m-ana"], share: null, paid: cop(40_000) },
       }),
     );
-    expect(lineOf("Regalo")).toBe("10/11/2026 · Hogar · pagaste tú");
+    expect(lineOf("Regalo")).toBe("10 nov · Hogar · pagaste tú");
     expect(screen.getByText(/40\.000/)).toHaveTextContent("−$ 40.000");
     renderRow(
       activityItemDto({
@@ -101,9 +101,21 @@ describe("another space's row (ruling P306, medium density P324)", () => {
       }),
     );
     // Ruling P329: the API no longer lists a movement without her; one that still arrived says who recorded it.
-    expect(lineOf("Gas")).toBe("10/11/2026 · Hogar · Juan registró");
+    expect(lineOf("Gas")).toBe("10 nov · Hogar · Juan registró");
     // Unsigned: no money of hers moved, and the words say so, never the grey alone.
     expect(screen.getByText(/45\.000/).textContent).toMatch(/^\$/);
+  });
+
+  it("names an older day as Movimientos' day label does: '10 nov', with the year outside today's (P324, P327)", () => {
+    const on = (id: string, description: string, date: string) =>
+      activityItemDto({
+        transaction: transactionDto({ id, description, date, amount: cop(20_000) }),
+        you: { memberIds: ["m-ana"], share: cop(10_000), paid: null },
+      });
+    renderRow(on("t-old", "Cine", "2026-11-10"));
+    renderRow(on("t-older", "Pizza", "2025-11-10"));
+    expect(lineOf("Cine")).toBe("10 nov · Hogar · tu parte");
+    expect(lineOf("Pizza")).toBe("10 nov 2025 · Hogar · tu parte");
   });
 
   it("drops the day under Movimientos' day label and keeps the time", () => {
