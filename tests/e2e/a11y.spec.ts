@@ -12,6 +12,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     test.use({ colorScheme });
 
     test("every M6a screen and sheet has no WCAG 2.1 AA violation", async ({ page }) => {
+      // About 40 screens, each scanned by axe: alone it takes about a minute per theme, so 60 s left no margin.
+      test.setTimeout(120_000);
       const scan = async (where: string) => {
         const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
         expect(
