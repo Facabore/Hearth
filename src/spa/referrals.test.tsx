@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../tests/support/ui/axe";
@@ -115,5 +115,36 @@ describe("a referral link (D27)", () => {
     const spa = renderSpa("/r/fabian-7k2qx9mt", signedIn());
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal"));
     expect(localStorage.getItem(KEY)).toBeNull();
+  });
+});
+
+describe("Más and Invitar a Hearth (D27)", () => {
+  it("gives the personal Más the invite row with the points, which opens Invitar a Hearth with its way back", async () => {
+    const spa = renderSpa("/spaces/sp-personal/more", signedIn());
+    const row = await screen.findByRole("link", { name: /Invita a alguien a Hearth/ }, { timeout: 5_000 });
+    await waitFor(() => expect(row).toHaveTextContent("Llevas 3 puntos"));
+    await userEvent.click(row);
+    expect(await screen.findByRole("heading", { level: 1, name: "Invitar a Hearth" })).toBeVisible();
+    expect(spa.location()).toBe("/spaces/sp-personal/invite");
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute("href", "/spaces/sp-personal/more");
+    const joined = screen.getByRole("region", { name: "Se unieron con tu enlace" });
+    expect(within(joined).getAllByRole("listitem")).toHaveLength(3);
+    expect(document.title).toBe("Invitar a Hearth · Hearth");
+  });
+
+  it("leaves the row out of a shared space's Más", async () => {
+    renderSpa("/spaces/sp-household/more", signedIn());
+    expect(await screen.findByRole("heading", { level: 1, name: "Más" }, { timeout: 5_000 })).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Invita a alguien a Hearth/ })).toBeNull();
+  });
+
+  it("keeps the row, without the points, when they cannot be read", async () => {
+    renderSpa("/spaces/sp-personal/more", {
+      ...signedIn(),
+      "GET /api/v1/me/referrals": () => problemResponse(500, "InternalError"),
+    });
+    const row = await screen.findByRole("link", { name: /Invita a alguien a Hearth/ }, { timeout: 5_000 });
+    expect(row).toHaveAttribute("href", "/spaces/sp-personal/invite");
+    expect(row).not.toHaveTextContent("Llevas");
   });
 });

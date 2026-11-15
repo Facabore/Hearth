@@ -76,6 +76,11 @@ export const SpaceSettingsPending = () => (
   <SpaceScreenPending title={useTranslations("settings")("title")} shape="form" />
 );
 
+/** D27: Invitar a Hearth, back to Más. */
+export const ReferralsPending = () => (
+  <SpaceScreenPending title={useTranslations("referrals")("title")} back="/more" shape="list" />
+);
+
 export const MembersPending = () => (
   <SpaceScreenPending title={useTranslations("members")("title")} shape="list" />
 );

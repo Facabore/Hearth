@@ -723,6 +723,8 @@ for (const wideFont of [false, true]) {
           `/spaces/${sharedId}/more`,
           `/spaces/${spaceId}/settings`,
           `/spaces/${sharedId}/settings`,
+          // D27: Invitar a Hearth, from the personal Más, with its link field and its list.
+          `/spaces/${spaceId}/invite`,
           // N3: Settings and New space opened from a shared space wear its shell.
           `/settings?from=${sharedId}`,
           `/spaces/new?from=${sharedId}`,

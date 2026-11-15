@@ -107,6 +107,9 @@ const plans = () => import("./plan/loaders");
 /** HU-E9-09's loaders, likewise. */
 const recurring = () => import("./recurring/loaders");
 
+/** D27's loader, likewise. */
+const referrals = () => import("./referrals/loaders");
+
 /** A Plan tab view's query string (ruling P200): the period, the trend's window and the calendar's days. */
 const planSearch = (search: Record<string, unknown>) => ({
   period: textParam(search.period),
@@ -409,6 +412,17 @@ const moreRoute = createRoute({
   path: "more",
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/more"), "MoreRoute"),
+});
+
+/** D27: Invitar a Hearth, the person's referral link and points, from the personal Más; stacked, Volver to Más. */
+const referralsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "invite",
+  staticData: stackedScreen,
+  loader: async ({ context, cause }) => (await referrals()).loadReferrals({ ...context, cause }),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ReferralsPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/referrals"), "ReferralsRoute"),
 });
 
 /** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
@@ -729,6 +743,7 @@ export const routeTree = rootRoute.addChildren([
     categoriesRoute,
     spaceSettingsRoute,
     moreRoute,
+    referralsRoute,
     membersRoute,
     historyRoute,
     balancesRoute,

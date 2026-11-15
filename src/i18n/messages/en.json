@@ -290,7 +290,9 @@
       "calendar": "Calendar",
       "exportImport": "Export and import",
       "soon": "Coming soon",
-      "note": "Your details, formats and language are under your photo, top right."
+      "note": "Your details, formats and language are under your photo, top right.",
+      "invite": "Invite someone to Hearth",
+      "invitePoints": "{n, plural, one {You have {count} point} other {You have {count} points}}"
     }
   },
   "home": {
@@ -786,6 +788,23 @@
       "nobodyYet": "Nobody was added yet: fix the marked name and try again.",
       "claimNote": "If any of them signs up later, you send them a link to claim their place and they keep all its history."
     }
+  },
+  "referrals": {
+    "title": "Invite to Hearth",
+    "points": "Your points",
+    "intro": "Share your link. Each person who creates their account with it adds a point for you.",
+    "link": "Your link",
+    "copy": "Copy",
+    "share": "Share link",
+    "shareText": "Join me on Hearth, to keep track of the household money.",
+    "copied": "Link copied",
+    "copyFailed": "We couldn't copy the link. Select it and copy it by hand.",
+    "joined": "Joined with your link",
+    "joinedOn": "Joined {day} {month}",
+    "unconfirmed": "Their email is not confirmed yet",
+    "plusOne": "Adds a point",
+    "empty": "Nobody has joined with your link yet. When someone creates their account with it, they show up here.",
+    "footer": "For now points are only counted. Later on they may give you perks."
   },
   "notFound": {
     "title": "This page does not exist",

@@ -71,6 +71,8 @@ for (const colorScheme of ["light", "dark"] as const) {
         // Ruling P311: Más, the bar's module grid, and the space's Configuración from the header's gear.
         `/spaces/${spaceId}/more`,
         `/spaces/${spaceId}/settings`,
+        // D27: Invitar a Hearth, the person's referral link and points.
+        `/spaces/${spaceId}/invite`,
         // N1: the app's own not-found page, for an address and for a space.
         "/nope",
         "/spaces/does-not-exist/accounts",

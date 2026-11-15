@@ -290,7 +290,9 @@
       "calendar": "Calendario",
       "exportImport": "Exportar e importar",
       "soon": "Próximamente",
-      "note": "Tus datos, formatos e idioma están en tu foto, arriba a la derecha."
+      "note": "Tus datos, formatos e idioma están en tu foto, arriba a la derecha.",
+      "invite": "Invita a alguien a Hearth",
+      "invitePoints": "{n, plural, one {Llevas {count} punto} other {Llevas {count} puntos}}"
     }
   },
   "home": {
@@ -786,6 +788,23 @@
       "nobodyYet": "No agregamos a nadie todavía: corrige el nombre marcado y vuelve a intentarlo.",
       "claimNote": "Si alguno se registra después, le envías un enlace para reclamar su lugar y se lleva todo su historial."
     }
+  },
+  "referrals": {
+    "title": "Invitar a Hearth",
+    "points": "Tus puntos",
+    "intro": "Comparte tu enlace. Cada persona que crea su cuenta con él te suma un punto.",
+    "link": "Tu enlace",
+    "copy": "Copiar",
+    "share": "Compartir enlace",
+    "shareText": "Te invito a Hearth, para llevar las cuentas de la casa.",
+    "copied": "Enlace copiado",
+    "copyFailed": "No pudimos copiar el enlace. Selecciónalo y cópialo a mano.",
+    "joined": "Se unieron con tu enlace",
+    "joinedOn": "Se unió el {day} {month}",
+    "unconfirmed": "Falta que confirme su correo",
+    "plusOne": "Suma un punto",
+    "empty": "Todavía nadie se ha unido con tu enlace. Cuando alguien cree su cuenta con él, aparece aquí.",
+    "footer": "Por ahora los puntos solo se cuentan. Más adelante podrán darte ventajas."
   },
   "notFound": {
     "title": "Esta página no existe",
