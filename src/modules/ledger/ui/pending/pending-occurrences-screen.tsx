@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useState, type ComponentProps } from "react";
 import { Badge, Button, Icon, NumberField, ProblemNotice, ScreenHeader } from "@/shared/ui";
 import type { MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
+import { AmountText } from "@/shared/ui/atoms/amount";
 import type { Problem } from "@/shared/ui/api/problem";
 import { minorOf, parseDecimal } from "@/shared/ui/format/amount-input";
 import { currencyOf } from "@/shared/ui/format/currencies";
@@ -200,7 +201,11 @@ function PendingCard({
         <Badge>{t(`type.${item.type}`)}</Badge>
       </div>
       <p className="text-sm [overflow-wrap:anywhere] text-muted">
-        {[t("suggested", { amount: formatMoney(item.suggested, formats) }), ...item.details].join(" · ")}
+        <AmountText
+          text={[t("suggested", { amount: formatMoney(item.suggested, formats) }), ...item.details].join(
+            " · ",
+          )}
+        />
       </p>
       {canAct ? (
         <>

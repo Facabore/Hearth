@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useId, useState, type ReactNode } from "react";
 import type { MoneyDto } from "@/shared/ui/api/dto";
+import { AmountText } from "@/shared/ui/atoms/amount";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 
 /** Ruling P278: a shared space where it is the person's turn to put money in, and to whom she pays first. */
@@ -187,7 +188,9 @@ export function NeedsToday({
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="font-medium [overflow-wrap:anywhere] text-ink">{line.title}</span>
               {line.detail ? (
-                <span className="text-sm [overflow-wrap:anywhere] text-muted">{line.detail}</span>
+                <span className="text-sm [overflow-wrap:anywhere] text-muted">
+                  <AmountText text={line.detail} />
+                </span>
               ) : null}
             </span>
             {line.action}

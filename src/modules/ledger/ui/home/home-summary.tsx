@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { controlsFor, JoinedNotice } from "@/modules/spaces/ui";
 import { Icon } from "@/shared/ui";
 import type { AccountDto, MoneyDto, SpaceDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/shared/ui/atoms/amount";
 import { formatDate, formatMoney } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { periodName } from "@/shared/ui/time/period-name";
@@ -210,11 +211,13 @@ export function HomeSummary({
               {/* Only the accounts that hold money are listed; the link still leads to every one of them. */}
               <ul aria-labelledby="home-accounts" className="flex flex-col divide-y divide-line">
                 {holding.map((account) => (
-                  <li key={account.id} className="flex min-h-row items-center justify-between gap-3">
-                    <span className="min-w-0 [overflow-wrap:anywhere] text-ink">{account.name}</span>
-                    <span className="shrink-0 font-semibold whitespace-nowrap text-ink">
-                      {money(account.balance)}
+                  <li key={account.id} className={`${AMOUNT_ROW} min-h-row items-center`}>
+                    <span className={`${AMOUNT_ROW_LABEL} [overflow-wrap:anywhere] text-ink`}>
+                      {account.name}
                     </span>
+                    <Amount className={`${AMOUNT_ROW_AMOUNT} font-semibold text-ink`}>
+                      {money(account.balance)}
+                    </Amount>
                   </li>
                 ))}
               </ul>

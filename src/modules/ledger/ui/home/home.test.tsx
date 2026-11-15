@@ -573,7 +573,7 @@ describe("home, narrow screens (S2)", () => {
     expect(screen.getByRole("region", { name: "Recientes" })).toHaveClass("min-w-0");
   });
 
-  it("scales the period total down on a phone and lets any amount wrap, so a wide font never widens the page", () => {
+  it("keeps the period total on one line, scaled to its own container, so no width or font widens the page (P335)", () => {
     renderWithIntl(
       <HomeSummary
         spaceId="sp-personal"
@@ -587,12 +587,21 @@ describe("home, narrow screens (S2)", () => {
     const hero = screen
       .getByRole("region", { name: "Resumen del período" })
       .querySelector("[data-hero-amount]");
-    expect(hero).toHaveClass("[overflow-wrap:anywhere]");
+    expect(hero).toHaveClass("whitespace-nowrap", "tabular-nums");
+    expect(hero?.className).not.toContain("overflow-wrap");
     expect(hero?.className).toContain("clamp(");
-    // An account's amount never breaks across lines; its name wraps instead.
+    expect(hero?.className).toContain("cqi");
+    expect(hero?.parentElement).toHaveClass("@container");
+    // An account's amount never breaks across lines; its name wraps beside it, and when they do not fit side by side
+    // the amount moves whole under the name.
     const row = within(screen.getByRole("region", { name: "Cuentas" })).getByRole("listitem");
-    expect(row.querySelector("span.font-semibold")).toHaveClass("whitespace-nowrap", "shrink-0");
-    expect(within(row).getByText("Bancolombia")).toHaveClass("[overflow-wrap:anywhere]", "min-w-0");
+    expect(row).toHaveClass("flex", "flex-wrap");
+    expect(row.querySelector("[data-amount]")).toHaveClass("whitespace-nowrap", "ml-auto");
+    expect(within(row).getByText("Bancolombia")).toHaveClass(
+      "[overflow-wrap:anywhere]",
+      "min-w-0",
+      "flex-[1_1_8rem]",
+    );
   });
 });
 
