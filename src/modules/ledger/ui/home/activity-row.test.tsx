@@ -118,9 +118,25 @@ describe("another space's row (ruling P306, medium density P324)", () => {
     expect(lineOf("Pizza")).toBe("10 nov 2025 · Hogar · tu parte");
   });
 
-  it("drops the day under Movimientos' day label and keeps the time", () => {
+  it("drops the day under Movimientos' day label and leaves the time to the detail, as her own rows do (P324)", () => {
+    // Owner, 2026-11-15, on the account screen: "Sí, quítala"; a row stays two lines.
     renderRow(delivery, true);
-    expect(lineOf("Domicilio")).toBe("14:30 · Hogar · tu parte");
+    expect(lineOf("Domicilio")).toBe("Hogar · tu parte");
+    // Only a record made in another zone still says when and where.
+    renderRow(
+      activityItemDto({
+        transaction: transactionDto({
+          id: "t-madrid",
+          description: "Tapas",
+          amount: cop(40_000),
+          occurredAt: "2026-11-12T04:30:00.000Z",
+          timeZone: "Europe/Madrid",
+        }),
+        you: { memberIds: ["m-ana"], share: cop(20_000), paid: null },
+      }),
+      true,
+    );
+    expect(lineOf("Tapas")).toBe("05:30 · Madrid · Hogar · tu parte");
     renderRow(
       activityItemDto({
         transaction: transactionDto({ id: "t-2", description: "Sin hora", amount: cop(10_000) }),

@@ -120,11 +120,11 @@ export function ActivityRow({
   const day = relativeDay(tx.date, today);
   const when: string[] = [];
   if (card) {
-    // Ruling P324: Movimientos states the day in its label, so the row keeps only the time, as its own rows do.
-    if (tx.occurredAt && tx.timeZone) {
-      const time = formatTimeAt(tx.occurredAt, tx.timeZone, formats);
-      when.push(tx.timeZone === viewerZone ? time : `${time} · ${zoneCity(tx.timeZone)}`);
-    }
+    // Ruling P324: Movimientos and an account's screen state the day in their labels and leave the time to the detail
+    // sheet, as her own rows do (owner, 2026-11-15: "Sí, quítala"); only a record made in another zone still says when
+    // and where ("05:30 · Madrid").
+    if (tx.occurredAt && tx.timeZone && tx.timeZone !== viewerZone)
+      when.push(`${formatTimeAt(tx.occurredAt, tx.timeZone, formats)} · ${zoneCity(tx.timeZone)}`);
   } else {
     // Ruling P327: the day as Movimientos labels it ("Ayer", "10 nov", "10 nov 2025" outside today's year).
     when.push(
