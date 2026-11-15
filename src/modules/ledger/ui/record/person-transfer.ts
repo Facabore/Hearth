@@ -53,25 +53,6 @@ export const personTransferRequest = (
   };
 };
 
-/**
- * What the recorder owes the person in that space, in minor units, from its pair-by-pair suggestions (P323): positive
- * when the recorder owes, negative when the person owes the recorder, zero when neither owes the other.
- */
-export const debtWith = (
-  suggestions: readonly {
-    readonly payerMemberId: string;
-    readonly receivingMemberId: string;
-    readonly amount: { readonly amount: string };
-  }[],
-  me: string,
-  them: string,
-): bigint =>
-  suggestions.reduce((owed, s) => {
-    if (s.payerMemberId === me && s.receivingMemberId === them) return owed + BigInt(s.amount.amount);
-    if (s.payerMemberId === them && s.receivingMemberId === me) return owed - BigInt(s.amount.amount);
-    return owed;
-  }, 0n);
-
 export type TransferEffect =
   | { readonly key: "partial"; readonly amount: bigint; readonly rest: bigint }
   | { readonly key: "settle" }

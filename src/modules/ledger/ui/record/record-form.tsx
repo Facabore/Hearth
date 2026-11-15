@@ -78,6 +78,7 @@ import {
 } from "./record-request";
 import { handOver, heldFor, release } from "./record-carry";
 import { useIdempotencyKey } from "./use-idempotency-key";
+import { usePairDebt } from "./use-pair-debt";
 import { whenLabel, type When } from "./when-label";
 
 // The sheet's code loads only when someone opens it, so the personal form keeps its script budget (P177).
@@ -393,7 +394,20 @@ export function RecordForm({
       : undefined;
   // P334: to or from someone, only the recorder's account takes part, as an income's does.
   const toSomeone = !edit && space.kind === "PERSONAL" && kind === "TRANSFER" && transfer.mode !== "OWN";
-  const transferPerson = toSomeone ? people?.find((p) => p.memberId === transfer.personId) : undefined;
+  // P334: only the places in the account's currency (D6: amounts are in the space's currency).
+  const accountCurrency = accounts.find((a) => a.id === accountId)?.balance.currency ?? space.currency;
+  const transferPeople = toSomeone
+    ? (people ?? []).map((p) => ({
+        ...p,
+        places: p.places.filter((place) => place.currency === null || place.currency === accountCurrency),
+      }))
+    : [];
+  const transferPerson = transferPeople.find((p) => p.memberId === transfer.personId);
+  // P334: the chosen place's debt between the two, read here so the rows only show it (P127).
+  const pairDebt = usePairDebt(
+    api,
+    transferPerson ? (transferPerson.places[transfer.placeIndex] ?? transferPerson.places[0] ?? null) : null,
+  );
   const built = toSomeone
     ? requestOf({ ...draft, kind: "INCOME", category: null }, space.currency, formats.numberFormat)
     : requestOf(draft, space.currency, formats.numberFormat, sharedExpense, {
@@ -845,7 +859,7 @@ export function RecordForm({
                 />
               ) : toSomeone ? (
                 <PersonTransferRows
-                  people={people ?? []}
+                  people={transferPeople}
                   transfer={transfer}
                   onChange={setTransfer}
                   accountName={nameOf(accountId)}
@@ -854,7 +868,7 @@ export function RecordForm({
                   amount={positiveMinor}
                   currency={space.currency}
                   formats={formats}
-                  api={api}
+                  debt={pairDebt}
                   Row={SummaryRow}
                 />
               ) : sharedRows ? null : (

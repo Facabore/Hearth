@@ -1,13 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChoiceGroup, Sheet } from "@/shared/ui";
-import type { Api } from "@/shared/ui/api/client";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import type { Person } from "../direct/counterparts";
 import type { SummaryRow } from "./form-chip";
-import { debtWith, effectOf, placeOf, type PersonTransfer } from "./person-transfer";
+import { effectOf, placeOf, type PersonTransfer } from "./person-transfer";
 
 export interface PersonTransferRowsProps {
   readonly people: readonly Person[];
@@ -22,7 +21,11 @@ export interface PersonTransferRowsProps {
   readonly amount: string | null;
   readonly currency: string;
   readonly formats: Formats;
-  readonly api: Api;
+  /**
+   * What the recorder owes the person in the chosen space (positive) or they owe the recorder (negative), as the
+   * form read it (P323's pairs); null while unread.
+   */
+  readonly debt: bigint | null;
   /**
    * The form's own summary row, handed in so this chunk does not load the record form's (ADR 0004, as the line editor's
    * payer sheet takes its helpers).
@@ -42,28 +45,7 @@ export function PersonTransferRows(props: PersonTransferRowsProps) {
   const [opened, setOpened] = useState<Opened>(null);
   const person = people.find((p) => p.memberId === transfer.personId);
   const place = placeOf(person, transfer);
-  const spaceId = place?.spaceId ?? null;
-  const pair =
-    place && place.myMemberId && place.theirMemberId ? [place.myMemberId, place.theirMemberId] : null;
-  // What the two owe each other in that space only (P323's pairs); a direct space not made yet holds nothing.
-  const [owed, setOwed] = useState<{ readonly spaceId: string | null; readonly minor: bigint } | null>(null);
-  useEffect(() => {
-    if (spaceId === null || pair === null) return;
-    let live = true;
-    void props.api
-      .GET("/api/v1/spaces/{spaceId}/balances/suggestions", { params: { path: { spaceId } } })
-      .then(({ data }) => {
-        if (live && data) setOwed({ spaceId, minor: debtWith(data.suggestions, pair[0]!, pair[1]!) });
-      })
-      // Unread, the card waits and the row says only "Espacio": the transfer can still be saved.
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-    // The pair is derived from the place, which the space id names.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.api, spaceId]);
-  const debt = spaceId === null ? 0n : owed?.spaceId === spaceId ? owed.minor : null;
+  const { debt } = props;
   const money = (minor: bigint) => formatMoney({ amount: String(minor), currency }, formats);
   const to = transfer.mode === "TO";
   const name = person?.name ?? "";

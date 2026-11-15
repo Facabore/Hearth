@@ -27,6 +27,7 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
       spaceId,
       name,
       kind: "DIRECT",
+      currency: "COP",
       theirMemberId: theirs,
       myMemberId: mine,
     });
@@ -34,11 +35,19 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
       spaceId: "sp-household",
       name: householdSpace().name,
       kind: "SHARED",
+      currency: "COP",
       theirMemberId: theirs,
       myMemberId: ana.id,
     });
     // P334: where a transfer with each can go: the direct space first (to be made when there is none), then the groups.
-    const notYet = { spaceId: null, name: null, kind: "DIRECT", theirMemberId: null, myMemberId: null };
+    const notYet = {
+      spaceId: null,
+      name: null,
+      kind: "DIRECT",
+      currency: null,
+      theirMemberId: null,
+      myMemberId: null,
+    };
     expect(people).toEqual([
       {
         memberId: "m-carlos",
@@ -80,5 +89,26 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
     });
     expect(people).toMatchObject([{ memberId: "m-luis", name: "Luis", isGuest: false, directSpace: null }]);
     expect(people[0]!.places.map((place) => place.spaceId)).toEqual([null, "sp-household", "sp-trip"]);
+  });
+
+  it("offers no transfer in a group where the recorder only reads, and names each place's currency (P334)", () => {
+    const people = peopleOf({
+      meUserId: "u-ana",
+      spaces: [
+        householdSpace(),
+        householdSpace({ id: "sp-club", name: "Club", role: "VIEWER" }),
+        householdSpace({ id: "sp-trip", name: "Trip", currency: "USD" }),
+      ],
+      membersBySpace: {
+        "sp-household": [ana, luis],
+        "sp-club": [ana, memberDto({ id: "m-luis-c", userId: "u-luis", displayName: "Luis" })],
+        "sp-trip": [ana, memberDto({ id: "m-luis-t", userId: "u-luis", displayName: "Luis" })],
+      },
+    });
+    expect(people[0]!.places.map((place) => [place.spaceId, place.currency])).toEqual([
+      [null, null],
+      ["sp-household", "COP"],
+      ["sp-trip", "USD"],
+    ]);
   });
 });

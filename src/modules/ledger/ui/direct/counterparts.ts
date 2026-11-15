@@ -8,6 +8,8 @@ export interface Place {
   readonly spaceId: string | null;
   readonly name: string | null;
   readonly kind: "DIRECT" | "SHARED";
+  /** The space's currency, which the recorder's account must be in; null for a direct space not created yet. */
+  readonly currency: string | null;
   /** Their member id and the recorder's in that space; null for a direct space not created yet. */
   readonly theirMemberId: string | null;
   readonly myMemberId: string | null;
@@ -52,6 +54,7 @@ export const peopleOf = (input: {
           spaceId: space.id,
           name: space.name,
           kind: "DIRECT",
+          currency: space.currency,
           theirMemberId: other.id,
           myMemberId: meIn(space.id),
         },
@@ -63,16 +66,21 @@ export const peopleOf = (input: {
   for (const space of input.spaces.filter((s) => s.kind === "SHARED"))
     for (const member of input.membersBySpace[space.id] ?? []) {
       if (member.userId === null || member.userId === input.meUserId) continue;
-      const place: Place = {
-        spaceId: space.id,
-        name: space.name,
-        kind: "SHARED",
-        theirMemberId: member.id,
-        myMemberId: meIn(space.id),
-      };
+      // P334: a group where the recorder only reads takes no transfer from them (P293's VIEWER).
+      const place: Place | null =
+        space.role === "VIEWER"
+          ? null
+          : {
+              spaceId: space.id,
+              name: space.name,
+              kind: "SHARED",
+              currency: space.currency,
+              theirMemberId: member.id,
+              myMemberId: meIn(space.id),
+            };
       const known = byUser.get(member.userId);
       if (known) {
-        known.places.push(place);
+        if (place) known.places.push(place);
         continue;
       }
       const person: Building = {
@@ -80,7 +88,17 @@ export const peopleOf = (input: {
         name: member.displayName,
         isGuest: false,
         directSpace: null,
-        places: [{ spaceId: null, name: null, kind: "DIRECT", theirMemberId: null, myMemberId: null }, place],
+        places: [
+          {
+            spaceId: null,
+            name: null,
+            kind: "DIRECT",
+            currency: null,
+            theirMemberId: null,
+            myMemberId: null,
+          },
+          ...(place ? [place] : []),
+        ],
       };
       byUser.set(member.userId, person);
       people.push(person);

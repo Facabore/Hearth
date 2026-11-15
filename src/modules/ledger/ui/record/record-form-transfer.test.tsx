@@ -36,6 +36,7 @@ const PEOPLE: Person[] = [
         spaceId: "sp-ana-juan",
         name: "Ana & Juan",
         kind: "DIRECT",
+        currency: "COP",
         theirMemberId: "m-juan-d",
         myMemberId: "m-ana-d",
       },
@@ -47,11 +48,12 @@ const PEOPLE: Person[] = [
     isGuest: false,
     directSpace: null,
     places: [
-      { spaceId: null, name: null, kind: "DIRECT", theirMemberId: null, myMemberId: null },
+      { spaceId: null, name: null, kind: "DIRECT", currency: null, theirMemberId: null, myMemberId: null },
       {
         spaceId: "sp-household",
         name: "Household",
         kind: "SHARED",
+        currency: "COP",
         theirMemberId: "m-luis",
         myMemberId: "m-ana",
       },
@@ -196,5 +198,111 @@ describe("Transferencia to or from someone (P334)", () => {
       amount: cop(150_000),
     });
     expect(router.replace).toHaveBeenCalledWith("/spaces/sp-ana-luis/transactions", { scroll: false });
+  });
+});
+
+describe("the effect card follows the person, not only the space (P334)", () => {
+  it("reads Luis's debt, not Juan's, after switching from Juan to Luis in the same group", async () => {
+    const inHousehold = (memberId: string, name: string): Person => ({
+      memberId,
+      name,
+      isGuest: false,
+      directSpace: null,
+      places: [
+        {
+          spaceId: "sp-household",
+          name: "Household",
+          kind: "SHARED",
+          currency: "COP",
+          theirMemberId: memberId,
+          myMemberId: "m-ana",
+        },
+      ],
+    });
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/balances/suggestions": () =>
+        jsonResponse({
+          spaceId: "sp-household",
+          currency: "COP",
+          suggestions: [{ payerMemberId: "m-ana", receivingMemberId: "m-juan", amount: cop(100_000) }],
+        }),
+    });
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={[groupDto()]}
+        formats={BUILT_IN_FORMATS}
+        initialKind="TRANSFER"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        people={[inHousehold("m-juan", "Juan"), inHousehold("m-luis", "Luis")]}
+        api={api}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Monto"), "150000");
+    await userEvent.click(mode("A alguien"));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Saldas tu deuda de $ 100.000 y Juan queda debiéndote $ 50.000.",
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /A Juan/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Luis" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Luis queda debiéndote $ 150.000."),
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent("100.000");
+  });
+});
+
+describe("the places a transfer can go (P334)", () => {
+  it("leaves out a group whose currency is not the account's", async () => {
+    const juan: Person = {
+      memberId: "m-juan-d",
+      name: "Juan",
+      isGuest: false,
+      directSpace: "Ana & Juan",
+      places: [
+        {
+          spaceId: "sp-ana-juan",
+          name: "Ana & Juan",
+          kind: "DIRECT",
+          currency: "COP",
+          theirMemberId: "m-juan-d",
+          myMemberId: "m-ana-d",
+        },
+        {
+          spaceId: "sp-trip",
+          name: "Trip",
+          kind: "SHARED",
+          currency: "USD",
+          theirMemberId: "m-juan-t",
+          myMemberId: "m-ana-t",
+        },
+      ],
+    };
+    const { api } = fakeApi({ "GET /api/v1/spaces/{spaceId}/balances/suggestions": () => owing("ANA") });
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={[groupDto()]}
+        formats={BUILT_IN_FORMATS}
+        initialKind="TRANSFER"
+        initialNow="2026-11-01T04:30:00.000Z"
+        timeZone="America/Bogota"
+        people={[juan]}
+        api={api}
+      />,
+    );
+    await userEvent.click(mode("A alguien"));
+    await userEvent.click(await screen.findByRole("button", { name: /En Ana & Juan/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿En qué espacio?" });
+    expect(
+      within(sheet)
+        .getAllByRole("radio")
+        .map((radio) => radio.textContent),
+    ).toEqual(["Ana & Juan"]);
   });
 });
