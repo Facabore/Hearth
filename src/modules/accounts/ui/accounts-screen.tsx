@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { canManageAccounts } from "./account-access";
@@ -103,17 +104,17 @@ export function AccountsScreen({
           <dl className="contents">
             <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("available")}</dt>
-              <dd className="text-xl font-semibold whitespace-nowrap text-ink">
+              <Amount as="dd" className="text-xl font-semibold text-ink">
                 {formatMoney(list.totals.available, formats)}
-              </dd>
+              </Amount>
               {/* #289 (audit pass 3, A15): each total says what it counts. */}
               <dd className="text-xs text-muted">{t("availableNote")}</dd>
             </div>
             <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("netWorth")}</dt>
-              <dd className="text-xl font-semibold whitespace-nowrap text-ink">
+              <Amount as="dd" className="text-xl font-semibold text-ink">
                 {formatMoney(list.totals.netWorth, formats)}
-              </dd>
+              </Amount>
               <dd className="text-xs text-muted">{t("netWorthNote")}</dd>
             </div>
           </dl>
@@ -128,12 +129,12 @@ export function AccountsScreen({
               <h2 id={`accounts-${section.key}`} className="text-muted">
                 {t(`section.${section.key}`)}
               </h2>
-              <span
+              <Amount
                 data-testid="section-total"
-                className={`whitespace-nowrap ${total.amount.startsWith("-") ? "text-owe" : "text-ink"}`}
+                className={total.amount.startsWith("-") ? "text-owe" : "text-ink"}
               >
                 {formatMoney(total, formats)}
-              </span>
+              </Amount>
             </div>
             <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
               {section.accounts.map((account) => (

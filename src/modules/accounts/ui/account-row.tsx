@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { paletteVars, SymbolIcon } from "@/shared/ui";
 import type { AccountDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { colorOf } from "./account-look";
 import { rateText } from "./account-sections";
@@ -85,9 +86,9 @@ export function AccountRow({
         look
       )}
       <span className="flex flex-col items-end">
-        <span className={negative ? "font-semibold text-owe" : "font-semibold text-ink"}>
+        <Amount className={negative ? "font-semibold text-owe" : "font-semibold text-ink"}>
           {formatMoney(account.balance, formats)}
-        </span>
+        </Amount>
         {account.includeInAvailable ? null : (
           <span className="text-xs text-muted">{t("outsideAvailable")}</span>
         )}

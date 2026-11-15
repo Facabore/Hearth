@@ -3,6 +3,8 @@ import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Icon, ScreenHeader, usePeriodText, VisuallyHidden } from "@/shared/ui";
 import type { AccountDto, MoneyDto, PeriodDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 
 /** Ruling P327: the account screen's two views, Movimientos and Estadísticas. */
@@ -69,7 +71,7 @@ export function AccountScreen({
   const t = useTranslations("accounts.screen");
   const tc = useTranslations("common");
   const label = usePeriodText()(period, policy, formats);
-  const figure = (chunks: ReactNode) => <span className="whitespace-nowrap">{chunks}</span>;
+  const figure = (chunks: ReactNode) => <Amount>{chunks}</Amount>;
   const moved = figures !== null && BigInt(figures.movedToOwnAccounts.amount) !== 0n;
   return (
     <div className="flex flex-col gap-3 py-3">
@@ -91,9 +93,12 @@ export function AccountScreen({
         <h2 id="account-balance" className="text-[15px] text-muted">
           {t("balanceToday")}
         </h2>
-        <p className="text-[28px] leading-tight font-bold whitespace-nowrap text-ink min-[375px]:text-[34px]">
-          {formatMoney(account.balance, formats)}
-        </p>
+        {/* P335: one line at any width, font or number of digits; the figure scales with the screen's width. */}
+        <HeroAmount
+          amount={formatMoney(account.balance, formats)}
+          size="34px"
+          className="leading-tight font-bold text-ink"
+        />
       </section>
       <nav aria-label={t("views")} className="flex flex-wrap gap-2">
         <Link

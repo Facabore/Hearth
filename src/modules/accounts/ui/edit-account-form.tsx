@@ -17,6 +17,7 @@ import {
 } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, SpaceDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { problemFrom } from "@/shared/ui/api/problem";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
@@ -148,9 +149,9 @@ export function EditAccountForm({
         {account.type === "CREDIT_CARD" && account.derived.availableCredit ? (
           <p data-available className="flex items-baseline justify-between gap-3 rounded-2xl bg-surface p-3">
             <span className="text-sm text-muted">{t("available")}</span>
-            <span className="font-semibold whitespace-nowrap text-ink">
+            <Amount className="font-semibold text-ink">
               {formatMoney(account.derived.availableCredit, formats)}
-            </span>
+            </Amount>
           </p>
         ) : null}
         <TextField

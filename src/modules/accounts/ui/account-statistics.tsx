@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import { CategoryIcon } from "@/modules/categories/ui";
 import { paletteVars, SymbolIcon } from "@/shared/ui";
 import type { CategoryGroupDto, MoneyDto } from "@/shared/ui/api/dto";
+import { Amount } from "@/shared/ui/atoms/amount";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
 
 /** Ruling P327: one group of what an account paid, as its breakdown answers it (largest first). */
@@ -80,9 +81,9 @@ export function AccountStatistics({
                     </span>
                     <span className="text-[13px] break-words text-muted">{detail.join(" · ")}</span>
                   </span>
-                  <span className="shrink-0 text-base font-semibold whitespace-nowrap text-ink">
+                  <Amount className="shrink-0 text-base font-semibold text-ink">
                     {formatMoney(group.total, formats)}
-                  </span>
+                  </Amount>
                 </span>
                 <span aria-hidden="true" className="block h-1.5 w-full overflow-hidden rounded-full bg-track">
                   <span
