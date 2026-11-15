@@ -53,7 +53,7 @@ export function CapacityCard({
           {t(personal ? "unallocatedPersonal" : "unallocated", { amount: money(unallocated) })}
         </p>
       </div>
-      <p className="text-3xl font-semibold [overflow-wrap:anywhere] text-ink">{money(total)}</p>
+      <p className="text-3xl font-semibold whitespace-nowrap text-ink">{money(total)}</p>
       {shared.length > 0 ? (
         <div data-share-bar aria-hidden="true" className="flex h-2 gap-0.5 overflow-hidden rounded-full">
           {shared.map((row, index) => (

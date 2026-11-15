@@ -409,7 +409,9 @@ export function LineEditor({
           <h2 id={`${ids}-figures`} className="sr-only">
             {t("figures")}
           </h2>
-          <dl className="grid grid-cols-3 gap-2 tabular-nums">
+          {/* An amount never breaks across lines (AGENTS.md): each figure keeps to one line, and one that does not fit
+              beside the others moves whole to the next row; `flex-1` keeps the ones on a row equally wide. */}
+          <dl className="flex flex-wrap gap-2">
             {(
               [
                 ["planned", line.plannedAmount],
@@ -417,13 +419,13 @@ export function LineEditor({
                 ["available", line.available],
               ] as const
             ).map(([key, value]) => (
-              <div key={key} className="flex min-w-0 flex-col">
+              <div key={key} className="flex flex-1 flex-col">
                 <dt className="text-sm text-muted">{tReports(key)}</dt>
-                <dd className="font-semibold [overflow-wrap:anywhere] text-ink">{money(value)}</dd>
+                <dd className="font-semibold whitespace-nowrap text-ink tabular-nums">{money(value)}</dd>
               </div>
             ))}
             {line.carryOverFrom ? (
-              <div className="col-span-3 flex min-w-0 flex-col">
+              <div className="flex min-w-0 basis-full flex-col">
                 <dt className="text-sm text-muted">{t("carryOver")}</dt>
                 <dd>
                   <CarryText line={line} policy={space.periodPolicy} formats={formats} />

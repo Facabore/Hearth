@@ -179,7 +179,7 @@ export function CapacityForm({
                   />
                 </div>
               ) : (
-                <p className="text-2xl font-semibold tabular-nums [overflow-wrap:anywhere] text-ink">
+                <p className="text-2xl font-semibold whitespace-nowrap tabular-nums text-ink">
                   {money(stored?.amount ?? zero)}
                 </p>
               )}

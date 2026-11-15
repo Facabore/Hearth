@@ -124,6 +124,13 @@ describe("capacities (HU-E9-08)", () => {
     });
   });
 
+  it("never breaks a stored capacity across lines (AGENTS.md)", () => {
+    show({ viewer: "u-juan", space: householdDto({ role: "VIEWER" }) });
+    const amount = within(rowOf("Juan (tú)")).getByText("$ 2.400.000");
+    expect(amount).toHaveClass("whitespace-nowrap", "tabular-nums");
+    expect(amount.className).not.toContain("overflow-wrap");
+  });
+
   it("only reads for a VIEWER and for a CLOSED plan, whoever the viewer is", () => {
     const viewer = show({ viewer: "u-juan", space: householdDto({ role: "VIEWER" }) });
     expect(screen.queryByRole("textbox")).toBeNull();

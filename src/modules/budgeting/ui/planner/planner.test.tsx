@@ -139,6 +139,14 @@ describe("planner (HU-E9-08)", () => {
     expect(within(shares).getByText("40,00 %").tagName).toBe("STRONG");
   });
 
+  it("never breaks the capacity's total across lines (AGENTS.md)", () => {
+    show();
+    const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
+    const total = within(card).getByText("$ 4.000.000");
+    expect(total).toHaveClass("text-3xl", "whitespace-nowrap");
+    expect(total.className).not.toContain("overflow-wrap");
+  });
+
   it("offers Editar aportes and Agregar rubro as text links, and makes each line row its own link (board 01)", () => {
     show();
     for (const name of ["Editar aportes", "Agregar rubro"]) {

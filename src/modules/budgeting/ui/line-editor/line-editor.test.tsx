@@ -390,6 +390,32 @@ describe("line editor (HU-E9-08)", () => {
     expect(await requests[0]!.json()).toMatchObject({ name: "Free", isCatchAll: true });
   });
 
+  it("never breaks a figure across lines: the figures wrap whole to the next row instead (AGENTS.md)", () => {
+    // Ten-digit amounts, wider than a third of a 320 px phone.
+    show(
+      planLineDto({
+        plannedAmount: cop(1_234_567_890),
+        spent: cop(1_000_000_000),
+        available: cop(234_567_890),
+      }),
+      undefined,
+      active(),
+    );
+    const figures = screen.getByRole("region", { name: "Cifras del rubro" }).querySelector("dl")!;
+    expect(figures).toHaveClass("flex", "flex-wrap");
+    expect([...figures.children].every((figure) => figure.classList.contains("flex-1"))).toBe(true);
+    const amounts = [...figures.querySelectorAll("dd")];
+    expect(amounts.map((amount) => normalized(amount.textContent))).toEqual([
+      "$ 1.234.567.890",
+      "$ 1.000.000.000",
+      "$ 234.567.890",
+    ]);
+    for (const amount of amounts) {
+      expect(amount).toHaveClass("whitespace-nowrap", "tabular-nums");
+      expect(amount.className).not.toContain("overflow-wrap");
+    }
+  });
+
   it("shows Home's figures and patches only its planned amount", async () => {
     const { api, requests } = fakeApi({
       "PATCH /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}": () =>

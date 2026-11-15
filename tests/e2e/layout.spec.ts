@@ -1627,6 +1627,48 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(page).toHaveURL(new RegExp(`${planner}$`));
       await expect(page.getByText(LONG_LINE)).toBeVisible();
     });
+
+    test(`the line editor keeps each of its figures on one line inside the card at ${viewport.width} px (AGENTS.md)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      const { sharedId } = await session(page, `line-figures-${viewport.width}`);
+      const space = `/api/v1/spaces/${sharedId}`;
+      const draft = await seedBigPlan(page, sharedId, "2026-10");
+      // Board 05: only a plan that counts expenses shows its line's figures, here of over a billion pesos.
+      const plan = await post(
+        page,
+        `${space}/plans/${draft.id}/activate`,
+        {},
+        { "if-match": `"${draft.version}"` },
+      );
+      await page.goto(`/spaces/${sharedId}/plans/${plan.id}/lines/${draft.lines[0]!.id}`);
+      await settle(page);
+      const card = page.getByRole("region", { name: es.budgeting.lineEditor.figures });
+      await expect(card).toBeVisible();
+      const figures = (await card.locator("dd").evaluateAll((els) =>
+        els.map((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+          return {
+            text: el.textContent ?? "",
+            lines: new Set(rects.map((r) => Math.round(r.top))).size,
+            right: Math.max(...rects.map((r) => r.right)),
+            cardRight: el.closest("section")!.getBoundingClientRect().right,
+          };
+        }),
+      )) as { text: string; lines: number; right: number; cardRight: number }[];
+      expect(figures.length, "the line's figures").toBeGreaterThanOrEqual(3);
+      for (const figure of figures) {
+        expect.soft(figure.lines, `${figure.text} keeps to one line`).toBe(1);
+        expect
+          .soft(figure.right, `${figure.text} ends inside the card`)
+          .toBeLessThanOrEqual(figure.cardRight + 0.5);
+      }
+      const { overflow, message } = await overflowReport(page, "the line editor's figures");
+      expect.soft(overflow, message).toBeLessThanOrEqual(0);
+    });
   }
 
   test("a line is added, edited and removed through the real API from the planner (HU-E9-08)", async ({
