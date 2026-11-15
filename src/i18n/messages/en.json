@@ -516,7 +516,8 @@
       "note": {
         "onlyOwner": "Only {name} can edit it, because the money moves through their account. You can delete it.",
         "SETTLEMENT": "A payment between members is not edited: delete it and record it again from Balances.",
-        "CONTRIBUTION": "A guest's contribution is not edited: delete it and record it again."
+        "CONTRIBUTION": "A guest's contribution is not edited: delete it and record it again.",
+        "PAID_FOR_FUND": "Part of an expense paid for the fund: it can't be edited. Deleting it deletes the other part too."
       },
       "open": "Open the details of {name}"
     },

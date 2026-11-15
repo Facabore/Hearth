@@ -98,4 +98,23 @@ describe("who sees Editar and Eliminar (ruling P190, D9)", () => {
       note: null,
     });
   });
+
+  it("offers only Eliminar on either half of an expense paid for the fund, saying why (D26, P328)", () => {
+    const pair = { edit: false, delete: true, note: { key: "PAID_FOR_FUND" } };
+    const expense = { ...paidBy(null, "a-fund"), linkedTransactionId: "t-c" };
+    const contribution = transactionDto({
+      type: "TRANSFER",
+      payerMemberId: "m-ana",
+      destinationAccountId: "a-fund",
+      linkedTransactionId: "t-e",
+    });
+    expect(actionsFor(expense, ana, members)).toEqual(pair);
+    expect(actionsFor(contribution, ana, members)).toEqual(pair);
+    expect(actionsFor({ ...contribution, payerMemberId: "m-juan" }, ana, members)).toEqual(pair);
+    expect(actionsFor(expense, { ...ana, role: "VIEWER" }, members)).toEqual({
+      edit: false,
+      delete: false,
+      note: null,
+    });
+  });
 });

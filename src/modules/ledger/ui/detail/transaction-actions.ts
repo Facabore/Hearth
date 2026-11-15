@@ -12,7 +12,7 @@ export interface TransactionActions {
   readonly delete: boolean;
   readonly note:
     | { readonly key: "onlyOwner"; readonly name: string }
-    | { readonly key: "SETTLEMENT" | "CONTRIBUTION" }
+    | { readonly key: "SETTLEMENT" | "CONTRIBUTION" | "PAID_FOR_FUND" }
     | null;
 }
 
@@ -22,7 +22,8 @@ const NONE: TransactionActions = { edit: false, delete: false, note: null };
  * Ruling P190: HU-E4-06's `canModify` (OWNER and ADMIN any, MEMBER their own, VIEWER none) for both actions, and D9 for
  * Editar: only whoever's account the money moves through may change it, so the sheet never offers an edit the API
  * refuses. Settlements are deleted and recorded again (P188); a fund contribution is its payer's to change, which its
- * edit screen does by converting it into an expense (issue #195).
+ * edit screen does by converting it into an expense (issue #195). D26 (P328): either half of an expense paid for the fund
+ * keeps the other's amount, date and payment, so neither is edited; deleting one deletes both.
  */
 export const actionsFor = (
   tx: TransactionDto,
@@ -32,6 +33,7 @@ export const actionsFor = (
   const { role, userId } = viewer;
   if (!(role === "OWNER" || role === "ADMIN" || (role === "MEMBER" && tx.createdBy === userId))) return NONE;
   if (tx.type === "SETTLEMENT") return { edit: false, delete: true, note: { key: "SETTLEMENT" } };
+  if (tx.linkedTransactionId) return { edit: false, delete: true, note: { key: "PAID_FOR_FUND" } };
   const byUser = (id: string) => members.find((m) => m.userId === id);
   const byMember = (id: string | null) => members.find((m) => m.id === id);
   const owner =

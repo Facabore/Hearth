@@ -461,3 +461,53 @@ describe("a payment for someone else and a forgiven debt (P322)", () => {
     expect(definition("Tipo")).toBe("Pago entre miembros");
   });
 });
+
+describe("an expense paid for the fund (D26, P328)", () => {
+  const asAna = { ...ana, memberId: "m-ana" };
+  const contribution = transactionDto({
+    id: "t-c",
+    type: "TRANSFER",
+    description: "Rent",
+    amount: cop(900_000),
+    categoryId: null,
+    payerMemberId: "m-ana",
+    sourceAccountId: "a-bank",
+    destinationAccountId: "a-visa",
+    payments: [],
+    shares: [],
+    linkedTransactionId: "t-e",
+  });
+  const expense = transactionDto({
+    id: "t-e",
+    type: "EXPENSE",
+    description: "Rent",
+    amount: cop(900_000),
+    payments: [{ memberId: null, accountId: "a-visa", amount: cop(900_000) }],
+    shares: [{ memberId: "m-ana", amount: cop(900_000), splitMethod: "EQUAL" }],
+    linkedTransactionId: "t-c",
+  });
+
+  it("offers no Editar on either half, keeps Eliminar and says deleting it deletes both", () => {
+    for (const half of [contribution, expense]) {
+      const sheet = open(detailOf(half, [anaMember, juan], asAna));
+      expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
+      expect(screen.getByRole("button", { name: "Eliminar" })).toBeEnabled();
+      expect(norm(screen.getByRole("dialog").textContent)).toContain(
+        "Es parte de un gasto pagado por el fondo: no se edita. Si lo eliminas, también se elimina la otra parte.",
+      );
+      sheet.unmount();
+    }
+  });
+
+  it("still offers Editar on an expense the fund paid on its own, and reads in English", () => {
+    const alone = open(detailOf({ ...expense, linkedTransactionId: null }, [anaMember, juan], asAna));
+    expect(screen.getByRole("link", { name: "Editar" })).toBeInTheDocument();
+    alone.unmount();
+    open(detailOf(expense, [anaMember, juan], asAna), ORIGIN, "en");
+    expect(screen.queryByRole("link", { name: "Edit" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(norm(screen.getByRole("dialog").textContent)).toContain(
+      "Part of an expense paid for the fund: it can't be edited. Deleting it deletes the other part too.",
+    );
+  });
+});

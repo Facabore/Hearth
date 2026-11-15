@@ -516,7 +516,8 @@
       "note": {
         "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
         "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
-        "CONTRIBUTION": "El aporte de un invitado no se edita: elimínalo y regístralo de nuevo."
+        "CONTRIBUTION": "El aporte de un invitado no se edita: elimínalo y regístralo de nuevo.",
+        "PAID_FOR_FUND": "Es parte de un gasto pagado por el fondo: no se edita. Si lo eliminas, también se elimina la otra parte."
       },
       "open": "Ver detalle de {name}"
     },
