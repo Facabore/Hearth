@@ -238,6 +238,33 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(within(suggestions).queryByText(/prellena el formulario/)).toBeNull();
   });
 
+  it("keeps every amount whole at any width: a scaled hero, whole amounts in the sentences and rows (P335)", () => {
+    view({
+      members: [ANA, JUAN],
+      meUserId: "u-ana",
+      balances: [net("m-ana", 1_234_567_890_124), net("m-juan", -1_234_567_890_124)],
+      suggestions: [{ payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(1_234_567_890_124) }],
+    });
+    const hero = screen.getByTestId("balances-hero-amount");
+    expect(hero).toHaveClass("whitespace-nowrap", "tabular-nums");
+    expect(hero.className).toContain("cqi");
+    expect(hero.className).not.toContain("overflow-wrap");
+    expect(hero.parentElement).toHaveClass("@container");
+    // The suggestion's names wrap, its amount does not; Saldar moves under the sentence when they do not fit.
+    const suggestion = within(screen.getByRole("region", { name: "Para quedar al día" })).getByRole(
+      "listitem",
+    );
+    expect(suggestion).toHaveClass("flex-wrap");
+    expect(normalized(suggestion.querySelector("[data-amount]")?.textContent)).toBe("$ 1.234.567.890.124");
+    expect(suggestion.querySelector("[data-amount]")).toHaveClass("whitespace-nowrap");
+    // A member's amount moves whole under the name when they do not fit side by side.
+    const member = within(screen.getByRole("region", { name: "Por persona" })).getAllByRole("link")[1]!;
+    const amount = member.querySelector("[data-amount]")!;
+    expect(normalized(amount.textContent)).toBe("−$ 1.234.567.890.124");
+    expect(amount).toHaveClass("whitespace-nowrap", "ml-auto");
+    expect(amount.parentElement).toHaveClass("flex-wrap");
+  });
+
   it("lets a very long unbroken space name wrap instead of widening the screen", () => {
     const name = "W".repeat(80);
     view({ space: householdSpace({ name, role: "MEMBER" }) });

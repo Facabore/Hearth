@@ -10,6 +10,7 @@ import { currencyOf } from "@/shared/ui/format/currencies";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto, MoneyDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
+import { AmountText } from "@/shared/ui/atoms/amount";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
@@ -30,8 +31,13 @@ const wrapped = (text: string): ReactNode => (
 /** The time fields never decide the draft's key: the clock moves every minute, the person's choices do not. */
 const NO_TIME = { date: "", occurredAt: "", timeZone: "" } as const;
 
-/** A note under the amount: what saving it records, in words. */
+/** A note under the amount: what saving it records, in words. Its names wrap, its amount stays whole (P335). */
 const NOTE = "rounded-2xl bg-track p-3 text-sm text-ink tabular-nums [overflow-wrap:anywhere]";
+const Note = ({ text }: { readonly text: string }) => (
+  <p className={NOTE}>
+    <AmountText text={text} />
+  </p>
+);
 
 export interface SettleUpSheetProps {
   readonly open: boolean;
@@ -457,15 +463,15 @@ export function SettleUpSheet({
             {receiver ? fixedRow("forgive-receiver", tForgive("receiver"), receiver) : null}
             {amountField}
             {payer && receiver && money ? (
-              <p className={NOTE}>
-                {tForgive(receiver.id === meMemberId ? "noteMine" : "noteGuest", {
+              <Note
+                text={tForgive(receiver.id === meMemberId ? "noteMine" : "noteGuest", {
                   debtor: payer.displayName,
                   receiver: receiver.displayName,
                   amount: money,
                   space: space.name,
                   settles: settles(debt),
                 })}
-              </p>
+              />
             ) : null}
           </>
         ) : (
@@ -545,26 +551,32 @@ export function SettleUpSheet({
               ) : null}
             </div>
             {payingFor && receiver && money ? (
-              <p className={NOTE}>
-                {t(draft.gift ? "givingFor" : "payingFor", {
+              <Note
+                text={t(draft.gift ? "givingFor" : "payingFor", {
                   amount: money,
                   receiver: receiver.displayName,
                   debtor: payingFor.displayName,
                   settles: settles(debtOf(payingFor, receiver)),
                 })}
-              </p>
+              />
             ) : null}
             {thirdParty && payer && receiver && money ? (
-              <p className={NOTE}>
-                {suggested
-                  ? t("recorded", { payer: payer.displayName, receiver: receiver.displayName, amount: money })
-                  : t("recordedFree", {
-                      payer: payer.displayName,
-                      receiver: receiver.displayName,
-                      amount: money,
-                      settles: settles(debt),
-                    })}
-              </p>
+              <Note
+                text={
+                  suggested
+                    ? t("recorded", {
+                        payer: payer.displayName,
+                        receiver: receiver.displayName,
+                        amount: money,
+                      })
+                    : t("recordedFree", {
+                        payer: payer.displayName,
+                        receiver: receiver.displayName,
+                        amount: money,
+                        settles: settles(debt),
+                      })
+                }
+              />
             ) : null}
             {payer?.kind === "GUEST" && !thirdParty ? (
               <p className="flex gap-2.5 rounded-2xl bg-track p-3 text-sm text-ink">

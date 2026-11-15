@@ -2,6 +2,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { BalanceHistoryDto, MemberDto, MoneyDto, PeriodDto } from "@/shared/ui/api/dto";
+import { Amount, AmountText } from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { absolute, memberSentence, netState } from "./net-state";
 
@@ -169,7 +171,9 @@ export function BalanceHistory({
           ) : null}
         </span>
       </div>
-      <section aria-label={t("history.summary")} className="grid grid-cols-2 gap-2.5">
+      {/* P335: the two cards share a row while their figures fit at their size, and stack when not; each figure keeps
+          to one line and scales with the row's width (the section is its container), so it fits a card of its own. */}
+      <section aria-label={t("history.summary")} className="flex flex-wrap gap-2.5 @container">
         {(["opening", "closing"] as const).map((key) => {
           const state = netState(history[key]);
           // Board 04: a large neutral amount, then its state in words; a start at zero is the bare amount.
@@ -177,13 +181,17 @@ export function BalanceHistory({
           return (
             <div
               key={key}
-              className="flex min-w-0 flex-col gap-1 rounded-2xl border border-line bg-surface px-3.5 py-3"
+              className="flex min-w-fit flex-[1_1_calc(50%-0.3125rem)] flex-col gap-1 rounded-2xl border border-line bg-surface px-3.5 py-3"
             >
               <span className="text-[13px] text-muted">{t(`history.${key}`)}</span>
               <span className="flex flex-wrap items-baseline gap-x-1.5">
-                <span className="text-[22px] leading-tight font-semibold tabular-nums text-ink [overflow-wrap:anywhere]">
-                  {formatMoney(absolute(history[key]), formats)}
-                </span>
+                <HeroAmount
+                  amount={formatMoney(absolute(history[key]), formats)}
+                  size="22px"
+                  contained={false}
+                  inset="30px"
+                  className="leading-tight font-semibold text-ink"
+                />
                 {word ? (
                   <span className={`text-sm font-medium ${INK[word]}`}>{t(`history.state.${word}`)}</span>
                 ) : null}
@@ -214,15 +222,19 @@ export function BalanceHistory({
                         {tCommon(`monthShort.${Number(entry.date.slice(5, 7)) as 1}`)}
                       </span>
                     </span>
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 [overflow-wrap:anywhere]">
-                      <span className="text-[15px] font-medium text-ink">{title}</span>
-                      {detail ? <span className="text-[13px] text-muted">{detail}</span> : null}
-                    </span>
-                    <span className="flex max-w-[55%] shrink-0 flex-col items-end gap-0.5 text-right tabular-nums [overflow-wrap:anywhere]">
-                      <span className={`text-[15px] font-semibold ${INK[netState(entry.balance)]}`}>
-                        {memberSentence(entry.balance, formats, t)}
+                    {/* P335: the balance sits beside the title while its amount fits there, and moves whole under it
+                        when not; `min-w-min` keeps the column at least as wide as its amount. */}
+                    <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+                      <span className="flex min-w-0 flex-[1_1_8rem] flex-col gap-0.5 [overflow-wrap:anywhere]">
+                        <span className="text-[15px] font-medium text-ink">{title}</span>
+                        {detail ? <span className="text-[13px] text-muted">{detail}</span> : null}
                       </span>
-                      <span className="text-[13px] text-muted">{changeOf(entry.change)}</span>
+                      <span className="ml-auto flex max-w-[55%] min-w-min flex-col items-end gap-0.5 text-right tabular-nums [overflow-wrap:anywhere]">
+                        <span className={`text-[15px] font-semibold ${INK[netState(entry.balance)]}`}>
+                          <AmountText text={memberSentence(entry.balance, formats, t)} />
+                        </span>
+                        <Amount className="text-[13px] text-muted">{changeOf(entry.change)}</Amount>
+                      </span>
                     </span>
                   </li>
                 );

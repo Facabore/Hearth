@@ -10,6 +10,14 @@ import { controlsFor, memberLabel } from "@/modules/spaces/ui";
 import { Button, Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, BalancesDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
+import {
+  Amount,
+  AMOUNT_ROW,
+  AMOUNT_ROW_AMOUNT,
+  AMOUNT_ROW_LABEL,
+  AmountText,
+} from "@/shared/ui/atoms/amount";
+import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { absolute, memberSentence, netState } from "./net-state";
 import { prefillOf, type SettlementDraft } from "./settlement-prefill";
@@ -131,12 +139,13 @@ export function BalancesScreen({
         <span className="min-w-0 text-[15px] text-muted [overflow-wrap:anywhere]">
           {t("yours", { space: space.name })}
         </span>
-        <span
+        {/* P335: one line at any width, font or number of digits; the figure scales with the hero's width. */}
+        <HeroAmount
           data-testid="balances-hero-amount"
-          className="text-[clamp(1.75rem,9.25vw,2.25rem)] leading-tight font-semibold tabular-nums [overflow-wrap:anywhere] text-ink"
-        >
-          {formatMoney(absolute(mine), formats)}
-        </span>
+          amount={formatMoney(absolute(mine), formats)}
+          size="2.25rem"
+          className="leading-tight font-semibold text-ink"
+        />
         <span className="text-[15px] text-muted">{t(`you.${state}`)}</span>
       </section>
       {personal ? (
@@ -161,29 +170,24 @@ export function BalancesScreen({
                   {suggestions.map((suggestion) => {
                     const payer = names.get(suggestion.payerMemberId) ?? "";
                     const receiver = names.get(suggestion.receivingMemberId) ?? "";
-                    const sentence = t("owes", {
-                      payer,
-                      receiver,
-                      amount: formatMoney(suggestion.amount, formats),
-                    });
+                    const amount = formatMoney(suggestion.amount, formats);
+                    const sentence = t("owes", { payer, receiver, amount });
                     return (
                       <li
                         key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
-                        className="flex min-h-row-lg items-center gap-3 py-1.5"
+                        className="flex min-h-row-lg flex-wrap items-center gap-x-3 py-1.5"
                       >
-                        <span className="min-w-0 flex-1 text-base text-ink tabular-nums [overflow-wrap:anywhere]">
-                          {sentence}
+                        {/* P335: the names wrap and the amount stays whole; when the sentence cannot keep the amount
+                            beside Saldar, Saldar moves under it. */}
+                        <span className="flex-[1_1_12rem] text-base text-ink tabular-nums [overflow-wrap:anywhere]">
+                          <AmountText text={sentence} />
                         </span>
                         {canSettle ? (
                           <Button
                             variant="ghost"
                             size="compact"
-                            className="-mr-2 shrink-0"
-                            aria-label={t("settle.suggestion", {
-                              payer,
-                              receiver,
-                              amount: formatMoney(suggestion.amount, formats),
-                            })}
+                            className="-mr-2 ml-auto shrink-0"
+                            aria-label={t("settle.suggestion", { payer, receiver, amount })}
                             onClick={() => setSettling(prefill(suggestion))}
                           >
                             {t("settle.action")}
@@ -230,14 +234,17 @@ export function BalancesScreen({
                       prefetch={false}
                       className="flex min-h-row-lg items-center gap-2 py-1.5"
                     >
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
-                        <span className="text-[13px] text-muted">{word}</span>
-                      </span>
-                      <span
-                        className={`shrink-0 font-semibold whitespace-nowrap tabular-nums ${memberState === "owes" ? "text-owe-ink" : memberState === "owed" ? "text-accent" : "text-muted"}`}
-                      >
-                        {formatSignedMoney(net, formats)}
+                      {/* P335: the amount sits beside the name while they fit, and moves whole under it when not. */}
+                      <span className={`${AMOUNT_ROW} min-w-0 flex-1 items-center`}>
+                        <span className={`${AMOUNT_ROW_LABEL} flex flex-col`}>
+                          <span className="font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
+                          <span className="text-[13px] text-muted">{word}</span>
+                        </span>
+                        <Amount
+                          className={`${AMOUNT_ROW_AMOUNT} font-semibold ${memberState === "owes" ? "text-owe-ink" : memberState === "owed" ? "text-accent" : "text-muted"}`}
+                        >
+                          {formatSignedMoney(net, formats)}
+                        </Amount>
                       </span>
                       {/* Board 01: the chevron says the row opens the member's history. */}
                       <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />

@@ -124,6 +124,34 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     expect(within(summary).getByText("le toca recibir")).toHaveClass("text-accent");
   });
 
+  it("keeps every amount whole: the cards stack when their figures do not fit side by side (P335)", () => {
+    view({ history: { ...HISTORY, opening: cop(-1_234_567_890_124), closing: cop(20_000) } });
+    const summary = screen.getByRole("region", { name: "Saldo al inicio y al final" });
+    // The section is the figures' container and a row that wraps, never a fixed two-column grid.
+    expect(summary).toHaveClass("@container", "flex-wrap");
+    expect(summary).not.toHaveClass("grid-cols-2");
+    for (const figure of summary.querySelectorAll("[data-amount]")) {
+      expect(figure).toHaveClass("whitespace-nowrap");
+      expect(figure.className).toContain("cqi");
+      expect(figure.className).not.toContain("overflow-wrap");
+    }
+    expect(summary.querySelectorAll("[data-amount]")).toHaveLength(2);
+    // Each row's balance and change keep their amounts whole, beside the title or under it.
+    const rows = within(
+      screen.getByRole("region", { name: "Movimientos que cambian su saldo" }),
+    ).getAllByRole("listitem");
+    for (const row of rows) {
+      // The column is at least as wide as its amounts; a settled balance is a sentence with none, the change has one.
+      const column = row.querySelector(".min-w-min")!;
+      const amounts = [...row.querySelectorAll("[data-amount]")];
+      expect(amounts.length).toBeGreaterThanOrEqual(1);
+      for (const amount of amounts) {
+        expect(amount).toHaveClass("whitespace-nowrap");
+        expect(column).toContainElement(amount as HTMLElement);
+      }
+    }
+  });
+
   it("says when nothing changed the balance in the period", () => {
     view({ previous: null, history: { ...HISTORY, entries: [] } });
     expect(screen.getByText("Nada cambió su saldo en este período.")).toBeInTheDocument();
