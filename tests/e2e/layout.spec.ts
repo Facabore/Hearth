@@ -1613,7 +1613,9 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         const payRow = page.getByRole("button", { name: new RegExp(es.budgeting.lineEditor.pay.row) });
         const done = page.getByRole("button", { name: es.budgeting.lineEditor.pay.done });
         await payRow.click();
-        // A native radio or checkbox is 20 px; its label, the whole row, is the target a tap lands on.
+        // A native radio or checkbox is 20 px; its label, the whole row, is the target a tap lands on. The sheet loads
+        // late, so its first radio is waited for before its choices are counted.
+        await expect(page.getByRole("dialog").getByRole("radio").first()).toBeVisible();
         const choices = page
           .getByRole("dialog")
           .locator("label:has(input[type='radio'], input[type='checkbox'])");
