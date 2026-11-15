@@ -7,7 +7,8 @@ import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/for
 
 type FundRow = FundTrackingDto["members"][number];
 
-const AMOUNT = "shrink-0 text-right text-base font-semibold tabular-nums [overflow-wrap:anywhere]";
+// An amount never breaks across lines (AGENTS.md): the row's words wrap beside it instead.
+const AMOUNT = "shrink-0 text-right text-base font-semibold whitespace-nowrap tabular-nums";
 const ROW = "flex items-start justify-between gap-3 border-b border-line py-3";
 
 /**
@@ -56,7 +57,11 @@ export function MemberFundSheet({
     <Sheet open={open} onOpenChange={onOpenChange} title={t("title", { name, period })}>
       <div className="flex flex-col">
         <p className="text-sm text-muted">{t("share")}</p>
-        <p className="text-4xl font-semibold tabular-nums [overflow-wrap:anywhere] text-ink">
+        {/* One line at any size: a nine-digit amount fits a 320 px phone in the smaller type. */}
+        <p
+          data-amount
+          className="text-3xl font-semibold whitespace-nowrap tabular-nums text-ink min-[360px]:text-4xl"
+        >
           {money(expected)}
         </p>
         {percent === null ? null : (
@@ -73,7 +78,9 @@ export function MemberFundSheet({
                   {t("paidLine", { state: BigInt(line.amount.amount) > 0n ? "paid" : "pending" })}
                 </span>
               </span>
-              <span className={AMOUNT}>{money(BigInt(line.amount.amount))}</span>
+              <span data-amount className={AMOUNT}>
+                {money(BigInt(line.amount.amount))}
+              </span>
             </li>
           ))}
           <li className={ROW}>
@@ -85,12 +92,18 @@ export function MemberFundSheet({
                 {t("toFundNote", { actual: money(intoFund), expected: money(throughFund) })}
               </span>
             </span>
-            <span className={AMOUNT}>{money(throughFund)}</span>
+            <span data-amount className={AMOUNT}>
+              {money(throughFund)}
+            </span>
           </li>
           {/* "Le faltan" says the direction in words, so the amount carries no sign; color is never the only signal. */}
           <li className="flex items-center justify-between gap-3 py-3">
             <span className="text-base font-semibold text-ink">{left > 0n ? t("left") : t("settled")}</span>
-            {left > 0n ? <span className={`${AMOUNT} text-owe-ink`}>{money(left)}</span> : null}
+            {left > 0n ? (
+              <span data-amount className={`${AMOUNT} text-owe-ink`}>
+                {money(left)}
+              </span>
+            ) : null}
           </li>
         </ul>
       </div>

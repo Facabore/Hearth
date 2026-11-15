@@ -72,8 +72,47 @@ describe("fund tracking (HU-E9-10)", () => {
   it("puts a member's expected, contributed and difference on one row of three, the difference at the right", () => {
     show();
     const figures = screen.getByRole("listitem", { name: "Juan" }).querySelector("dl")!;
-    expect(figures).toHaveClass("grid-cols-3");
+    // Three equal columns while they fit; a figure that does not fit moves to the next row instead of breaking.
+    expect(figures).toHaveClass("flex", "flex-wrap");
+    expect([...figures.children].every((figure) => figure.classList.contains("flex-1"))).toBe(true);
     expect(figures.querySelector("[data-field='difference']")!.parentElement).toHaveClass("text-right");
+  });
+
+  it("never breaks an amount across lines: the tiles and a member's figures wrap whole instead (AGENTS.md)", async () => {
+    // Nine-digit amounts, wider than a third of a 320 px phone.
+    const members = [
+      {
+        memberId: "m-ana",
+        expected: cop(123_456_789),
+        actual: cop(100_000_000),
+        difference: cop(-23_456_789),
+      },
+      { memberId: "m-juan", expected: cop(100_000_000), actual: cop(100_000_000), difference: cop(0) },
+    ];
+    const totals = { expected: cop(223_456_789), actual: cop(200_000_000), difference: cop(-23_456_789) };
+    show(e7Fund({ members, totals }));
+    const summary = screen.getByRole("region", { name: "Aportes al fondo" });
+    expect(summary.querySelector("dl")).toHaveClass("flex", "flex-wrap");
+    const ana = screen.getByRole("listitem", { name: "Ana" });
+    const figures = [...summary.querySelectorAll("dd"), ...ana.querySelectorAll("dd")];
+    expect(figures).toHaveLength(6);
+    for (const figure of figures) {
+      expect(figure).toHaveClass("whitespace-nowrap", "tabular-nums");
+      expect(figure.className).not.toContain("overflow-wrap");
+    }
+    // The member's detail: the hero and every row's amount keep to one line too.
+    await userEvent.click(screen.getByRole("button", { name: "Ver lo que le toca a Ana" }));
+    const sheet = await screen.findByRole("dialog", { name: "Ana · noviembre" });
+    const amounts = [...sheet.querySelectorAll("[data-amount]")];
+    expect(amounts.map((amount) => normalized(amount.textContent))).toEqual([
+      "$ 123.456.789",
+      "$ 123.456.789",
+      "$ 23.456.789",
+    ]);
+    for (const amount of amounts) {
+      expect(amount).toHaveClass("whitespace-nowrap");
+      expect(amount.className).not.toContain("overflow-wrap");
+    }
   });
 
   it("fills each member's bar with what they contributed of what was expected, and draws it for nobody's ears", () => {

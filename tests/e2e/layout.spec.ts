@@ -1072,6 +1072,31 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
           // it stands, with no scrolling.
           expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
         }
+        if (path.endsWith("/plan/fund")) {
+          // AGENTS.md: an amount never breaks across lines. The fund expects over a billion pesos, so its tiles and a
+          // member's figures move whole to the next row, each amount on one line and inside its own card.
+          const figures = (await page.locator("main dd").evaluateAll((els) =>
+            els.map((el) => {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+              const card = el.closest("li, dl > div")!.getBoundingClientRect();
+              return {
+                text: el.textContent ?? "",
+                lines: new Set(rects.map((r) => Math.round(r.top))).size,
+                right: Math.max(...rects.map((r) => r.right)),
+                cardRight: card.right,
+              };
+            }),
+          )) as { text: string; lines: number; right: number; cardRight: number }[];
+          expect(figures.length, "the fund's figures").toBeGreaterThanOrEqual(6);
+          for (const figure of figures) {
+            expect.soft(figure.lines, `${figure.text} keeps to one line`).toBe(1);
+            expect
+              .soft(figure.right, `${figure.text} ends inside its card`)
+              .toBeLessThanOrEqual(figure.cardRight + 0.5);
+          }
+        }
       }
       // Ruling P311 (amends P302): the bar reads Inicio, Movimientos, Registrar, Saldos and Más in every space, Más
       // current on its own grid.

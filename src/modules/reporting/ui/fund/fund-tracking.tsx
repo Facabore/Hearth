@@ -21,8 +21,11 @@ const MemberFundSheet = dynamic(
 );
 
 // The owe ink, never `text-owe`: the plain owe color fails AA contrast below 18.66 px and these figures are small.
-const FIGURE = "text-base font-semibold tabular-nums [overflow-wrap:anywhere]";
-const TILE = "flex min-w-0 flex-col rounded-xl border px-3 py-2.5";
+// An amount never breaks across lines (AGENTS.md): each figure keeps to one line, and a tile or a member's figure that
+// does not fit beside the others moves whole to the next row; `flex-1` keeps the ones on a row equally wide.
+const FIGURE = "text-base font-semibold whitespace-nowrap tabular-nums";
+const TILE = "flex flex-1 flex-col rounded-xl border px-3 py-2.5";
+const MEMBER_FIGURE = "whitespace-nowrap tabular-nums";
 
 /**
  * HU-E9-10 (the Fund artboard, board E9-10 04 under ruling P272): the API's totals of what is expected, contributed
@@ -63,7 +66,7 @@ export function FundTracking({
         <h2 id={`${base}-title`} className="sr-only">
           {t("title")}
         </h2>
-        <dl className="grid grid-cols-[repeat(auto-fit,minmax(6.5rem,1fr))] gap-2">
+        <dl className="flex flex-wrap gap-2">
           <div className={`${TILE} border-line bg-surface`}>
             <dt className="text-sm text-muted">{t("expected")}</dt>
             <dd className={FIGURE}>{money(fund.totals.expected)}</dd>
@@ -133,24 +136,20 @@ export function FundTracking({
                     style={{ width: `${barWidth(row.actual, row.expected)}%` }}
                   />
                 </span>
-                <dl className="grid grid-cols-3 gap-2 text-sm">
-                  <div className="flex min-w-0 flex-col">
+                <dl className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+                  <div className="flex flex-1 flex-col">
                     <dt className="text-muted">{t("expected")}</dt>
-                    <dd className="font-medium tabular-nums [overflow-wrap:anywhere]">
-                      {money(row.expected)}
-                    </dd>
+                    <dd className={`font-medium ${MEMBER_FIGURE}`}>{money(row.expected)}</dd>
                   </div>
-                  <div className="flex min-w-0 flex-col">
+                  <div className="flex flex-1 flex-col">
                     <dt className="text-muted">{t("actual")}</dt>
-                    <dd className="font-medium tabular-nums [overflow-wrap:anywhere]">{money(row.actual)}</dd>
+                    <dd className={`font-medium ${MEMBER_FIGURE}`}>{money(row.actual)}</dd>
                   </div>
-                  <div className="flex min-w-0 flex-col text-right">
+                  <div className="flex flex-1 flex-col text-right">
                     <dt className="text-muted">{t("difference")}</dt>
                     <dd
                       data-field="difference"
-                      className={`font-semibold tabular-nums [overflow-wrap:anywhere]${
-                        isNegative(row.difference) ? " text-owe-ink" : ""
-                      }`}
+                      className={`font-semibold ${MEMBER_FIGURE}${isNegative(row.difference) ? " text-owe-ink" : ""}`}
                     >
                       {formatSignedMoney(row.difference, formats)}
                     </dd>
