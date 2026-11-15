@@ -91,6 +91,17 @@ describe("Invitar a Hearth (D27, board 2)", () => {
     expect(await screen.findByText("Enlace copiado")).toBeVisible();
   });
 
+  it("shows the whole link, wrapped inside the URL, in a field and beside a Copiar that are full targets (AGENTS.md)", () => {
+    renderScreen();
+    const field = screen.getByRole("textbox", { name: "Tu enlace" });
+    expect(field).toHaveAttribute("readonly");
+    // A field that cuts the link off cannot be read: it wraps anywhere in the URL (a URL is not an amount) instead.
+    expect(field.className).not.toContain("truncate");
+    expect(field).toHaveClass("break-all", "min-h-11");
+    expect(field.tagName).toBe("TEXTAREA");
+    expect(screen.getByRole("button", { name: "Copiar" })).toHaveClass("min-h-11");
+  });
+
   it("selects the link for a copy by hand when the clipboard refuses", async () => {
     vi.stubGlobal("navigator", {
       ...navigator,
@@ -101,7 +112,7 @@ describe("Invitar a Hearth (D27, board 2)", () => {
     expect(
       await screen.findByText("No pudimos copiar el enlace. Selecciónalo y cópialo a mano."),
     ).toBeVisible();
-    const field = screen.getByRole("textbox", { name: "Tu enlace" }) as HTMLInputElement;
+    const field = screen.getByRole("textbox", { name: "Tu enlace" }) as HTMLTextAreaElement;
     expect([field.selectionStart, field.selectionEnd]).toEqual([0, LINK.length]);
   });
 

@@ -64,7 +64,7 @@ export function ReferralsScreen({
 }) {
   const t = useTranslations("referrals");
   const toast = useToast();
-  const field = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(referrals.link);
@@ -94,13 +94,16 @@ export function ReferralsScreen({
       </div>
       <p className="text-[15px] text-ink">{t("intro")}</p>
       <div className="flex min-h-14 items-center gap-2 rounded-[14px] border border-line bg-field py-1 pr-1 pl-3">
-        <input
+        {/* The whole link reads at 320 px: it wraps anywhere inside the URL (a URL is not an amount) instead of being
+            cut off, and the field grows to it where the browser can; it is a full target either way. */}
+        <textarea
           ref={field}
           readOnly
+          rows={2}
           value={referrals.link}
           aria-label={t("link")}
           onFocus={(event) => event.currentTarget.select()}
-          className="min-w-0 flex-1 truncate bg-transparent text-[15px] text-ink outline-none"
+          className="min-h-11 min-w-0 flex-1 resize-none bg-transparent py-3 text-[14px] leading-5 break-all text-ink outline-none [field-sizing:content]"
         />
         <button
           type="button"

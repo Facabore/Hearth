@@ -457,6 +457,19 @@ const settle = async (page: Page) => {
 };
 
 /**
+ * The box a tap lands on. A stretched link or button, whose `::after` covers the whole row it sits in (the planner's
+ * lines, the member matrix's rows), is as large as that row; any other control is its own box.
+ */
+const hitBox = (control: Locator) =>
+  control.evaluate((el) => {
+    const after = getComputedStyle(el, "::after");
+    const stretched = after.content !== "none" && after.position === "absolute";
+    const target = stretched && el instanceof HTMLElement && el.offsetParent ? el.offsetParent : el;
+    const { x, y, width, height } = target.getBoundingClientRect();
+    return { x, y, width, height };
+  });
+
+/**
  * The last control a person can act on in the open sheet, scrolled to the end of its own scroll area. With sheets
  * stacked (HU-E9-04's icon library over the category sheet) it is the top one, the last opened.
  */
@@ -855,6 +868,35 @@ for (const wideFont of [false, true]) {
           await visitor.close();
         }
       });
+
+      test(`Invitar a Hearth shows the whole link at ${viewport.width} px, its field and Copiar full targets (D27)`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        const { spaceId } = await session(page, `invite-${viewport.width}`);
+        await page.goto(`/spaces/${spaceId}/invite`);
+        await settle(page);
+        const field = page.getByRole("textbox", { name: es.referrals.link });
+        await expect(field).toHaveValue(/^https?:\/\//);
+        // The link wraps inside the URL rather than being cut off: nothing of it scrolls out of the field.
+        const cut = await field.evaluate((el) => ({
+          width: el.scrollWidth - el.clientWidth,
+          height: el.scrollHeight - el.clientHeight,
+        }));
+        expect.soft(cut.width, "the link is not cut at the side").toBeLessThanOrEqual(0);
+        expect.soft(cut.height, "nor at the bottom").toBeLessThanOrEqual(0);
+        for (const [what, control] of [
+          ["the link field", field],
+          ["Copiar", page.getByRole("button", { name: es.referrals.copy, exact: true })],
+        ] as const) {
+          const box = (await control.boundingBox())!;
+          expect.soft(box.height, `${what} is at least 44 px tall`).toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.width, `${what} is at least 44 px wide`).toBeGreaterThanOrEqual(TARGET);
+          expect.soft(box.x + box.width, `${what} ends on screen`).toBeLessThanOrEqual(viewport.width);
+        }
+        const { overflow, message } = await overflowReport(page, "Invitar a Hearth");
+        expect.soft(overflow, message).toBeLessThanOrEqual(0);
+      });
     }
 
     for (const viewport of [PHONE, SMALL_PHONE]) {
@@ -1211,6 +1253,19 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       // line an item with one caption (board E9-10 03, P272). Each member is a row first (#213, P262).
       await page.goto(`/spaces/${sharedId}/plan/members`);
       await expect(page.getByRole("heading", { level: 2, name: HISTORY_GUEST })).toBeVisible();
+      // "Ver detalle por rubro" opens a member's detail from the whole row its box covers, a full target on screen.
+      const details = page
+        .locator("main")
+        .getByRole("button", { name: new RegExp(`^${es.reports.matrix.showDetail}`) });
+      expect.soft(await details.count(), "the matrix has a detail per member").toBeGreaterThan(1);
+      for (const detail of await details.all()) {
+        const box = await hitBox(detail);
+        expect
+          .soft(box.height, "a member's detail button is at least 44 px tall")
+          .toBeGreaterThanOrEqual(TARGET);
+        expect.soft(box.width, "and 44 px wide").toBeGreaterThanOrEqual(TARGET);
+        expect.soft(box.x + box.width, "and ends on screen").toBeLessThanOrEqual(viewport.width);
+      }
       await page
         .getByRole("button", {
           name: `${es.reports.matrix.showDetail} ${es.reports.matrix.detailOf.replace("{member}", HISTORY_GUEST)}`,
@@ -1253,7 +1308,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     expect.soft(await controls.count(), `${what}: has controls`).toBeGreaterThan(0);
     for (const control of await controls.all()) {
       // Issue #174 (U3): the view tabs wrap instead of scrolling, so no control waits beyond the edge.
-      const box = (await control.boundingBox())!;
+      const box = await hitBox(control);
       const label = (await control.getAttribute("aria-label")) ?? (await control.textContent())?.trim();
       expect.soft(box.height, `${what}: height of "${label}"`).toBeGreaterThanOrEqual(TARGET);
       expect.soft(box.width, `${what}: width of "${label}"`).toBeGreaterThanOrEqual(TARGET);
@@ -1268,10 +1323,20 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await page.setViewportSize(viewport);
       const { sharedId } = await session(page, `planner-${viewport.width}`);
       const plan = await seedBigPlan(page, sharedId, "2026-10");
+      // A short line, whose "Editar Arriendo" link is one word tall: its target is the whole row its box covers.
+      await post(
+        page,
+        `/api/v1/spaces/${sharedId}/plans/${plan.id}/lines`,
+        { name: "Arriendo", plannedAmount: { amount: "120000000", currency: "COP" } },
+        { "if-match": `"${plan.version}"` },
+      );
       await page.goto(`/spaces/${sharedId}/plans/${plan.id}`);
       await settle(page);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Plan de octubre 2026/i);
       await expect(page.getByText(LONG_LINE)).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: es.budgeting.planner.editLine.replace("{name}", "Arriendo") }),
+      ).toBeVisible();
       const { overflow, message } = await overflowReport(page, "the planner");
       expect.soft(overflow, message).toBeLessThanOrEqual(0);
       await expectFullTargets(page, "the planner", viewport.width);
@@ -1548,6 +1613,21 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
         const payRow = page.getByRole("button", { name: new RegExp(es.budgeting.lineEditor.pay.row) });
         const done = page.getByRole("button", { name: es.budgeting.lineEditor.pay.done });
         await payRow.click();
+        // A native radio or checkbox is 20 px; its label, the whole row, is the target a tap lands on.
+        const choices = page
+          .getByRole("dialog")
+          .locator("label:has(input[type='radio'], input[type='checkbox'])");
+        expect.soft(await choices.count(), `${what}: the funding sheet has choices`).toBeGreaterThan(0);
+        for (const choice of await choices.all()) {
+          const box = (await choice.boundingBox())!;
+          const label = (await choice.textContent())?.trim();
+          expect
+            .soft(box.height, `${what}: funding sheet: height of "${label}"`)
+            .toBeGreaterThanOrEqual(TARGET);
+          expect
+            .soft(box.width, `${what}: funding sheet: width of "${label}"`)
+            .toBeGreaterThanOrEqual(TARGET);
+        }
         await page.getByRole("radio", { name: es.budgeting.funding.SAVINGS }).click();
         await done.click();
         await expectFullFields(`${what} as savings`);
