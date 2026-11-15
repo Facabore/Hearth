@@ -134,8 +134,12 @@ describe("planner (HU-E9-08)", () => {
     expect(parts.map((part) => part.style.flexBasis)).toEqual(["40%", "60%"]);
     expect(parts[0]!.className).not.toBe(parts[1]!.className);
     // The shares sit on one line, each percentage in bold: the bar is never the only way to read them.
-    const shares = within(card).getByText(/^Ana/).parentElement!;
-    expect(normalized(shares.textContent)).toBe("Ana $ 1.600.000 · 40,00 %Juan $ 2.400.000 · 60,00 %");
+    // The innermost element holding both shares, whatever wraps each sentence (P335's AmountText).
+    const both = "Ana $ 1.600.000 · 40,00 %Juan $ 2.400.000 · 60,00 %";
+    const shares = within(card)
+      .getAllByText((_, element) => normalized(element?.textContent ?? "") === both)
+      .at(-1)!;
+    expect(normalized(shares.textContent)).toBe(both);
     expect(within(shares).getByText("40,00 %").tagName).toBe("STRONG");
   });
 

@@ -54,9 +54,22 @@ describe("Amount (P335)", () => {
     }
   });
 
+  it("is one inline element, so a flex parent lays the sentence out as text, not as a column per fragment", () => {
+    // Staging check, 2026-11-15: Inicio's line sits in a `flex` link, which made each fragment its own column.
+    const { container } = render(
+      <a href="/x" className="flex items-center">
+        <AmountText text={`Solo tú ${money(75_000)} · con otros ${money(1_050_000)}`} />
+      </a>,
+    );
+    const link = container.querySelector("a")!;
+    expect(link.childNodes).toHaveLength(1);
+    expect((link.firstChild as HTMLElement).tagName).toBe("SPAN");
+    expect(link.textContent).toBe(`Solo tú ${money(75_000)} · con otros ${money(1_050_000)}`);
+  });
+
   it("leaves a sentence without amounts as it is", () => {
     const { container } = render(<AmountText text="Están a paz" />);
-    expect(container.innerHTML).toBe("Están a paz");
+    expect(container.innerHTML).toBe("<span>Están a paz</span>");
   });
 });
 

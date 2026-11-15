@@ -43,14 +43,17 @@ export function Amount({
  */
 const MONEY = /([\u2212+]?[^\s\d]+\u00a0\d(?:[.,\u00a0]?\d)*)/;
 
-/** A sentence whose words wrap as they may while each amount in it stays whole (P335). */
+/**
+ * A sentence whose words wrap as they may while each amount in it stays whole (P335). It is one inline element, so a
+ * `flex` parent (a link that is a full target, say) lays it out as one run of text, never a column per fragment.
+ */
 export function AmountText({ text }: { readonly text: string }) {
   return (
-    <>
+    <span>
       {text.split(MONEY).map((part, index) =>
         // `split` with one capturing group puts the amounts at the odd indexes.
         index % 2 === 1 ? <Amount key={index}>{part}</Amount> : part,
       )}
-    </>
+    </span>
   );
 }

@@ -96,14 +96,11 @@ export function UnifiedSummary({
   return (
     <Hero period={page.period} policy={policy} formats={formats} amount={money(unified.consumed)}>
       {consumptionHref ? (
-        <Link
-          href={consumptionHref}
-          className="flex min-h-11 items-center text-sm [overflow-wrap:anywhere] text-muted"
-        >
+        <Link href={consumptionHref} className="flex min-h-11 items-center text-sm text-muted">
           {sub}
         </Link>
       ) : (
-        <p className="text-sm [overflow-wrap:anywhere] text-muted">{sub}</p>
+        <p className="text-sm text-muted">{sub}</p>
       )}
     </Hero>
   );
