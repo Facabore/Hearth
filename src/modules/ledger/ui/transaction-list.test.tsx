@@ -102,10 +102,10 @@ describe("transaction list (HU-E9-03)", () => {
         filter={{ period: "2026-10" }}
       />,
     );
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "25/10/2026",
-      "12/10/2026",
-      "5/10/2026",
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => norm(h.textContent))).toEqual([
+      "25 oct",
+      "12 oct",
+      "5 oct",
     ]);
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(4);
@@ -153,7 +153,7 @@ describe("transaction list (HU-E9-03)", () => {
     );
     const [mad, pay] = screen.getAllByRole("listitem");
     expect(mad).toHaveTextContent("05:30 · Madrid");
-    expect(screen.getByRole("heading", { level: 2, name: "Hoy · 31/10/2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Hoy" })).toBeInTheDocument();
     expect(pay).toHaveTextContent("Bancolombia → Visa");
     expect(pay).toHaveTextContent("Transferencia");
     expect(pay).not.toHaveTextContent("Groceries");
@@ -454,17 +454,21 @@ describe("the account and type filters (board B1 06, ruling P277)", () => {
 describe("the days (board E9-09 00, ruling P284)", () => {
   const sections = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.closest("section")!);
 
-  it("heads each day with today's or yesterday's name and its date in the person's formats, and no total", async () => {
+  it("heads each day Hoy, Ayer, then its day and short month, with the year only outside this one, and no total (P324, P327)", async () => {
     const taxi = expense("t-taxi", "Taxi", 18_000, "2026-10-31", null, "c-dining");
     const lunch = expense("t-lunch", "Lunch", 24_000, "2026-10-30", null, "c-dining");
-    const { container } = renderWithIntl(listOf({ page: { ...page, items: [taxi, lunch, ...page.items] } }));
+    const old = expense("t-old", "Gift", 50_000, "2025-11-10", null, "c-dining");
+    const { container } = renderWithIntl(
+      listOf({ page: { ...page, items: [taxi, lunch, ...page.items, old] } }),
+    );
     const headings = screen.getAllByRole("heading", { level: 2 });
-    expect(headings.map((h) => h.textContent)).toEqual([
-      "Hoy · 31/10/2026",
-      "Ayer · 30/10/2026",
-      "25/10/2026",
-      "12/10/2026",
-      "5/10/2026",
+    expect(headings.map((h) => norm(h.textContent))).toEqual([
+      "Hoy",
+      "Ayer",
+      "25 oct",
+      "12 oct",
+      "5 oct",
+      "10 nov 2025",
     ]);
     // Sentence case, as the board writes it, and nothing beside the date: a day's total is gone (P284).
     expect(headings[0]).not.toHaveClass("uppercase");
@@ -473,9 +477,21 @@ describe("the days (board E9-09 00, ruling P284)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("reads the day's date in the person's date format, whatever the language", () => {
+  it("puts the day and month in the person's date order, whatever the language (D23)", () => {
+    const old = expense("t-old", "Gift", 50_000, "2025-11-10", null, "c-dining");
+    const mdy = { ...context, formats: { ...BUILT_IN_FORMATS, dateFormat: "MDY" as const } };
+    const english = renderWithIntl(listOf({ context: mdy, page: { ...page, items: [...page.items, old] } }), {
+      locale: "en",
+    });
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => norm(h.textContent))).toEqual([
+      "Oct 25",
+      "Oct 12",
+      "Oct 5",
+      "Nov 10, 2025",
+    ]);
+    english.unmount();
     renderWithIntl(listOf({ context: { ...context, formats: { ...BUILT_IN_FORMATS, dateFormat: "YMD" } } }));
-    expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("2026/10/25");
+    expect(norm(screen.getAllByRole("heading", { level: 2 })[0]!.textContent)).toBe("oct 25");
   });
 
   it("heads a day with a small muted label over flat rows with hairline dividers, with no card (P324)", () => {
@@ -530,10 +546,10 @@ describe("the days (board E9-09 00, ruling P284)", () => {
     renderWithIntl(listOf({ page: { ...page, nextCursor: "cur-1" }, api }));
     await userEvent.click(screen.getByRole("button", { name: "Cargar más" }));
     await screen.findByText("Bread");
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "25/10/2026",
-      "12/10/2026",
-      "5/10/2026",
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => norm(h.textContent))).toEqual([
+      "25 oct",
+      "12 oct",
+      "5 oct",
     ]);
     expect(within(within(sections().at(-1)!).getByRole("list")).getAllByRole("listitem")).toHaveLength(2);
   });
@@ -720,11 +736,11 @@ describe("Load more (HU-E9-03, ruling P130)", () => {
     renderWithIntl(listWithMore(api));
     await userEvent.click(screen.getByRole("button", { name: "Cargar más" }));
     await screen.findByText("Bread");
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "25/10/2026",
-      "12/10/2026",
-      "5/10/2026",
-      "4/10/2026",
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => norm(h.textContent))).toEqual([
+      "25 oct",
+      "12 oct",
+      "5 oct",
+      "4 oct",
     ]);
     expect(screen.getAllByRole("listitem")).toHaveLength(6);
     expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();

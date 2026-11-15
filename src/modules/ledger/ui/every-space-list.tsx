@@ -117,6 +117,7 @@ export function EverySpaceList({
       <DayList
         days={days}
         formats={context.formats}
+        today={today}
         row={(entry) => (
           <FeedRow
             key={entry.kind === "own" ? entry.tx.id : entry.item.transaction.id}

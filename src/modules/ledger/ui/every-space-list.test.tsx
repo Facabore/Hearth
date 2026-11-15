@@ -135,10 +135,9 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
     expect(row).toHaveAttribute("href", "/spaces/sp-personal/transactions?period=2026-10&tx=t-salary");
     expect(row.querySelector("[data-space-chip]")).toBeNull();
     // Under its day, as today's rows.
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "25/10/2026",
-      "12/10/2026",
-    ]);
+    expect(
+      screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent?.replace(/\s/g, " ")),
+    ).toEqual(["25 oct", "12 oct"]);
   });
 
   it("reads the person's share and her income where the list's totals were", () => {

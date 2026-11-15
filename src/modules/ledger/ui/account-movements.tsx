@@ -77,6 +77,7 @@ function AccountDays({
       <DayList
         days={groupByDay(entries, today, dateOf)}
         formats={formats}
+        today={today}
         row={(entry) =>
           entry.kind === "own" ? (
             <TransactionRow

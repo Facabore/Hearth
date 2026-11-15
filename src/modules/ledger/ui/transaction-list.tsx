@@ -125,6 +125,7 @@ export function TransactionList({
       <DayList
         days={days}
         formats={context.formats}
+        today={today}
         row={(tx) => (
           <TransactionRow key={tx.id} tx={tx} context={context} href={withTx(listHref, tx.id)} card />
         )}

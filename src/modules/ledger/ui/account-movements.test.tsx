@@ -99,9 +99,9 @@ describe("a personal account's movements (ruling P327, board 'Cuenta · Movimien
       />,
     );
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => normalized(h.textContent))).toEqual([
-      "Ayer · 12/11/2026",
-      "10/11/2026",
-      "2/11/2026",
+      "Ayer",
+      "10 nov",
+      "2 nov",
     ]);
     expect(rowsOf()).toEqual([
       "DomicilioHogar · tu parte $ 32.000−$ 64.000",

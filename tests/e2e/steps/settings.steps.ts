@@ -151,7 +151,8 @@ Then(
       accountId: account.id,
     });
     await page.goto(`/spaces/${world.user!.spaceId}/transactions?period=2026-10`);
-    await expect(page.getByRole("heading", { level: 2, name: "10/16/2026" })).toBeVisible();
+    // Ruling P327: the day's label is its day and short month in her date order, the year left out in this one.
+    await expect(page.getByRole("heading", { level: 2, name: /^oct\s16$/i })).toBeVisible();
     const row = page.getByRole("listitem").filter({ hasText: "Market" });
     expect(norm(await row.textContent())).toContain("$ 1,234,567.89");
     // Ruling P324 (amends P284): the row leaves the time to its detail, which writes it in her time format.
