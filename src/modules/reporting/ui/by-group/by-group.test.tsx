@@ -168,6 +168,15 @@ describe("spending by group (HU-E9-10)", () => {
     expect(screen.getByText(/Total de Food/).closest("p")).toHaveFocus();
   });
 
+  it("never breaks a level's total across lines (AGENTS.md)", async () => {
+    show();
+    const totals = () => document.querySelector("p[tabindex='-1']")!.lastElementChild!;
+    expect(totals()).toHaveClass("text-3xl", "whitespace-nowrap");
+    await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
+    expect(totals()).toHaveClass("whitespace-nowrap");
+    expect(totals().className).not.toContain("overflow-wrap");
+  });
+
   it("marks an archived node with its badge", () => {
     const data = e7Groups();
     data.groups[2] = { ...data.groups[2]!, archived: true };

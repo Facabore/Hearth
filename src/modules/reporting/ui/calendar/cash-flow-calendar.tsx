@@ -129,7 +129,9 @@ function FlowSummary({
       <h2 id="flow-summary">
         <VisuallyHidden>{t("summary")}</VisuallyHidden>
       </h2>
-      <dl className="grid grid-cols-2 gap-3">
+      {/* An amount never breaks across lines (AGENTS.md): two figures to a row while they fit, and one that does not
+          moves whole to its own row. */}
+      <dl className="flex flex-wrap gap-3">
         {(
           [
             ["opening", flow.opening],
@@ -138,9 +140,9 @@ function FlowSummary({
             ["closing", flow.totals.closing],
           ] as const
         ).map(([key, value]) => (
-          <div key={key} className="flex min-w-0 flex-col">
+          <div key={key} className="flex grow basis-[calc(50%-0.375rem)] flex-col">
             <dt className="text-sm text-muted">{t(key)}</dt>
-            <dd className="font-semibold tabular-nums [overflow-wrap:anywhere]">{money(value)}</dd>
+            <dd className="font-semibold whitespace-nowrap tabular-nums">{money(value)}</dd>
           </div>
         ))}
       </dl>

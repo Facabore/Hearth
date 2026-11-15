@@ -42,6 +42,22 @@ describe("unified personal view (HU-E9-11)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("never breaks an amount across lines: the hero, what was paid, its sources and every row (AGENTS.md)", async () => {
+    const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
+    await why();
+    const amounts = [
+      within(screen.getByRole("region", { name: "Lo que gastaste tú" })).getByText("$ 1.575.000"),
+      within(screen.getByRole("region", { name: "Lo que pagaste" })).getByText("$ 2.625.000"),
+      ...screen.getByRole("region", { name: SOURCES }).querySelectorAll("dd"),
+      ...[...container.querySelectorAll("li")].map((row) => row.lastElementChild!),
+    ];
+    expect(amounts.length).toBeGreaterThan(4);
+    for (const amount of amounts) {
+      expect(amount).toHaveClass("whitespace-nowrap");
+      expect(amount.className).not.toContain("overflow-wrap");
+    }
+  });
+
   it("shows where what was paid went, and Groceries of both spaces as one row", async () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
     await why();

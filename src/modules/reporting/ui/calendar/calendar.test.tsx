@@ -60,6 +60,18 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("never breaks a summary figure across lines: two to a row while they fit, a wider one on its own (AGENTS.md)", () => {
+    show();
+    const summary = document.querySelector("[aria-labelledby='flow-summary'] dl")!;
+    expect(summary).toHaveClass("flex", "flex-wrap");
+    const amounts = [...summary.querySelectorAll("dd")];
+    expect(amounts).toHaveLength(4);
+    for (const amount of amounts) {
+      expect(amount).toHaveClass("whitespace-nowrap", "tabular-nums");
+      expect(amount.className).not.toContain("overflow-wrap");
+    }
+  });
+
   it("renders the API's balances, never a running sum of its own (ruling P201)", () => {
     const flow = cashFlowDto();
     flow.dates[1] = { ...flow.dates[1]!, balanceAfter: cop(7) };

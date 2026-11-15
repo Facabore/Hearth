@@ -63,9 +63,7 @@ export function UnifiedView({
           <p id={`${base}-spent`} className="text-sm text-muted">
             {t("spent")}
           </p>
-          <p className="text-3xl font-semibold tabular-nums [overflow-wrap:anywhere]">
-            {money(consumption.total)}
-          </p>
+          <p className="text-3xl font-semibold whitespace-nowrap tabular-nums">{money(consumption.total)}</p>
           <p className="text-sm text-muted">{t("consumptionHint")}</p>
         </section>
         <section aria-labelledby={`${base}-paid`} className="mt-2 flex flex-col border-t border-line pt-2">
@@ -73,9 +71,7 @@ export function UnifiedView({
             <span id={`${base}-paid`} className="text-muted">
               {t("paid")}
             </span>
-            <span className="font-semibold tabular-nums [overflow-wrap:anywhere]">
-              {money(cashOut.total)}
-            </span>
+            <span className="font-semibold whitespace-nowrap tabular-nums">{money(cashOut.total)}</span>
           </div>
           <button
             type="button"
@@ -106,7 +102,9 @@ export function UnifiedView({
                 ].map((row) => (
                   <div key={row.label} className="flex justify-between gap-3 py-2.5">
                     <dt className="min-w-0 text-muted [overflow-wrap:anywhere]">{row.label}</dt>
-                    <dd className="text-right font-semibold [overflow-wrap:anywhere]">{money(row.amount)}</dd>
+                    <dd className="shrink-0 text-right font-semibold whitespace-nowrap">
+                      {money(row.amount)}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -139,7 +137,7 @@ export function UnifiedView({
                       </span>
                     ) : null}
                   </span>
-                  <span className="text-right font-semibold tabular-nums [overflow-wrap:anywhere]">
+                  <span className="shrink-0 text-right font-semibold whitespace-nowrap tabular-nums">
                     {money(row.amount)}
                   </span>
                 </li>

@@ -16,7 +16,8 @@ const onPlan = (line: Pick<Line, "state" | "available">) =>
 
 const TRACK = "block h-1.5 w-full overflow-hidden rounded-full bg-track";
 // The owe ink for a negative figure: the plain owe color fails AA contrast below 18.66 px. Its sign says it too.
-const FIGURE = "shrink-0 text-right font-semibold tabular-nums [overflow-wrap:anywhere]";
+// An amount never breaks across lines (AGENTS.md): the name wraps beside it instead.
+const FIGURE = "shrink-0 text-right font-semibold whitespace-nowrap tabular-nums";
 const tone = (value: { readonly amount: string }) => (isNegative(value) ? " text-owe-ink" : " text-ink");
 
 /**

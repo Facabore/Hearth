@@ -49,6 +49,22 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("never breaks a line's figure across lines; its name wraps beside it instead (AGENTS.md)", () => {
+    renderWithIntl(
+      <LineDashboard
+        dashboard={e7Dashboard()}
+        policy={householdDto().periodPolicy}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    const figures = [...document.querySelectorAll("[data-figure]")];
+    expect(figures.length).toBeGreaterThan(1);
+    for (const amount of figures) {
+      expect(amount).toHaveClass("shrink-0", "whitespace-nowrap");
+      expect(amount.className).not.toContain("overflow-wrap");
+    }
+  });
+
   it("names the categories Unbudgeted's spending fell into, as board E9-10 01 does (#240)", () => {
     renderWithIntl(
       <LineDashboard

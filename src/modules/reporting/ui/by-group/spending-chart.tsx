@@ -85,7 +85,7 @@ export function SpendingChart({
           </span>
           <span>{t(`hint.${HINTS[Math.min(trail.length, HINTS.length - 1)]!}`)}</span>
         </span>
-        <span className="text-3xl font-semibold [overflow-wrap:anywhere]">
+        <span className="text-3xl font-semibold whitespace-nowrap">
           {formatMoney(node?.total ?? total, formats)}
         </span>
       </p>
