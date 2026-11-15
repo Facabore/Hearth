@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { categoryPath, CategoryIcon, findCategory } from "@/modules/categories/ui";
-import { paletteVars, SymbolIcon } from "@/shared/ui";
+import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
 import type { CategoryGroupDto, MoneyDto, TransactionDto } from "@/shared/ui/api/dto";
 import { formatDate, formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
@@ -114,10 +114,16 @@ export function TransactionRow({
   ) : (
     <span
       aria-hidden="true"
-      style={paletteVars("GRAPHITE")}
+      style={paletteVars(kind === "FUND_CONTRIBUTION" ? "SAGE" : "GRAPHITE")}
       className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
     >
-      <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={20} />
+      {/* Board "Cuenta · Movimientos · #315" (P327): a transfer between own accounts wears the swap arrows, and a
+          contribution to the fund the wallet. */}
+      {kind === "TRANSFER" ? (
+        <Icon name="swap" size={20} />
+      ) : (
+        <SymbolIcon name={kind === "FUND_CONTRIBUTION" ? "wallet" : "dots"} size={20} />
+      )}
     </span>
   );
   const tone = (card || moved) && sign === "+" ? "text-accent" : sign !== null ? "text-ink" : "text-muted";

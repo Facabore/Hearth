@@ -154,20 +154,25 @@ export function ActivityRow({
         ? t(named.key, { from: named.from, to: named.to })
         : t(named.key, { name: named.name }));
   const category = item.category;
+  const fund = kindOf(tx) === "FUND_CONTRIBUTION";
   const icon =
     category?.icon && category.color ? (
       <CategoryIcon icon={category.icon} color={category.color} size={36} />
     ) : (
       <span
         aria-hidden="true"
-        style={paletteVars("GRAPHITE")}
+        style={paletteVars(fund ? "SAGE" : "GRAPHITE")}
         className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--tint)] text-[var(--ink)]"
       >
-        {/* Boards "Inicio personal · todo en un lugar": a settlement between members wears the swap arrows. */}
-        {tx.type === "SETTLEMENT" ? (
+        {/* Boards "Inicio personal · todo en un lugar": a settlement between members wears the swap arrows; board
+            "Cuenta · Movimientos · #315" (P327): so does a transfer between own accounts, and a contribution to the
+            fund wears the wallet. */}
+        {fund ? (
+          <SymbolIcon name="wallet" size={20} />
+        ) : tx.type === "SETTLEMENT" || tx.type === "TRANSFER" ? (
           <Icon name="swap" size={20} />
         ) : (
-          <SymbolIcon name={tx.type === "TRANSFER" ? "cash" : "dots"} size={20} />
+          <SymbolIcon name="dots" size={20} />
         )}
       </span>
     );

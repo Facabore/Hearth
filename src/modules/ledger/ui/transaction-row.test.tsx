@@ -6,6 +6,8 @@ import { categoryDto, cop, groupDto, transactionDto } from "../../../../tests/su
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { SYMBOL_PATHS } from "@/shared/ui/icons/symbols";
+import { UI_ICONS } from "@/shared/ui/icons/ui-icons";
 import { TransactionRow, type RowContext } from "./transaction-row";
 
 // Exposes what the row passes to the link: opening a sheet must not scroll the list to its top.
@@ -576,5 +578,42 @@ describe("medium density (ruling P324)", () => {
       });
       unmount();
     }
+  });
+});
+
+describe('the round icon of a movement with no category (board "Cuenta · Movimientos · #315", P327)', () => {
+  const iconPath = () => screen.getByRole("listitem").querySelector("svg[aria-hidden='true'] path");
+  const uncategorized = { categoryId: null, payments: [], shares: [] };
+
+  it("wears the swap arrows on a transfer between her own accounts", () => {
+    renderRow(
+      transactionDto({
+        ...uncategorized,
+        type: "TRANSFER",
+        description: "A Ahorros",
+        sourceAccountId: "a-bank",
+        destinationAccountId: "a-visa",
+      }),
+    );
+    expect(iconPath()).toHaveAttribute("d", UI_ICONS.swap);
+  });
+
+  it("wears the wallet on a contribution to the fund", () => {
+    renderRow(
+      transactionDto({
+        ...uncategorized,
+        type: "TRANSFER",
+        description: "Aporte de Juan",
+        payerMemberId: "m-juan",
+        sourceAccountId: "a-bank",
+        destinationAccountId: "a-visa",
+      }),
+    );
+    expect(iconPath()).toHaveAttribute("d", SYMBOL_PATHS.wallet);
+  });
+
+  it("keeps the dots on any other movement without a category", () => {
+    renderRow(transactionDto({ ...uncategorized, type: "EXPENSE", description: "Algo" }));
+    expect(iconPath()).toHaveAttribute("d", SYMBOL_PATHS.dots);
   });
 });

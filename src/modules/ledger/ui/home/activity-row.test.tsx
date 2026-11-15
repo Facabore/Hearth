@@ -5,6 +5,8 @@ import { activityItemDto, cop, transactionDto } from "../../../../../tests/suppo
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { ActivityItemDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS, formatMoney } from "@/shared/ui/format/formatters";
+import { SYMBOL_PATHS } from "@/shared/ui/icons/symbols";
+import { UI_ICONS } from "@/shared/ui/icons/ui-icons";
 import { ActivityRow } from "./activity-row";
 
 const norm = (text: string | null) => (text ?? "").replace(/\s/g, " ");
@@ -115,5 +117,30 @@ describe("another space's row (ruling P306, medium density P324)", () => {
       true,
     );
     expect(lineOf("Sin hora")).toBe("Hogar · tu parte");
+  });
+});
+
+describe('the round icon of a movement with no category (board "Cuenta · Movimientos · #315", P327)', () => {
+  const iconPath = () => screen.getByRole("listitem").querySelector("svg[aria-hidden='true'] path");
+  const transfer = (overrides: Parameters<typeof transactionDto>[0]) =>
+    activityItemDto({
+      transaction: transactionDto({
+        type: "TRANSFER",
+        description: "Movimiento",
+        categoryId: null,
+        payments: [],
+        shares: [],
+        sourceAccountId: "a-bank",
+        destinationAccountId: "a-fund",
+        ...overrides,
+      }),
+    });
+
+  it("wears the swap arrows on a transfer between own accounts and the wallet on a contribution to the fund", () => {
+    const own = renderRow(transfer({}), true);
+    expect(iconPath()).toHaveAttribute("d", UI_ICONS.swap);
+    own.unmount();
+    renderRow(transfer({ payerMemberId: "m-juan" }), true);
+    expect(iconPath()).toHaveAttribute("d", SYMBOL_PATHS.wallet);
   });
 });
