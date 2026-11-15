@@ -432,3 +432,24 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
     });
   });
 });
+
+describe("someone else paid needs no account of the recorder's (P333)", () => {
+  it("saves Juan's payment for a recorder who has no active account", async () => {
+    const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
+    form(api, { accounts: [] });
+    await dinner();
+    const sheet = await openWho();
+    await userEvent.click(
+      within(within(sheet).getByRole("radiogroup", { name: "Pagó" })).getByRole("radio", { name: "Juan" }),
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    await save();
+    expect(screen.queryByText("Elige una cuenta.")).toBeNull();
+    const body = await posted(requests);
+    expect(body).toMatchObject({
+      counterpart: { kind: "MEMBER", memberId: "m-juan-d" },
+      paidBy: "COUNTERPART",
+    });
+    expect(body).not.toHaveProperty("accountId");
+  });
+});

@@ -673,7 +673,7 @@ export const DirectSplitBodySchema = z.object({
     .enum(["REQUESTER", "COUNTERPART"])
     .optional()
     .describe(
-      "P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester names none, and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent.",
+      "P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester sends no `accountId` (InvalidSplit `accountWithCounterpart` otherwise), and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent. `parts` in another currency than `amount` answer CurrencyMismatch.",
     ),
   parts: DirectPartsSchema.optional().describe(
     "P331: who the expense was for, as exact parts; without it, the default split between the requester and the counterpart.",
@@ -738,6 +738,9 @@ export const directSplitFromBody = (body: DirectSplitBody): Result<DirectSplitRe
   if (!when.ok) return when;
   const byCounterpart = body.paidBy === "COUNTERPART";
   if (!byCounterpart && body.accountId === undefined) return err(domainError("AccountRequired"));
+  // P333: the counterpart paid with their own money, so an account of the requester's would never move: refused.
+  if (byCounterpart && body.accountId !== undefined)
+    return err(domainError("InvalidSplit", { reason: "accountWithCounterpart" }));
   const expense: DirectSplitExpense = {
     description: body.description,
     ...when.value,
@@ -1279,9 +1282,11 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
         },
         ...problems({
           "401": "Unauthenticated",
-          "404": "MemberNotFound, AccountNotFound",
-          "409": "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+          "403": "InsufficientRole",
+          "404": "MemberNotFound, SpaceNotFound, AccountNotFound",
+          "409":
+            "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, GuestHasNoAccounts, IdempotencyKeyConflict",
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
         }),
       },
     },
@@ -1301,10 +1306,11 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
         },
         ...problems({
           "401": "Unauthenticated",
-          "404": "MemberNotFound, CategoryNotFound, AccountNotFound",
+          "403": "InsufficientRole",
+          "404": "MemberNotFound, SpaceNotFound, CategoryNotFound, AccountNotFound",
           "409":
-            "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired, AccountRequired`,
+            "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, GuestHasNoAccounts, IdempotencyKeyConflict",
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember`,
         }),
       },
     },

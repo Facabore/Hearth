@@ -42,6 +42,8 @@ const paymentOf = async (
     }));
   }
   const paidBy = members.find((m) => m.id === memberId);
+  // P333, in the spirit of P261 and D26's line payers: a VIEWER only reads the space, so never pays its expenses.
+  if (paidBy?.role === "VIEWER") return err(domainError("InvalidSplit", { reason: "viewerPayer" }));
   if (accountId === null && paidBy?.userId != null && paidBy.userId !== userId) {
     return ok({ memberId, accountId: null, amount });
   }

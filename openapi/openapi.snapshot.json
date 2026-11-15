@@ -8710,8 +8710,18 @@
               }
             }
           },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "MemberNotFound, AccountNotFound",
+            "description": "MemberNotFound, SpaceNotFound, AccountNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8721,7 +8731,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
+            "description": "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, GuestHasNoAccounts, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8731,7 +8741,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -8858,7 +8868,7 @@
                     "maxLength": 64
                   },
                   "paidBy": {
-                    "description": "P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester names none, and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent.",
+                    "description": "P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester sends no `accountId` (InvalidSplit `accountWithCounterpart` otherwise), and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent. `parts` in another currency than `amount` answer CurrencyMismatch.",
                     "type": "string",
                     "enum": [
                       "REQUESTER",
@@ -9034,8 +9044,18 @@
               }
             }
           },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "MemberNotFound, CategoryNotFound, AccountNotFound",
+            "description": "MemberNotFound, SpaceNotFound, CategoryNotFound, AccountNotFound",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9045,7 +9065,7 @@
             }
           },
           "409": {
-            "description": "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict",
+            "description": "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, GuestHasNoAccounts, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9055,7 +9075,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired, AccountRequired",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember",
             "content": {
               "application/problem+json": {
                 "schema": {

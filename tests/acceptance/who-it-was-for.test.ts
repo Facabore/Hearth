@@ -285,6 +285,13 @@ describe("someone else paid, recorded from the personal space (P333, P168 amende
     expect(await problemOf(await record(h.ana, noAccount))).toEqual([422, "AccountRequired"]);
     expect(await directSpacesOf(h.ana)).toEqual([]);
   });
+
+  it("refuses an account of Ana's when Juan paid, instead of dropping it, and creates no space", async () => {
+    const h = await household();
+    const withAccount = { ...dinner(h, 120_000, juanOf(h)), paidBy: "COUNTERPART" };
+    expect(await problemOf(await record(h.ana, withAccount))).toEqual([422, "InvalidSplit"]);
+    expect(await directSpacesOf(h.ana)).toEqual([]);
+  });
 });
 
 describe("a shared space's split may leave the payer out (P331, S5)", () => {

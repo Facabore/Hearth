@@ -134,7 +134,10 @@ export function SharedWhoPaidSheet(props: SharedWhoPaidSheetProps) {
         description={props.title}
         payers={[
           ...(me ? [{ value: `me:${me.id}`, label: t("you") }] : []),
-          ...others.map((member) => ({ value: `other:${member.id}`, label: nameOf(member) })),
+          // P333: a VIEWER only reads the space, so is never who paid (they may still take part).
+          ...others
+            .filter((member) => member.role !== "VIEWER")
+            .map((member) => ({ value: `other:${member.id}`, label: nameOf(member) })),
           ...context.funds.map((f) => ({ value: `fund:${f.id}`, label: f.name })),
           ...(forFund && me
             ? context.funds.map((f) => ({ value: `forfund:${f.id}`, label: ts("forFund", { fund: f.name }) }))

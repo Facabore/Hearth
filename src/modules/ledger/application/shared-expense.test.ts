@@ -119,6 +119,8 @@ describe("payers and participants of a shared expense (HU-E4-07, Review Focus 2)
     ["no participants", { split: equal() }, "ParticipantsRequired"],
     ["no payments", { payments: [] }, "PaymentsRequired"],
     ["the recorder paying without an account", paidBy("member-ana", null), "AccountRequired"],
+    // P333, as D26 left VIEWERs out of a line's payers: a Lector only reads, so never pays.
+    ["a VIEWER as who paid", paidBy("member-sofi", null), "InvalidSplit"],
     ["a guest payer with an account", paidBy("member-pedro", ACCOUNTS.bancolombia.id), "GuestHasNoAccounts"],
     ["Juan paying from Ana's account", paidBy("member-juan", ACCOUNTS.bancolombia.id), "AccountNotOwned"],
     [

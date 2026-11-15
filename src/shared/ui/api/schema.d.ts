@@ -6435,7 +6435,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description MemberNotFound, AccountNotFound */
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description MemberNotFound, SpaceNotFound, AccountNotFound */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6444,7 +6453,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict */
+            /** @description MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, GuestHasNoAccounts, IdempotencyKeyConflict */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6453,7 +6462,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6497,7 +6506,7 @@ export interface operations {
                     /** @description The requester's account they paid from; required unless `paidBy` is COUNTERPART (P333). */
                     accountId?: string;
                     /**
-                     * @description P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester names none, and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent.
+                     * @description P333 (P168 amended): COUNTERPART when the counterpart paid with their own money: the expense records them as who paid with no account, the requester sends no `accountId` (InvalidSplit `accountWithCounterpart` otherwise), and `parts` (when sent) has no `others` and a positive `mine`. REQUESTER when absent. `parts` in another currency than `amount` answer CurrencyMismatch.
                      * @enum {string}
                      */
                     paidBy?: "REQUESTER" | "COUNTERPART";
@@ -6558,7 +6567,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description MemberNotFound, CategoryNotFound, AccountNotFound */
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description MemberNotFound, SpaceNotFound, CategoryNotFound, AccountNotFound */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -6567,7 +6585,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, IdempotencyKeyConflict */
+            /** @description MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, GuestHasNoAccounts, IdempotencyKeyConflict */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -6576,7 +6594,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit, ParticipantsRequired, AccountRequired */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember */
             422: {
                 headers: {
                     [name: string]: unknown;

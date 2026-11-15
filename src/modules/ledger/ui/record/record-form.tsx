@@ -396,7 +396,10 @@ export function RecordForm({
   const transferPerson = toSomeone ? people?.find((p) => p.memberId === transfer.personId) : undefined;
   const built = toSomeone
     ? requestOf({ ...draft, kind: "INCOME", category: null }, space.currency, formats.numberFormat)
-    : requestOf(draft, space.currency, formats.numberFormat, sharedExpense);
+    : requestOf(draft, space.currency, formats.numberFormat, sharedExpense, {
+        // P333: someone else paid a personal expense, so no account of the recorder's is asked for.
+        accountless: !edit && space.kind === "PERSONAL" && forWhom.payer !== ME,
+      });
   // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
   const typed = parseDecimal(amount, formats.numberFormat);
   const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);

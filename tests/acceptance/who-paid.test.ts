@@ -9,6 +9,7 @@ import {
   balancesOf,
   cop,
   household,
+  joinHousehold,
   post,
   type Household,
   type MoneyDto,
@@ -61,6 +62,15 @@ describe("Juan paid with his own money (P333, P168 amended)", () => {
     expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
     const juans = (await feedOf(h.juan.personal)).find((item) => item.transaction.id === expense.id);
     expect(juans?.you).toMatchObject({ paid: cop(150_000), share: cop(75_000) });
+  });
+
+  it("refuses a VIEWER as who paid: a Lector only reads the space", async () => {
+    const h = await household();
+    const sofi = await joinHousehold(h, "Sofi", "VIEWER");
+    expect(await problemOf(await dinnerPaidBy(h, { memberId: sofi.memberId, accountId: null }))).toEqual([
+      422,
+      "InvalidSplit",
+    ]);
   });
 
   it("still asks the recorder for an account when they paid themself", async () => {

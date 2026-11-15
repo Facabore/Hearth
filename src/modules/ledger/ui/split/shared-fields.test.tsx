@@ -134,6 +134,12 @@ describe("a VIEWER in the split (ruling P293)", () => {
     const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
     expect(within(sheet).getByRole("checkbox", { name: /^Juan/ })).toBeChecked();
     expect(within(sheet).getByRole("checkbox", { name: /^Pedro/ })).toBeChecked();
+    // P333: the VIEWER Sofi is never offered as who paid.
+    expect(
+      within(within(sheet).getByRole("radiogroup", { name: "Pagó" }))
+        .getAllByRole("radio")
+        .map((r) => r.textContent),
+    ).toEqual(["Tú", "Juan", "Pedro (invitado)"]);
     const sofi = within(sheet).getByRole("checkbox", { name: /^Sofi/ });
     expect(sofi).not.toBeChecked();
     // Whoever records can still add her by hand, if she really took part in the expense.

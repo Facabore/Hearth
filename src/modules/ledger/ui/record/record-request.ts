@@ -49,6 +49,8 @@ export const requestOf = (
   currency: string,
   numberFormat: NumberFormat,
   shared?: { readonly split: SplitDraft; readonly memberIds: readonly string[] },
+  /** P333: someone else paid a personal expense with their own money, so it names no account of the recorder's. */
+  options: { readonly accountless?: boolean } = {},
 ):
   | { ok: true; kind: RecordKind; body: Record<string, unknown> }
   | { ok: false; field: "amount" | "account" | "toAccount" | "payer" | "split" } => {
@@ -56,7 +58,8 @@ export const requestOf = (
   const minor = decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
   if (minor === null) return { ok: false, field: "amount" };
   const sharedExpense = draft.kind === "EXPENSE" && shared !== undefined;
-  if (!sharedExpense && !draft.accountId) return { ok: false, field: "account" };
+  const accountless = options.accountless === true && draft.kind === "EXPENSE";
+  if (!sharedExpense && !accountless && !draft.accountId) return { ok: false, field: "account" };
   if (draft.kind === "TRANSFER" && !draft.toAccountId) return { ok: false, field: "toAccount" };
   const body: Record<string, unknown> = {};
   const description = draft.description.trim();
@@ -81,7 +84,7 @@ export const requestOf = (
     if (parts.payments !== null) body.payments = parts.payments;
     if (parts.paidForFund) body.paidForFund = parts.paidForFund;
     if (parts.split) body.split = parts.split;
-  } else body.accountId = draft.accountId;
+  } else if (!accountless) body.accountId = draft.accountId;
   return { ok: true, kind: draft.kind, body };
 };
 
