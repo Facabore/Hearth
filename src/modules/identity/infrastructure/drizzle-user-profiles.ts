@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { canonicalTimeZone, type UserTimeZones } from "@/shared/kernel";
 import type { UserProfiles } from "../application/profile";
@@ -58,5 +58,20 @@ export class DrizzleUserProfiles implements UserProfiles, UserTimeZones {
       .update(user)
       .set({ ...fields, updatedAt: new Date() })
       .where(eq(user.id, userId));
+  }
+
+  /**
+   * D27: what the referrals module reads of accounts: the name, whether the email is confirmed (issue #86) and when the
+   * account was created. Unknown ids are left out.
+   */
+  async accountsOf(
+    userIds: readonly string[],
+  ): Promise<{ id: string; name: string; emailVerified: boolean; createdAt: Date }[]> {
+    if (userIds.length === 0) return [];
+    return this.tm
+      .executor()
+      .select({ id: user.id, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt })
+      .from(user)
+      .where(inArray(user.id, [...userIds]));
   }
 }

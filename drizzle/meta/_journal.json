@@ -232,6 +232,13 @@
       "when": 1794686943595,
       "tag": "0032_category_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794703347972,
+      "tag": "0033_referrals",
+      "breakpoints": true
     }
   ]
 }
