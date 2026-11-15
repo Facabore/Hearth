@@ -44,6 +44,20 @@ describe("sign-in screen (HU-E9-01)", () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
+  it("tells the page once the session exists, and not when the sign-in is refused (D27)", async () => {
+    let answer = problemResponse(401, "InvalidCredentials");
+    const { api } = fakeApi({ "POST /api/v1/auth/sign-in": () => answer });
+    const onSignedIn = vi.fn();
+    renderWithIntl(<SignInFormContainer next="/" api={api} onSignedIn={onSignedIn} />);
+    await signIn();
+    await screen.findByRole("alert");
+    expect(onSignedIn).not.toHaveBeenCalled();
+    answer = jsonResponse({ user: meDto(), token: "t" });
+    await userEvent.click(screen.getByRole("button", { name: "Iniciar sesión" }));
+    expect(onSignedIn).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledWith("/");
+  });
+
   it("switches the language with a cookie and reloads the texts", async () => {
     renderWithIntl(<LanguageToggle locale="es" />);
     await userEvent.click(screen.getByRole("button", { name: "Cambiar idioma, actual español" }));

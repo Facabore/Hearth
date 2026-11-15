@@ -2,8 +2,9 @@ import { queryOptions } from "@tanstack/react-query";
 import type { Api } from "@/shared/ui/api/client";
 
 /**
- * D27: the referral link a visitor opened (`/r/<code>`), kept on this device until the account it brings exists. The
- * storage may be missing or refuse (a private window, blocked site data): the link then simply credits nobody.
+ * D27: the referral link a visitor opened (`/r/<code>`), kept on this device until the account it brings exists: it
+ * is forgotten after its one claim, or when someone signs in instead. The storage may be missing or refuse (a private
+ * window, blocked site data): the link then simply credits nobody.
  */
 const KEY = "hearth.referral";
 /** What a code can look like on the wire; anything else is never stored, and the API decides whether it is one. */
@@ -60,9 +61,9 @@ export const referralPreviewQuery = (api: Api, code: string) =>
   });
 
 /**
- * D27: after the sign-up, the new account names the link it came through. Whatever the API answers (the account is
- * too old, the code is its own or unknown, it has a referrer already), the SPA says nothing; the link is forgotten
- * once it was tried.
+ * D27: after the sign-up, the new account names the link it came through; the sign-up does not wait for it. Whatever
+ * the API answers (the account is too old, the code is its own or unknown, it has a referrer already), the SPA says
+ * nothing; the link is forgotten once it was tried.
  */
 export const claimReferral = async (api: Api, code: string): Promise<void> => {
   try {

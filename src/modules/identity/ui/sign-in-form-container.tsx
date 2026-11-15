@@ -14,12 +14,15 @@ export function SignInFormContainer({
   signUp = "open",
   invitation,
   api: injected,
+  onSignedIn,
 }: {
   readonly next: string;
   readonly expired?: boolean;
   readonly signUp?: SignUpMode;
   readonly invitation?: string;
   readonly api?: Api;
+  /** D27: runs once the session exists, before the route moves on (the page forgets a referral link it kept). */
+  readonly onSignedIn?: () => void;
 }) {
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
@@ -32,6 +35,7 @@ export function SignInFormContainer({
     try {
       const { error, response } = await api.POST("/api/v1/auth/sign-in", { body });
       if (response.ok) {
+        onSignedIn?.();
         router.replace(next);
         router.refresh();
         return;

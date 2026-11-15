@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
 import { axeViolations } from "../../../../tests/support/ui/axe";
+import { normalized } from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { MyReferralsDto } from "./dto";
 import { InviteRow } from "./invite-row";
@@ -21,11 +22,16 @@ const referrals = (overrides: Partial<MyReferralsDto> = {}): MyReferralsDto => (
   ...overrides,
 });
 const DOT = { numberFormat: "DOT_COMMA" } as const;
+const DMY = { numberFormat: "DOT_COMMA", dateFormat: "DMY" } as const;
 
-const renderScreen = (dto = referrals(), locale: "es" | "en" = "es") =>
+const renderScreen = (
+  dto = referrals(),
+  locale: "es" | "en" = "es",
+  formats: { numberFormat: "DOT_COMMA"; dateFormat: "DMY" | "MDY" } = DMY,
+) =>
   renderWithIntl(
     <ToastProvider>
-      <ReferralsScreen backHref="/spaces/sp-personal/more" referrals={dto} formats={DOT} />
+      <ReferralsScreen backHref="/spaces/sp-personal/more" referrals={dto} formats={formats} />
     </ToastProvider>,
     { locale },
   );
@@ -46,7 +52,7 @@ describe("Invitar a Hearth (D27, board 2)", () => {
     expect(
       within(joined)
         .getAllByRole("listitem")
-        .map((row) => row.textContent),
+        .map((row) => normalized(row.textContent)),
     ).toEqual([
       "AAndrésSe unió el 12 nov+1Suma un punto",
       "YYuberleyFalta que confirme su correo",
@@ -56,6 +62,12 @@ describe("Invitar a Hearth (D27, board 2)", () => {
       screen.getByText("Por ahora los puntos solo se cuentan. Más adelante podrán darte ventajas."),
     ).toBeVisible();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("writes the join day in the person's date format, the month's name in their language (D23)", () => {
+    renderScreen(referrals(), "en", { numberFormat: "DOT_COMMA", dateFormat: "MDY" });
+    const joined = screen.getByRole("region", { name: "Joined with your link" });
+    expect(normalized(within(joined).getAllByRole("listitem")[0]!.textContent)).toContain("Joined Nov 12");
   });
 
   it("says nobody joined yet when the list is empty, in English too", () => {

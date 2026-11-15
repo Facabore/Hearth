@@ -68,8 +68,8 @@ describe("a referral link (D27)", () => {
     expect(await axeViolations(spa.container)).toEqual([]);
     await signUp();
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal"));
-    expect(claims).toEqual(["fabian-7k2qx9mt"]);
-    expect(localStorage.getItem(KEY)).toBeNull();
+    await waitFor(() => expect(claims).toEqual(["fabian-7k2qx9mt"]));
+    await waitFor(() => expect(localStorage.getItem(KEY)).toBeNull());
   });
 
   it("shows no chip for a code the API does not know, and the refused claim says nothing", async () => {
@@ -83,7 +83,7 @@ describe("a referral link (D27)", () => {
     expect(screen.queryByText(/te invitó a Hearth/)).toBeNull();
     await signUp();
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal"));
-    expect(claims).toEqual(["nobody-23456789"]);
+    await waitFor(() => expect(claims).toEqual(["nobody-23456789"]));
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -108,6 +108,27 @@ describe("a referral link (D27)", () => {
     expect(spa.location()).toBe("/sign-up");
     await signUp();
     await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal"));
+    expect(claims).toEqual([]);
+  });
+
+  it("forgets the code when the visitor signs into an account they already have", async () => {
+    const { routes, claims } = visitor();
+    let session = false;
+    routes["GET /api/v1/me"] = () =>
+      session ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated");
+    routes["POST /api/v1/auth/sign-in"] = () => (
+      (session = true),
+      jsonResponse({ user: meDto(), token: "t" })
+    );
+    const spa = renderSpa("/r/fabian-7k2qx9mt", routes);
+    await screen.findByText("Fabián te invitó a Hearth");
+    expect(localStorage.getItem(KEY)).toBe("fabian-7k2qx9mt");
+    await userEvent.click(screen.getByRole("link", { name: "Inicia sesión" }));
+    await userEvent.type(await screen.findByLabelText("Correo electrónico"), "ana@example.com");
+    await userEvent.type(screen.getByLabelText("Contraseña"), "123456789012");
+    await userEvent.click(screen.getByRole("button", { name: "Iniciar sesión" }));
+    await waitFor(() => expect(spa.location()).toBe("/spaces/sp-personal"));
+    expect(localStorage.getItem(KEY)).toBeNull();
     expect(claims).toEqual([]);
   });
 

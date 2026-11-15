@@ -40,8 +40,8 @@ export function SignUpFormContainer({
   /** D27: the first name of the person whose referral link the visitor opened. */
   readonly invitedBy?: string;
   /**
-   * D27: runs once the account exists, before the route moves on, with the new session (the referral's claim). A
-   * failure is its own to ignore: the account is made either way.
+   * D27: starts once the account exists, with the new session (the referral's claim), and the route moves on without
+   * waiting for it. A failure is its own to ignore: the account is made either way.
    */
   readonly afterSignUp?: () => Promise<void>;
 }) {
@@ -66,7 +66,8 @@ export function SignUpFormContainer({
         },
       });
       if (response.ok) {
-        if (afterSignUp) await afterSignUp().catch(() => undefined);
+        // Started, never waited for: a slow or hanging claim must not hold the person on the form.
+        if (afterSignUp) void afterSignUp().catch(() => undefined);
         router.replace(next);
         router.refresh();
         return;

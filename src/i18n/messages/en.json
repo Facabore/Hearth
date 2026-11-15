@@ -800,7 +800,7 @@
     "copied": "Link copied",
     "copyFailed": "We couldn't copy the link. Select it and copy it by hand.",
     "joined": "Joined with your link",
-    "joinedOn": "Joined {day} {month}",
+    "joinedOn": "Joined {date}",
     "unconfirmed": "Their email is not confirmed yet",
     "plusOne": "Adds a point",
     "empty": "Nobody has joined with your link yet. When someone creates their account with it, they show up here.",

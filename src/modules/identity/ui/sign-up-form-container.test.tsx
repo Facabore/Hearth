@@ -62,7 +62,7 @@ describe("sign-up through a referral link (D27, board 3)", () => {
     );
   });
 
-  it("claims the link once the account exists, before moving on, and moves on even when the claim fails", async () => {
+  it("starts the claim once the account exists, as it moves on, and moves on even when the claim fails", async () => {
     const order: string[] = [];
     const { api } = fakeApi({
       "POST /api/v1/auth/sign-up": () => (order.push("sign-up"), jsonResponse({ user: meDto() }, 201)),
@@ -80,6 +80,15 @@ describe("sign-up through a referral link (D27, board 3)", () => {
     await fill();
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
     expect(order).toEqual(["sign-up", "claim", "replace"]);
+  });
+
+  it("moves on at once even when the claim never answers", async () => {
+    const { api } = fakeApi({ "POST /api/v1/auth/sign-up": () => jsonResponse({ user: meDto() }, 201) });
+    const afterSignUp = vi.fn(() => new Promise<void>(() => undefined));
+    renderWithIntl(<SignUpFormContainer api={api} afterSignUp={afterSignUp} />);
+    await fill();
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+    expect(afterSignUp).toHaveBeenCalledTimes(1);
   });
 
   it("without a link shows no chip and sends only the sign-up, as before", async () => {

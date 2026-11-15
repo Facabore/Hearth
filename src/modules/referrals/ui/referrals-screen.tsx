@@ -4,22 +4,29 @@ import { useTranslations } from "next-intl";
 import { useRef } from "react";
 import { Avatar, Button, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import { formatCount } from "@/shared/ui/format/count";
-import type { NumberFormat } from "@/shared/ui/format/formatters";
+import { formatDayMonth } from "@/shared/ui/format/day-month";
+import type { DateFormat, NumberFormat } from "@/shared/ui/format/formatters";
 import { useToast } from "@/shared/ui/molecules/toast";
 import type { MyReferralsDto } from "./dto";
 
 type Item = MyReferralsDto["items"][number];
 
-/** "12 nov": the day, then the short month of the person's language; the day of `joinedOn` is already theirs. */
-function JoinedOn({ date }: { readonly date: string }) {
-  const t = useTranslations();
-  const month = Number(date.slice(5, 7)) as 1;
-  return (
-    <>{t("referrals.joinedOn", { day: Number(date.slice(8, 10)), month: t(`common.monthShort.${month}`) })}</>
-  );
+interface ScreenFormats {
+  readonly numberFormat: NumberFormat;
+  readonly dateFormat: DateFormat;
 }
 
-function Row({ item }: { readonly item: Item }) {
+/**
+ * "Se unió el 12 nov": the day and the short month in the person's date format (D23), the month's name in their
+ * language; the day of `joinedOn` is already theirs (the API counts it in their zone).
+ */
+function JoinedOn({ date, formats }: { readonly date: string; readonly formats: ScreenFormats }) {
+  const t = useTranslations();
+  const month = t(`common.monthShort.${Number(date.slice(5, 7)) as 1}`);
+  return <>{t("referrals.joinedOn", { date: formatDayMonth(date, month, formats) })}</>;
+}
+
+function Row({ item, formats }: { readonly item: Item; readonly formats: ScreenFormats }) {
   const t = useTranslations("referrals");
   return (
     <li className="flex min-h-row-lg items-center gap-3 py-2">
@@ -27,7 +34,7 @@ function Row({ item }: { readonly item: Item }) {
       <span className="flex min-w-0 flex-1 flex-col [overflow-wrap:anywhere]">
         <span className="text-[15px] font-medium text-ink">{item.firstName}</span>
         <span className="text-[13px] text-muted">
-          {item.counts ? <JoinedOn date={item.joinedOn} /> : t("unconfirmed")}
+          {item.counts ? <JoinedOn date={item.joinedOn} formats={formats} /> : t("unconfirmed")}
         </span>
       </span>
       {item.counts ? (
@@ -53,7 +60,7 @@ export function ReferralsScreen({
 }: {
   readonly backHref: string;
   readonly referrals: MyReferralsDto;
-  readonly formats: { readonly numberFormat: NumberFormat };
+  readonly formats: ScreenFormats;
 }) {
   const t = useTranslations("referrals");
   const toast = useToast();
@@ -116,7 +123,7 @@ export function ReferralsScreen({
           <ul className="divide-y divide-line">
             {referrals.items.map((item, index) => (
               // A referral has no id on the wire (D27 shows no id); the list's order is stable for one answer.
-              <Row key={`${index}-${item.firstName}`} item={item} />
+              <Row key={`${index}-${item.firstName}`} item={item} formats={formats} />
             ))}
           </ul>
         )}

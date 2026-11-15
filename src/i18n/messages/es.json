@@ -800,7 +800,7 @@
     "copied": "Enlace copiado",
     "copyFailed": "No pudimos copiar el enlace. Selecciónalo y cópialo a mano.",
     "joined": "Se unieron con tu enlace",
-    "joinedOn": "Se unió el {day} {month}",
+    "joinedOn": "Se unió el {date}",
     "unconfirmed": "Falta que confirme su correo",
     "plusOne": "Suma un punto",
     "empty": "Todavía nadie se ha unido con tu enlace. Cuando alguien cree su cuenta con él, aparece aquí.",

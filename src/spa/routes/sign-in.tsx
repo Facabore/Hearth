@@ -6,11 +6,15 @@ import { safeNext } from "@/shared/ui/navigation/auth-redirect";
 import { invitationOf } from "@/shared/ui/navigation/invitation";
 import { useApis } from "../api";
 import { signUpModeQuery } from "../queries";
+import { forgetReferral } from "../referrals/link";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/public/sign-in");
 
-/** Rulings P143 (the sign-up link follows the mode), P147 (it keeps `?invitation=`) and P151 (`expired=1`). */
+/**
+ * Rulings P143 (the sign-up link follows the mode), P147 (it keeps `?invitation=`) and P151 (`expired=1`). D27: a
+ * referral link the device kept is forgotten on sign-in, so it never credits the next account made on this device.
+ */
 export function SignInScreen() {
   const { next, expired, invitation } = route.useSearch();
   const { api, sessionApi } = useApis();
@@ -23,6 +27,7 @@ export function SignInScreen() {
       signUp={signUp}
       invitation={invitationOf(invitation)}
       api={api}
+      onSignedIn={forgetReferral}
     />
   );
 }

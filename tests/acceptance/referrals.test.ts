@@ -166,3 +166,23 @@ describe("the referrer's points and list (D27)", () => {
       expect(text).not.toContain(secret);
   });
 });
+
+describe("the day a referral joined (D27)", () => {
+  it("is the referrer's local day, not the UTC one, and the list is newest first", async () => {
+    const fabian = await person("Fabián");
+    const code = await codeOf(fabian);
+    // 03:00Z on the 14th is 22:00 on the 13th in Bogotá; 06:00Z is 01:00 on the 14th. NOW is 15:00Z on the 14th.
+    const late = await person("Laura");
+    const early = await person("Esteban");
+    await createdAgo(late, NOW.getTime() - Date.parse("2026-11-14T03:00:00Z"));
+    await createdAgo(early, NOW.getTime() - Date.parse("2026-11-14T06:00:00Z"));
+    // The newer account claims first, so the order cannot come from the claims.
+    await claim(early, code);
+    await claim(late, code);
+    const body = (await (await mine(fabian)).json()) as { items: unknown[] };
+    expect(body.items).toEqual([
+      { firstName: "Esteban", joinedOn: "2026-11-14", counts: false },
+      { firstName: "Laura", joinedOn: "2026-11-13", counts: false },
+    ]);
+  });
+});
