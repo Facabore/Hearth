@@ -1,3 +1,5 @@
+export { Amount, AmountText } from "./atoms/amount";
+export { HeroAmount } from "./atoms/hero-amount";
 export { Avatar } from "./atoms/avatar";
 export { Badge } from "./atoms/badge";
 export { Button, type ButtonProps } from "./atoms/button";
