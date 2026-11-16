@@ -91,6 +91,8 @@
     "../i18n/messages/areas/invitation.es.json": 1,
     "../i18n/messages/areas/invitation.en.json": 1,
     "../i18n/messages/areas/trust.es.json": 1,
-    "../i18n/messages/areas/trust.en.json": 1
+    "../i18n/messages/areas/trust.en.json": 1,
+    "../i18n/messages/areas/portability.es.json": 4,
+    "../i18n/messages/areas/portability.en.json": 3
   }
 }

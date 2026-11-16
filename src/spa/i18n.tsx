@@ -64,6 +64,11 @@ const AREA_CATALOGS: Record<Area, Record<Locale, () => Promise<{ default: unknow
     es: () => import("@/i18n/messages/areas/trust.es.json"),
     en: () => import("@/i18n/messages/areas/trust.en.json"),
   },
+  // D28: Importar y exportar, its import flow and the export.
+  portability: {
+    es: () => import("@/i18n/messages/areas/portability.es.json"),
+    en: () => import("@/i18n/messages/areas/portability.en.json"),
+  },
 };
 
 declare module "@tanstack/react-router" {

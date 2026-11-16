@@ -8,6 +8,8 @@ import membersEn from "./areas/members.en.json" with { type: "json" };
 import membersEs from "./areas/members.es.json" with { type: "json" };
 import planEn from "./areas/plan.en.json" with { type: "json" };
 import planEs from "./areas/plan.es.json" with { type: "json" };
+import portabilityEn from "./areas/portability.en.json" with { type: "json" };
+import portabilityEs from "./areas/portability.es.json" with { type: "json" };
 import recurrencesEn from "./areas/recurrences.en.json" with { type: "json" };
 import recurrencesEs from "./areas/recurrences.es.json" with { type: "json" };
 import settingsEn from "./areas/settings.en.json" with { type: "json" };
@@ -35,6 +37,7 @@ export const es = mergeMessages(
   spaceEs,
   invitationEs,
   trustEs,
+  portabilityEs,
 ) as typeof coreEs &
   typeof planEs &
   typeof recurrencesEs &
@@ -44,7 +47,8 @@ export const es = mergeMessages(
   typeof settingsEs &
   typeof spaceEs &
   typeof invitationEs &
-  typeof trustEs;
+  typeof trustEs &
+  typeof portabilityEs;
 
 export const en = mergeMessages(
   coreEn,
@@ -57,4 +61,5 @@ export const en = mergeMessages(
   spaceEn,
   invitationEn,
   trustEn,
+  portabilityEn,
 ) as typeof es;

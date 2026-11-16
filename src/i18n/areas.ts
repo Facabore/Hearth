@@ -12,5 +12,6 @@ export const AREAS = [
   "space",
   "invitation",
   "trust",
+  "portability",
 ] as const;
 export type Area = (typeof AREAS)[number];
