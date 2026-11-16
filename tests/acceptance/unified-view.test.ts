@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as acceptClaim } from "@/app/api/v1/claims/[token]/accept/route";
+import { PATCH as patchMe } from "@/app/api/v1/me/route";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
 import { GET as personalSpendingByGroupRoute } from "@/app/api/v1/me/reports/spending-by-group/route";
 import { GET as unifiedViewRoute } from "@/app/api/v1/me/unified-view/route";
@@ -533,5 +534,61 @@ describe("personal spending by group over HTTP (HU-E7-06)", () => {
     expect(view.otherCurrencySpaces).toMatchObject([
       { spaceId: abroadId, name: "Trip abroad", currency: "USD" },
     ]);
+  });
+
+  describe("in the person's display currency (D29, slice MC4)", () => {
+    /** 2036-05, far from every other test's dates, so the rate stored here converts only these movements. */
+    const tripDinner = async () => {
+      await app.pool.query(
+        `INSERT INTO exchange_rates (date, base, quote, rate, source, fetched_at)
+         VALUES ('2036-05-05', 'USD', 'COP', '4000', 'test', now()) ON CONFLICT DO NOTHING`,
+      );
+      const { h } = await reportHousehold();
+      const created = await call(createSpace, "POST", "/api/v1/spaces", {
+        user: h.ana,
+        body: { kind: "SHARED", name: "Trip abroad", currency: "USD" },
+      });
+      const abroadId = ((await created.json()) as { id: string }).id;
+      const abroad = actingIn(h.ana.personal, abroadId);
+      const pedro = await addGuest({ ...h, spaceId: abroadId }, "Pedro");
+      const dinner = await post(recordExpense, abroad, "expenses", {
+        description: "Dinner",
+        date: "2036-05-07",
+        categoryId: await categoryWithKey(abroad, "restaurants"),
+        amount: { amount: "2500", currency: "USD" },
+        payments: [{ memberId: pedro, accountId: null, amount: { amount: "2500", currency: "USD" } }],
+        split: {
+          method: "EQUAL",
+          participants: [{ memberId: await memberIdOf(h.ana, abroadId, "Ana") }, { memberId: pedro }],
+        },
+      });
+      expect(dinner.status).toBe(201);
+      return { h, abroadId };
+    };
+
+    it("converts Ana's share in a USD space into COP at the rate of its day", async () => {
+      const { h, abroadId } = await tripDinner();
+      const view = await viewOf(h.ana, "2036-05");
+      // Her US$ 12,50 share at 4.000 (the rate stored on 5 May) is $ 50.000.
+      expect(view.currency).toBe("COP");
+      expect(view.consumption.total).toEqual(cop(50_000));
+      expect(view.bySpace.find((s) => s.space.id === abroadId)?.consumed).toEqual(cop(50_000));
+      expect([view.otherCurrencySpaces, view.converted]).toEqual([[], true]);
+    });
+
+    it("shows a person with USD as their display currency their unified view in USD", async () => {
+      const { h } = await tripDinner();
+      await spendAtHome(h.ana, "groceries", 400_000, "2036-05-10");
+      const chosen = await call(patchMe, "PATCH", "/api/v1/me", {
+        user: h.ana,
+        body: { displayCurrency: "USD" },
+      });
+      expect(chosen.status).toBe(200);
+      const view = await viewOf(h.ana, "2036-05");
+      // $ 400.000 at the inverse of 4.000 is US$ 100,00, plus her US$ 12,50 share as it is.
+      expect(view.currency).toBe("USD");
+      expect(view.consumption.total).toEqual({ amount: "11250", currency: "USD" });
+      expect([view.converted, view.stale]).toEqual([true, undefined]);
+    });
   });
 });

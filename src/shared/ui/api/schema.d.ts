@@ -9214,6 +9214,16 @@ export interface operations {
                             name: string;
                             currency: string;
                         }[];
+                        /**
+                         * @description D29 (MC4): some figure was converted from another currency.
+                         * @constant
+                         */
+                        converted?: true;
+                        /**
+                         * @description D29 (MC4): a rate used was more than 7 days older than its day.
+                         * @constant
+                         */
+                        stale?: true;
                     };
                 };
             };
@@ -9431,6 +9441,16 @@ export interface operations {
                             name: string;
                             currency: string;
                         }[];
+                        /**
+                         * @description D29 (MC4): some figure was converted from another currency.
+                         * @constant
+                         */
+                        converted?: true;
+                        /**
+                         * @description D29 (MC4): a rate used was more than 7 days older than its day.
+                         * @constant
+                         */
+                        stale?: true;
                     };
                 };
             };

@@ -275,9 +275,10 @@
         "FUND_CONTRIBUTION": "Fund contribution"
       },
       "empty": "Nothing is scheduled in the next {days} days.",
-      "otherCurrency": "{space} uses {currency}: its movements are not added here.",
+      "otherCurrency": "{space} uses {currency} and some of its movements have no exchange rate: those are not added here.",
       "emptyHint": "Schedule your rent, your bills or your salary and see here how your balance turns out.",
-      "add": "Add a recurring movement"
+      "add": "Add a recurring movement",
+      "converted": "Approximate: what is in other currencies is converted to {currency} at each day's rate."
     },
     "unified": {
       "consumption": "Consumption",
@@ -292,7 +293,8 @@
       "savingsTransfers": "Transfers to your savings",
       "byCategory": "Consumption by category",
       "empty": "You consumed nothing in this period.",
-      "otherCurrency": "{name} is in {currency} and is not added here."
+      "otherCurrency": "{name} is in {currency} and some of its movements have no exchange rate: those are not added here.",
+      "converted": "Approximate: what is in other currencies is converted to {currency} at each day's rate."
     },
     "byGroup": {
       "trail": "Path",

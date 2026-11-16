@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BudgetPlanId } from "@/modules/budgeting/application";
-import type { LocalDate } from "@/shared/kernel";
+import { domainError, err, ExchangeRate, ok, type LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import { ANA_PLACES, personalWorld, place } from "../../../../tests/support/personal-world";
 import { createGetUnifiedPersonalView } from "./get-unified-personal-view";
@@ -9,8 +9,8 @@ const pesos = (n: number) => BigInt(n) * 100n;
 const NOVEMBER = "2026-11-01";
 
 /** HU-E7-04 Background as the ledger sums Ana's rows: her personal Market and Dinner, her shares in Household. */
-const background = () => {
-  const w = personalWorld();
+const background = (places = ANA_PLACES) => {
+  const w = personalWorld(places);
   w.sums.consumption[NOVEMBER] = [
     { spaceId: "space-ana", categoryId: "cat-ana-groceries", amount: pesos(85_000) },
     { spaceId: "space-ana", categoryId: "cat-ana-restaurants", amount: pesos(60_000) },
@@ -259,20 +259,64 @@ describe("unified personal view (HU-E7-04)", () => {
     expect(view.consumption.total).toBe(pesos(130_000));
   });
 
-  it("leaves spaces in another currency out of every sum and names them once (D6)", async () => {
+  describe("in the display currency (D29, slice MC4)", () => {
     const trip = place("space-trip", "member-ana-trip", "Trip", { currency: "USD" });
-    const again = place("space-trip", "member-ana-trip-2", "Trip", { currency: "USD" });
-    const w = personalWorld([...ANA_PLACES, trip, again]);
-    const view = unwrap(await read(w));
-    expect(view.otherCurrencySpaces).toEqual([{ spaceId: "space-trip", name: "Trip", currency: "USD" }]);
-    // Neither the consumption nor the cash out question names the USD rows.
-    expect(w.sums.asked.map((a) => a.memberIds)).toEqual([
-      ["member-ana-personal", "member-ana"],
-      ["member-ana-personal", "member-ana"],
-      ["member-ana-personal"],
-      ["member-ana"],
-    ]);
-    expect(view.currency).toBe("COP");
+    /** Rates as the rates module dates them: `base>quote` → decimal; any other pair has none. */
+    const ratesOf = (table: Record<string, string>, stale = false) => ({
+      datedRateOn: async (base: string, quote: string, on: LocalDate) => {
+        const value = table[`${base}>${quote}`];
+        return value === undefined
+          ? err(domainError("NoExchangeRate", { base, quote }))
+          : ok({ rate: unwrap(ExchangeRate.of(base, quote, value)), date: on, stale });
+      },
+    });
+    const withTrip = () => {
+      const w = background([...ANA_PLACES, trip]);
+      // US$ 10 of Ana's share at the trip's dinner on 1 November, the whole of the trip's month.
+      w.sums.consumption[NOVEMBER]!.push({
+        spaceId: "space-trip",
+        categoryId: "cat-trip-food",
+        amount: 1_000n,
+      });
+      return w;
+    };
+
+    it("lists a space in another currency apart when there is no rate, adding nothing at 1:1", async () => {
+      const w = withTrip();
+      const view = unwrap(await createGetUnifiedPersonalView(w.deps)({ userId: "u-ana", period: "2026-11" }));
+      expect(view.otherCurrencySpaces).toEqual([{ spaceId: "space-trip", name: "Trip", currency: "USD" }]);
+      expect(view.consumption.total).toBe(pesos(1_575_000));
+      expect([view.currency, view.converted]).toEqual(["COP", false]);
+    });
+
+    it("converts a USD space's figures into COP at the rate of each movement's day", async () => {
+      const w = withTrip();
+      const deps = { ...w.deps, rates: ratesOf({ "USD>COP": "4100" }) };
+      const view = unwrap(await createGetUnifiedPersonalView(deps)({ userId: "u-ana", period: "2026-11" }));
+      // US$ 10 at 4.100 is $ 41.000, added to the consumption and to the trip's own figures.
+      expect(view.consumption.total).toBe(pesos(1_575_000 + 41_000));
+      expect(view.bySpace.find((s) => s.space.id === "space-trip")?.consumed).toBe(pesos(41_000));
+      expect([view.otherCurrencySpaces, view.converted, view.stale]).toEqual([[], true, false]);
+    });
+
+    it("shows a person with USD as their display currency their whole view in USD", async () => {
+      const w = withTrip();
+      const deps = {
+        ...w.deps,
+        displayCurrencyOf: async () => "USD",
+        rates: ratesOf({ "COP>USD": "0.00025" }, true),
+      };
+      const view = unwrap(await createGetUnifiedPersonalView(deps)({ userId: "u-ana", period: "2026-11" }));
+      // $ 1.575.000 of COP spaces at 0,00025 is US$ 393,75, plus the trip's US$ 10 as it is.
+      expect(view.currency).toBe("USD");
+      expect(view.consumption.total).toBe(39_375n + 1_000n);
+      expect(view.bySpace.map((s) => [s.space.id, s.consumed])).toEqual([
+        ["space-ana", 3_625n],
+        ["space-household", 35_750n],
+        ["space-trip", 1_000n],
+      ]);
+      expect([view.converted, view.stale]).toEqual([true, true]);
+    });
   });
 
   it("refuses a label her personal policy does not name", async () => {

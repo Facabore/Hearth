@@ -109,14 +109,28 @@ describe("unified personal view (HU-E9-11)", () => {
     expect(textOf(SOURCES)).toContain("Transferencias a tus ahorros$ 150.000");
   });
 
-  it("says which spaces in another currency it leaves out", () => {
+  it("says which spaces in another currency it leaves out for want of a rate (D29, MC4)", () => {
     renderWithIntl(
       <UnifiedView
         view={e74Unified({ otherCurrencySpaces: [{ spaceId: "sp-trip", name: "Trip", currency: "USD" }] })}
         formats={BUILT_IN_FORMATS}
       />,
     );
-    expect(screen.getByText("Trip está en USD y no se suma aquí.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Trip está en USD y algunos de sus movimientos no tienen tasa de cambio: esos no se suman aquí.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("converted-note")).toBeNull();
+  });
+
+  it("says the view is approximate when it converted other currencies into the display currency (D29, MC4)", () => {
+    renderWithIntl(
+      <UnifiedView view={e74Unified({ currency: "USD", converted: true })} formats={BUILT_IN_FORMATS} />,
+    );
+    expect(screen.getByTestId("converted-note")).toHaveTextContent(
+      "Aproximado: convertimos lo que está en otras monedas a USD con la tasa de cada día.",
+    );
   });
 
   it("renders the totals as answered, never the sum of its rows (ruling P201)", () => {

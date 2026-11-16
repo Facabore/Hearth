@@ -936,6 +936,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     history: planHistory,
     // Ruling P327: an account's screen counts what it paid, received and moved, from the ledger's list (P277).
     accountMovements: accountMovementsOf(accountsDeps.accounts, ledgerQueries),
+    // D29, slice MC4: the unified view converts every space's figures into the caller's display currency (identity) at
+    // each day's rate (rates); reporting imports neither module.
+    rates: exchangeRates,
+    displayCurrencyOf: (userId: string) => profiles.displayCurrencyOf(userId),
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
@@ -1249,6 +1253,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getCashFlow: createGetCashFlow({
         clock,
         userTimeZones: profiles,
+        // D29, slice MC4: the projection is in the caller's display currency, converting at each movement's day.
+        rates: exchangeRates,
+        displayCurrencyOf: (userId) => profiles.displayCurrencyOf(userId),
         spacesOf: async (userId) =>
           (await spaceRepository.listForUser(userId, { includeArchived: false })).map((space) => ({
             spaceId: space.id,

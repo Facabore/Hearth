@@ -61,6 +61,12 @@ export function CashFlowCalendar({
       {/* Board 11 (ruling P272, #77): with nothing scheduled there is no summary, only the empty card. */}
       {flow.dates.length === 0 ? null : <FlowSummary flow={flow} formats={formats} />}
 
+      {/* D29, slice MC4: figures from other currencies were converted at each day's rate, so they are approximate. */}
+      {flow.converted ? (
+        <p data-testid="converted-note" className="text-sm text-muted">
+          {t("calendar.converted", { currency: flow.currency })}
+        </p>
+      ) : null}
       {flow.otherCurrencySpaces.map((other) => (
         <p key={other.spaceId} className="text-sm break-words text-muted">
           {t("calendar.otherCurrency", { space: other.name, currency: other.currency })}

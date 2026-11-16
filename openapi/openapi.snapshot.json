@@ -13957,6 +13957,16 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "converted": {
+                      "description": "D29 (MC4): some figure was converted from another currency.",
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "stale": {
+                      "description": "D29 (MC4): a rate used was more than 7 days older than its day.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": [
@@ -14578,6 +14588,16 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "converted": {
+                      "description": "D29 (MC4): some figure was converted from another currency.",
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "stale": {
+                      "description": "D29 (MC4): a rate used was more than 7 days older than its day.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": [

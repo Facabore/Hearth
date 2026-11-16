@@ -16,6 +16,11 @@ export interface PlannedMovement {
   readonly currency: string;
   readonly debitAccountId: string | null;
   readonly creditAccountId: string | null;
+  /**
+   * D29, slice MC4: a movement in another currency's amount in the projection's currency, converted at its day's rate;
+   * absent when it had no rate, so the movement is left out and its space named.
+   */
+  readonly converted?: bigint;
 }
 
 /** One of the caller's own accounts; `counted` when it counts in their available money (HU-E2-07, P51). */
@@ -51,7 +56,7 @@ export interface CashFlowProjection {
 export interface CashFlowInput {
   readonly today: LocalDate;
   readonly through: LocalDate;
-  /** The personal space's currency, every sum's (D6). */
+  /** D29, slice MC4: the caller's display currency, every sum's. */
   readonly currency: string;
   /** Today's available money of the personal space (HU-E2-07). */
   readonly opening: bigint;
@@ -72,8 +77,9 @@ const order = (
  * #150, rulings P239 and P240 (M6c): the caller's movements through `through`, each placed on its date or, when it
  * was due earlier (a PENDING occurrence, a date the scheduler has not reached), on today. A movement is the caller's
  * when it debits or credits one of their own accounts. Its effect is +amount into a counted account, −amount out of
- * one, so 0 between two counted accounts or two uncounted ones. A movement in another currency is left out and its
- * space named once (ruling P37's rule). Derived on read (D7); ties keep the input order.
+ * one, so 0 between two counted accounts or two uncounted ones. D29, slice MC4: a movement in another currency counts
+ * its `converted` amount; one with none (no rate) is left out and its space named once. Derived on read (D7); ties keep
+ * the input order.
  */
 export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
   const counted = new Map(input.accounts.map((account) => [account.id, account.counted]));
@@ -84,7 +90,7 @@ export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
     const debit = movement.debitAccountId === null ? undefined : counted.get(movement.debitAccountId);
     const credit = movement.creditAccountId === null ? undefined : counted.get(movement.creditAccountId);
     if (debit === undefined && credit === undefined) continue;
-    if (movement.currency !== input.currency) {
+    if (movement.currency !== input.currency && movement.converted === undefined) {
       others.set(movement.spaceId, {
         spaceId: movement.spaceId,
         name: movement.spaceName,
@@ -92,7 +98,8 @@ export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
       });
       continue;
     }
-    const effect = (credit ? movement.amount : 0n) - (debit ? movement.amount : 0n);
+    const amount = movement.currency === input.currency ? movement.amount : movement.converted!;
+    const effect = (credit ? amount : 0n) - (debit ? amount : 0n);
     placed.push({
       date: movement.date < input.today ? input.today : movement.date,
       movement: { ...movement, effect },

@@ -275,9 +275,10 @@
         "FUND_CONTRIBUTION": "Aporte al fondo"
       },
       "empty": "No hay movimientos programados en los próximos {days} días.",
-      "otherCurrency": "{space} usa {currency}: sus movimientos no se suman aquí.",
+      "otherCurrency": "{space} usa {currency} y algunos de sus movimientos no tienen tasa de cambio: esos no se suman aquí.",
       "emptyHint": "Programa tu arriendo, tus servicios o tu salario y aquí verás cómo queda tu saldo.",
-      "add": "Agregar un movimiento recurrente"
+      "add": "Agregar un movimiento recurrente",
+      "converted": "Aproximado: convertimos lo que está en otras monedas a {currency} con la tasa de cada día."
     },
     "unified": {
       "consumption": "Consumo",
@@ -292,7 +293,8 @@
       "savingsTransfers": "Transferencias a tus ahorros",
       "byCategory": "Consumo por categoría",
       "empty": "No consumiste nada en este período.",
-      "otherCurrency": "{name} está en {currency} y no se suma aquí."
+      "otherCurrency": "{name} está en {currency} y algunos de sus movimientos no tienen tasa de cambio: esos no se suman aquí.",
+      "converted": "Aproximado: convertimos lo que está en otras monedas a {currency} con la tasa de cada día."
     },
     "byGroup": {
       "trail": "Ruta",
