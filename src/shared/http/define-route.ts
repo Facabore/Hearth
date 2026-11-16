@@ -15,7 +15,10 @@ import type { SessionResolver } from "./session-resolver";
 
 export type HttpSuccess = {
   readonly status: number;
+  /** Written as JSON, unless it is bytes sent with `contentType`. */
   readonly body?: unknown;
+  /** D28: the media type of a bytes body (a ZIP download), which is then sent as it is instead of as JSON. */
+  readonly contentType?: string;
   readonly headers?: ReadonlyArray<readonly [string, string]>;
 };
 
@@ -216,6 +219,12 @@ export const createRouteFactory =
         for (const [name, value] of result.value.headers ?? []) headers.append(name, value);
         if (result.value.body === undefined)
           return new Response(null, { status: result.value.status, headers });
+        const { body: answer, contentType } = result.value;
+        if (answer instanceof Uint8Array && contentType !== undefined) {
+          headers.set("content-type", contentType);
+          // A copy over its own ArrayBuffer, which BodyInit accepts (a view could sit on a SharedArrayBuffer).
+          return new Response(new Uint8Array(answer), { status: result.value.status, headers });
+        }
         headers.set("content-type", "application/json");
         return new Response(JSON.stringify(result.value.body, bigintAsString), {
           status: result.value.status,
