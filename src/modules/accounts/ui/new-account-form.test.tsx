@@ -426,7 +426,7 @@ describe("new account form: its currency (D29, board 12)", () => {
     expect(screen.getByRole("button", { name: /Moneda/ })).toHaveTextContent("Yen japonés (JPY)");
     await userEvent.type(screen.getByLabelText("Nombre"), "Tokio");
     const opening = screen.getByLabelText("Saldo inicial");
-    // No decimals: a comma is not taken, and the symbol shown is the code's.
+    // Whole yen: the amount is typed with no decimals, and the symbol shown is the code's.
     await userEvent.type(opening, "12.500");
     expect(opening.closest("div")).toHaveTextContent("JPY");
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
@@ -434,6 +434,38 @@ describe("new account form: its currency (D29, board 12)", () => {
       name: "Tokio",
       type: "BANK",
       openingBalance: { amount: "12500", currency: "JPY" },
+      currency: "JPY",
+    });
+  });
+});
+
+describe("new account form: changing the currency (D29, board 12)", () => {
+  it("clears the amounts typed in the old currency, COP to JPY, and keeps the rest", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto(), 201),
+    });
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Tarjeta de crédito" }));
+    await userEvent.type(screen.getByLabelText("Nombre"), "Visa Japón");
+    await userEvent.type(screen.getByLabelText("Debes hoy"), "350.000,50");
+    await userEvent.type(screen.getByLabelText("Cupo"), "5.000.000");
+    await userEvent.type(screen.getByLabelText("Día de pago"), "15");
+    await userEvent.click(screen.getByRole("button", { name: /Moneda/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Moneda de la cuenta" });
+    await userEvent.type(within(sheet).getByLabelText("Buscar"), "jpy");
+    await userEvent.click(within(sheet).getByRole("button", { name: /Yen japonés/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Moneda de la cuenta" })).toBeNull());
+    // The pesos and centavos typed would mean something else in yen, so they go; the payment day stays.
+    expect(screen.getByLabelText("Debes hoy")).toHaveValue("");
+    expect(screen.getByLabelText("Cupo")).toHaveValue("");
+    expect(screen.getByLabelText("Día de pago")).toHaveValue("15");
+    await userEvent.type(screen.getByLabelText("Debes hoy"), "50.000");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toEqual({
+      name: "Visa Japón",
+      type: "CREDIT_CARD",
+      openingBalance: { amount: "-50000", currency: "JPY" },
+      terms: { paymentDay: 15 },
       currency: "JPY",
     });
   });

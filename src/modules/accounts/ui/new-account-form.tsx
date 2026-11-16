@@ -27,6 +27,7 @@ import { AccountAttributeFields } from "./account-attribute-fields";
 import { AccountCurrencyField } from "./account-currency-field";
 import {
   accountBodyOf,
+  MONEY_TERMS,
   OWED_TYPES,
   PERSONAL_TYPES,
   SWITCH_DEFAULTS,
@@ -199,8 +200,18 @@ export function NewAccountForm({
                 value={accountCurrency}
                 space={space}
                 onChange={(next) => {
+                  if (next === accountCurrency) return;
+                  // An amount typed in one currency means something else in another (and may have the wrong
+                  // decimals), so the opening balance and the money attributes start over; the rest stays.
                   setAccountCurrency(next);
+                  setOpening("");
+                  setFields((all) =>
+                    Object.fromEntries(
+                      Object.entries(all).filter(([field]) => !MONEY_TERMS.includes(field as AccountField)),
+                    ),
+                  );
                   clear("opening");
+                  for (const field of MONEY_TERMS) clear(field);
                 }}
               />
               <NumberField
