@@ -160,12 +160,16 @@ describe("Más and Invitar a Hearth (D27)", () => {
   });
 
   it("keeps the row, without the points, when they cannot be read", async () => {
-    renderSpa("/spaces/sp-personal/more", {
+    const spa = renderSpa("/spaces/sp-personal/more", {
       ...signedIn(),
       "GET /api/v1/me/referrals": () => problemResponse(500, "InternalError"),
     });
     const row = await screen.findByRole("link", { name: /Invita a alguien a Hearth/ }, { timeout: 5_000 });
     expect(row).toHaveAttribute("href", "/spaces/sp-personal/invite");
+    expect(row).not.toHaveTextContent("Llevas");
+    // A failed read (5xx) is tried once more a moment later; the test waits for it, so no timer of it outlives the
+    // test's window (a CI run reported "window is not defined" after this file).
+    await waitFor(() => expect(spa.queryClient.isFetching()).toBe(0), { timeout: 5_000 });
     expect(row).not.toHaveTextContent("Llevas");
   });
 });
