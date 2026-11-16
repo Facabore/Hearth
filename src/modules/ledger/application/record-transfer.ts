@@ -2,6 +2,7 @@ import { domainError, err, flatMap, ok, type LocalDate, type Money, type Result 
 import { positiveAmount, recordTransfer, type Transfer } from "../domain/transaction";
 import { accountInSpace, authorizeWriter, openPeriod, ownAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { convertedAt } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
 
 export interface RecordTransferInput extends Omit<WhenInput, "userId"> {
@@ -21,20 +22,6 @@ export interface RecordTransferInput extends Omit<WhenInput, "userId"> {
 }
 
 export type RecordTransfer = (input: RecordTransferInput) => Promise<Result<Transfer>>;
-
-/** D29, section 4.1: converts `amount` into `to` at the date's rate; ExchangeRateRequired when none connects them. */
-const convertedAt = async (
-  deps: Pick<LedgerDeps, "rates">,
-  amount: Money,
-  to: string,
-  date: LocalDate,
-): Promise<Result<Money>> => {
-  const rate = await deps.rates.rateOn(amount.currency.code, to, date);
-  if (!rate.ok) {
-    return err(domainError("ExchangeRateRequired", { from: amount.currency.code, to, date }));
-  }
-  return amount.convert(rate.value);
-};
 
 /** HU-E4-03: moves money between the requester's own accounts; never spending. */
 export const createRecordTransfer =
@@ -121,7 +108,7 @@ export const createRecordTransfer =
  * arriving amount when D === B, else the amount converted at the S→B rate. When the currencies match, the given
  * destination amount must equal the amount (InvalidTransferAmounts); when they do not, no rate is ExchangeRateRequired.
  */
-const resolveAmounts = async (
+export const resolveAmounts = async (
   deps: Pick<LedgerDeps, "rates">,
   base: string,
   input: RecordTransferInput,

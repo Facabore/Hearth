@@ -192,6 +192,36 @@ describe("recording in another currency (D29, MC3)", () => {
     expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_600_000));
     expect(await balanceOf(ana, usdWallet)).toEqual(usd(100));
   });
+
+  /** 2035-03-14, far past every other test's dates, so the rate it stores converts only these movements. */
+  const RATE_DAY = "2035-03-14";
+  const usdWalletOf = async (ana: LedgerUser): Promise<string> => {
+    await app.pool.query(
+      `INSERT INTO exchange_rates (date, base, quote, rate, source, fetched_at)
+       VALUES ($1, 'USD', 'COP', '4000', 'test', now()) ON CONFLICT DO NOTHING`,
+      [RATE_DAY],
+    );
+    const wallet = await newAccount(ana, "USD Wallet", 0);
+    await app.pool.query("UPDATE accounts SET currency = 'USD' WHERE id = $1", [wallet]);
+    return wallet;
+  };
+
+  it("moves a USD account by the converted amount of an expense typed in COP (D29, 4.1)", async () => {
+    const ana = await ledgerUser("Ana");
+    const wallet = await usdWalletOf(ana);
+    const body = await recorded(
+      post(recordExpense, ana, "expenses", {
+        amount: cop(5_000_000),
+        date: RATE_DAY,
+        categoryId: ana.groceries,
+        accountId: wallet,
+      }),
+    );
+    expect(body.amount).toEqual(cop(5_000_000));
+    expect(body.originalAmount).toBeUndefined();
+    expect(body.payments[0]).toMatchObject({ accountId: wallet, accountAmount: usd(1_250) });
+    expect(await balanceOf(ana, wallet)).toEqual(usd(-1_250));
+  });
 });
 
 describe("income, transfers and computed balances (HU-E4-02, HU-E4-03, HU-E2-04)", () => {

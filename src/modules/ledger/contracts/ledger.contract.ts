@@ -77,6 +77,11 @@ export const PaymentSchema = z.object({
   memberId: z.string().nullable(),
   accountId: z.string().nullable(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: what left the paying account, in that account's own currency, when it is not the space's base
+   * currency; absent when the account moved by `amount`. Additive: existing clients ignore it.
+   */
+  accountAmount: MoneySchema.optional(),
 });
 export const ShareSchema = z.object({
   memberId: z.string(),
@@ -100,7 +105,8 @@ export const TransactionSchema = z.object({
   originalAmount: MoneySchema.optional(),
   /**
    * D29, slice MC3: each account leg in its own currency, when it differs from the base amount: a transfer's "Sale"
-   * (`sourceAmount`) and "Llega" (`destinationAmount`), and an income's destination (`destinationAmount`). Absent when
+   * (`sourceAmount`) and "Llega" (`destinationAmount`), an income's destination (`destinationAmount`), and a
+   * settlement's accounts (`sourceAmount`, `destinationAmount`). Absent when
    * the leg equals the base amount. Additive: existing clients ignore them.
    */
   sourceAmount: MoneySchema.optional(),
@@ -418,10 +424,7 @@ export const settlementFromBody = (
   });
 };
 
-/**
- * D29, slice MC3: the account legs a transaction exposes, each in its own currency. A transfer keeps both legs'
- * currencies next to their amounts (4.1); an income's destination leg is always in the row's original currency.
- */
+/** D29, slice MC3: the account legs a transaction exposes, each in its own account's currency (4.1). */
 const transactionLegs = (
   tx: Transaction,
 ): {
@@ -430,19 +433,13 @@ const transactionLegs = (
 } => {
   const leg = (minor: bigint | undefined, currency: string | undefined) =>
     minor === undefined || currency === undefined ? undefined : { amount: minor.toString(), currency };
-  if (tx.type === "TRANSFER") {
-    const source = leg(tx.sourceAmount, tx.sourceCurrency);
-    const destination = leg(tx.destinationAmount, tx.destinationCurrency);
-    return {
-      ...(source === undefined ? {} : { sourceAmount: source }),
-      ...(destination === undefined ? {} : { destinationAmount: destination }),
-    };
-  }
-  if (tx.type === "INCOME") {
-    const destination = leg(tx.destinationAmount, tx.originalCurrency);
-    return destination === undefined ? {} : { destinationAmount: destination };
-  }
-  return {};
+  if (tx.type === "EXPENSE") return {};
+  const source = tx.type === "INCOME" ? undefined : leg(tx.sourceAmount, tx.sourceCurrency);
+  const destination = leg(tx.destinationAmount, tx.destinationCurrency);
+  return {
+    ...(source === undefined ? {} : { sourceAmount: source }),
+    ...(destination === undefined ? {} : { destinationAmount: destination }),
+  };
 };
 
 export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchema> => {
@@ -459,13 +456,19 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     ...(tx.originalAmount === undefined || tx.originalCurrency === undefined
       ? {}
       : { originalAmount: { amount: tx.originalAmount.toString(), currency: tx.originalCurrency } }),
-    // D29, slice MC3: each account leg in its own currency, when stored: a transfer's "Sale"/"Llega" from its leg
-    // currency (4.1), an income's destination from the row's original currency.
+    // D29, slice MC3: each account leg in its own account's currency, when stored (4.1).
     ...transactionLegs(tx),
     categoryId: tx.categoryId,
     payments:
       tx.type === "EXPENSE"
-        ? tx.payments.map((p) => ({ memberId: p.memberId, accountId: p.accountId, amount: money(p.amount) }))
+        ? tx.payments.map((p) => ({
+            memberId: p.memberId,
+            accountId: p.accountId,
+            amount: money(p.amount),
+            ...(p.accountAmount === undefined || p.accountCurrency === undefined
+              ? {}
+              : { accountAmount: { amount: p.accountAmount.toString(), currency: p.accountCurrency } }),
+          }))
         : [],
     shares:
       tx.type === "EXPENSE"

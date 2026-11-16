@@ -11,7 +11,7 @@ import {
 } from "../domain/transaction";
 import { authorizeWriter, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { baseAmountOf } from "./foreign-amount";
+import { baseAmountOf, withAccountLegs } from "./foreign-amount";
 import { resolvePayments, type PaymentInput } from "./payments";
 import { contributionParties } from "./record-fund-contribution";
 import type { DefaultSplitQuery } from "./ports";
@@ -153,18 +153,6 @@ export const createRecordExpense =
           : [{ memberId: null, accountId: forFund.fundAccountId, amount: input.amount }];
       const resolved = await resolvePayments(deps, space, members, requested, input.userId);
       if (!resolved.ok) return resolved;
-      // D29: the single paying account's leg in its own currency, kept only when the account holds the entered currency
-      // (otherwise the account is in the base currency and its leg equals the base amount).
-      let payments: readonly Payment[] = resolved.value;
-      if (base.value.original !== undefined) {
-        const only = payments[0];
-        if (only?.accountId != null) {
-          const account = await deps.accounts.find(only.accountId);
-          if (account !== null && account.currency === input.amount.currency.code) {
-            payments = [{ ...only, accountAmount: input.amount.minor }];
-          }
-        }
-      }
       const contributor =
         forFund === undefined
           ? ok(null)
@@ -197,18 +185,21 @@ export const createRecordExpense =
         timeZone,
         now: deps.clock.now(),
         categoryId: category.value,
-        payments,
+        payments: resolved.value,
         shares: shares.value,
         ...(base.value.original === undefined
           ? {}
           : { originalAmount: base.value.original.amount, originalCurrency: base.value.original.currency }),
       });
       if (!expense.ok) return expense;
+      // D29, section 4.1: each paying account's leg in its own currency whenever it is not the base.
+      const legged = await withAccountLegs(deps, space, expense.value, [input.amount]);
+      if (!legged.ok) return legged;
       if (contributor.value === null) {
-        await deps.transactions.add(expense.value);
+        await deps.transactions.add(legged.value);
         return ok({
-          expense: expense.value,
-          warnings: await fundWarnings(deps, space, input.userId, expense.value.payments),
+          expense: legged.value,
+          warnings: await fundWarnings(deps, space, input.userId, legged.value.payments),
         });
       }
       const contribution = recordFundContribution({
@@ -227,7 +218,9 @@ export const createRecordExpense =
         destinationAccountId: contributor.value.fundAccountId,
       });
       if (!contribution.ok) return contribution;
-      const pair = payForFund(contribution.value, expense.value);
+      const contributed = await withAccountLegs(deps, space, contribution.value, []);
+      if (!contributed.ok) return contributed;
+      const pair = payForFund(contributed.value, legged.value);
       if (!pair.ok) return pair;
       // D26: both halves in one statement, so neither is ever stored alone (like P322's gift).
       await deps.transactions.add(...pair.value);

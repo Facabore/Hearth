@@ -27,7 +27,12 @@ export interface TransactionDto {
   sourceAmount?: MoneyDto;
   destinationAmount?: MoneyDto;
   categoryId: string | null;
-  payments: { memberId: string | null; accountId: string | null; amount: MoneyDto }[];
+  payments: {
+    memberId: string | null;
+    accountId: string | null;
+    amount: MoneyDto;
+    accountAmount?: MoneyDto;
+  }[];
   shares: { memberId: string; amount: MoneyDto; splitMethod: string }[];
   sourceAccountId: string | null;
   destinationAccountId: string | null;

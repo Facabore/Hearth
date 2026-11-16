@@ -1858,6 +1858,7 @@ export interface components {
                 memberId: string | null;
                 accountId: string | null;
                 amount: components["schemas"]["MoneyOutput"];
+                accountAmount?: components["schemas"]["MoneyOutput"];
             }[];
             shares: {
                 memberId: string;
@@ -1979,6 +1980,7 @@ export interface components {
                 memberId: string | null;
                 accountId: string | null;
                 amount: components["schemas"]["MoneyOutput"];
+                accountAmount?: components["schemas"]["MoneyOutput"];
             }[];
             shares: {
                 memberId: string;
@@ -2186,6 +2188,7 @@ export interface components {
                 memberId: string | null;
                 accountId: string | null;
                 amount: components["schemas"]["MoneyOutput"];
+                accountAmount?: components["schemas"]["MoneyOutput"];
             }[];
             shares: {
                 memberId: string;

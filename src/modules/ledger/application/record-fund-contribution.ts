@@ -3,6 +3,7 @@ import { ok, type Money, type Result } from "@/shared/kernel";
 import { positiveAmount, recordFundContribution, type Transfer } from "../domain/transaction";
 import { authorizeWriter, fundAccount, inSpaceCurrency, openPeriod, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { withAccountLegs } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
 
 export interface RecordFundContributionInput extends Omit<WhenInput, "userId"> {
@@ -99,6 +100,9 @@ export const createRecordFundContribution =
         destinationAccountId: parties.value.fundAccountId,
       });
       if (!contribution.ok) return contribution;
-      await deps.transactions.add(contribution.value);
-      return contribution;
+      // D29, section 4.1: each account's leg in its own currency whenever it is not the base.
+      const legged = await withAccountLegs(deps, space, contribution.value, []);
+      if (!legged.ok) return legged;
+      await deps.transactions.add(legged.value);
+      return legged;
     });

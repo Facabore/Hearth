@@ -16807,6 +16807,9 @@
                 },
                 "amount": {
                   "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "accountAmount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
                 }
               },
               "required": [
@@ -17354,6 +17357,9 @@
                   ]
                 },
                 "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "accountAmount": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 }
               },
@@ -18471,6 +18477,9 @@
                   ]
                 },
                 "amount": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "accountAmount": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 }
               },

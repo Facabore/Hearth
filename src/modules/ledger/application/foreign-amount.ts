@@ -1,5 +1,6 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
-import { domainError, err, map, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, map, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
+import { withLegs, type AccountLeg, type Transaction, type TransactionLegs } from "../domain/transaction";
 import type { LedgerDeps } from "./deps";
 
 /** D29 section 4.2: the base amount a movement is stored in, and the original it was entered in when they differ. */
@@ -38,9 +39,101 @@ export const baseAmountOf = async (
           }),
         );
   }
-  const rate = await deps.rates.rateOn(amount.currency.code, space.currency, date);
+  return map(await convertedAt(deps, amount, space.currency, date), (base) => ({ base, original }));
+};
+
+/** D29, section 4.1: converts `amount` into `to` at the date's rate; ExchangeRateRequired when none connects them. */
+export const convertedAt = async (
+  deps: Pick<LedgerDeps, "rates">,
+  amount: Money,
+  to: string,
+  date: LocalDate,
+): Promise<Result<Money>> => {
+  const rate = await deps.rates.rateOn(amount.currency.code, to, date);
   if (!rate.ok) {
-    return err(domainError("ExchangeRateRequired", { from: amount.currency.code, to: space.currency, date }));
+    return err(domainError("ExchangeRateRequired", { from: amount.currency.code, to, date }));
   }
-  return map(amount.convert(rate.value), (base) => ({ base, original }));
+  return amount.convert(rate.value);
+};
+
+/**
+ * D29, section 4.1: an account's leg, what the movement moves it by in its own currency. Null when the account is in the
+ * base currency (it moves by `base`) or there is no account. Otherwise the amount `known` in the account's currency
+ * (what was entered, or what arrived), else `base` converted at the date's rate (ExchangeRateRequired without one).
+ */
+export const accountLegOf = async (
+  deps: Pick<LedgerDeps, "accounts" | "rates">,
+  space: Pick<SpaceMembership, "currency">,
+  accountId: string | null,
+  base: Money,
+  known: readonly Money[],
+  date: LocalDate,
+): Promise<Result<AccountLeg | null>> => {
+  if (accountId === null) return ok(null);
+  const account = await deps.accounts.find(accountId);
+  if (account === null || account.currency === space.currency) return ok(null);
+  const currency = account.currency;
+  const entered = known.find((amount) => amount.currency.code === currency);
+  if (entered !== undefined) return ok({ amount: entered.minor, currency });
+  return map(await convertedAt(deps, base, currency, date), (leg) => ({ amount: leg.minor, currency }));
+};
+
+/**
+ * D29, section 4.1: every account leg of `tx`, by `accountLegOf`: an expense's payments (the entered amount is known
+ * only to a sole payment, which pays it all), and the other types' source and destination accounts.
+ */
+export const legsOf = async (
+  deps: Pick<LedgerDeps, "accounts" | "rates">,
+  space: Pick<SpaceMembership, "currency">,
+  tx: Transaction,
+  known: readonly Money[],
+): Promise<Result<TransactionLegs>> => {
+  const inBase = (minor: bigint) => Money.ofMinor(minor, tx.currency);
+  const legOf = async (accountId: string | null, minor: bigint, knownHere: readonly Money[]) => {
+    const base = inBase(minor);
+    if (!base.ok) return base;
+    return accountLegOf(deps, space, accountId, base.value, knownHere, tx.date);
+  };
+  if (tx.type === "EXPENSE") {
+    const payments: (AccountLeg | null)[] = [];
+    for (const payment of tx.payments) {
+      const leg = await legOf(payment.accountId, payment.amount, tx.payments.length === 1 ? known : []);
+      if (!leg.ok) return leg;
+      payments.push(leg.value);
+    }
+    return ok({ payments });
+  }
+  const source = await legOf(tx.type === "INCOME" ? null : tx.sourceAccountId, tx.amount, known);
+  if (!source.ok) return source;
+  const destination = await legOf(tx.destinationAccountId, tx.amount, known);
+  if (!destination.ok) return destination;
+  return ok({ source: source.value, destination: destination.value });
+};
+
+/** D29, slice MC3: what `tx` was entered in, kept on it: its original amount and its transfer legs. */
+export const knownAmountsOf = (tx: Transaction): Money[] => {
+  const known: Money[] = [];
+  const add = (minor: bigint | undefined, currency: string | undefined) => {
+    if (minor === undefined || currency === undefined) return;
+    const amount = Money.ofMinor(minor, currency);
+    if (amount.ok) known.push(amount.value);
+  };
+  add(tx.originalAmount, tx.originalCurrency);
+  if (tx.type === "TRANSFER") {
+    add(tx.sourceAmount, tx.sourceCurrency);
+    add(tx.destinationAmount, tx.destinationCurrency);
+  }
+  return known;
+};
+
+/** D29, section 4.1: `tx` with every account leg `legsOf` computes; the same type it was given. */
+export const withAccountLegs = async <T extends Transaction>(
+  deps: Pick<LedgerDeps, "accounts" | "rates">,
+  space: Pick<SpaceMembership, "currency">,
+  tx: T,
+  known: readonly Money[],
+): Promise<Result<T>> => {
+  const legs = await legsOf(deps, space, tx, known);
+  if (!legs.ok) return legs;
+  return withLegs(tx, legs.value) as Result<T>;
 };

@@ -2,7 +2,7 @@ import { flatMap, type Money, type Result } from "@/shared/kernel";
 import { positiveAmount, recordIncome, type Income } from "../domain/transaction";
 import { accountInSpace, authorizeWriter, openPeriod, ownAccount, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { baseAmountOf } from "./foreign-amount";
+import { accountLegOf, baseAmountOf } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
 
 export interface RecordIncomeInput extends Omit<WhenInput, "userId"> {
@@ -47,11 +47,17 @@ export const createRecordIncome =
       // the rate lookup is a read inside the already-held space lock (#89).
       const base = await baseAmountOf(deps, space, input.amount, input.convertedAmount, date);
       if (!base.ok) return base;
-      // D29: the destination leg in the account's own currency only when that currency is the one entered.
-      const destinationAmount =
-        base.value.original !== undefined && account.value.currency === input.amount.currency.code
-          ? input.amount.minor
-          : undefined;
+      // D29, section 4.1: the destination leg in the account's own currency whenever it is not the base: what was
+      // entered when the account holds that currency, else the base amount at the date's rate.
+      const destination = await accountLegOf(
+        deps,
+        space,
+        account.value.id,
+        base.value.base,
+        [input.amount],
+        date,
+      );
+      if (!destination.ok) return destination;
       const income = recordIncome({
         id: deps.ids.next<"Transaction">(),
         spaceId: space.spaceId,
@@ -69,7 +75,7 @@ export const createRecordIncome =
         ...(base.value.original === undefined
           ? {}
           : { originalAmount: base.value.original.amount, originalCurrency: base.value.original.currency }),
-        ...(destinationAmount === undefined ? {} : { destinationAmount }),
+        destination: destination.value,
       });
       if (!income.ok) return income;
       await deps.transactions.add(income.value);
