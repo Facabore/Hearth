@@ -72,7 +72,7 @@ const recordOf = async (
 };
 
 /** A fund contribution is the TRANSFER a member pays into the fund (HU-E4-09); it converts as its own kind. */
-const kindOf = (tx: Transaction): ConversionTarget["type"] | "SETTLEMENT" =>
+const kindOf = (tx: Transaction): ConversionTarget["type"] | "SETTLEMENT" | "ADJUSTMENT" =>
   tx.type === "TRANSFER" && tx.payerMemberId !== null ? "FUND_CONTRIBUTION" : tx.type;
 
 /**
@@ -98,7 +98,8 @@ export const createConvertTransaction =
       }
       // A settlement pays a debt between members; it is never an expense, an income or a transfer (HU-E5-02). D26: a half
       // of an expense paid for the fund never becomes anything else alone.
-      if (current.type === "SETTLEMENT" || linkedHalfOf(current) !== null) {
+      // Design Q4 (#329): an adjustment is neither spending nor income, so it never becomes one, nor a transfer.
+      if (current.type === "SETTLEMENT" || current.type === "ADJUSTMENT" || linkedHalfOf(current) !== null) {
         return err(domainError("TransactionNotConvertible"));
       }
       if (kindOf(current) === input.to.type) return err(domainError("SameTransactionType"));

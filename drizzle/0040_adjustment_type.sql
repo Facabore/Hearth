@@ -1,0 +1,10 @@
+-- Design Q4, gap G1 (#329): the ADJUSTMENT movement type, a balance adjustment of one account. Forward-only and purely
+-- additive: the shape CHECK gains one more branch (exactly one account, no category, payer or receiver), and every
+-- existing row still meets the branch of its own type unchanged, so no row is rewritten. Re-adding the constraint
+-- validates every existing row against it.
+ALTER TABLE "transactions" DROP CONSTRAINT "transactions_shape";--> statement-breakpoint
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_shape" CHECK (("transactions"."type" = 'EXPENSE' AND "transactions"."category_id" IS NOT NULL AND "transactions"."source_account_id" IS NULL AND "transactions"."destination_account_id" IS NULL AND "transactions"."receiving_member_id" IS NULL AND "transactions"."payer_member_id" IS NULL)
+        OR ("transactions"."type" = 'INCOME' AND "transactions"."category_id" IS NOT NULL AND "transactions"."source_account_id" IS NULL AND "transactions"."destination_account_id" IS NOT NULL AND "transactions"."receiving_member_id" IS NOT NULL AND "transactions"."payer_member_id" IS NULL)
+        OR ("transactions"."type" = 'TRANSFER' AND "transactions"."category_id" IS NULL AND "transactions"."destination_account_id" IS NOT NULL AND "transactions"."receiving_member_id" IS NULL AND ("transactions"."source_account_id" IS NOT NULL OR "transactions"."payer_member_id" IS NOT NULL))
+        OR ("transactions"."type" = 'SETTLEMENT' AND "transactions"."category_id" IS NULL AND "transactions"."payer_member_id" IS NOT NULL AND "transactions"."receiving_member_id" IS NOT NULL)
+        OR ("transactions"."type" = 'ADJUSTMENT' AND "transactions"."category_id" IS NULL AND "transactions"."receiving_member_id" IS NULL AND "transactions"."payer_member_id" IS NULL AND ("transactions"."source_account_id" IS NULL) <> ("transactions"."destination_account_id" IS NULL)));

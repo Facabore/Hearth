@@ -4,7 +4,7 @@ import type { Transaction } from "../domain/transaction";
 import { inSpaceCurrency } from "./checks";
 import type { LedgerDeps } from "./deps";
 import type { EditChanges } from "./edited-parts";
-import { baseAmountOf } from "./foreign-amount";
+import { baseAmountOf, convertedAt } from "./foreign-amount";
 import { resolveAmounts } from "./record-transfer";
 
 /** D29, section 4.1: a new amount as recording reads it. */
@@ -45,7 +45,8 @@ const amountOf = (current: Transaction, changes: EditChanges): Result<Money | nu
  * D29, sections 4.1 and 4.2: an edit's new `amount` read by the rules of recording its type, at the edited date's rate;
  * null when the edit sends no amount nor what goes with one (`amountOf`). An expense or income takes
  * any currency and keeps the original (the converted amount wins over the rate); an own transfer's amount is "Sale" in
- * the source account's currency, with "Llega" given or at the rate; a fund contribution or settlement stays in the base.
+ * the source account's currency, with "Llega" given or at the rate; an adjustment's is in its account's currency, its
+ * size only (positive, its direction kept); a fund contribution or settlement stays in the base.
  */
 export const editedAmountOf = async (
   deps: Pick<LedgerDeps, "accounts" | "rates">,
@@ -92,6 +93,19 @@ export const editedAmountOf = async (
     );
     if (!resolved.ok) return resolved;
     return ok({ base: resolved.value.base, original: null, known: [amount, resolved.value.arrive] });
+  }
+  if (current.type === "ADJUSTMENT") {
+    // Design Q4: the new size of the adjustment, in its account's own currency; its direction stays as recorded.
+    const accountId = current.destinationAccountId ?? current.sourceAccountId;
+    const currency =
+      (accountId === null ? null : (await deps.accounts.find(accountId))?.currency) ?? space.currency;
+    if (amount.currency.code !== currency) {
+      return err(domainError("CurrencyMismatch", { expected: currency, actual: amount.currency.code }));
+    }
+    if (currency === space.currency) return ok({ base: amount, original: null, known: [] });
+    const converted = await convertedAt(deps, amount, space.currency, date);
+    if (!converted.ok) return converted;
+    return ok({ base: converted.value, original: null, known: [amount] });
   }
   const base = inSpaceCurrency(space, amount);
   if (!base.ok) return base;

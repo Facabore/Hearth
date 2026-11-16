@@ -749,6 +749,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust one account's balance (Ajuste de saldo): a signed amount in the account's own currency, never spending or income */
+        post: operations["recordAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/fund-contributions": {
         parameters: {
             query?: never;
@@ -1690,7 +1707,7 @@ export interface paths {
         put?: never;
         /**
          * Import a draft into the ledger, in one transaction
-         * @description Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before their account's first movement become its opening balance; later ones are counted as not imported yet.
+         * @description Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.
          */
         post: operations["confirmImport"];
         delete?: never;
@@ -1945,7 +1962,7 @@ export interface components {
         ConvertedTransaction: {
             id: string;
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
             description: string;
             /** Format: date */
             date: string;
@@ -2067,7 +2084,7 @@ export interface components {
                 movements: {
                     id: string;
                     /** @enum {string} */
-                    type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                    type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
                     /** Format: date */
                     date: string;
                     /** @description HH:MM on the recorder's clock; null without a time. */
@@ -2363,7 +2380,7 @@ export interface components {
         RecordedExpense: {
             id: string;
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
             description: string;
             /** Format: date */
             date: string;
@@ -2571,7 +2588,7 @@ export interface components {
         Transaction: {
             id: string;
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
             description: string;
             /** Format: date */
             date: string;
@@ -5516,7 +5533,7 @@ export interface operations {
                 /** @description Ruling P319: only this space, one of the caller's current spaces; another answers 404. */
                 spaceId?: string;
                 categoryIds?: string;
-                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
                 accountId?: string;
                 search?: string;
             };
@@ -5976,6 +5993,87 @@ export interface operations {
             };
         };
     };
+    recordAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string;
+            };
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    amount: components["schemas"]["Money"];
+                    accountId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The recorded transaction; ETag carries its version */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     recordFundContribution: {
         parameters: {
             query?: never;
@@ -6156,7 +6254,7 @@ export interface operations {
                 categoryIds?: string;
                 payerMemberId?: string;
                 participantMemberId?: string;
-                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
                 accountId?: string;
                 search?: string;
             };
@@ -6421,7 +6519,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable */
+            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AdjustmentHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -10116,7 +10214,7 @@ export interface operations {
                                 alreadyImported: number;
                                 duplicatesSkipped: number;
                                 adjustmentsInOpeningBalance: number;
-                                /** @description Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4). */
+                                /** @description Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview. */
                                 adjustmentsNotImported: number;
                                 rowErrors: number;
                             } | null;
@@ -10390,7 +10488,7 @@ export interface operations {
                             alreadyImported: number;
                             duplicatesSkipped: number;
                             adjustmentsInOpeningBalance: number;
-                            /** @description Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4). */
+                            /** @description Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview. */
                             adjustmentsNotImported: number;
                             rowErrors: number;
                         } | null;

@@ -58,6 +58,10 @@ const countingWriter = (): ImportWriter & { readonly recorded: string[] } => {
       recorded.push("transfer");
       return id();
     },
+    recordAdjustment: async () => {
+      recorded.push("adjustment");
+      return id();
+    },
     deleteMovement: async () => ok(true),
     archiveAccount: async () => ok(undefined),
     restoreAccount: async () => ok(undefined),
@@ -267,9 +271,11 @@ describe("two confirms of one draft (D28, design §3.2)", () => {
     const second = createConfirmImport(depsWith({ writer }))({ ...ana, importId }).finally(h.release);
 
     expect(await outcomesOf(first, second)).toEqual(["ImportNotDraft", "ok"]);
-    // m6 is recorded too: this writer converts nothing, so no row fails for want of a rate.
+    // m6 is recorded too: this writer converts nothing, so no row fails for want of a rate. adj1, the bank's later
+    // adjustment, is an ADJUSTMENT movement (design Q4).
     expect(writer.recorded.sort()).toEqual([
       "Almuerzo",
+      "adjustment",
       "expense",
       "expense",
       "expense",

@@ -138,7 +138,10 @@ export function TransactionSheet({
   };
 
   const money = formatMoney(tx.amount, formats);
-  const signed = tx.type === "EXPENSE" ? `${MINUS}${money}` : tx.type === "INCOME" ? `+${money}` : money;
+  // Design Q4: a balance adjustment carries its direction's sign, as an expense and an income do (never color alone).
+  const out = tx.type === "EXPENSE" || (tx.type === "ADJUSTMENT" && tx.destinationAccountId === null);
+  const into = tx.type === "INCOME" || (tx.type === "ADJUSTMENT" && tx.destinationAccountId !== null);
+  const signed = out ? `${MINUS}${money}` : into ? `+${money}` : money;
   const time =
     tx.occurredAt && tx.timeZone
       ? [
@@ -167,6 +170,13 @@ export function TransactionSheet({
   else if (tx.type === "TRANSFER") {
     addAccount(t("form.from"), withLeg(accountOf(tx.sourceAccountId, tx.payerMemberId), tx.sourceAmount));
     addAccount(t("form.to"), withLeg(accountOf(tx.destinationAccountId, null), tx.destinationAmount));
+  } else if (tx.type === "ADJUSTMENT") {
+    // Design Q4: the one account it adjusted, with its leg in its own currency.
+    const leg = tx.destinationAccountId === null ? tx.sourceAmount : tx.destinationAmount;
+    addAccount(
+      t("form.account"),
+      withLeg(accountOf(tx.destinationAccountId ?? tx.sourceAccountId, null), leg),
+    );
   } else {
     addAccount(t("form.from"), labelOf(tx.payerMemberId));
     addAccount(t("form.to"), labelOf(tx.receivingMemberId));

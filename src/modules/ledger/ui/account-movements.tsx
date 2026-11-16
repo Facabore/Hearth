@@ -64,6 +64,8 @@ function AccountDays({
     }
     if (tx.type === "SETTLEMENT")
       return [t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) })];
+    // Design Q4: a balance adjustment is titled by its kind unless a description titles it; then its line names it.
+    if (tx.type === "ADJUSTMENT") return tx.description ? [t("type.ADJUSTMENT")] : [];
     const category = tx.categoryId ? findCategory(groups, tx.categoryId)?.category.name : undefined;
     const kind = tx.type === "INCOME" ? t("type.INCOME") : account.fund ? t("paidByFund") : undefined;
     return [kind, category].filter((part): part is string => Boolean(part));

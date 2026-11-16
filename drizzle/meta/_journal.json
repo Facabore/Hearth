@@ -281,6 +281,13 @@
       "when": 1794838249653,
       "tag": "0039_import_batches",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794846646519,
+      "tag": "0040_adjustment_type",
+      "breakpoints": true
     }
   ]
 }

@@ -39,7 +39,7 @@ export const transactions = pgTable(
     spaceId: uuid("space_id")
       .notNull()
       .references(() => spaces.id, { onDelete: "cascade" }),
-    type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"] }).notNull(),
+    type: text("type", { enum: ["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"] }).notNull(),
     description: text("description").notNull(),
     date: date("date", { mode: "string" }).notNull(),
     // HU-E4-14, D19: when it happened (UTC) and the recorder's zone; both null for a transaction without a time.
@@ -135,13 +135,15 @@ export const transactions = pgTable(
     ),
     check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose
-    // source is null only for a guest (spec 5.2). A SETTLEMENT has both parties and optional accounts.
+    // source is null only for a guest (spec 5.2). A SETTLEMENT has both parties and optional accounts. An ADJUSTMENT
+    // (design Q4, #329) moves exactly one account, money in as its destination or out as its source, and names nobody.
     check(
       "transactions_shape",
       sql`(${t.type} = 'EXPENSE' AND ${t.categoryId} IS NOT NULL AND ${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NULL AND ${t.receivingMemberId} IS NULL AND ${t.payerMemberId} IS NULL)
         OR (${t.type} = 'INCOME' AND ${t.categoryId} IS NOT NULL AND ${t.sourceAccountId} IS NULL AND ${t.destinationAccountId} IS NOT NULL AND ${t.receivingMemberId} IS NOT NULL AND ${t.payerMemberId} IS NULL)
         OR (${t.type} = 'TRANSFER' AND ${t.categoryId} IS NULL AND ${t.destinationAccountId} IS NOT NULL AND ${t.receivingMemberId} IS NULL AND (${t.sourceAccountId} IS NOT NULL OR ${t.payerMemberId} IS NOT NULL))
-        OR (${t.type} = 'SETTLEMENT' AND ${t.categoryId} IS NULL AND ${t.payerMemberId} IS NOT NULL AND ${t.receivingMemberId} IS NOT NULL)`,
+        OR (${t.type} = 'SETTLEMENT' AND ${t.categoryId} IS NULL AND ${t.payerMemberId} IS NOT NULL AND ${t.receivingMemberId} IS NOT NULL)
+        OR (${t.type} = 'ADJUSTMENT' AND ${t.categoryId} IS NULL AND ${t.receivingMemberId} IS NULL AND ${t.payerMemberId} IS NULL AND (${t.sourceAccountId} IS NULL) <> (${t.destinationAccountId} IS NULL))`,
     ),
     // HU-E5-02: nobody settles with themselves.
     check(

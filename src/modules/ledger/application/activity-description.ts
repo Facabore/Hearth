@@ -83,6 +83,8 @@ const namedMembers = (tx: Transaction): string[] => {
       tx.receivingMemberId,
       ...(tx.onBehalfOfMemberId ? [tx.onBehalfOfMemberId] : []),
     ];
+  // Design Q4: an adjustment names nobody; it moves one account.
+  if (tx.type === "ADJUSTMENT") return [];
   return tx.payerMemberId ? [tx.payerMemberId] : [];
 };
 

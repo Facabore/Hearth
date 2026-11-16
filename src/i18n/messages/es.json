@@ -197,6 +197,7 @@
     "SavingsAccountRequired": "Un rubro de ahorro necesita al menos una cuenta de ahorro.",
     "SavingsLineNotMappable": "Un rubro de ahorro no lleva categorías.",
     "SettlementHasNoCategory": "Un pago entre personas no lleva categoría.",
+    "AdjustmentHasNoCategory": "Un ajuste de saldo no lleva categoría.",
     "SharedFundRequiresSharedSpace": "Un fondo compartido solo existe en un espacio compartido.",
     "SharesDoNotMatchAmount": "Los pagos y las partes deben sumar el monto total.",
     "SignUpClosed": "El registro está cerrado. Pide una invitación a alguien de tu hogar.",
@@ -514,7 +515,8 @@
       "TRANSFER": "Transferencia",
       "SETTLEMENT": "Pago entre miembros",
       "FUND_CONTRIBUTION": "Aporte al fondo",
-      "FORGIVENESS": "Deuda perdonada"
+      "FORGIVENESS": "Deuda perdonada",
+      "ADJUSTMENT": "Ajuste de saldo"
     },
     "transfer": "{from} → {to}",
     "settlement": "{from} → {to}",
@@ -577,13 +579,15 @@
         "EXPENSE": "Gasto eliminado",
         "INCOME": "Ingreso eliminado",
         "TRANSFER": "Transferencia eliminada",
-        "SETTLEMENT": "Pago eliminado"
+        "SETTLEMENT": "Pago eliminado",
+        "ADJUSTMENT": "Ajuste eliminado"
       },
       "restored": {
         "EXPENSE": "Gasto restaurado",
         "INCOME": "Ingreso restaurado",
         "TRANSFER": "Transferencia restaurada",
-        "SETTLEMENT": "Pago restaurado"
+        "SETTLEMENT": "Pago restaurado",
+        "ADJUSTMENT": "Ajuste restaurado"
       },
       "undoFailed": "No se pudo deshacer: {message}"
     },

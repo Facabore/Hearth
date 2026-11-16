@@ -1,7 +1,7 @@
 import { domainError, err, map, ok, type Id, type LocalDate, type Result } from "@/shared/kernel";
 
 export type TransactionId = Id<"Transaction">;
-export type TransactionType = "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+export type TransactionType = "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
 export type SplitMethod = "EQUAL" | "PERCENT" | "EXACT" | "SHARES" | "BY_ALLOCATION";
 type MemberRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
 
@@ -113,7 +113,24 @@ export interface Settlement extends TransactionBase {
 /** Ruling P322: why a settlement was recorded. */
 export type SettlementReason = "PAYMENT" | "GIFT" | "FORGIVENESS";
 
-export type Transaction = Expense | Income | Transfer | Settlement;
+/**
+ * Design Q4, gap G1 (#329): a balance adjustment ("Ajuste de saldo") moves one account's balance and nothing else: it is
+ * never spending or income, has no category, payer, payments or shares. Money in names the account as its destination,
+ * money out as its source; exactly one of the two is set and `amount` is positive, like every other movement's.
+ */
+export interface Adjustment extends TransactionBase {
+  readonly type: "ADJUSTMENT";
+  readonly categoryId: null;
+  readonly sourceAccountId: string | null;
+  readonly destinationAccountId: string | null;
+  /** D29, slice MC3: the account's leg in its own currency, when that currency is not the base; on its one side. */
+  readonly sourceAmount?: bigint;
+  readonly sourceCurrency?: string;
+  readonly destinationAmount?: bigint;
+  readonly destinationCurrency?: string;
+}
+
+export type Transaction = Expense | Income | Transfer | Settlement | Adjustment;
 
 export interface TransactionChanges {
   readonly description?: string;
@@ -398,6 +415,30 @@ export const recordSettlement = (
 };
 
 /**
+ * Design Q4 (#329): a balance adjustment of one account, money in (`direction` IN, the account is the destination) or
+ * out (OUT, its source). Its leg in the account's own currency is `withLegs`' to add, as for every other movement.
+ */
+export const recordAdjustment = (
+  input: NewTransaction & { readonly accountId: string; readonly direction: "IN" | "OUT" },
+): Result<Adjustment> => {
+  const base = baseOf(input);
+  if (!base.ok) return base;
+  return ok({
+    ...base.value,
+    type: "ADJUSTMENT" as const,
+    categoryId: null,
+    sourceAccountId: input.direction === "OUT" ? input.accountId : null,
+    destinationAccountId: input.direction === "IN" ? input.accountId : null,
+  });
+};
+
+/** Design Q4: the one account an adjustment moves, and whether money came in (positive) or went out. */
+export const adjustedAccountOf = (tx: Adjustment): { readonly accountId: string; readonly sign: 1n | -1n } =>
+  tx.destinationAccountId === null
+    ? { accountId: tx.sourceAccountId!, sign: -1n }
+    : { accountId: tx.destinationAccountId, sign: 1n };
+
+/**
  * Ruling P322 "Se lo regalo": the payer gives away what the member they paid for now owes them. The GIFT is a
  * settlement from that member to the payer with no accounts, at the same moment, for the same amount and by the same
  * recorder, and both halves point at each other.
@@ -423,7 +464,7 @@ export const giveAway = (payment: Settlement, giftId: TransactionId): Result<[Se
 
 /** Ruling P322, D26: the other half of a linked pair (a gift, or an expense paid for the fund), or null. */
 export const linkedHalfOf = (tx: Transaction): TransactionId | null =>
-  tx.type === "INCOME" ? null : (tx.linkedTransactionId ?? null);
+  tx.type === "INCOME" || tx.type === "ADJUSTMENT" ? null : (tx.linkedTransactionId ?? null);
 
 /**
  * D26: an expense paid for the fund. A member's contribution to the fund and the fund's payment of the expense, for the
@@ -623,6 +664,13 @@ const revisedParts = (tx: Transaction, changes: TransactionChanges, now: Date): 
       return changes.categoryId === undefined
         ? ok({ ...tx, ...common })
         : err(domainError("SettlementHasNoCategory"));
+    // Design Q4: an adjustment keeps its one account and its direction; a category never fits it.
+    case "ADJUSTMENT":
+      if (changes.categoryId !== undefined) return err(domainError("AdjustmentHasNoCategory"));
+      if (changes.sourceAccountId !== undefined || changes.destinationAccountId !== undefined) {
+        return err(domainError("FieldNotEditable", { field: "accountId" }));
+      }
+      return ok({ ...tx, ...common });
   }
 };
 
@@ -637,6 +685,7 @@ const debitsOf = (tx: Transaction): ReadonlyMap<string, bigint> => {
       return new Map();
     case "TRANSFER":
     case "SETTLEMENT":
+    case "ADJUSTMENT":
       return new Map(tx.sourceAccountId === null ? [] : [[tx.sourceAccountId, tx.amount] as const]);
   }
 };

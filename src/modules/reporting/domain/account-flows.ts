@@ -6,7 +6,7 @@ import type { CategoryConsumption } from "./unified-view";
  */
 export interface AccountMovement {
   readonly spaceId: string;
-  readonly type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+  readonly type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
   readonly categoryId: string | null;
   readonly amount: bigint;
   /** Σ the expense's payments from the account; 0 for any other movement. */
@@ -36,6 +36,8 @@ export const accountFlows = (accountId: string, movements: readonly AccountMovem
   let out = 0n;
   let moved = 0n;
   for (const m of movements) {
+    // Design Q4 (#329): an adjustment moves the balance only; it is neither money in nor money out of the period.
+    if (m.type === "ADJUSTMENT") continue;
     if (m.type === "EXPENSE") {
       if (m.paid === 0n) continue;
       out += m.paid;

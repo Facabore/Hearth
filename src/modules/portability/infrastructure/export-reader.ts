@@ -99,6 +99,14 @@ const movementOf = (tx: Transaction): ExportMovementSource => {
         destinationAccountId: tx.destinationAccountId,
         settlementReason: tx.reason,
       };
+    // Design Q4 (#329): a balance adjustment of one account: money in names it as the destination, out as the source.
+    case "ADJUSTMENT":
+      return {
+        ...base,
+        categoryId: null,
+        sourceAccountId: tx.sourceAccountId,
+        destinationAccountId: tx.destinationAccountId,
+      };
   }
 };
 

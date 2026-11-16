@@ -111,7 +111,7 @@ const CountsSchema = z.object({
     .number()
     .int()
     .describe(
-      "Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4).",
+      "Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview.",
     ),
   rowErrors: z.number().int(),
 });
@@ -363,7 +363,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "confirmImport",
       summary: "Import a draft into the ledger, in one transaction",
       description:
-        "Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before their account's first movement become its opening balance; later ones are counted as not imported yet.",
+        "Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
       ...securedByUser,
       requestParams: { path: ImportPath, header: IdempotencyHeader },
       responses: {

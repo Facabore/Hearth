@@ -119,7 +119,7 @@ export const knownAmountsOf = (tx: Transaction): Money[] => {
     if (amount.ok) known.push(amount.value);
   };
   add(tx.originalAmount, tx.originalCurrency);
-  if (tx.type === "TRANSFER") {
+  if (tx.type === "TRANSFER" || tx.type === "ADJUSTMENT") {
     add(tx.sourceAmount, tx.sourceCurrency);
     add(tx.destinationAmount, tx.destinationCurrency);
   }

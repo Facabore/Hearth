@@ -40,7 +40,7 @@ const CategorySchema = z.object({
 
 const MovementSchema = z.object({
   id: z.string(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"]),
   date: z.iso.date(),
   time: z.string().nullable().describe("HH:MM on the recorder's clock; null without a time."),
   timeZone: z.string().nullable(),

@@ -60,7 +60,11 @@ const mappings = (bank: "new" | "existing"): ImportMappings => ({
   includeDuplicates: [],
 });
 
-const none = { linkedKeys: new Set<string>(), duplicateKeys: new Set<string>() };
+const none = {
+  linkedKeys: new Set<string>(),
+  duplicateKeys: new Set<string>(),
+  undoneOpenings: new Map<string, string>(),
+};
 
 describe("planImport (design §3.2, §3.3, gap G1)", () => {
   it("records every movement in date order", () => {
@@ -75,7 +79,7 @@ describe("planImport (design §3.2, §3.3, gap G1)", () => {
     expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["m1", "m2"]);
   });
 
-  it("folds adjustments on or before a new account's first movement into its opening balance", () => {
+  it("folds adjustments on or before a new account's first movement into its opening balance, and records later ones", () => {
     const plan = planImport(
       snapshotOf([
         movement("adj1", "ADJUSTMENT", "2025-01-01", 1000n),
@@ -88,18 +92,38 @@ describe("planImport (design §3.2, §3.3, gap G1)", () => {
     );
     expect(plan.openingBalances.get("a-bank")).toBe(800n);
     expect(plan.folded.map((m) => m.sourceKey)).toEqual(["adj1", "adj2"]);
-    expect(plan.adjustmentsNotImported).toEqual(["adj3"]);
-    expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["m1"]);
+    // Design Q4 (#329): a later adjustment is an ADJUSTMENT movement of its own, recorded in date order.
+    expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["m1", "adj3"]);
   });
 
-  it("never folds an adjustment into an existing account, whose opening balance the import leaves alone", () => {
+  it("never folds an adjustment into an existing account, whose opening balance the import leaves alone: it records it", () => {
     const plan = planImport(
       snapshotOf([movement("adj1", "ADJUSTMENT", "2025-01-01", 1000n)]),
       mappings("existing"),
       none,
     );
     expect(plan.openingBalances.size).toBe(0);
-    expect(plan.adjustmentsNotImported).toEqual(["adj1"]);
+    expect(plan.folded).toEqual([]);
+    expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["adj1"]);
+  });
+
+  it("keeps folded an adjustment an undone import folded into the account it now maps to, never recording it twice", () => {
+    const snapshot = snapshotOf([
+      movement("adj1", "ADJUSTMENT", "2025-01-01", 1000n),
+      movement("m1", "EXPENSE", "2025-01-10", 500n),
+    ]);
+    const undone = { ...none, undoneOpenings: new Map([[openingKeyOf("adj1"), "acc-1"]]) };
+    const plan = planImport(snapshot, mappings("existing"), undone);
+    // The restored account still holds it in its opening balance, so nothing is added to it and nothing recorded.
+    expect(plan.folded.map((m) => m.sourceKey)).toEqual(["adj1"]);
+    expect(plan.openingBalances.size).toBe(0);
+    expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["m1"]);
+    // Folded into another account, it is that account's, not this one's: recorded here.
+    const elsewhere = { ...none, undoneOpenings: new Map([[openingKeyOf("adj1"), "acc-2"]]) };
+    expect(planImport(snapshot, mappings("existing"), elsewhere).toRecord.map((m) => m.sourceKey)).toEqual([
+      "adj1",
+      "m1",
+    ]);
   });
 
   it("skips what an earlier import linked, adjustments by their opening key, and duplicates not included", () => {
@@ -109,11 +133,28 @@ describe("planImport (design §3.2, §3.3, gap G1)", () => {
       movement("m2", "EXPENSE", "2025-01-11", 600n),
       movement("m3", "EXPENSE", "2025-01-12", 700n),
     ]);
-    const known = { linkedKeys: new Set(["m1", openingKeyOf("adj1")]), duplicateKeys: new Set(["m2", "m3"]) };
+    const known = {
+      ...none,
+      linkedKeys: new Set(["m1", openingKeyOf("adj1")]),
+      duplicateKeys: new Set(["m2", "m3"]),
+    };
     const plan = planImport(snapshot, { ...mappings("new"), includeDuplicates: ["m3"] }, known);
     expect(plan.alreadyImported).toEqual(["adj1", "m1"]);
     expect(plan.duplicatesSkipped).toEqual(["m2"]);
     expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["m3"]);
     expect(plan.folded).toEqual([]);
+  });
+
+  it("skips a recorded adjustment an earlier import linked by its own key, and a likely duplicate one", () => {
+    const snapshot = snapshotOf([
+      movement("m1", "EXPENSE", "2025-01-10", 500n),
+      movement("adj2", "ADJUSTMENT", "2025-02-01", -100n),
+      movement("adj3", "ADJUSTMENT", "2025-02-02", 70n),
+    ]);
+    const known = { ...none, linkedKeys: new Set(["adj2"]), duplicateKeys: new Set(["adj3"]) };
+    const plan = planImport(snapshot, mappings("new"), known);
+    expect(plan.alreadyImported).toEqual(["adj2"]);
+    expect(plan.duplicatesSkipped).toEqual(["adj3"]);
+    expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["m1"]);
   });
 });

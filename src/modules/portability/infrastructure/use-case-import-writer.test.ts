@@ -51,6 +51,33 @@ describe("movementOnAccount (design §3.1)", () => {
     });
     expect(movementOnAccount(transfer, "other")).toBeNull();
   });
+
+  it("sees a balance adjustment as a signed ADJUSTMENT of its one account, in that account's currency (design Q4)", () => {
+    const out = {
+      ...base,
+      type: "ADJUSTMENT",
+      categoryId: null,
+      sourceAccountId: "bank",
+      destinationAccountId: null,
+    } as unknown as Transaction;
+    expect(movementOnAccount(out, "bank")).toEqual({
+      accountId: "bank",
+      date: "2025-01-25",
+      amountMinor: -2000000n,
+      kind: "ADJUSTMENT",
+    });
+    const into = {
+      ...base,
+      type: "ADJUSTMENT",
+      categoryId: null,
+      sourceAccountId: null,
+      destinationAccountId: "usd",
+      destinationAmount: 500n,
+      destinationCurrency: "USD",
+    } as unknown as Transaction;
+    expect(movementOnAccount(into, "usd")).toMatchObject({ amountMinor: 500n, kind: "ADJUSTMENT" });
+    expect(movementOnAccount(into, "bank")).toBeNull();
+  });
 });
 
 describe("creating an imported category (D22)", () => {

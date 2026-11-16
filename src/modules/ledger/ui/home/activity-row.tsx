@@ -74,6 +74,10 @@ const partOf = (item: ActivityItemDto): Part => {
     const into = tx.receivingMemberId !== null && mine.has(tx.receivingMemberId);
     return { amount: tx.amount, sign: into ? ("+" as const) : null, detail: "recorded" };
   }
+  // Design Q4: a balance adjustment names nobody; its sign is its direction, never color alone.
+  if (tx.type === "ADJUSTMENT") {
+    return { amount: tx.amount, sign: tx.destinationAccountId === null ? "-" : "+", detail: "recorded" };
+  }
   const out = tx.payerMemberId !== null && mine.has(tx.payerMemberId);
   return { amount: tx.amount, sign: out ? ("-" as const) : null, detail: "recorded" };
 };
@@ -183,6 +187,8 @@ export function ActivityRow({
           <SymbolIcon name="wallet" size={20} />
         ) : tx.type === "SETTLEMENT" || tx.type === "TRANSFER" ? (
           <Icon name="swap" size={20} />
+        ) : tx.type === "ADJUSTMENT" ? (
+          <Icon name="sliders" size={20} />
         ) : (
           <SymbolIcon name="dots" size={20} />
         )}
