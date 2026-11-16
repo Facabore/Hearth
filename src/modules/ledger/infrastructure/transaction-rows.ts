@@ -1,5 +1,4 @@
-import { asc, eq, getTableColumns, inArray } from "drizzle-orm";
-import { accounts } from "@/modules/accounts/infrastructure/accounts.schema";
+import { asc, getTableColumns, inArray, sql } from "drizzle-orm";
 import type { Executor } from "@/shared/infrastructure/db/client";
 import type { LocalDate } from "@/shared/kernel";
 import {
@@ -191,9 +190,14 @@ export const loadTransactions = async (
     expenseIds.length === 0
       ? []
       : await db
-          .select({ ...getTableColumns(payments), accountCurrency: accounts.currency })
+          .select({
+            ...getTableColumns(payments),
+            // D29: the paying account's own currency, its leg's; read by name, as the accounts module owns the table.
+            accountCurrency: sql<
+              string | null
+            >`(SELECT a.currency FROM accounts a WHERE a.id = ${payments.accountId})`,
+          })
           .from(payments)
-          .leftJoin(accounts, eq(accounts.id, payments.accountId))
           .where(inArray(payments.transactionId, expenseIds))
           .orderBy(asc(payments.position));
   const allShares: ShareRow[] =
