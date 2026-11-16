@@ -84,3 +84,23 @@ describe("datedRateFromRows (D29, slice MC4)", () => {
     expect(!r.ok && r.error.code).toBe("NoExchangeRate");
   });
 });
+
+describe("datedRateFromRows dates each leg by the row it was built from (D29, slice MC4)", () => {
+  it("dates each direction by its own row when both are stored on different days", () => {
+    const rows = [row("2026-11-10", "USD", "COP", "4000"), row("2026-11-14", "COP", "USD", "0.00025")];
+    const forward = datedRateFromRows(rows, "USD", "COP", on("2026-11-16"));
+    const backward = datedRateFromRows(rows, "COP", "USD", on("2026-11-16"));
+    expect(forward.ok && [forward.value.rate.value, forward.value.date]).toEqual(["4000", "2026-11-10"]);
+    expect(backward.ok && [backward.value.rate.value, backward.value.date]).toEqual([
+      "0.00025",
+      "2026-11-14",
+    ]);
+  });
+
+  it("dates an inverse by its own row when the forward row next to it is malformed", () => {
+    // The newer USD->COP row cannot be read, so USD->COP is the inverse of the 5 November COP->USD rate.
+    const rows = [row("2026-11-15", "USD", "COP", "not-a-rate"), row("2026-11-05", "COP", "USD", "0.00025")];
+    const r = datedRateFromRows(rows, "USD", "COP", on("2026-11-16"));
+    expect(r.ok && [r.value.rate.value, r.value.date, r.value.stale]).toEqual(["4000", "2026-11-05", true]);
+  });
+});

@@ -41,18 +41,18 @@ export const datedRateFromRows = (
     if (!kept || row.date > kept.date) latest.set(key, row);
   }
 
-  const edges: ExchangeRate[] = [];
+  // Each edge keeps the day of the row it was built from, so a leg (the edge or its inverse) is dated by that row.
+  const dayOfEdge = new Map<ExchangeRate, LocalDate>();
   for (const row of latest.values()) {
     const edge = ExchangeRate.of(row.base, row.quote, row.rate);
-    if (edge.ok) edges.push(edge.value);
+    if (edge.ok) dayOfEdge.set(edge.value, row.date);
   }
 
-  const path = crossRatePath(edges, base, quote);
+  const path = crossRatePath([...dayOfEdge.keys()], base, quote);
   if (!path.ok) return path;
-  // A leg is a stored rate or its inverse; the forward row wins when both directions are stored, as `crossRate` does.
-  const dayOf = (leg: ExchangeRate): LocalDate =>
-    (latest.get(`${leg.base}>${leg.quote}`) ?? latest.get(`${leg.quote}>${leg.base}`))!.date;
-  const date = path.value.legs.map(dayOf).reduce((oldest, day) => (day < oldest ? day : oldest));
+  const date = path.value.legs
+    .map((leg) => dayOfEdge.get(leg.source)!)
+    .reduce((oldest, day) => (day < oldest ? day : oldest));
   return ok({ rate: path.value.rate, date, stale: date < addDays(on, -STALE_AFTER_DAYS) });
 };
 

@@ -68,8 +68,8 @@ export const crossRate = (
 /** D30, D29 (MC4): a resolved rate and the oriented edges it was composed from, in order. */
 export interface RatePath {
   readonly rate: ExchangeRate;
-  /** Each hop as taken: a stored rate or its inverse; a direct pair has one. */
-  readonly legs: readonly ExchangeRate[];
+  /** Each hop as taken (a stored edge or its inverse) with the edge, as given, it came from; a direct pair has one. */
+  readonly legs: readonly { readonly rate: ExchangeRate; readonly source: ExchangeRate }[];
 }
 
 /**
@@ -84,21 +84,22 @@ export const crossRatePath = (
   if (base === quote) return err(domainError("InvalidExchangeRate", { base, quote }));
 
   // Adjacency from each currency, forward edges first so a stored direct pair wins its inverse; first orientation kept.
-  const adjacency = new Map<string, Map<string, ExchangeRate>>();
-  const connect = (oriented: ExchangeRate): void => {
-    const neighbours = adjacency.get(oriented.base) ?? new Map<string, ExchangeRate>();
-    if (!neighbours.has(oriented.quote)) neighbours.set(oriented.quote, oriented);
-    adjacency.set(oriented.base, neighbours);
+  type Leg = RatePath["legs"][number];
+  const adjacency = new Map<string, Map<string, Leg>>();
+  const connect = (leg: Leg): void => {
+    const neighbours = adjacency.get(leg.rate.base) ?? new Map<string, Leg>();
+    if (!neighbours.has(leg.rate.quote)) neighbours.set(leg.rate.quote, leg);
+    adjacency.set(leg.rate.base, neighbours);
   };
   const sorted = [...edges].sort((a, b) => before(a.base, b.base) || before(a.quote, b.quote));
-  for (const edge of sorted) connect(edge);
+  for (const edge of sorted) connect({ rate: edge, source: edge });
   for (const edge of sorted) {
     const reversed = invert(edge);
-    if (reversed.ok) connect(reversed.value);
+    if (reversed.ok) connect({ rate: reversed.value, source: edge });
   }
 
   // Breadth-first shortest-hop search; records the oriented rate taken to reach each currency.
-  const cameBy = new Map<string, { from: string; rate: ExchangeRate }>();
+  const cameBy = new Map<string, { from: string; leg: Leg }>();
   const visited = new Set<string>([base]);
   let frontier = [base];
   while (frontier.length > 0 && !visited.has(quote)) {
@@ -109,7 +110,7 @@ export const crossRatePath = (
       for (const to of [...neighbours.keys()].sort(before)) {
         if (visited.has(to)) continue;
         visited.add(to);
-        cameBy.set(to, { from: node, rate: neighbours.get(to)! });
+        cameBy.set(to, { from: node, leg: neighbours.get(to)! });
         next.push(to);
       }
     }
@@ -119,16 +120,16 @@ export const crossRatePath = (
   if (!cameBy.has(quote)) return err(domainError("NoExchangeRate", { base, quote }));
 
   // Walk the path back to `base`, then compose the oriented rates in order.
-  const chain: ExchangeRate[] = [];
+  const chain: Leg[] = [];
   let cursor = quote;
   while (cursor !== base) {
     const step = cameBy.get(cursor)!;
-    chain.unshift(step.rate);
+    chain.unshift(step.leg);
     cursor = step.from;
   }
-  let accumulated = chain[0]!;
+  let accumulated = chain[0]!.rate;
   for (let i = 1; i < chain.length; i += 1) {
-    const composed = compose(accumulated, chain[i]!);
+    const composed = compose(accumulated, chain[i]!.rate);
     if (!composed.ok) return composed;
     accumulated = composed.value;
   }
