@@ -14,13 +14,8 @@ vi.mock("@/composition/exchange-rate-job", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/composition/exchange-rate-job")>()),
   startExchangeRateJob: vi.fn(),
 }));
-vi.mock("@/composition/container", () => ({
-  getContainer: () => ({
-    ledger: { materializeDueOccurrences: "materialize" },
-    rates: { repository: "rate-repository" },
-    logger,
-  }),
-}));
+const getContainer = vi.hoisted(() => vi.fn());
+vi.mock("@/composition/container", () => ({ getContainer }));
 
 const VALID = {
   DATABASE_URL: "postgres://hearth:secret@db:5432/hearth",
@@ -29,6 +24,11 @@ const VALID = {
 };
 
 beforeEach(() => {
+  getContainer.mockReset().mockReturnValue({
+    ledger: { materializeDueOccurrences: "materialize" },
+    rates: { repository: "rate-repository" },
+    logger,
+  });
   vi.mocked(startRecurrenceJob).mockReset();
   vi.mocked(startExchangeRateJob).mockReset();
   logger.info.mockClear();
@@ -61,6 +61,17 @@ describe("register", () => {
     const exit = vi.spyOn(process, "exit").mockImplementation(() => undefined as never);
     await register();
     expect(exit).not.toHaveBeenCalled();
+  });
+
+  it("builds no container when both jobs are off, as before the exchange-rate job", async () => {
+    stubEnv({
+      ...VALID,
+      NEXT_RUNTIME: "nodejs",
+      RECURRENCE_JOB_INTERVAL_SECONDS: "0",
+      EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "0",
+    });
+    await register();
+    expect(getContainer).not.toHaveBeenCalled();
   });
 
   it("does nothing outside the Node.js runtime", async () => {

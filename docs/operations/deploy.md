@@ -74,8 +74,9 @@ The `app` container records due recurring transactions itself (HU-E4-12): a time
 
 The same container also fetches daily exchange rates itself (D30): a timer runs the job when the server starts and then `EXCHANGE_RATE_JOB_INTERVAL_SECONDS` after each run ends (default 86400, a day; `0` turns it off). It reads the European Central Bank's euro reference rates and Banco de la República's TRM, and stores each day's rates; a store is idempotent, so a restart or a second container never duplicates a past rate, and a source that is unavailable is logged and the others still run (the previous day's rate carries over on read). Each run logs JSON lines, never an error message, a query or its parameters:
 
-- `exchange_rates_saved` (`source`, `date`, `count`): a source's rates for a day were stored.
+- `exchange_rates_saved` (`source`, `date`, `count`, `skipped`): a source's rates for a day were stored; `skipped` counts the ones left out because they were not a positive decimal between known currencies.
 - `exchange_rate_source_unavailable` (`source`, `code`): a source could not be read this run; the previous rate carries over.
+- `exchange_rate_source_failed` (`source`, `name`): storing one source's rates failed, for example because the database was unreachable; the other sources still ran.
 - `exchange_rate_job_failed` (`name`): a whole run failed, for example because the database was unreachable; the next tick runs again.
 
 `next build` never starts either job. `next dev` does, every 300 s (recurrences) and every day (exchange rates) by default like the server: set `RECURRENCE_JOB_INTERVAL_SECONDS=0` and `EXCHANGE_RATE_JOB_INTERVAL_SECONDS=0` in your local environment to keep them off while you develop.

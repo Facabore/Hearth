@@ -18,6 +18,8 @@ export async function register(): Promise<void> {
   }
   // `next build` never starts a job: Next.js skips register() then, and this keeps the gate explicit.
   if (process.env.NEXT_PHASE === "phase-production-build") return;
+  // With both jobs off, nothing is built at startup (the container is built on the first request instead).
+  if (env.RECURRENCE_JOB_INTERVAL_SECONDS === 0 && env.EXCHANGE_RATE_JOB_INTERVAL_SECONDS === 0) return;
   const { getContainer } = await import("@/composition/container");
   const { TimerScheduler } = await import("@/shared/infrastructure/timer-scheduler");
   const container = getContainer();
@@ -35,24 +37,25 @@ export async function register(): Promise<void> {
   }
 
   if (env.EXCHANGE_RATE_JOB_INTERVAL_SECONDS > 0) {
-    const [{ startExchangeRateJob }, { createHttpGet }, { EcbSource }, { TrmSource }, { clockFrom }] =
-      await Promise.all([
-        import("@/composition/exchange-rate-job"),
-        import("@/shared/infrastructure/http/http-get"),
-        import("@/modules/rates/infrastructure/ecb-source"),
-        import("@/modules/rates/infrastructure/trm-source"),
-        import("@/shared/infrastructure/system-clock"),
-      ]);
+    const [
+      { logExchangeRateJobFailure, startExchangeRateJob },
+      { createHttpGet },
+      { EcbSource },
+      { TrmSource },
+      { clockFrom },
+    ] = await Promise.all([
+      import("@/composition/exchange-rate-job"),
+      import("@/shared/infrastructure/http/http-get"),
+      import("@/modules/rates/infrastructure/ecb-source"),
+      import("@/modules/rates/infrastructure/trm-source"),
+      import("@/shared/infrastructure/system-clock"),
+    ]);
     const http = createHttpGet(15_000);
     startExchangeRateJob(
       {
         sources: [new EcbSource(http), new TrmSource(http)],
         repository: container.rates.repository,
-        scheduler: new TimerScheduler((error) =>
-          container.logger.error("exchange_rate_job_failed", {
-            name: error instanceof Error ? error.name : "Error",
-          }),
-        ),
+        scheduler: new TimerScheduler(logExchangeRateJobFailure(container.logger)),
         clock: clockFrom(env.HEARTH_E2E_FIXED_NOW),
         logger: container.logger,
       },

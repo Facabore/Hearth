@@ -1,6 +1,6 @@
 import type { ExchangeRateRepository, ExchangeRateSource, StoredRate } from "@/modules/rates/application";
 import type { Logger } from "@/shared/http";
-import { type Clock, type Scheduler } from "@/shared/kernel";
+import { ExchangeRate, failureOf, type Clock, type Scheduler } from "@/shared/kernel";
 
 export interface ExchangeRateJobDeps {
   readonly sources: readonly ExchangeRateSource[];
@@ -31,21 +31,40 @@ export const startExchangeRateJob = (deps: ExchangeRateJobDeps, intervalMs: numb
           continue;
         }
         const { base, date, rates } = result.value;
-        const stored: StoredRate[] = rates.map((r) => ({
-          date,
-          base,
-          quote: r.quote,
-          rate: r.rate,
-          source: result.value.source,
-          fetchedAt,
-        }));
-        await deps.repository.save(stored);
-        deps.logger.info("exchange_rates_saved", { source: source.key, date, count: stored.length });
-      } catch (error) {
-        deps.logger.error("exchange_rate_job_failed", {
-          source: source.key,
-          name: error instanceof Error ? error.name : "Error",
+        // Only exact positive decimals between known currencies are stored, written as ExchangeRate renders them.
+        const stored: StoredRate[] = rates.flatMap((r) => {
+          const parsed = ExchangeRate.of(base, r.quote, r.rate);
+          return parsed.ok
+            ? [
+                {
+                  date,
+                  base,
+                  quote: r.quote,
+                  rate: parsed.value.value,
+                  source: result.value.source,
+                  fetchedAt,
+                },
+              ]
+            : [];
         });
+        await deps.repository.save(stored);
+        deps.logger.info("exchange_rates_saved", {
+          source: source.key,
+          date,
+          count: stored.length,
+          skipped: rates.length - stored.length,
+        });
+      } catch (error) {
+        const { error: name, ...database } = failureOf(error);
+        deps.logger.error("exchange_rate_source_failed", { source: source.key, name, ...database });
       }
     }
   });
+
+/** The whole-run failure handler for the exchange-rate job's scheduler, logged like the recurrence job's (`failureOf`). */
+export const logExchangeRateJobFailure =
+  (logger: Logger) =>
+  (error: unknown): void => {
+    const { error: name, ...database } = failureOf(error);
+    logger.error("exchange_rate_job_failed", { name, ...database });
+  };

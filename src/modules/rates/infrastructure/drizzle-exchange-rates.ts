@@ -1,4 +1,4 @@
-import { lte } from "drizzle-orm";
+import { asc, desc, lte } from "drizzle-orm";
 import type { ExchangeRate, LocalDate, Result } from "@/shared/kernel";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import type { ExchangeRateRepository, StoredRate } from "../application";
@@ -7,8 +7,9 @@ import { exchangeRates } from "./rates.schema";
 
 /**
  * D30: the daily rates table. `save` inserts forward-only, ignoring a pair already stored for the day and source, so a
- * re-run never duplicates or rewrites a past rate. `rateOn` reads every pair's latest rate on or before the day and
- * lets the domain resolve the asked pair, directly or through a pivot.
+ * re-run never duplicates or rewrites a past rate. `rateOn` reads only each pair's latest rate on or before the day
+ * (one row per pair, a same-day tie between sources going to the lower source key), so a lookup stays the same size
+ * as history grows, and lets the domain resolve the asked pair, directly or through a pivot.
  */
 export class DrizzleExchangeRates implements ExchangeRateRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
@@ -34,14 +35,20 @@ export class DrizzleExchangeRates implements ExchangeRateRepository {
   async rateOn(base: string, quote: string, on: LocalDate): Promise<Result<ExchangeRate>> {
     const rows = await this.tm
       .executor()
-      .select({
+      .selectDistinctOn([exchangeRates.base, exchangeRates.quote], {
         date: exchangeRates.date,
         base: exchangeRates.base,
         quote: exchangeRates.quote,
         rate: exchangeRates.rate,
       })
       .from(exchangeRates)
-      .where(lte(exchangeRates.date, on));
+      .where(lte(exchangeRates.date, on))
+      .orderBy(
+        asc(exchangeRates.base),
+        asc(exchangeRates.quote),
+        desc(exchangeRates.date),
+        asc(exchangeRates.source),
+      );
     return rateFromRows(rows as RateRow[], base, quote, on);
   }
 }
