@@ -148,7 +148,9 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     const ana = await registerUser("Ana");
     const big = new Uint8Array(20 * 1024 * 1024 + 1);
     big.set(backup);
-    expect(await problemOf(await upload(ana, big))).toEqual([422, "ImportFileTooLarge"]);
+    const refused = await upload(ana, big);
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toMatchObject({ code: "ImportFileTooLarge", maxBytes: 20 * 1024 * 1024 });
   });
 
   it("refuses a file that is not a Money Manager backup with 422 ImportFileNotRecognized", async () => {
@@ -375,9 +377,14 @@ describe("PATCH /api/v1/spaces/{spaceId}/imports/{importId} (D28, design §3.2)"
     // An existing account keeps its own opening balance: the early adjustment waits for the ADJUSTMENT type.
     expect(view.plan).toMatchObject({ adjustmentsInOpeningBalance: 0, adjustmentsNotImported: 2 });
 
-    expect(
-      await problemOf(await adjust({ accounts: { "a-usd": { kind: "existing", accountId: bank } } })),
-    ).toEqual([422, "InvalidImportMapping"]);
+    const refused = await adjust({ accounts: { "a-usd": { kind: "existing", accountId: bank } } });
+    expect(refused.status).toBe(422);
+    // The client learns which source account and why, to word it (design §3.2).
+    expect(await refused.json()).toMatchObject({
+      code: "InvalidImportMapping",
+      reason: "currencyMismatch",
+      sourceId: "a-usd",
+    });
     expect(await problemOf(await adjust({ timeZone: "Mars/Olympus" }))).toEqual([422, "InvalidTimeZone"]);
   });
 });

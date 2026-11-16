@@ -93,6 +93,11 @@ const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   // Ruling P309: the index of the guest a batch of guests refuses; the single-guest endpoint never sets it.
   ["MemberNameTaken", ["guest"]],
   ["InvalidMemberName", ["guest"]],
+  // D28, design §3.2: which mapping an import refuses and why, the upload's size limit, and the source record whose
+  // account or category a confirm could not create with the module's own code.
+  ["InvalidImportMapping", ["reason", "sourceId"]],
+  ["ImportFileTooLarge", ["maxBytes"]],
+  ["ImportTargetRefused", ["sourceId", "reason"]],
 ]);
 
 /** The details of `code` that are part of the API contract, e.g. the outstanding amount (HU-E1-08). */
