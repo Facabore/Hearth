@@ -32,12 +32,13 @@ export interface ExportSpaceSummary {
 }
 
 /**
- * Design §3.6: what the export reads, through the other modules' own use cases, which authorize each read again.
- * Every read is for one space the person belongs to and answers what that person may read there.
+ * Design §3.6: what the export reads, through the other modules' own use cases. Every read is for one space the person
+ * belongs to and answers what that person may read there. `members` is the authorization point: it is read first, and
+ * nothing else of a space is read unless it succeeded (`movements` reads the ledger's query, which checks nothing).
  */
 export interface ExportReader {
-  spacesOf(userId: string): Promise<readonly ExportSpaceSummary[]>;
-  /** Every member row of the space, former members included (D15). */
+  spacesOf(userId: string): Promise<Result<readonly ExportSpaceSummary[]>>;
+  /** Every member row of the space, former members included (D15); refused for anyone who may not read the space. */
   members(spaceId: string, userId: string): Promise<Result<readonly ExportMemberSource[]>>;
   accounts(spaceId: string, userId: string): Promise<Result<readonly ExportAccountSource[]>>;
   categories(spaceId: string, userId: string): Promise<Result<readonly ExportGroupSource[]>>;
@@ -123,10 +124,13 @@ const encoder = new TextEncoder();
 export const createExportPersonData =
   (deps: ExportDeps): ExportPersonData =>
   async ({ user, format, spaceId }) => {
-    if (!deps.throttle.allows(user.id)) return err(domainError("TooManyRequests"));
-    const current = await deps.reader.spacesOf(user.id);
+    const listed = await deps.reader.spacesOf(user.id);
+    if (!listed.ok) return listed;
+    const current = listed.value;
     const chosen = spaceId === undefined ? current : current.filter((s) => s.id === spaceId);
     if (chosen.length === 0) return err(domainError("SpaceNotFound"));
+    // Counted once the space is known to be the person's: a refused id costs no export.
+    if (!deps.throttle.allows(user.id)) return err(domainError("TooManyRequests"));
     const personal = current.find((s) => s.kind === "PERSONAL");
     // The person's own accounts name their payments in every space, even when only a shared one is exported.
     const yourAccounts = personal === undefined ? ok([]) : await deps.reader.accounts(personal.id, user.id);

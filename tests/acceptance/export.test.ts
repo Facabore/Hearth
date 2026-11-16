@@ -1,11 +1,23 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as exportMyData } from "@/app/api/v1/me/export/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
+import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
+import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { POST as leaveSpace } from "@/app/api/v1/spaces/[spaceId]/leave/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, startTestApp, type TestUser } from "../support/app";
-import { cop, household, newAccount, post, settles, type Household } from "../support/ledger";
+import {
+  categoryWithKey,
+  cop,
+  household,
+  newAccount,
+  post,
+  settles,
+  type Household,
+} from "../support/ledger";
+import { defined, homePlan, householdWithFund, rentBody } from "../support/recurrences";
 import { readZip } from "../support/zip";
 
 /** Exports each person may run per minute in this suite; the throttle test runs one more. */
@@ -248,5 +260,135 @@ describe("GET /api/v1/me/export (D28, design §3.6)", () => {
     expect(await problemOf(await exportAs(h.ana.personal, "format=json"))).toEqual([429, "TooManyRequests"]);
     // Another person's exports are counted apart.
     expect((await exportAs(h.juan.personal, "format=json")).status).toBe(200);
+  });
+  it("does not count an export refused as SpaceNotFound against the person's limit", async () => {
+    const h = await household();
+    for (let i = 0; i < LIMIT; i++) {
+      expect(
+        await problemOf(await exportAs(h.ana.personal, `format=json&spaceId=${h.juan.personal.spaceId}`)),
+      ).toEqual([404, "SpaceNotFound"]);
+    }
+
+    expect((await exportAs(h.ana.personal, "format=json")).status).toBe(200);
+  });
+
+  it("exports an income, an own transfer, a settlement, a recurrence and a plan with its line, in JSON and CSV", async () => {
+    const h = await householdWithFund();
+    const nequi = await newAccount(h.ana.personal, "Nequi", 0);
+    const recorded = async (response: Promise<Response>) => expect((await response).status).toBe(201);
+    await recorded(
+      post(recordIncome, h.ana.personal, "incomes", {
+        description: "Salario",
+        amount: cop(3_000_000),
+        date: "2026-10-25",
+        categoryId: await categoryWithKey(h.ana.personal, "salary"),
+        accountId: h.ana.account,
+      }),
+    );
+    await recorded(
+      post(recordTransfer, h.ana.personal, "transfers", {
+        description: "Ahorro",
+        amount: cop(500_000),
+        date: "2026-10-26",
+        sourceAccountId: h.ana.account,
+        destinationAccountId: nequi,
+      }),
+    );
+    await juanPaysGroceries(h);
+    // Ana pays Juan back from her account into his; his account stays out of her export (D9).
+    await recorded(
+      post(recordSettlement, h.ana, "settlements", {
+        description: "Pago a Juan",
+        date: "2026-10-27",
+        amount: cop(8_000),
+        payerMemberId: h.ana.memberId,
+        receivingMemberId: h.juan.memberId,
+        sourceAccountId: h.ana.account,
+        destinationAccountId: h.juan.account,
+      }),
+    );
+    await defined(h.ana, h.spaceId, rentBody(h));
+    await homePlan(h, "2026-12");
+
+    const json = await exportAs(h.ana.personal, "format=json");
+    const text = await json.text();
+    const spaces = (
+      JSON.parse(text) as {
+        spaces: {
+          id: string;
+          movements: Record<string, unknown>[];
+          recurrences: unknown[];
+          plans: unknown[];
+        }[];
+      }
+    ).spaces;
+    const personal = spaces.find((s) => s.id === h.ana.personal.spaceId)!;
+    const shared = spaces.find((s) => s.id === h.spaceId)!;
+    const bancolombia = { id: h.ana.account, name: "Bancolombia" };
+    expect(personal.movements.find((m) => m.description === "Salario")).toMatchObject({
+      type: "INCOME",
+      category: { name: expect.any(String) },
+      receiver: { name: "Ana" },
+      destinationAccount: bancolombia,
+    });
+    expect(personal.movements.find((m) => m.description === "Ahorro")).toMatchObject({
+      type: "TRANSFER",
+      payer: null,
+      sourceAccount: bancolombia,
+      destinationAccount: { id: nequi, name: "Nequi" },
+    });
+    expect(shared.movements.find((m) => m.description === "Pago a Juan")).toMatchObject({
+      type: "SETTLEMENT",
+      payer: { name: "Ana" },
+      receiver: { name: "Juan" },
+      sourceAccount: bancolombia,
+      destinationAccount: null,
+      settlementReason: "PAYMENT",
+    });
+    expect(shared.recurrences).toEqual([
+      expect.objectContaining({
+        description: "Rent",
+        type: "EXPENSE",
+        amount: cop(1_200_000),
+        schedule: { kind: "MONTHLY", day: 1 },
+        startDate: "2026-12-01",
+        status: "ACTIVE",
+        categoryId: h.rent,
+        payer: null,
+        sourceAccount: { id: h.fund, name: "Household Fund" },
+        destinationAccount: null,
+      }),
+    ]);
+    expect(shared.plans).toEqual([
+      expect.objectContaining({
+        period: expect.objectContaining({ label: "2026-12" }),
+        status: "ACTIVE",
+        lines: [
+          expect.objectContaining({
+            name: "Home",
+            plannedAmount: cop(1_470_000),
+            funding: "DIRECT",
+            categoryIds: [h.utilities],
+          }),
+        ],
+      }),
+    ]);
+    expect(text).not.toContain(h.juan.account);
+
+    const zip = await exportAs(h.ana.personal, "format=csv");
+    const [movements] = readZip(new Uint8Array(await zip.arrayBuffer())).map((e) =>
+      new TextDecoder().decode(e.data),
+    );
+    const columns = (description: string) =>
+      movements!
+        .split("\r\n")
+        .map((r) => r.split(","))
+        .find((c) => c[5] === description)!;
+    // type, amount, paid by and account columns.
+    const picked = (c: string[]) => [c[4], c[8], c[10], c[11]];
+    expect(picked(columns("Salario"))).toEqual(["INCOME", "3000000.00", "Ana", "Bancolombia"]);
+    expect(picked(columns("Ahorro"))).toEqual(["TRANSFER", "500000.00", "", "Bancolombia → Nequi"]);
+    expect(picked(columns("Pago a Juan"))).toEqual(["SETTLEMENT", "8000.00", "Ana", "Bancolombia"]);
+    expect(movements).not.toContain("Davivienda");
   });
 });

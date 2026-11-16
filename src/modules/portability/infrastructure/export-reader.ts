@@ -172,17 +172,20 @@ export const createExportReader = (deps: ExportReaderDeps): ExportReader => ({
       deps.listMySpaces(userId, { includeArchived: true }),
       deps.listMySpaces(userId),
     ]);
-    if (!every.ok || !active.ok) return [];
+    if (!every.ok) return every;
+    if (!active.ok) return active;
     const live = new Set(active.value.map((s) => s.id));
-    return every.value.map((s) => ({
-      id: s.id,
-      name: s.name,
-      kind: s.kind,
-      currency: s.currency,
-      periodPolicy: s.periodPolicy,
-      role: s.role,
-      archived: !live.has(s.id),
-    }));
+    return ok(
+      every.value.map((s) => ({
+        id: s.id,
+        name: s.name,
+        kind: s.kind,
+        currency: s.currency,
+        periodPolicy: s.periodPolicy,
+        role: s.role,
+        archived: !live.has(s.id),
+      })),
+    );
   },
 
   async members(spaceId, userId) {
@@ -253,13 +256,13 @@ export const createExportReader = (deps: ExportReaderDeps): ExportReader => ({
     );
   },
 
-  async movements(spaceId, userId) {
-    // The ledger's query does not authorize, so the member list does it first.
-    const reader = await deps.listMembers({ spaceId, userId });
-    if (!reader.ok) return reader;
+  // Authorized by `members`, which the export reads first for every space (ExportReader).
+  async movements(spaceId) {
     const movements: ExportMovementSource[] = [];
     let after = null;
     for (;;) {
+      // The same query and filter `ListTransactions` uses after its `space.read` check: live rows of this space only, no
+      // rule by role, guest or VIEWER; a later visibility rule there must be applied here too.
       const page = await deps.transactions.list({ spaceId, ...EVER }, after, PAGE);
       movements.push(...page.map(movementOf));
       const last = page.at(-1);
