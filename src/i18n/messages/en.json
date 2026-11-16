@@ -208,7 +208,18 @@
     "ValidationFailed": "Check the highlighted fields.",
     "ViewerCannotHoldAllocation": "A viewer takes no part of a line. Allocate the line among the other members.",
     "ViewerCannotHoldCapacity": "A viewer does not contribute to the plan. Leave their contribution at zero.",
-    "reference": "Reference: {requestId}"
+    "reference": "Reference: {requestId}",
+    "ImportFileNotRecognized": "This file isn't a Money Manager backup. Export the backup again and pick the .sqlite file.",
+    "ImportFileTooLarge": "The file is larger than 20 MB. Pick a smaller backup.",
+    "ImportNotConfirmed": "This import hasn't been confirmed, so there's nothing to undo.",
+    "ImportNotDraft": "This import was already confirmed or undone. Upload the file again to import it.",
+    "ImportNotFound": "We couldn't find that import.",
+    "ImportRequiresPersonalSpace": "A backup goes into your personal space. Open it there to import.",
+    "ImportSnapshotExpired": "This upload is too old to confirm. Upload the file again.",
+    "ImportTimedOut": "Reading the file took too long. Try again, or export a fresh backup.",
+    "InvalidImportMapping": "One of the choices doesn't fit: pick an account in the same currency, and a category or group that still exists.",
+    "UnreadableBackup": "We couldn't read this backup. Export it again and upload the new file.",
+    "ZipBackupNotSupported": "Compressed backups (.mmbak) can't be read yet. Export the backup as a .sqlite file."
   },
   "warnings": {
     "FundBalanceNegative": "The balance of {account} is now {balance}. A contribution to the fund can cover it."

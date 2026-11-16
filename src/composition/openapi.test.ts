@@ -47,6 +47,28 @@ describe("OpenAPI document", () => {
     expect(doc.components.schemas.HearthExport).toBeDefined();
   });
 
+  it("documents the import: a multipart upload, a confirm that takes an idempotency key, and its 422 codes (D28)", () => {
+    const imports = doc.paths["/api/v1/spaces/{spaceId}/imports"] as Record<
+      string,
+      {
+        requestBody?: { content: Record<string, unknown> };
+        responses: Record<string, { description: string }>;
+      }
+    >;
+    expect(Object.keys(imports.post?.requestBody?.content ?? {})).toEqual(["multipart/form-data"]);
+    expect(imports.post?.responses["422"]?.description).toContain("ImportTimedOut");
+    expect(imports.get).toBeDefined();
+    const confirm = doc.paths["/api/v1/spaces/{spaceId}/imports/{importId}/confirm"]?.post as {
+      parameters: { name: string; in: string }[];
+    };
+    expect(confirm.parameters).toContainEqual(
+      expect.objectContaining({ name: "idempotency-key", in: "header" }),
+    );
+    expect(doc.paths["/api/v1/spaces/{spaceId}/imports/{importId}"]?.patch).toBeDefined();
+    expect(doc.paths["/api/v1/spaces/{spaceId}/imports/{importId}/undo"]?.post).toBeDefined();
+    expect(doc.components.schemas.ImportPreview).toBeDefined();
+  });
+
   it("registers the recurrence components of M3-C, and no Output variant of them", () => {
     const names = Object.keys(doc.components.schemas);
     expect(names).toEqual(expect.arrayContaining(["RecurrenceDefinition", "Recurrence", "Occurrence"]));

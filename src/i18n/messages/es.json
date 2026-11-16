@@ -208,7 +208,18 @@
     "ValidationFailed": "Revisa los datos marcados.",
     "ViewerCannotHoldAllocation": "Un lector no recibe parte de un rubro. Reparte el rubro entre los demás miembros.",
     "ViewerCannotHoldCapacity": "Un lector no aporta al plan. Deja su aporte en cero.",
-    "reference": "Referencia: {requestId}"
+    "reference": "Referencia: {requestId}",
+    "ImportFileNotRecognized": "Este archivo no es una copia de Money Manager. Exporta la copia de nuevo y elige el archivo .sqlite.",
+    "ImportFileTooLarge": "El archivo pesa más de 20 MB. Elige una copia más pequeña.",
+    "ImportNotConfirmed": "Esta importación no se confirmó, así que no hay nada que deshacer.",
+    "ImportNotDraft": "Esta importación ya se confirmó o se deshizo. Sube el archivo de nuevo para importarlo.",
+    "ImportNotFound": "No encontramos esa importación.",
+    "ImportRequiresPersonalSpace": "Una copia se importa en tu espacio personal. Ábrelo para importarla.",
+    "ImportSnapshotExpired": "Esta carga es muy antigua para confirmarla. Sube el archivo de nuevo.",
+    "ImportTimedOut": "Leer el archivo tomó demasiado tiempo. Intenta de nuevo o exporta una copia nueva.",
+    "InvalidImportMapping": "Una de las opciones no encaja: elige una cuenta en la misma moneda y una categoría o un grupo que todavía exista.",
+    "UnreadableBackup": "No pudimos leer esta copia. Expórtala de nuevo y sube el archivo nuevo.",
+    "ZipBackupNotSupported": "Todavía no leemos copias comprimidas (.mmbak). Exporta la copia como archivo .sqlite."
   },
   "warnings": {
     "FundBalanceNegative": "El saldo de {account} quedó en {balance}. Pueden hacer un aporte al fondo para cubrirlo."

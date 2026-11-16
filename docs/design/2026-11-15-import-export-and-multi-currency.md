@@ -181,12 +181,22 @@ file ──► SourceAdapter.detect/read ──► SourceSnapshot (neutral model
 
 The preview is the dry run: counts by kind, the date range, every account with its proposed mapping and both closing balances, every category with its proposal, duplicates, warnings and errors per row. Only a member who records money (`money.record`) imports; a VIEWER does not.
 
+As built (#326, the write side):
+
+- An import goes into the importer's **personal space only**; any other space answers 409 `ImportRequiresPersonalSpace` (a Money Manager file is one person's money, section 2.3, and a shared space would split each expense among its members). A batch is its uploader's: anyone else's id answers 404 `ImportNotFound`.
+- The upload proposes each account's mapping: the account an earlier import linked it to, else a live account of the person's with the same name and currency, else a new one. A mapped account, new or existing, must be in the source account's own currency (422 `InvalidImportMapping`, reason `currencyMismatch`), since the file's amounts are in it. Categories go to their linked category, else the catalog category their name matches when the space has it, else a live category of the same name, else a new one in Otros; a subcategory merges into a same-named subcategory of its parent's target.
+- Confirm runs in one transaction under the space lock and locks the batch row, so a second confirm of the same draft waits and then answers 409 `ImportNotDraft`. A refused account or category stops the whole confirm; a refused movement (`ExchangeRateRequired` when the base amount needs a rate the date lacks, a closed period, no category) is a row error in `rowErrors` and the rest imports. A movement keeps its date, and its instant and the chosen zone when the instant falls on that date there; otherwise it is recorded with the date alone.
+- Gap G1 for now: an adjustment on or before its account's first movement becomes that account's opening balance, only for an account the import creates; every other adjustment is counted as `adjustmentsNotImported` until the `ADJUSTMENT` type (Q4) lands in the ledger.
+- Undo deletes the batch's movements through the ledger's delete (one the person already deleted stays as it is), then archives the categories and accounts it created that no live movement uses.
+
 ### 3.3 Idempotent re-import
 
 - **`import_links`** (`space_id`, `source_app`, `source_key`, `entity_type`, `entity_id`, `import_id`), unique on the first four. The source key is the source's own id: Money Manager's `uid`, and `txUidTrans` for a transfer pair.
 - A movement already linked is skipped as "ya importado", whether the person edited it in Hearth or not; an import never overwrites a person's edit. A linked movement whose source changed since (`UTIME`) is listed as changed and left alone in the first version.
 - A file whose hash matches an earlier batch is announced in the preview ("Ya importaste este archivo el 15 nov"), and importing it again brings only what is not linked.
 - A logically deleted movement keeps its link, so a re-import never brings back what the person deleted.
+
+As built (#326): a folded adjustment is linked as `opening:<uid>` under the `ACCOUNT` entity type. The links of an **undone** batch stop counting (they are filtered by the batch's status, never deleted), so importing the file again after an undo brings everything back; a key linked again points at the newer entity. The file-hash notice names the last confirm of the same hash that was not undone.
 
 ### 3.4 Sources
 
@@ -202,6 +212,8 @@ The preview is the dry run: counts by kind, the date range, every account with i
 ### 3.5 Safety
 
 The file is untrusted: at most 20 MB, read in memory by a WebAssembly SQLite reader (`sql.js`; no native module, no file system, no extensions) or a streaming CSV parser, with a time limit. The Money Manager reader uses Node's built-in `node:sqlite` instead of `sql.js` (no new dependency): `DatabaseSync.deserialize` (Node 24.16+; `.nvmrc`, Docker and CI run 24.21) loads the uploaded bytes into an in-memory database, so nothing touches the file system, with extensions off, the defensive flag on, an authorizer that allows only reads, and the file refused when a table it reads is a view, so every query is a scan bounded by the 20 MB. The raw file is never stored: the batch keeps its hash and the neutral snapshot, and the snapshot is removed physically 7 days after the batch is confirmed or abandoned, like the other technical data D8 allows to delete. The file's contents never reach a log (`failureOf` only).
+
+As built (#326): the SQLite reads run in a `node:worker_threads` worker that is terminated after 30 seconds (422 `ImportTimedOut`); the worker is a small self-contained program (`sqlite-extract.ts`) that returns the fixed queries' rows, and the snapshot is built from them on the server's thread, with a test pinning that both paths give the same snapshot. The upload is the multipart field `file`; a file over 20 MB answers 422 `ImportFileTooLarge` (as do an unrecognized, unreadable or zipped file). After 7 days the snapshot is set to null and the batch row stays for the history: from the confirm for a confirmed or undone batch, from the upload for an abandoned draft. The cleanup is a use case (`removeExpiredSnapshots`) that no scheduled job calls yet.
 
 ### 3.6 Export
 

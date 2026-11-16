@@ -1638,6 +1638,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The space's past imports, newest first, with their counts and undo state */
+        get: operations["listImports"];
+        put?: never;
+        /**
+         * Upload another app's backup and get its preview
+         * @description Reads a Money Manager SQLite backup (multipart field `file`, at most 20 MB) in memory, off the server's thread, for at most 30 seconds, and stores a draft with its hash and what was read; the file is never stored. Nothing reaches the ledger. Only a member who records money, in their personal space.
+         */
+        post: operations["startImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/imports/{importId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Change a draft's mappings, time zone or included duplicates, and get its new preview
+         * @description An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency. A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).
+         */
+        patch: operations["adjustImport"];
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/imports/{importId}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a draft into the ledger, in one transaction
+         * @description Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before their account's first movement become its opening balance; later ones are counted as not imported yet.
+         */
+        post: operations["confirmImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/spaces/{spaceId}/imports/{importId}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo a confirmed import
+         * @description Deletes logically every movement the import created and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.
+         */
+        post: operations["undoImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2103,6 +2184,101 @@ export interface components {
                         }[];
                     }[];
                 }[];
+            }[];
+        };
+        /** @description An upload's dry run (design §3.2): nothing reached the ledger yet. */
+        ImportPreview: {
+            id: string;
+            /** @enum {string} */
+            status: "DRAFT" | "CONFIRMED" | "UNDONE";
+            sourceApp: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description When a confirmed import of the same file (same SHA-256) last ran in this space; null for a new file. */
+            previouslyImportedAt: string | null;
+            timeZone: string;
+            counts: {
+                income: number;
+                expense: number;
+                transfer: number;
+                adjustment: number;
+                total: number;
+                skippedZero: number;
+            };
+            dateRange: {
+                /** Format: date */
+                first: string;
+                /** Format: date */
+                last: string;
+            } | null;
+            accounts: {
+                sourceId: string;
+                name: string;
+                /** @enum {string} */
+                type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                currency: string;
+                cutOffDay: number | null;
+                paymentDay: number | null;
+                sourceClosingBalance: components["schemas"]["MoneyOutput"];
+                mapping: {
+                    /** @constant */
+                    kind: "existing";
+                    accountId: string;
+                } | {
+                    /** @constant */
+                    kind: "new";
+                    /** @enum {string} */
+                    type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                    currency: string;
+                };
+            }[];
+            categories: {
+                sourceId: string;
+                name: string;
+                icon: string | null;
+                /** @enum {string} */
+                kind: "INCOME" | "EXPENSE";
+                parentSourceId: string | null;
+                archived: boolean;
+                catalogKey: string | null;
+                mapping: {
+                    /** @constant */
+                    kind: "existing";
+                    categoryId: string;
+                } | {
+                    /** @constant */
+                    kind: "new";
+                    /** @description The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to. */
+                    groupId: string | null;
+                };
+            }[];
+            /** @description Source keys of likely duplicates of movements already in Hearth. */
+            duplicates: string[];
+            includeDuplicates: string[];
+            plan: {
+                movements: number;
+                alreadyImported: string[];
+                duplicatesSkipped: number;
+                adjustmentsInOpeningBalance: number;
+                adjustmentsNotImported: number;
+            };
+            leftOut: {
+                budgets: number;
+                zeroAmountMovements: number;
+            };
+            warnings: {
+                code: string;
+                sourceKey: string;
+                details?: {
+                    [key: string]: string;
+                };
+            }[];
+            errors: {
+                code: string;
+                sourceKey: string;
+                details?: {
+                    [key: string]: string;
+                };
             }[];
         };
         Invitation: {
@@ -9837,6 +10013,425 @@ export interface operations {
             };
             /** @description TooManyRequests */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listImports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            sourceApp: string;
+                            /** @enum {string} */
+                            status: "DRAFT" | "CONFIRMED" | "UNDONE";
+                            /** Format: date-time */
+                            createdAt: string;
+                            confirmedAt: string | null;
+                            undoneAt: string | null;
+                            counts: {
+                                accountsCreated: number;
+                                categoriesCreated: number;
+                                movementsImported: number;
+                                alreadyImported: number;
+                                duplicatesSkipped: number;
+                                adjustmentsInOpeningBalance: number;
+                                /** @description Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4). */
+                                adjustmentsNotImported: number;
+                                rowErrors: number;
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ImportRequiresPersonalSpace */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    startImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description The backup, at most 20 MB; never stored.
+                     */
+                    file: string;
+                    /** @enum {string} */
+                    source?: "money-manager";
+                };
+            };
+        };
+        responses: {
+            /** @description The draft's preview */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreview"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ImportRequiresPersonalSpace, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, ImportFileTooLarge, ImportFileNotRecognized, UnreadableBackup, ZipBackupNotSupported, ImportTimedOut */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    adjustImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                importId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    timeZone?: string;
+                    accounts?: {
+                        [key: string]: {
+                            /** @constant */
+                            kind: "existing";
+                            accountId: string;
+                        } | {
+                            /** @constant */
+                            kind: "new";
+                            /** @enum {string} */
+                            type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                            currency: string;
+                        };
+                    };
+                    categories?: {
+                        [key: string]: {
+                            /** @constant */
+                            kind: "existing";
+                            categoryId: string;
+                        } | {
+                            /** @constant */
+                            kind: "new";
+                            /** @description The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to. */
+                            groupId: string | null;
+                        };
+                    };
+                    /** @description Every likely duplicate to import anyway; replaces the list the draft has. */
+                    includeDuplicates?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The draft's new preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreview"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, ImportNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidImportMapping, InvalidTimeZone */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    confirmImport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string;
+            };
+            path: {
+                spaceId: string;
+                importId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the import did */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @enum {string} */
+                        status: "DRAFT" | "CONFIRMED" | "UNDONE";
+                        counts: {
+                            accountsCreated: number;
+                            categoriesCreated: number;
+                            movementsImported: number;
+                            alreadyImported: number;
+                            duplicatesSkipped: number;
+                            adjustmentsInOpeningBalance: number;
+                            /** @description Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4). */
+                            adjustmentsNotImported: number;
+                            rowErrors: number;
+                        } | null;
+                        /** @description Rows the ledger refused, with its code; the rest was imported. */
+                        rowErrors: {
+                            code: string;
+                            sourceKey: string;
+                            details?: {
+                                [key: string]: string;
+                            };
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, ImportNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, SpaceArchived, AccountNameTaken, CategoryNameTaken, IdempotencyKeyConflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InvalidImportMapping, InvalidIdempotencyKey */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    undoImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                importId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description What the undo did */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @constant */
+                        status: "UNDONE";
+                        movementsDeleted: number;
+                        accountsArchived: number;
+                        categoriesArchived: number;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, ImportNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ImportNotConfirmed, PeriodClosed, ImportRequiresPersonalSpace, SpaceArchived */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

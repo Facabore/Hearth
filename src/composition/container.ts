@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import {
@@ -157,7 +158,9 @@ import {
   type RecordFundContribution,
   type RecordIncome,
   type RecordSettlement,
+  positionOf,
   type Transaction,
+  type TransactionPosition,
   type RecordTransfer,
 } from "@/modules/ledger/application";
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
@@ -225,8 +228,31 @@ import {
   type ReferralsDeps,
 } from "@/modules/referrals/application";
 import { cryptoReferralRandom } from "@/modules/referrals/infrastructure/crypto-referral-random";
-import { createExportPersonData, type ExportPersonData } from "@/modules/portability/application";
+import {
+  createAdjustImport,
+  createConfirmImport,
+  createExportPersonData,
+  createListImports,
+  createRemoveExpiredSnapshots,
+  createStartImport,
+  createUndoImport,
+  type AdjustImport,
+  type ConfirmImport,
+  type ExportPersonData,
+  type HearthMovement,
+  type ImportWriter,
+  type ListImports,
+  type MovementTime,
+  type RemoveExpiredSnapshots,
+  type StartImport,
+  type UndoImport,
+} from "@/modules/portability/application";
+import {
+  DrizzleImportBatches,
+  DrizzleImportLinks,
+} from "@/modules/portability/infrastructure/drizzle-import-repositories";
 import { createExportReader } from "@/modules/portability/infrastructure/export-reader";
+import { createWorkerSnapshotReader } from "@/modules/portability/infrastructure/worker-snapshot-reader";
 import { zipStored } from "@/modules/portability/infrastructure/zip-writer";
 import type { ExchangeRateRepository } from "@/modules/rates/application";
 import { DrizzleExchangeRates } from "@/modules/rates/infrastructure/drizzle-exchange-rates";
@@ -309,7 +335,16 @@ import { createSmtpMailer, type Mailer } from "@/shared/infrastructure/email/smt
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { clockFrom } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
+import {
+  fromParts,
+  isUuid,
+  map,
+  ok,
+  type AuthUser,
+  type Clock,
+  type LocalDate,
+  type Result,
+} from "@/shared/kernel";
 import { accountMovementsOf } from "./account-movements";
 import { accountBalancesFrom } from "./account-balances";
 
@@ -458,6 +493,14 @@ export interface Container extends RouteDeps {
   /** D28, design §3.6: the person's data export. */
   readonly portability: {
     readonly exportPersonData: ExportPersonData;
+    /** D28, design §3.2: the Money Manager import's upload, adjustments, confirm, undo and history. */
+    readonly startImport: StartImport;
+    readonly adjustImport: AdjustImport;
+    readonly confirmImport: ConfirmImport;
+    readonly undoImport: UndoImport;
+    readonly listImports: ListImports;
+    /** Design §3.5: the 7-day snapshot cleanup; no job calls it yet. */
+    readonly removeExpiredSnapshots: RemoveExpiredSnapshots;
   };
   /** D30: the global daily exchange-rate store, read on demand and written by the in-container fetch job. */
   readonly rates: {
@@ -500,6 +543,8 @@ export interface ContainerOptions {
   readonly installationRules?: InstallationRulesReader;
   /** Exports per person per minute (design §3.6); 5 by default. */
   readonly exportsPerMinute?: number;
+  /** Test seam: how long an upload's reads may take (design §3.5); 30 seconds by default. */
+  readonly importTimeoutMs?: number;
 }
 
 /**
@@ -583,6 +628,136 @@ export const spaceUsageOf = (sources: {
     (await sources.ledger.hasTransactions(spaceId)) ||
     (await sources.plans.hasPlans(spaceId)),
 });
+
+/** Every date a movement can have: the import's usage check reads the whole history (D8). */
+const ALL_DATES = { from: fromParts(1900, 1, 1), to: fromParts(9999, 12, 31) };
+const MOVEMENT_PAGE = 500;
+
+/** HU-E4-14: an imported movement's time as the ledger's create inputs take it. */
+const importedWhen = (time: MovementTime) =>
+  "untimed" in time
+    ? { date: time.date, untimed: true as const }
+    : { date: time.date, occurredAt: time.occurredAt, timeZone: time.timeZone };
+
+/**
+ * D28, design §3.1: the import's `ImportWriter`, over the accounts, categories and ledger use cases, which authorize
+ * and lock every write again; the reads are the repositories' own (the import's use case authorized the caller).
+ */
+export const importWriterOf = (sources: {
+  readonly accounts: Pick<AccountRepository, "listBySpace">;
+  readonly categories: Pick<CategoryRepository, "listGroups" | "listCategories">;
+  readonly ledgerQueries: Pick<DrizzleLedgerQueries, "list">;
+  readonly usageCounts: CategoryUsageCounts;
+  readonly createAccount: CreateAccount;
+  readonly archiveAccount: ArchiveAccount;
+  readonly createCategory: CreateCategory;
+  readonly archiveCategory: ArchiveCategory;
+  readonly recordExpense: RecordExpense;
+  readonly recordIncome: RecordIncome;
+  readonly recordTransfer: RecordTransfer;
+  readonly deleteTransaction: DeleteTransaction;
+}): ImportWriter => {
+  const liveMovements = async (spaceId: string, accountId: string, from: LocalDate, to: LocalDate) => {
+    const found: Transaction[] = [];
+    let after: TransactionPosition | null = null;
+    for (;;) {
+      const page = await sources.ledgerQueries.list({ spaceId, from, to, accountId }, after, MOVEMENT_PAGE);
+      found.push(...page);
+      if (page.length < MOVEMENT_PAGE) return found;
+      after = positionOf(page.at(-1)!);
+    }
+  };
+  // The movement as the account saw it, in the account's own currency (D29): what it paid, received or sent.
+  const onAccount = (tx: Transaction, accountId: string): HearthMovement | null => {
+    if (tx.type === "EXPENSE") {
+      const payment = tx.payments.find((p) => p.accountId === accountId);
+      return payment === undefined
+        ? null
+        : { accountId, date: tx.date, amountMinor: payment.accountAmount ?? payment.amount, kind: "EXPENSE" };
+    }
+    if (tx.type === "INCOME" && tx.destinationAccountId === accountId) {
+      return { accountId, date: tx.date, amountMinor: tx.destinationAmount ?? tx.amount, kind: "INCOME" };
+    }
+    if (tx.type === "TRANSFER" && tx.sourceAccountId === accountId) {
+      return { accountId, date: tx.date, amountMinor: tx.sourceAmount ?? tx.amount, kind: "TRANSFER" };
+    }
+    return null;
+  };
+  const idOf = <T extends { readonly id: string }>(result: Result<T>): Result<string> =>
+    map(result, (value) => value.id);
+  const done = (result: Result<unknown>): Result<void> => map(result, () => undefined);
+  return {
+    targetsOf: async (spaceId, userId) => {
+      const accounts = (await sources.accounts.listBySpace(spaceId)).filter((a) => a.ownerUserId === userId);
+      const groups = await sources.categories.listGroups(spaceId);
+      const categories = await sources.categories.listCategories(spaceId);
+      return ok({
+        accounts: accounts.map((a) => ({
+          id: a.id,
+          name: a.name,
+          currency: a.currency,
+          archived: a.archivedAt !== null,
+        })),
+        groups: groups.map((g) => ({ id: g.id, key: g.key, archived: g.archivedAt !== null })),
+        categories: categories.map((c) => ({
+          id: c.id,
+          groupId: c.groupId,
+          parentCategoryId: c.parentCategoryId,
+          name: c.name,
+          key: c.key,
+          archived: c.archivedAt !== null,
+        })),
+      });
+    },
+    movementsOf: async (spaceId, accountIds, from, to) => {
+      const movements: HearthMovement[] = [];
+      for (const accountId of accountIds) {
+        for (const tx of await liveMovements(spaceId, accountId, from, to)) {
+          const movement = onAccount(tx, accountId);
+          if (movement !== null) movements.push(movement);
+        }
+      }
+      return movements;
+    },
+    createAccount: async ({ cutOffDay, paymentDay, ...input }) =>
+      idOf(
+        await sources.createAccount({
+          ...input,
+          currency: input.openingBalance.currency.code,
+          // HU-E2-06: only a card takes billing days.
+          ...(input.type === "CREDIT_CARD" ? { terms: { cutOffDay, paymentDay } } : {}),
+        }),
+      ),
+    createCategory: async ({ emoji, ...input }) => {
+      const created = await sources.createCategory({
+        ...input,
+        ...(emoji === null ? {} : { icon: { kind: "EMOJI" as const, value: emoji } }),
+      });
+      // D22 allows one emoji; a leading symbol it refuses only costs the icon, never the category.
+      return created.ok || emoji === null ? idOf(created) : idOf(await sources.createCategory(input));
+    },
+    recordExpense: async ({ time, ...input }) =>
+      map(
+        await sources.recordExpense({ ...input, ...importedWhen(time) }),
+        (recorded) => recorded.expense.id,
+      ),
+    recordIncome: async ({ time, ...input }) =>
+      idOf(await sources.recordIncome({ ...input, ...importedWhen(time) })),
+    recordTransfer: async ({ time, ...input }) =>
+      idOf(await sources.recordTransfer({ ...input, ...importedWhen(time) })),
+    deleteMovement: async ({ movementId, ...input }) => {
+      const deleted = await sources.deleteTransaction({ ...input, transactionId: movementId });
+      // D8: a movement the person deleted already stays as they left it.
+      return !deleted.ok && deleted.error.code === "TransactionNotFound" ? ok(undefined) : deleted;
+    },
+    archiveAccount: async (input) => done(await sources.archiveAccount(input)),
+    archiveCategory: async (input) => done(await sources.archiveCategory(input)),
+    accountInUse: async (spaceId, accountId) =>
+      (await sources.ledgerQueries.list({ spaceId, ...ALL_DATES, accountId }, null, 1)).length > 0,
+    categoryInUse: async (spaceId, categoryId) =>
+      ((await sources.usageCounts.usageCountsOf(spaceId)).get(categoryId) ?? 0) > 0,
+  };
+};
 
 export const buildContainer = (env: Env, options: ContainerOptions = {}): Container => {
   const { db, pool } = createDatabase(env.DATABASE_URL);
@@ -1020,6 +1195,33 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     userTimeZones: profiles,
   });
+  // D28, design §3.1: the import writes only through the accounts, categories and ledger use cases.
+  const importDeps = {
+    access,
+    spaceLocks: spaceRepository,
+    reader: createWorkerSnapshotReader(options.importTimeoutMs),
+    batches: new DrizzleImportBatches(tm),
+    links: new DrizzleImportLinks(tm),
+    writer: importWriterOf({
+      accounts: accountsDeps.accounts,
+      categories: categoryRepository,
+      ledgerQueries,
+      usageCounts: categoryUsageCountsOf(tm),
+      createAccount: createCreateAccount(accountsDeps),
+      archiveAccount: createArchiveAccount(accountsDeps),
+      createCategory: createCreateCategory(categoriesDeps),
+      archiveCategory: createArchiveCategory(categoriesDeps),
+      recordExpense,
+      recordIncome,
+      recordTransfer,
+      deleteTransaction: createDeleteTransaction(ledgerDeps),
+    }),
+    digest: (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex"),
+    ids,
+    clock,
+    userTimeZones: profiles,
+    tm,
+  };
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -1277,7 +1479,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       preview: createPreviewReferral(referralsDeps),
       claim: createClaimReferrer(referralsDeps),
     },
-    portability: { exportPersonData },
+    portability: {
+      exportPersonData,
+      startImport: createStartImport(importDeps),
+      adjustImport: createAdjustImport(importDeps),
+      confirmImport: createConfirmImport(importDeps),
+      undoImport: createUndoImport(importDeps),
+      listImports: createListImports(importDeps),
+      removeExpiredSnapshots: createRemoveExpiredSnapshots(importDeps),
+    },
     rates: {
       repository: exchangeRates,
     },
