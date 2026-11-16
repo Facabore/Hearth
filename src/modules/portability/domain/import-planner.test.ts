@@ -253,3 +253,41 @@ describe("previewImport (design §3.1, §3.2)", () => {
     expect(preview.value.errors).toEqual(errors);
   });
 });
+
+describe("likely duplicate transfers (design §3.1)", () => {
+  const transfer = movement({
+    sourceKey: "t1",
+    kind: "TRANSFER",
+    accountSourceId: "bank",
+    toAccountSourceId: "cash",
+    amount: cop(20000n),
+    toAmount: cop(20000n),
+    date: "2025-01-25" as LocalDate,
+  });
+  const snap = snapshot({
+    accounts: [account({ sourceId: "bank", type: "BANK" }), account({ sourceId: "cash", type: "CASH" })],
+    movements: [transfer],
+  });
+  const duplicatesWith = (existing: Parameters<typeof previewImport>[1]["existing"]) => {
+    const preview = previewImport(snap, { timeZone: "America/Bogota", existing });
+    if (isErr(preview)) throw new Error(preview.error.code);
+    return preview.value.duplicates;
+  };
+  const on = (accountSourceId: string, incoming?: true) => ({
+    accountSourceId,
+    date: "2025-01-25" as LocalDate,
+    amountMinor: 20000n,
+    kind: "TRANSFER" as const,
+    ...(incoming === undefined ? {} : { incoming }),
+  });
+
+  it("finds a transfer that reached the destination account in Hearth, whatever account it left", () => {
+    expect(duplicatesWith([on("cash", true)])).toEqual([{ sourceKey: "t1" }]);
+  });
+
+  it("finds one that left the source account, and never takes a transfer leaving an account as one reaching it", () => {
+    expect(duplicatesWith([on("bank")])).toEqual([{ sourceKey: "t1" }]);
+    expect(duplicatesWith([on("cash")])).toEqual([]);
+    expect(duplicatesWith([on("bank", true)])).toEqual([]);
+  });
+});

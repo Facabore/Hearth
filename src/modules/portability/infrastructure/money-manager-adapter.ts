@@ -1,4 +1,3 @@
-import { constants, DatabaseSync } from "node:sqlite";
 import {
   currencyOf,
   domainError,
@@ -10,7 +9,7 @@ import {
   type Money,
   type Result,
 } from "@/shared/kernel";
-import type { SourceAdapter, SourceFile } from "../application/source-adapter";
+import { MAX_IMPORT_BYTES, type SourceAdapter, type SourceFile } from "../application/source-adapter";
 import { moneyFromDecimal, moneyFromFloat } from "../domain/amounts";
 import { accountTypeForGroup } from "../domain/account-type-map";
 import { splitLeadingEmoji } from "../domain/category-match";
@@ -22,17 +21,39 @@ import type {
   SourceMovement,
   SourceSnapshot,
 } from "../domain/source-snapshot";
+import { extractTables, type Extracted, type ExtractSpec, type Row } from "./sqlite-extract";
 
-type Row = Record<string, unknown>;
-
-/** The largest upload an import reads (design §3.5); a bigger one is refused before any parsing. */
-export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+export { MAX_IMPORT_BYTES };
 
 /** Every SQLite 3 file starts with these 16 bytes ("SQLite format 3" and a NUL). */
 const SQLITE_HEADER = new TextEncoder().encode("SQLite format 3\u0000");
 
 /** The tables this reader queries. Each must be a real table, so a crafted view cannot make a query run unbounded. */
 const READ_TABLES = ["CURRENCY", "ASSETS", "ZCATEGORY", "INOUTCOME", "TAG", "TX_TAG", "BUDGET", "ZETC"];
+
+/** Every read the snapshot is built from, by name: fixed, read-only, one table each (no join can grow its output). */
+const QUERIES = {
+  currency: "SELECT uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY FROM CURRENCY",
+  assets: "SELECT * FROM ASSETS",
+  tag: "SELECT uid, NAME FROM TAG",
+  txTag: "SELECT txUid, tagUid FROM TX_TAG",
+  movements: "SELECT * FROM INOUTCOME",
+  categories: "SELECT * FROM ZCATEGORY",
+  budgets: "SELECT uid, ctgUid FROM BUDGET",
+  startDay: "SELECT VALUE FROM ZETC WHERE dataTypeKey = 'start_day'",
+} as const;
+
+type TableRows = Readonly<Record<keyof typeof QUERIES, Row[]>>;
+
+/** Money Manager's two core tables exist, and nothing the reader queries is a view (names are case-insensitive). */
+export const MONEY_MANAGER_READ: ExtractSpec = {
+  required: ["ASSETS", "INOUTCOME"],
+  guarded: READ_TABLES,
+  queries: QUERIES,
+};
+
+/** The same check with no query, for `detect`. */
+const RECOGNIZE_ONLY: ExtractSpec = { ...MONEY_MANAGER_READ, queries: {} };
 
 const startsWith = (bytes: Uint8Array, prefix: Uint8Array): boolean =>
   bytes.length >= prefix.length && prefix.every((byte, index) => bytes[index] === byte);
@@ -64,50 +85,28 @@ const rowIssue = (sourceKey: string, error: DomainError): SourceIssue =>
         ),
       };
 
-/** Only reads: any write, ATTACH, PRAGMA, function call or recursive query in this connection is refused. */
-const readOnlyAuthorizer = (actionCode: number): number =>
-  actionCode === constants.SQLITE_SELECT || actionCode === constants.SQLITE_READ
-    ? constants.SQLITE_OK
-    : constants.SQLITE_DENY;
-
 /**
  * Reads a Money Manager (Realbyte, Android/iOS) SQLite backup and translates it into a neutral `SourceSnapshot`
- * (design §1-2). The upload is untrusted (§3.5): at most `MAX_IMPORT_BYTES`, loaded from its bytes into an in-memory
- * `node:sqlite` database (`deserialize`; never a file on disk), with extensions off, the defensive flag on, and an
- * authorizer that only lets it read. A `.mmbak` that is a zip is reported as not yet supported
- * (`ZipBackupNotSupported`); only the raw `.sqlite` is read for now.
+ * (design §1-2). The upload is untrusted (§3.5): at most `MAX_IMPORT_BYTES`, then read by `extractTables` (an
+ * in-memory `node:sqlite` database, never a file on disk, with extensions off, the defensive flag on and an authorizer
+ * that only lets it read), here or in a worker with a time limit (`fromExtracted`). A `.mmbak` that is a zip is
+ * reported as not yet supported (`ZipBackupNotSupported`); only the raw `.sqlite` is read for now.
  */
 export class MoneyManagerAdapter implements SourceAdapter {
   readonly sourceApp = "money-manager";
 
   detect(file: SourceFile): boolean {
-    const opened = this.open(file.bytes);
-    if (isErr(opened)) return false;
-    try {
-      return this.recognized(opened.value);
-    } catch {
-      return false;
-    } finally {
-      opened.value.close();
-    }
+    return !isErr(this.checkUpload(file.bytes)) && extractTables(file.bytes, RECOGNIZE_ONLY).kind === "rows";
   }
 
   read(file: SourceFile): Result<SourceSnapshot> {
-    const opened = this.open(file.bytes);
-    if (isErr(opened)) return opened;
-    const db = opened.value;
-    try {
-      if (!this.recognized(db)) return err(domainError("ImportFileNotRecognized", { app: this.sourceApp }));
-      return this.build(db);
-    } catch (cause) {
-      return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: String(cause) }));
-    } finally {
-      db.close();
-    }
+    const checked = this.checkUpload(file.bytes);
+    if (isErr(checked)) return checked;
+    return this.fromExtracted(extractTables(file.bytes, MONEY_MANAGER_READ));
   }
 
-  /** Size, then zip, then the SQLite header, all before parsing; then the bytes become a read-only memory database. */
-  private open(bytes: Uint8Array): Result<DatabaseSync> {
+  /** Size, then zip, then the SQLite header, all before any parsing. */
+  checkUpload(bytes: Uint8Array): Result<void> {
     if (bytes.length > MAX_IMPORT_BYTES) {
       return err(domainError("ImportFileTooLarge", { maxBytes: MAX_IMPORT_BYTES }));
     }
@@ -118,40 +117,31 @@ export class MoneyManagerAdapter implements SourceAdapter {
     if (!startsWith(bytes, SQLITE_HEADER)) {
       return err(domainError("ImportFileNotRecognized", { app: this.sourceApp }));
     }
-    const db = new DatabaseSync(":memory:", { allowExtension: false, defensive: true });
-    try {
-      // `deserialize` copies the bytes into SQLite's own memory; the caller's buffer is never touched.
-      db.deserialize(bytes);
-      db.setAuthorizer(readOnlyAuthorizer);
-      return ok(db);
-    } catch (cause) {
-      db.close();
-      return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: String(cause) }));
+    return ok(undefined);
+  }
+
+  /** The snapshot from `MONEY_MANAGER_READ`'s rows, wherever they were read; a time-out is `ImportTimedOut`. */
+  fromExtracted(extracted: Extracted): Result<SourceSnapshot> {
+    switch (extracted.kind) {
+      case "notRecognized":
+        return err(domainError("ImportFileNotRecognized", { app: this.sourceApp }));
+      case "unreadable":
+        return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: extracted.reason }));
+      case "timedOut":
+        return err(domainError("ImportTimedOut", { app: this.sourceApp }));
+      case "rows":
+        try {
+          return this.build(extracted.rows as TableRows);
+        } catch (cause) {
+          return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: String(cause) }));
+        }
     }
   }
 
-  /** Money Manager's two core tables exist, and nothing the reader queries is a view (names are case-insensitive). */
-  private recognized(db: DatabaseSync): boolean {
-    const types = new Map(
-      this.all(db, "SELECT name, type FROM sqlite_master").map((row) => [
-        str(row.name).toUpperCase(),
-        str(row.type),
-      ]),
-    );
-    const isTable = (name: string) => types.get(name) === "table";
-    return (
-      isTable("ASSETS") && isTable("INOUTCOME") && READ_TABLES.every((name) => types.get(name) !== "view")
-    );
-  }
-
-  private all(db: DatabaseSync, sql: string): Row[] {
-    return db.prepare(sql).all() as Row[];
-  }
-
-  private build(db: DatabaseSync): Result<SourceSnapshot> {
+  private build(rows: TableRows): Result<SourceSnapshot> {
     const currencyByUid = new Map<number, string>();
     let mainCurrency: string | null = null;
-    for (const row of this.all(db, "SELECT uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY FROM CURRENCY")) {
+    for (const row of rows.currency) {
       const iso = str(row.ISO);
       currencyByUid.set(num(row.uid), iso);
       if (num(row.IS_MAIN_CURRENCY) !== 0) mainCurrency = iso;
@@ -163,7 +153,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     // come out as MovementWithoutAccount, and the rest of the backup still reads (§3.2).
     const accountInfo = new Map<string, { row: Row; currency: string; groupUid: number }>();
     const accountErrors: SourceIssue[] = [];
-    for (const row of this.all(db, "SELECT * FROM ASSETS")) {
+    for (const row of rows.assets) {
       const currency = currencyByUid.get(num(row.currencyUid));
       if (currency === undefined || isErr(currencyOf(currency))) {
         accountErrors.push(
@@ -177,9 +167,9 @@ export class MoneyManagerAdapter implements SourceAdapter {
       accountInfo.set(str(row.uid), { row, currency, groupUid: num(row.groupUid) });
     }
 
-    const { byMovement: tagsByMovement, truncated: truncatedTags } = this.tags(db);
+    const { byMovement: tagsByMovement, truncated: truncatedTags } = this.tags(rows);
     const { movements, zeroAmountMovements, usedCategories, warnings, errors, balances } = this.movements(
-      db,
+      rows,
       accountInfo,
       tagsByMovement,
       currencyByUid,
@@ -203,8 +193,8 @@ export class MoneyManagerAdapter implements SourceAdapter {
       });
     }
 
-    const { categories, deletedCategories } = this.categories(db, usedCategories);
-    const budgets: SourceBudget[] = this.all(db, "SELECT uid, ctgUid FROM BUDGET").map((row) => ({
+    const { categories, deletedCategories } = this.categories(rows, usedCategories);
+    const budgets: SourceBudget[] = rows.budgets.map((row) => ({
       sourceId: str(row.uid),
       categorySourceId: trimmed(row.ctgUid),
     }));
@@ -215,7 +205,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
       categories,
       movements,
       budgets,
-      settings: { startDay: this.startDay(db), mainCurrency },
+      settings: { startDay: this.startDay(rows), mainCurrency },
       skipped: { zeroAmountMovements, deletedCategories },
       warnings: [
         ...warnings,
@@ -234,15 +224,15 @@ export class MoneyManagerAdapter implements SourceAdapter {
    * TX_TAG and TAG rows all share one uid would make a SQL join's output grow as their product. Names are kept once
    * each, at most MAX_TAGS_PER_MOVEMENT per movement.
    */
-  private tags(db: DatabaseSync): { byMovement: Map<string, string[]>; truncated: Map<string, number> } {
+  private tags(rows: TableRows): { byMovement: Map<string, string[]>; truncated: Map<string, number> } {
     const names = new Map<string, string>();
-    for (const row of this.all(db, "SELECT uid, NAME FROM TAG")) {
+    for (const row of rows.tag) {
       const name = trimmed(row.NAME);
       if (name !== null && !names.has(str(row.uid))) names.set(str(row.uid), name);
     }
     const byMovement = new Map<string, Set<string>>();
     const truncated = new Map<string, number>();
-    for (const row of this.all(db, "SELECT txUid, tagUid FROM TX_TAG")) {
+    for (const row of rows.txTag) {
       const name = names.get(str(row.tagUid));
       if (name === undefined) continue;
       const key = str(row.txUid);
@@ -264,7 +254,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
   }
 
   private movements(
-    db: DatabaseSync,
+    rows: TableRows,
     accountInfo: Map<string, { currency: string }>,
     tagsByMovement: Map<string, string[]>,
     currencyByUid: Map<number, string>,
@@ -310,7 +300,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
         : moneyFromFloat(floatField(row.AMOUNT_ACCOUNT), accountCurrency);
     };
 
-    for (const row of this.all(db, "SELECT * FROM INOUTCOME")) {
+    for (const row of rows.movements) {
       if (num(row.IS_DEL) !== 0) continue;
       const uid = str(row.uid);
       const doType = num(row.DO_TYPE);
@@ -438,12 +428,12 @@ export class MoneyManagerAdapter implements SourceAdapter {
   }
 
   private categories(
-    db: DatabaseSync,
+    rows: TableRows,
     usedCategories: Set<string>,
   ): { categories: SourceCategory[]; deletedCategories: number } {
     const categories: SourceCategory[] = [];
     let deletedCategories = 0;
-    for (const row of this.all(db, "SELECT * FROM ZCATEGORY")) {
+    for (const row of rows.categories) {
       const deleted = num(row.C_IS_DEL) !== 0;
       const sourceId = str(row.uid);
       // A deleted category is imported only when a movement still uses it, then archived (design §2.2).
@@ -465,8 +455,8 @@ export class MoneyManagerAdapter implements SourceAdapter {
     return { categories, deletedCategories };
   }
 
-  private startDay(db: DatabaseSync): number | null {
-    const row = this.all(db, "SELECT VALUE FROM ZETC WHERE dataTypeKey = 'start_day'")[0];
+  private startDay(rows: TableRows): number | null {
+    const row = rows.startDay[0];
     if (row === undefined) return null;
     const value = Number(str(row.VALUE));
     return Number.isInteger(value) ? value : null;

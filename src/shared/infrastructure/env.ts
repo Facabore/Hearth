@@ -31,6 +31,16 @@ const Variables = z.object({
     .transform(Number)
     .pipe(z.number().max(86_400))
     .default(86_400),
+  /**
+   * D28, design §3.5: seconds between runs of the job that removes import snapshots older than 7 days; 0 turns it off.
+   * Digits only, so a blank value does not read as 0. A day by default, and at most.
+   */
+  IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .pipe(z.number().max(86_400))
+    .default(86_400),
   /** Ruling P143: `closed` makes sign-up invite-only (an invitation or claim link token still lets a visitor in). */
   HEARTH_SIGN_UP: z.enum(["open", "closed"]).default("open"),
   /**

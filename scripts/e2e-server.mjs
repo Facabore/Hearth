@@ -93,6 +93,8 @@ server = spawn(process.execPath, [".next/standalone/server.js"], {
     RECURRENCE_JOB_INTERVAL_SECONDS: "0",
     // D30: the exchange-rate job reads the ECB and the TRM over the network; the e2e suite never does (AGENTS.md).
     EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "0",
+    // D28: the import snapshot cleanup would delete under the scenarios' fixed clock; the e2e suite keeps it off.
+    IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: "0",
     HEARTH_E2E_FIXED_NOW: process.env.HEARTH_E2E_FIXED_NOW ?? "2026-11-01T04:30:00Z",
   },
 });

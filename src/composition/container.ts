@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Pool } from "pg";
 import {
@@ -225,8 +226,31 @@ import {
   type ReferralsDeps,
 } from "@/modules/referrals/application";
 import { cryptoReferralRandom } from "@/modules/referrals/infrastructure/crypto-referral-random";
-import { createExportPersonData, type ExportPersonData } from "@/modules/portability/application";
+import {
+  createAdjustImport,
+  createAuthorizeImport,
+  createConfirmImport,
+  createExportPersonData,
+  createListImports,
+  createRemoveExpiredSnapshots,
+  createStartImport,
+  createUndoImport,
+  type AdjustImport,
+  type AuthorizeImport,
+  type ConfirmImport,
+  type ExportPersonData,
+  type ListImports,
+  type RemoveExpiredSnapshots,
+  type StartImport,
+  type UndoImport,
+} from "@/modules/portability/application";
+import {
+  DrizzleImportBatches,
+  DrizzleImportLinks,
+} from "@/modules/portability/infrastructure/drizzle-import-repositories";
 import { createExportReader } from "@/modules/portability/infrastructure/export-reader";
+import { createUseCaseImportWriter } from "@/modules/portability/infrastructure/use-case-import-writer";
+import { createWorkerSnapshotReader } from "@/modules/portability/infrastructure/worker-snapshot-reader";
 import { zipStored } from "@/modules/portability/infrastructure/zip-writer";
 import type { ExchangeRateRepository } from "@/modules/rates/application";
 import { DrizzleExchangeRates } from "@/modules/rates/infrastructure/drizzle-exchange-rates";
@@ -458,6 +482,18 @@ export interface Container extends RouteDeps {
   /** D28, design §3.6: the person's data export. */
   readonly portability: {
     readonly exportPersonData: ExportPersonData;
+    /** D28, design §3.5: whether the requester may upload here, asked before the upload is read. */
+    readonly authorizeImport: AuthorizeImport;
+    /** D28, design §3.2: the Money Manager import's upload, adjustments, confirm, undo and history. */
+    readonly startImport: StartImport;
+    readonly adjustImport: AdjustImport;
+    readonly confirmImport: ConfirmImport;
+    readonly undoImport: UndoImport;
+    readonly listImports: ListImports;
+    /** Design §3.5: the 7-day snapshot cleanup; no job calls it yet. */
+    readonly removeExpiredSnapshots: RemoveExpiredSnapshots;
+    /** Design §3.5: how long the upload route waits for a body before giving up (`ImportTimedOut`). */
+    readonly uploadReadTimeoutMs: number;
   };
   /** D30: the global daily exchange-rate store, read on demand and written by the in-container fetch job. */
   readonly rates: {
@@ -500,6 +536,10 @@ export interface ContainerOptions {
   readonly installationRules?: InstallationRulesReader;
   /** Exports per person per minute (design §3.6); 5 by default. */
   readonly exportsPerMinute?: number;
+  /** Test seam: how long an upload's reads may take (design §3.5); 30 seconds by default. */
+  readonly importTimeoutMs?: number;
+  /** Test seam: how long an upload's body may take to arrive (design §3.5); a minute by default. */
+  readonly uploadReadTimeoutMs?: number;
 }
 
 /**
@@ -1027,6 +1067,36 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     userTimeZones: profiles,
   });
+  // D28, design §3.1: the import writes only through the accounts, categories and ledger use cases.
+  const importDeps = {
+    access,
+    spaceLocks: spaceRepository,
+    reader: createWorkerSnapshotReader(options.importTimeoutMs),
+    batches: new DrizzleImportBatches(tm),
+    links: new DrizzleImportLinks(tm),
+    writer: createUseCaseImportWriter({
+      accounts: accountsDeps.accounts,
+      categories: categoryRepository,
+      ledgerQueries,
+      usageCounts: categoryUsageCountsOf(tm),
+      createAccount: createCreateAccount(accountsDeps),
+      archiveAccount: createArchiveAccount(accountsDeps),
+      restoreAccount: createRestoreAccount(accountsDeps),
+      createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
+      createCategory: createCreateCategory(categoriesDeps),
+      archiveCategory: createArchiveCategory(categoriesDeps),
+      restoreCategory: createRestoreCategory(categoriesDeps),
+      recordExpense,
+      recordIncome,
+      recordTransfer,
+      deleteTransaction: createDeleteTransaction(ledgerDeps),
+    }),
+    digest: (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex"),
+    ids,
+    clock,
+    userTimeZones: profiles,
+    tm,
+  };
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -1287,7 +1357,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       preview: createPreviewReferral(referralsDeps),
       claim: createClaimReferrer(referralsDeps),
     },
-    portability: { exportPersonData },
+    portability: {
+      exportPersonData,
+      authorizeImport: createAuthorizeImport(importDeps),
+      startImport: createStartImport(importDeps),
+      adjustImport: createAdjustImport(importDeps),
+      confirmImport: createConfirmImport(importDeps),
+      undoImport: createUndoImport(importDeps),
+      listImports: createListImports(importDeps),
+      removeExpiredSnapshots: createRemoveExpiredSnapshots(importDeps),
+      uploadReadTimeoutMs: options.uploadReadTimeoutMs ?? 60_000,
+    },
     rates: {
       repository: exchangeRates,
     },

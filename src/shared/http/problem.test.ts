@@ -98,6 +98,22 @@ describe("statusForCode", () => {
     expect(statusForCode(code)).toBe(status);
   });
 
+  it.each([
+    // D28, design §3.5: an upload the importer cannot read is the request's to change, never a conflict.
+    ["ImportFileTooLarge", 422],
+    ["ImportFileNotRecognized", 422],
+    ["UnreadableBackup", 422],
+    ["ZipBackupNotSupported", 422],
+    ["ImportTimedOut", 422],
+    // Their neighbours keep the status they had: the explicit ones, and the conventions' 404 and 409.
+    ["ExchangeRateRequired", 422],
+    ["PreconditionFailed", 412],
+    ["ImportNotFound", 404],
+    ["ImportNotDraft", 409],
+  ])("maps the import code %s to %i (D28)", (code, status) => {
+    expect(statusForCode(code)).toBe(status);
+  });
+
   it.each(["constructor", "toString", "__proto__"])(
     "treats the inherited key %s as an ordinary code",
     (code) => {
@@ -216,6 +232,23 @@ describe("public details (HU-E1-08)", () => {
       lineIds: ["line-free"],
     });
     expect(publicDetailsOf("InvalidAllocation", { reason: "percentNotHundred" })).toEqual({});
+  });
+
+  it("names an import mapping's reason and source, the size limit, and the record a confirm could not create (D28)", () => {
+    expect(
+      publicDetailsOf("InvalidImportMapping", { reason: "currencyMismatch", sourceId: "a-usd", extra: "x" }),
+    ).toEqual({ reason: "currencyMismatch", sourceId: "a-usd" });
+    expect(publicDetailsOf("ImportFileTooLarge", { maxBytes: 20_971_520 })).toEqual({ maxBytes: 20_971_520 });
+    expect(
+      publicDetailsOf("ImportTargetRefused", { sourceId: "a-bank", reason: "InvalidAccountName" }),
+    ).toEqual({
+      sourceId: "a-bank",
+      reason: "InvalidAccountName",
+    });
+    // The upload's other refusals keep the reader's details (an app name, a driver message) private.
+    expect(
+      publicDetailsOf("UnreadableBackup", { app: "money-manager", reason: "file is not a database" }),
+    ).toEqual({});
   });
 
   it("names the field an account type refuses, in its public form, and never the stored attribute (HU-E2-06)", async () => {

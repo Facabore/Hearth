@@ -1,6 +1,9 @@
 import type { Result } from "@/shared/kernel";
 import type { SourceSnapshot } from "../domain/source-snapshot";
 
+/** The largest upload an import reads (design §3.5); a bigger one is refused before any parsing. */
+export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+
 /**
  * An uploaded file, as its bytes. The file is never written to disk or stored (design §3.5): an adapter reads these
  * bytes in memory and keeps nothing of them but the snapshot it returns.
