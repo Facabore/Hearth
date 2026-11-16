@@ -1,12 +1,7 @@
-let known: readonly string[] | null = null;
+import { CURRENCY_CODES } from "@/shared/kernel/currency-codes";
 
 /**
- * D29 (board 13): the ISO 4217 currencies the sheet offers: the ones the runtime knows (`Intl.supportedValuesOf`), in
- * code order. The SPA may not read the kernel's list (ruling P119 lets it import only `minor-units.ts` of it), and the
- * two match but for a handful of codes either side; the server still decides, refusing a code the kernel does not know
- * with UnknownCurrency.
+ * D29 (board 13): the ISO 4217 currencies the sheet offers: exactly the kernel's (`currency-codes.ts`, which the SPA
+ * may read under ruling P119's allow-list), in code order, so a code the sheet offers is one the server accepts.
  */
-export const knownCurrencyCodes = (): readonly string[] => {
-  known ??= [...Intl.supportedValuesOf("currency")].sort();
-  return known;
-};
+export const knownCurrencyCodes = (): readonly string[] => CURRENCY_CODES;
