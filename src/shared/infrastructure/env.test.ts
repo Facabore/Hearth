@@ -21,6 +21,7 @@ describe("loadEnv", () => {
       APP_TIMEZONE: "America/Bogota",
       LOG_LEVEL: "info",
       RECURRENCE_JOB_INTERVAL_SECONDS: 300,
+      EXCHANGE_RATE_JOB_INTERVAL_SECONDS: 86_400,
       HEARTH_SIGN_UP: "open",
     });
   });
@@ -66,6 +67,20 @@ describe("loadEnv", () => {
     for (const blank of ["", " ", "1e3", "0x10", "abc"])
       expect(() => loadEnv({ ...valid, RECURRENCE_JOB_INTERVAL_SECONDS: blank })).toThrow(
         /RECURRENCE_JOB_INTERVAL_SECONDS/,
+      );
+  });
+
+  it("reads the exchange-rate interval in seconds, a day by default, 0 turning the job off (D30)", () => {
+    expect(loadEnv({ ...valid }).EXCHANGE_RATE_JOB_INTERVAL_SECONDS).toBe(86_400);
+    expect(
+      loadEnv({ ...valid, EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "0" }).EXCHANGE_RATE_JOB_INTERVAL_SECONDS,
+    ).toBe(0);
+    expect(
+      loadEnv({ ...valid, EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "3600" }).EXCHANGE_RATE_JOB_INTERVAL_SECONDS,
+    ).toBe(3600);
+    for (const bad of ["-1", "1.5", "86401", "", " ", "abc"])
+      expect(() => loadEnv({ ...valid, EXCHANGE_RATE_JOB_INTERVAL_SECONDS: bad })).toThrow(
+        /EXCHANGE_RATE_JOB_INTERVAL_SECONDS/,
       );
   });
 

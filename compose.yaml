@@ -35,6 +35,8 @@ services:
       BETTER_AUTH_URL: https://${HEARTH_DOMAIN}
       APP_TIMEZONE: ${APP_TIMEZONE:-America/Bogota}
       RECURRENCE_JOB_INTERVAL_SECONDS: ${RECURRENCE_JOB_INTERVAL_SECONDS:-300}
+      # D30: seconds between exchange-rate fetches (default a day; "0" turns it off).
+      EXCHANGE_RATE_JOB_INTERVAL_SECONDS: ${EXCHANGE_RATE_JOB_INTERVAL_SECONDS:-86400}
       # Ruling P143: "closed" makes sign-up invite-only (docs/operations/deploy.md, Closing sign-up).
       HEARTH_SIGN_UP: ${HEARTH_SIGN_UP:-open}
       # Issue #85 (ADR 0007): invitation and confirmation emails; unset sends none (docs/deploy/email.md).

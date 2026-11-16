@@ -225,6 +225,8 @@ import {
   type ReferralsDeps,
 } from "@/modules/referrals/application";
 import { cryptoReferralRandom } from "@/modules/referrals/infrastructure/crypto-referral-random";
+import type { ExchangeRateRepository } from "@/modules/rates/application";
+import { DrizzleExchangeRates } from "@/modules/rates/infrastructure/drizzle-exchange-rates";
 import { DrizzleReferrals } from "@/modules/referrals/infrastructure/drizzle-referrals";
 import {
   createAcceptInvitation,
@@ -449,6 +451,10 @@ export interface Container extends RouteDeps {
     readonly getMine: GetMyReferrals;
     readonly preview: PreviewReferral;
     readonly claim: ClaimReferrer;
+  };
+  /** D30: the global daily exchange-rate store, read on demand and written by the in-container fetch job. */
+  readonly rates: {
+    readonly repository: ExchangeRateRepository;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -1221,6 +1227,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getMine: createGetMyReferrals(referralsDeps),
       preview: createPreviewReferral(referralsDeps),
       claim: createClaimReferrer(referralsDeps),
+    },
+    rates: {
+      repository: new DrizzleExchangeRates(tm),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

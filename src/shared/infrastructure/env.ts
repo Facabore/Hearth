@@ -20,6 +20,17 @@ const Variables = z.object({
     .transform(Number)
     .pipe(z.number().max(86_400))
     .default(300),
+  /**
+   * D30: seconds between runs of the exchange-rate fetch job; 0 turns it off. Digits only, so a blank value does not
+   * read as 0 (`Number("")`), which would turn the job off. Rates publish once a day, so the default is a day and that
+   * is also the cap (far below the largest timer delay).
+   */
+  EXCHANGE_RATE_JOB_INTERVAL_SECONDS: z
+    .string()
+    .regex(/^\d+$/)
+    .transform(Number)
+    .pipe(z.number().max(86_400))
+    .default(86_400),
   /** Ruling P143: `closed` makes sign-up invite-only (an invitation or claim link token still lets a visitor in). */
   HEARTH_SIGN_UP: z.enum(["open", "closed"]).default("open"),
   /**
