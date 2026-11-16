@@ -80,6 +80,14 @@ describe("create a shared space (HU-E1-04)", () => {
     ]);
   });
 
+  it("keeps a space in any ISO 4217 currency, with that currency's decimals (D29)", async () => {
+    const ana = await registerUser("Ana");
+    for (const currency of ["MXN", "JPY"]) {
+      const response = await create(ana, { kind: "SHARED", name: `Trip ${currency}`, currency });
+      expect([response.status, (await response.json()).currency]).toEqual([201, currency]);
+    }
+  });
+
   it.each([
     [{ kind: "SHARED", name: "", currency: "COP" }, 422, "InvalidSpaceName"],
     [{ kind: "SHARED", name: "Household", currency: "XYZ" }, 422, "UnknownCurrency"],
