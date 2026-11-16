@@ -81,7 +81,8 @@ export interface AccountDraft {
   readonly includeInNetWorth: boolean | null;
 }
 
-const MONEY_TERMS: readonly AccountField[] = ["creditLimit", "principal"];
+/** The attributes that are amounts, typed in the account's currency (D29). */
+export const MONEY_TERMS: readonly AccountField[] = ["creditLimit", "principal"];
 const INTEGER_TERMS: readonly AccountField[] = ["cutOffDay", "paymentDay", "termDays", "termMonths"];
 const RATE_TERMS: readonly AccountField[] = ["monthlyRate", "annualRate"];
 const COMMON: readonly AccountField[] = ["institution", "productType", "lastFour"];

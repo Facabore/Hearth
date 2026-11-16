@@ -11,7 +11,8 @@
       "weekStart": "The week starts on",
       "timezone": "Time zone",
       "theme": "Theme",
-      "language": "Language"
+      "language": "Language",
+      "displayCurrency": "Currency of your totals"
     },
     "timeFormat": {
       "H24": "24-hour",
@@ -44,6 +45,12 @@
       "hint": "Only the texts change. The number and date formats do not depend on the language.",
       "es": "Español",
       "en": "English"
+    },
+    "displayCurrency": {
+      "value": "{name} ({code})",
+      "followsPersonal": "{value} · like your {space} space",
+      "hint": "Your accounts and movements keep their own currency. This is the one we add everything up in, on Home and in your personal view.",
+      "spaceNote": "{space}'s currency"
     }
   }
 }

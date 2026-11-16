@@ -12,7 +12,7 @@ import { SummaryRow } from "./summary-row";
 import { TimeZoneSheet } from "./time-zone-sheet";
 
 /**
- * HU-E9-13: the time zone row; the design's currency row is not built (ruling P126). Decision U8 (#224): it is one of
+ * HU-E9-13: the time zone row; the currency row is `CurrencySection` (D29, MC4). Decision U8 (#224): it is one of
  * the screen's summary rows, its zone and offset under its title, and it opens the zone sheet.
  */
 export function RegionSection({

@@ -1650,6 +1650,7 @@ export interface components {
             ownerUserId: string | null;
             openingBalance: components["schemas"]["MoneyOutput"];
             balance: components["schemas"]["MoneyOutput"];
+            convertedBalance?: components["schemas"]["MoneyOutput"];
             archivedAt: string | null;
             institution: string | null;
             lastFour: string | null;
@@ -2554,6 +2555,8 @@ export interface operations {
                                 locale: "es" | "en";
                             };
                             locked: ("numberFormat" | "timeFormat" | "dateFormat" | "weekStart" | "timezone" | "locale")[];
+                            /** @description D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency. */
+                            displayCurrency?: string | null;
                         };
                     };
                 };
@@ -2586,6 +2589,7 @@ export interface operations {
                     timeFormat?: ("H24" | "H12") | null;
                     dateFormat?: ("DMY" | "MDY" | "YMD") | null;
                     weekStart?: ("MONDAY" | "SUNDAY") | null;
+                    displayCurrency?: string | null;
                 };
             };
         };
@@ -2640,6 +2644,8 @@ export interface operations {
                                 locale: "es" | "en";
                             };
                             locked: ("numberFormat" | "timeFormat" | "dateFormat" | "weekStart" | "timezone" | "locale")[];
+                            /** @description D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency. */
+                            displayCurrency?: string | null;
                         };
                     };
                 };
@@ -4843,6 +4849,29 @@ export interface operations {
                         totals: {
                             available: components["schemas"]["MoneyOutput"];
                             netWorth: components["schemas"]["MoneyOutput"];
+                            /**
+                             * Format: date
+                             * @description D29 (MC4): the oldest day among the stored rates the totals used; absent when none was.
+                             */
+                            rateDate?: string;
+                            /** @description D29 (MC4): true when any rate used is more than 7 days old. */
+                            stale?: boolean;
+                            rates?: {
+                                currency: string;
+                                /** @description The exact decimal rate from `currency` into the space's currency. */
+                                rate: string;
+                                /** @description One unit of `currency` in the space's currency, as `Money.convert` gives it. */
+                                unit: components["schemas"]["MoneyOutput"];
+                                /**
+                                 * Format: date
+                                 * @description The day of the stored rate used (the oldest leg's for a cross rate).
+                                 */
+                                date: string;
+                                /** @description True when that day is more than 7 days before the day asked for. */
+                                stale: boolean;
+                            }[];
+                            /** @description D29 (MC4): active accounts in another currency with no rate, left out of the totals. */
+                            withoutRate?: string[];
                         };
                     };
                 };
@@ -9185,6 +9214,16 @@ export interface operations {
                             name: string;
                             currency: string;
                         }[];
+                        /**
+                         * @description D29 (MC4): some figure was converted from another currency.
+                         * @constant
+                         */
+                        converted?: true;
+                        /**
+                         * @description D29 (MC4): a rate used was more than 7 days older than its day.
+                         * @constant
+                         */
+                        stale?: true;
                     };
                 };
             };
@@ -9362,7 +9401,7 @@ export interface operations {
                         from: string;
                         through: string;
                         days: 30 | 60;
-                        /** @description Today's available money of the caller's personal space. */
+                        /** @description Today's available money of the caller's personal space, in `currency` at today's rate (D29, MC4). */
                         opening: components["schemas"]["MoneyOutput"];
                         dates: {
                             date: string;
@@ -9402,6 +9441,21 @@ export interface operations {
                             name: string;
                             currency: string;
                         }[];
+                        /**
+                         * @description D29 (MC4): some figure was converted from another currency.
+                         * @constant
+                         */
+                        converted?: true;
+                        /**
+                         * @description D29 (MC4): a rate used was more than 7 days older than its day.
+                         * @constant
+                         */
+                        stale?: true;
+                        /**
+                         * @description D29 (MC4): the display currency had no rate for today's money, so `currency` is the personal space's.
+                         * @constant
+                         */
+                        displayCurrencyUnavailable?: true;
                     };
                 };
             };

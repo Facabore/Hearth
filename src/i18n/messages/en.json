@@ -57,6 +57,14 @@
       "10": "Oct",
       "11": "Nov",
       "12": "Dec"
+    },
+    "currencySheet": {
+      "search": "Search",
+      "searchPlaceholder": "Search by name or code",
+      "mostUsed": "Most used",
+      "all": "All",
+      "noDecimals": "no decimals",
+      "none": "No currency matches “{query}”."
     }
   },
   "errors": {

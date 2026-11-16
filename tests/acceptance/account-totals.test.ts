@@ -9,6 +9,7 @@ import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/ro
 import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import type { LocalDate } from "@/shared/kernel";
 import { call, registerUser, startTestApp, type TestUser } from "../support/app";
 import { categoryWithKey, cop, inSpace, newAccount, post, type MoneyDto } from "../support/ledger";
 import { actingIn, joinAs, newSharedSpace } from "../support/spaces";
@@ -57,18 +58,98 @@ describe("available money and net worth (HU-E2-07)", () => {
     expect(await totalsOf(w.ana)).toEqual([cop(2_300_000), cop(3_950_000)]);
   });
 
-  it("leaves accounts not in the space currency out of the totals (D29, slice MC3)", async () => {
-    const w = await background();
-    const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
-    const chase = await post(createAccount, w.ana, "accounts", {
-      name: "Chase",
+  // D29, slice MC4 (board 8). The rate table is global, so these read days no other test stores rates for.
+  const storeRate = (date: string, base: string, quote: string, rate: string) =>
+    app.rates.repository.save([
+      {
+        date: date as LocalDate,
+        base,
+        quote,
+        rate,
+        source: "test",
+        fetchedAt: new Date(`${date}T12:00:00Z`),
+      },
+    ]);
+  const boardEight = async () => {
+    const ana = await registerUser("Ana");
+    await newAccount(ana, "Bancolombia", 1_469_600, "BANK");
+    const dollars = await post(createAccount, ana, "accounts", {
+      name: "Cuenta en dólares",
       type: "BANK",
       currency: "USD",
-      openingBalance: usd(1_000),
+      openingBalance: { amount: "51240", currency: "USD" },
     });
-    expect(chase.status).toBe(201);
-    // The USD account adds nothing to the COP totals until MC4 converts it.
-    expect(await totalsOf(w.ana)).toEqual([cop(2_300_000), cop(3_950_000)]);
+    expect(dollars.status).toBe(201);
+    return { ana, dollars: ((await dollars.json()) as { id: string }).id };
+  };
+  interface ConvertedList {
+    items: { id: string; balance: MoneyDto; convertedBalance?: MoneyDto }[];
+    totals: {
+      available: MoneyDto;
+      netWorth: MoneyDto;
+      rateDate?: string;
+      stale?: boolean;
+      rates?: { currency: string; rate: string; unit: MoneyDto; date: string; stale: boolean }[];
+      withoutRate?: string[];
+    };
+  }
+  const listAsOf = async (user: TestUser, asOf: string) => {
+    const response = await call(listAccounts, "GET", inSpace(user, `accounts?asOf=${asOf}`), {
+      user,
+      params: { spaceId: user.spaceId },
+    });
+    expect(response.status).toBe(200);
+    return (await response.json()) as ConvertedList;
+  };
+
+  it("converts a USD account into the COP totals at the latest rate on or before the day asked for (D29, MC4)", async () => {
+    await storeRate("2031-03-15", "USD", "COP", "4100");
+    const { ana, dollars } = await boardEight();
+    const list = await listAsOf(ana, "2031-03-16");
+    // $ 1.469.600 + US$ 512,40 at 4.100 ($ 2.100.840) is ≈ $ 3.570.440, at the rate stored on 15 March.
+    expect([list.totals.available, list.totals.netWorth]).toEqual([cop(3_570_440), cop(3_570_440)]);
+    expect(list.totals).toMatchObject({ rateDate: "2031-03-15", stale: false });
+    expect(list.totals.rates).toEqual([
+      { currency: "USD", rate: "4100", unit: cop(4_100), date: "2031-03-15", stale: false },
+    ]);
+    const row = list.items.find((item) => item.id === dollars)!;
+    // The account keeps its exact balance in its own currency, and says what the totals counted it as.
+    expect([row.balance, row.convertedBalance]).toEqual([
+      { amount: "51240", currency: "USD" },
+      cop(2_100_840),
+    ]);
+    expect(list.totals.withoutRate).toBeUndefined();
+  });
+
+  it("flags a rate more than a week older than the day asked for, and still converts with it (D29, MC4)", async () => {
+    await storeRate("2032-06-15", "USD", "COP", "4100");
+    const { ana } = await boardEight();
+    const list = await listAsOf(ana, "2032-06-25");
+    expect(list.totals.available).toEqual(cop(3_570_440));
+    expect(list.totals).toMatchObject({ rateDate: "2032-06-15", stale: true });
+  });
+
+  it("leaves an account with no rate out of the totals and flags it, never at 1:1 (D29, MC4)", async () => {
+    const ana = await registerUser("Ana");
+    await newAccount(ana, "Bancolombia", 1_469_600, "BANK");
+    const tugrik = await post(createAccount, ana, "accounts", {
+      name: "Ulán Bator",
+      type: "BANK",
+      currency: "MNT",
+      openingBalance: { amount: "5000000", currency: "MNT" },
+    });
+    const id = ((await tugrik.json()) as { id: string }).id;
+    const list = await listAsOf(ana, "2033-01-10");
+    expect([list.totals.available, list.totals.netWorth]).toEqual([cop(1_469_600), cop(1_469_600)]);
+    expect(list.totals.withoutRate).toEqual([id]);
+    expect(list.totals.rateDate).toBeUndefined();
+    expect(list.items.find((item) => item.id === id)!.convertedBalance).toBeUndefined();
+  });
+
+  it("sends none of the conversion fields to a space with one currency (additive only)", async () => {
+    const w = await background();
+    const list = await listAsOf(w.ana, "2026-11-16");
+    expect(Object.keys(list.totals).sort()).toEqual(["available", "netWorth"]);
   });
 
   it("follows the switches, and null returns a switch to its default", async () => {

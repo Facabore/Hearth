@@ -17,9 +17,12 @@ export function AccountRow({
   formats,
   actions,
   href,
+  converted,
 }: {
   readonly account: AccountDto;
   readonly formats: Formats;
+  /** D29, slice MC4 (board 8): an account in another currency's balance as the totals counted it ("≈ $ 2.100.840"). */
+  readonly converted?: string;
   readonly actions?: ReactNode;
   readonly href?: string;
 }) {
@@ -89,6 +92,11 @@ export function AccountRow({
         <Amount className={negative ? "font-semibold text-owe" : "font-semibold text-ink"}>
           {formatMoney(account.balance, formats)}
         </Amount>
+        {converted ? (
+          <Amount data-testid="converted-balance" className="text-xs text-muted">
+            {converted}
+          </Amount>
+        ) : null}
         {account.includeInAvailable ? null : (
           <span className="text-xs text-muted">{t("outsideAvailable")}</span>
         )}

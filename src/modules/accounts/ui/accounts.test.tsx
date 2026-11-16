@@ -146,33 +146,89 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("lists accounts in another currency apart, in their own currency and out of the space totals (board 8, D29)", () => {
-    const chase = accountDto({
-      id: "a-chase",
-      name: "Chase",
-      type: "BANK",
-      balance: { amount: "123456", currency: "USD" },
-      icon: "bank",
-    });
-    renderWithIntl(
+  const dollars = accountDto({
+    id: "a-usd",
+    name: "Cuenta en dólares",
+    type: "BANK",
+    balance: { amount: "51240", currency: "USD" },
+    icon: "bank",
+  });
+  const bancolombia = accountDto({ id: "a-bc", name: "Bancolombia", type: "BANK", balance: cop(1_469_600) });
+
+  it("shows board 8's ≈ totals, the rate and its day, and the USD account exact with ≈ $ under it (D29, MC4)", async () => {
+    const { container } = renderWithIntl(
       <AccountsScreen
         spaceId="sp-personal"
-        list={{ ...list, items: [...list.items, chase] }}
+        list={{
+          items: [bancolombia, { ...dollars, convertedBalance: cop(2_100_840) }],
+          totals: {
+            available: cop(3_570_440),
+            netWorth: cop(3_570_440),
+            rateDate: "2026-11-15",
+            stale: false,
+            rates: [{ currency: "USD", rate: "4100", unit: cop(4_100), date: "2026-11-15", stale: false }],
+          },
+        }}
         formats={BUILT_IN_FORMATS}
       />,
     );
-    // The space totals stay in COP and do not add the USD account.
     const totals = screen.getByRole("region", { name: "Totales" });
-    expect(norm(totals.textContent)).toContain("Disponible$ 4.915.000");
-    // The USD account is listed apart, under its currency, in its own currency, and the copy says it is left out.
+    expect(norm(totals.textContent)).toContain("Disponible≈ $ 3.570.440");
+    expect(norm(screen.getByTestId("totals-rates").textContent)).toBe("USD a $ 4.100 · tasa del 15 nov");
     const other = screen.getByRole("region", { name: "En otras monedas" });
-    expect(norm(other.textContent)).toContain("no entran en el disponible");
+    expect(norm(other.textContent)).toContain("El total la convierte con la tasa del día");
+    const row = within(other).getByRole("listitem", { name: /Cuenta en dólares/ });
+    expect(norm(row.textContent)).toContain("US$ 512,40≈ $ 2.100.840");
+    // The ≈ and its amount never break apart.
+    expect(within(row).getByTestId("converted-balance").textContent).toBe("≈\u00a0$\u00a02.100.840");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("says when a rate is over a week old", () => {
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{
+          items: [bancolombia, { ...dollars, convertedBalance: cop(2_100_840) }],
+          totals: {
+            available: cop(3_570_440),
+            netWorth: cop(3_570_440),
+            rateDate: "2026-11-05",
+            stale: true,
+            rates: [{ currency: "USD", rate: "4100", unit: cop(4_100), date: "2026-11-05", stale: true }],
+          },
+        }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(norm(screen.getByTestId("totals-rates").textContent)).toBe(
+      "USD a $ 4.100 · tasa del 5 nov, de hace más de una semana",
+    );
+  });
+
+  it("leaves an account with no rate out of the exact totals and says so on its row (D29, MC4)", () => {
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{
+          items: [bancolombia, dollars],
+          totals: { available: cop(1_469_600), netWorth: cop(1_469_600), withoutRate: ["a-usd"] },
+        }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    const totals = screen.getByRole("region", { name: "Totales" });
+    expect(norm(totals.textContent)).toContain("Disponible$ 1.469.600");
+    expect(screen.queryByTestId("totals-rates")).toBeNull();
+    const other = screen.getByRole("region", { name: "En otras monedas" });
+    expect(norm(other.textContent)).toContain("Las que aún no tienen tasa de cambio no entran en el total.");
     const usdSection = within(other).getByRole("region", { name: "USD" });
-    expect(within(usdSection).getByTestId("currency-total")).toHaveTextContent("US$ 1.234,56");
-    expect(within(usdSection).getByRole("listitem", { name: /Chase/ })).toBeInTheDocument();
-    // It never appears in the COP type sections.
+    expect(within(usdSection).getByTestId("currency-total")).toHaveTextContent("US$ 512,40");
+    expect(
+      norm(within(usdSection).getByRole("listitem", { name: /Cuenta en dólares/ }).textContent),
+    ).toContain("Sin tasa: fuera del total");
     const everyday = screen.getByRole("region", { name: "Bancos, billeteras y efectivo" });
-    expect(within(everyday).queryByRole("listitem", { name: /Chase/ })).toBeNull();
+    expect(within(everyday).queryByRole("listitem", { name: /Cuenta en dólares/ })).toBeNull();
   });
 
   it("totals each section from its accounts' balances, the sign carrying the direction (board B1 · 07, P292)", () => {

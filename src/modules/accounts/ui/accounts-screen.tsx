@@ -3,6 +3,8 @@ import { useTranslations } from "next-intl";
 import { Icon, ScreenHeader, VisuallyHidden } from "@/shared/ui";
 import type { AccountListDto, SpaceDto } from "@/shared/ui/api/dto";
 import { Amount } from "@/shared/ui/atoms/amount";
+import { formatApproximateMoney } from "@/shared/ui/format/approximate";
+import { formatDayMonth } from "@/shared/ui/format/day-month";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { safeReturnTo, withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { canManageAccounts } from "./account-access";
@@ -35,9 +37,18 @@ export function AccountsScreen({
   readonly returnTo?: string | null;
 }) {
   const t = useTranslations("accounts");
-  // D29, slice MC3: the space totals are in its base currency; accounts in another currency are listed apart.
+  const common = useTranslations("common");
+  // D29, slice MC4 (board 8): the space totals are in its base currency. An account in another currency is listed apart
+  // under its own currency with its exact balance, and the totals convert it at the latest rate on or before the day
+  // asked for, so they read "≈" with each rate and its day; an account with no rate is left out and says so.
   const baseCurrency = list.totals.available.currency;
   const { active, foreign, archived } = sectionsOf(list.items, baseCurrency);
+  const rates = list.totals.rates ?? [];
+  const withoutRate = new Set(list.totals.withoutRate ?? []);
+  const totalText = (money: { readonly amount: string; readonly currency: string }) =>
+    rates.length > 0 ? formatApproximateMoney(money, formats) : formatMoney(money, formats);
+  const dayOf = (iso: string) =>
+    formatDayMonth(iso, common(`monthShort.${Number(iso.slice(5, 7)) as 1}`), formats);
   const newHref = withReturnTo(
     `/spaces/${spaceId}/accounts/new`,
     safeReturnTo(returnTo) ?? `/spaces/${spaceId}/accounts`,
@@ -107,7 +118,7 @@ export function AccountsScreen({
             <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("available")}</dt>
               <Amount as="dd" className="text-xl font-semibold text-ink">
-                {formatMoney(list.totals.available, formats)}
+                {totalText(list.totals.available)}
               </Amount>
               {/* #289 (audit pass 3, A15): each total says what it counts. */}
               <dd className="text-xs text-muted">{t("availableNote")}</dd>
@@ -115,11 +126,24 @@ export function AccountsScreen({
             <div className="flex-auto rounded-2xl bg-surface p-3">
               <dt className="text-sm text-muted">{t("netWorth")}</dt>
               <Amount as="dd" className="text-xl font-semibold text-ink">
-                {formatMoney(list.totals.netWorth, formats)}
+                {totalText(list.totals.netWorth)}
               </Amount>
               <dd className="text-xs text-muted">{t("netWorthNote")}</dd>
             </div>
           </dl>
+          {rates.length > 0 ? (
+            <ul data-testid="totals-rates" className="basis-full text-xs text-muted">
+              {rates.map((rate) => (
+                <li key={rate.currency}>
+                  {t(rate.stale ? "rateLine.stale" : "rateLine.fresh", {
+                    currency: rate.currency,
+                    unit: formatMoney(rate.unit, formats),
+                    date: dayOf(rate.date),
+                  })}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       )}
       {active.map((section) => {
@@ -152,8 +176,12 @@ export function AccountsScreen({
             <h2 id="accounts-other-currencies" className="text-sm font-semibold text-muted">
               {t("otherCurrencies.title")}
             </h2>
-            {/* D29, slice MC3: say the totals above leave these out until they are converted (MC4). */}
-            <p className="text-xs text-muted">{t("otherCurrencies.note")}</p>
+            {/* D29, slice MC4: each keeps its exact balance; the totals convert it, or leave it out with no rate. */}
+            <p className="text-xs text-muted">
+              {foreign.some((group) => group.accounts.some((a) => withoutRate.has(a.id)))
+                ? t("otherCurrencies.someWithoutRate")
+                : t("otherCurrencies.converted")}
+            </p>
           </div>
           {foreign.map((group) => {
             const total = totalOf(group.accounts);
@@ -177,6 +205,13 @@ export function AccountsScreen({
                       account={account}
                       formats={formats}
                       href={hrefOf(account.id)}
+                      converted={
+                        account.convertedBalance
+                          ? formatApproximateMoney(account.convertedBalance, formats)
+                          : withoutRate.has(account.id)
+                            ? t("otherCurrencies.noRate")
+                            : undefined
+                      }
                     />
                   ))}
                 </ul>

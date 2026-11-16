@@ -11,6 +11,7 @@ import {
   type StoredPeriod,
 } from "@/shared/kernel";
 import type { PaletteKey } from "@/shared/kernel/style";
+import type { DisplayCurrencyOf, ReportRates } from "./conversion";
 
 /** HU-E7-04: one user's sums across their member rows, by the ledger on read (D7). */
 export interface PersonalSums {
@@ -66,6 +67,10 @@ export interface PersonalDeps {
   readonly catalog: ReportCategories;
   readonly spending: Pick<PlanSpending, "transfersIntoAccounts">;
   readonly savingsAccountsOf: SavingsAccountsOf;
+  /** D29, slice MC4: the dated rates the unified view converts with; without them nothing in another currency adds up. */
+  readonly rates?: ReportRates;
+  /** D29, slice MC4: the caller's display currency; without it, their personal space's. */
+  readonly displayCurrencyOf?: DisplayCurrencyOf;
 }
 
 export interface PersonalScope {

@@ -624,6 +624,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   const seedDefaultCategories = createSeedDefaultCategories(categoriesDeps);
   const ledgerQueries = new DrizzleLedgerQueries(tm);
+  // D29, D30: the global daily rate store, written by the in-container fetch job. The ledger reads it when a movement in
+  // another currency is recorded (MC3), and the accounts and reporting modules convert on read with its dated read
+  // (MC4), each through its own narrow port.
+  const exchangeRates = new DrizzleExchangeRates(tm);
   // HU-E2-04: balance = opening balance + ledger movements, computed on read (D7).
   const accountsDeps: AccountsDeps = {
     accounts: new DrizzleAccountRepository(tm),
@@ -635,6 +639,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     clock,
     // HU-E1-14, HU-E2-06: the requester's today for next billing dates; accounts never import identity.
     userTimeZones: profiles,
+    // D29, slice MC4: the space totals convert an account in another currency at the rate of the day asked for.
+    rates: exchangeRates,
     tm,
   };
   // HU-E6-01, D10: plans store their period boundaries; periods without a plan follow the space policy.
@@ -643,9 +649,6 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const getAccount = createGetAccount(accountsDeps);
   const listAccounts = createListAccounts(accountsDeps);
   const budgetCategories = budgetCategoriesOf(categoryRepository);
-  // D29, D30, slice MC3: the global daily rate store, read when a foreign-currency movement is recorded and written
-  // by the in-container fetch job; the ledger reads it through its own narrow LedgerRates port.
-  const exchangeRates = new DrizzleExchangeRates(tm);
   const ledgerDeps: LedgerDeps = {
     access,
     // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.
@@ -933,6 +936,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     history: planHistory,
     // Ruling P327: an account's screen counts what it paid, received and moved, from the ledger's list (P277).
     accountMovements: accountMovementsOf(accountsDeps.accounts, ledgerQueries),
+    // D29, slice MC4: the unified view converts every space's figures into the caller's display currency (identity) at
+    // each day's rate (rates); reporting imports neither module.
+    rates: exchangeRates,
+    displayCurrencyOf: (userId: string) => profiles.displayCurrencyOf(userId),
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
@@ -1246,6 +1253,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       getCashFlow: createGetCashFlow({
         clock,
         userTimeZones: profiles,
+        // D29, slice MC4: the projection is in the caller's display currency, converting at each movement's day.
+        rates: exchangeRates,
+        displayCurrencyOf: (userId) => profiles.displayCurrencyOf(userId),
         spacesOf: async (userId) =>
           (await spaceRepository.listForUser(userId, { includeArchived: false })).map((space) => ({
             spaceId: space.id,

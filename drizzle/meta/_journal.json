@@ -267,6 +267,13 @@
       "when": 1794818554919,
       "tag": "0037_transfer_leg_currencies",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794823058208,
+      "tag": "0038_display_currency",
+      "breakpoints": true
     }
   ]
 }

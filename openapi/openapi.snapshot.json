@@ -296,6 +296,13 @@
                               "locale"
                             ]
                           }
+                        },
+                        "displayCurrency": {
+                          "description": "D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -413,6 +420,18 @@
                           "MONDAY",
                           "SUNDAY"
                         ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "displayCurrency": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 3
                       },
                       {
                         "type": "null"
@@ -635,6 +654,13 @@
                               "locale"
                             ]
                           }
+                        },
+                        "displayCurrency": {
+                          "description": "D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -4251,6 +4277,60 @@
                         },
                         "netWorth": {
                           "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "rateDate": {
+                          "description": "D29 (MC4): the oldest day among the stored rates the totals used; absent when none was.",
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        },
+                        "stale": {
+                          "description": "D29 (MC4): true when any rate used is more than 7 days old.",
+                          "type": "boolean"
+                        },
+                        "rates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "currency": {
+                                "type": "string"
+                              },
+                              "rate": {
+                                "type": "string",
+                                "description": "The exact decimal rate from `currency` into the space's currency."
+                              },
+                              "unit": {
+                                "description": "One unit of `currency` in the space's currency, as `Money.convert` gives it.",
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "date": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                                "description": "The day of the stored rate used (the oldest leg's for a cross rate)."
+                              },
+                              "stale": {
+                                "type": "boolean",
+                                "description": "True when that day is more than 7 days before the day asked for."
+                              }
+                            },
+                            "required": [
+                              "currency",
+                              "rate",
+                              "unit",
+                              "date",
+                              "stale"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "withoutRate": {
+                          "description": "D29 (MC4): active accounts in another currency with no rate, left out of the totals.",
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
@@ -13877,6 +13957,16 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "converted": {
+                      "description": "D29 (MC4): some figure was converted from another currency.",
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "stale": {
+                      "description": "D29 (MC4): a rate used was more than 7 days older than its day.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": [
@@ -14337,7 +14427,7 @@
                       ]
                     },
                     "opening": {
-                      "description": "Today's available money of the caller's personal space.",
+                      "description": "Today's available money of the caller's personal space, in `currency` at today's rate (D29, MC4).",
                       "$ref": "#/components/schemas/MoneyOutput"
                     },
                     "dates": {
@@ -14498,6 +14588,21 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "converted": {
+                      "description": "D29 (MC4): some figure was converted from another currency.",
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "stale": {
+                      "description": "D29 (MC4): a rate used was more than 7 days older than its day.",
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "displayCurrencyUnavailable": {
+                      "description": "D29 (MC4): the display currency had no rate for today's money, so `currency` is the personal space's.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": [
@@ -15522,6 +15627,9 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "balance": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "convertedBalance": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "archivedAt": {

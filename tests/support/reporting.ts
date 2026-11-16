@@ -196,7 +196,11 @@ export interface UnifiedViewDto {
     savingsTransfers: MoneyDto;
     outsideTheApp: MoneyDto;
   };
+  bySpace: { space: { id: string; name: string }; consumed: MoneyDto; paid: MoneyDto }[];
   otherCurrencySpaces: { spaceId: string; name: string; currency: string }[];
+  /** D29, slice MC4: sent only when true. */
+  converted?: true;
+  stale?: true;
 }
 
 /** HU-E7-04: `user` reads their own unified view. */

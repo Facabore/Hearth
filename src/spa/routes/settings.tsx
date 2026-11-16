@@ -23,10 +23,16 @@ export function SettingsRoute() {
   const me = useSuspenseQuery(meQuery(sessionApi)).data;
   const spaces = useSuspenseQuery(spacesQuery(api)).data;
   if (!me) return <NotFoundScreen />;
+  // D29 (MC4, board 11): the person's totals follow their personal space's currency until they choose one.
+  const personal = spaces.find((space) => space.kind === "PERSONAL");
   return (
     <ShellFrame spaceId={null} from={from}>
       <div className="mx-auto flex max-w-[640px] flex-col gap-3 py-3">
-        <SettingsForm me={me} backHref={spaceHomeHref(spaces, from)} />
+        <SettingsForm
+          me={me}
+          backHref={spaceHomeHref(spaces, from)}
+          personalSpace={personal ? { name: personal.name, currency: personal.currency } : undefined}
+        />
       </div>
     </ShellFrame>
   );

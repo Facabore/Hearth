@@ -35,6 +35,25 @@ import {
   type UnifiedPersonalView,
 } from "../application";
 
+/**
+ * D29, slice MC4: whether a personal view converted figures from another currency (so it is "≈") and whether a rate it
+ * used was over a week old. Sent only when true, so a client in one currency receives what it did.
+ */
+const CONVERSION_FIELDS = {
+  converted: z
+    .literal(true)
+    .optional()
+    .describe("D29 (MC4): some figure was converted from another currency."),
+  stale: z
+    .literal(true)
+    .optional()
+    .describe("D29 (MC4): a rate used was more than 7 days older than its day."),
+};
+const conversionDto = (view: { readonly converted: boolean; readonly stale: boolean }) => ({
+  ...(view.converted ? { converted: true as const } : {}),
+  ...(view.stale ? { stale: true as const } : {}),
+});
+
 /** HU-E7-01 … HU-E7-03: the period's label in the space policy, "2026-11" (MONTHLY) or "2026-11 H1" (SEMI_MONTHLY). */
 export const ReportQuerySchema = z.object({ period: z.string().min(1).max(32) });
 
@@ -355,7 +374,7 @@ const OriginSpacesSchema = z
 
 /** HU-E7-04: the caller's consumption and cash out in their personal period (spec 5.4, D11, ruling P37). */
 export const UnifiedViewSchema = z.object({
-  /** The personal space's currency, every amount's (D6). */
+  /** D29, slice MC4: the caller's display currency, every amount's; their personal space's until they choose one. */
   currency: z.string(),
   /** The caller's personal-space period; shared transactions are placed in it by date. */
   period: PeriodSchema,
@@ -425,8 +444,9 @@ export const UnifiedViewSchema = z.object({
     /** The part paid without an account, while the caller was a guest. */
     outsideTheApp: MoneySchema,
   }),
-  /** Spaces in another currency, left out of every amount. */
+  /** D29 (MC4): spaces with movements on a day with no rate into `currency`, left out of every amount. */
   otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
+  ...CONVERSION_FIELDS,
 });
 
 export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof UnifiedViewSchema> => {
@@ -459,6 +479,7 @@ export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof Unifie
       ...(s.categories ? { categories: s.categories.map((c) => ({ ...c, amount: money(c.amount) })) } : {}),
     })),
     otherCurrencySpaces: view.otherCurrencySpaces.map((s) => ({ ...s })),
+    ...conversionDto(view),
   };
 };
 
@@ -498,13 +519,22 @@ export const CashFlowSchema = z.object({
   from: z.string(),
   through: z.string(),
   days: z.union([z.literal(30), z.literal(60)]),
-  opening: MoneySchema.describe("Today's available money of the caller's personal space."),
+  opening: MoneySchema.describe(
+    "Today's available money of the caller's personal space, in `currency` at today's rate (D29, MC4).",
+  ),
   dates: z.array(
     z.object({ date: z.string(), movements: z.array(CashFlowMovementSchema), balanceAfter: MoneySchema }),
   ),
   totals: z.object({ incoming: MoneySchema, outgoing: MoneySchema, closing: MoneySchema }),
   lowest: z.object({ date: z.string(), balance: MoneySchema }),
   otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
+  ...CONVERSION_FIELDS,
+  displayCurrencyUnavailable: z
+    .literal(true)
+    .optional()
+    .describe(
+      "D29 (MC4): the display currency had no rate for today's money, so `currency` is the personal space's.",
+    ),
 });
 
 export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> => {
@@ -526,7 +556,8 @@ export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> 
         dueDate: m.date,
         status: m.status,
         estimated: m.estimated,
-        amount: money(m.amount),
+        // D29 (MC4): what the movement moves, in its own currency; `effect` is in the projection's.
+        amount: moneyOf(m.amount, m.currency),
         effect: money(m.effect),
       })),
       balanceAfter: money(d.balanceAfter),
@@ -538,6 +569,8 @@ export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> 
     },
     lowest: { date: view.lowest.date, balance: money(view.lowest.balance) },
     otherCurrencySpaces: [...view.otherCurrencySpaces],
+    ...conversionDto(view),
+    ...(view.displayCurrencyUnavailable ? { displayCurrencyUnavailable: true as const } : {}),
   };
 };
 
