@@ -28,6 +28,7 @@ export const startTestApp = (options: ContainerOptions = {}, env: Partial<Env> =
       // Only fills the required Env field: buildContainer never starts the jobs (register() does).
       RECURRENCE_JOB_INTERVAL_SECONDS: 0,
       EXCHANGE_RATE_JOB_INTERVAL_SECONDS: 0,
+      IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: 0,
       HEARTH_SIGN_UP: "open",
       ...env,
     },

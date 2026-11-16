@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startRecurrenceJob } from "@/composition/recurrence-job";
 import { startExchangeRateJob } from "@/composition/exchange-rate-job";
+import { startImportSnapshotJob } from "@/modules/portability/application";
 import { register } from "./instrumentation";
 
 const logger = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn() }));
@@ -13,6 +14,10 @@ vi.mock("@/composition/recurrence-job", async (importOriginal) => ({
 vi.mock("@/composition/exchange-rate-job", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/composition/exchange-rate-job")>()),
   startExchangeRateJob: vi.fn(),
+}));
+vi.mock("@/modules/portability/application", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/modules/portability/application")>()),
+  startImportSnapshotJob: vi.fn(),
 }));
 const getContainer = vi.hoisted(() => vi.fn());
 vi.mock("@/composition/container", () => ({ getContainer }));
@@ -27,10 +32,12 @@ beforeEach(() => {
   getContainer.mockReset().mockReturnValue({
     ledger: { materializeDueOccurrences: "materialize" },
     rates: { repository: "rate-repository" },
+    portability: { removeExpiredSnapshots: "remove-expired-snapshots" },
     logger,
   });
   vi.mocked(startRecurrenceJob).mockReset();
   vi.mocked(startExchangeRateJob).mockReset();
+  vi.mocked(startImportSnapshotJob).mockReset();
   logger.info.mockClear();
   logger.error.mockClear();
 });
@@ -69,6 +76,7 @@ describe("register", () => {
       NEXT_RUNTIME: "nodejs",
       RECURRENCE_JOB_INTERVAL_SECONDS: "0",
       EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "0",
+      IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: "0",
     });
     await register();
     expect(getContainer).not.toHaveBeenCalled();
@@ -116,6 +124,19 @@ describe("register", () => {
     stubEnv({ EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "0" });
     await register();
     expect(vi.mocked(startExchangeRateJob)).not.toHaveBeenCalled();
+  });
+
+  it("starts the import snapshot cleanup every IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS, a day by default, and not at all with 0 (D28)", async () => {
+    stubEnv({ ...VALID, NEXT_RUNTIME: "nodejs" });
+    await register();
+    expect(vi.mocked(startImportSnapshotJob)).toHaveBeenCalledWith(
+      expect.objectContaining({ removeExpiredSnapshots: "remove-expired-snapshots" }),
+      86_400_000,
+    );
+    vi.mocked(startImportSnapshotJob).mockClear();
+    stubEnv({ IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: "0" });
+    await register();
+    expect(vi.mocked(startImportSnapshotJob)).not.toHaveBeenCalled();
   });
 
   it("never starts the job during `next build` (NEXT_PHASE phase-production-build)", async () => {

@@ -73,6 +73,7 @@ export {
 export { createAdjustImport, type AdjustImport, type ImportChanges } from "./adjust-import";
 export { createConfirmImport, type ConfirmImport, type ImportResult } from "./confirm-import";
 export { createUndoImport, type UndoImport, type UndoneImport } from "./undo-import";
+export { startImportSnapshotJob, type ImportSnapshotJobDeps } from "./import-snapshot-job";
 export {
   createListImports,
   createRemoveExpiredSnapshots,
