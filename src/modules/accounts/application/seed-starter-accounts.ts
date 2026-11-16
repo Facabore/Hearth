@@ -37,6 +37,8 @@ export const createSeedStarterAccounts =
           ownerUserId: input.userId,
           name: starter.name,
           type: starter.type,
+          // D29, slice MC3: a starter account takes the space's currency.
+          currency: space.currency,
           openingBalance: 0n,
           now: deps.clock.now(),
           siblings: [...siblings, ...opened],
@@ -49,5 +51,5 @@ export const createSeedStarterAccounts =
       }
       const today = await todayFor(deps, input.userId);
       // New accounts have no movements yet.
-      return ok(opened.map((account) => toView(account, space.currency, today)));
+      return ok(opened.map((account) => toView(account, today)));
     });

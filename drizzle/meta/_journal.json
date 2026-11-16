@@ -246,6 +246,13 @@
       "when": 1794808620099,
       "tag": "0034_exchange_rates",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794811809713,
+      "tag": "0035_account_currency",
+      "breakpoints": true
     }
   ]
 }

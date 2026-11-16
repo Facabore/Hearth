@@ -51,6 +51,31 @@ describe("CreateAccount (HU-E2-01)", () => {
     expect(accounts.rows).toHaveLength(1);
   });
 
+  it("stores the account in the space's currency (D29, slice MC3)", async () => {
+    const accounts = new InMemoryAccounts();
+    const deps: AccountsDeps = {
+      spaceLocks: noSpaceLocks,
+      accounts,
+      access: fakeSpaceAccess(membership({ spaceId: "space-usd", currency: "USD" })),
+      movements: new FixedMovements(),
+      ids: sequentialIds("acc"),
+      clock: new FixedClock(new Date("2026-10-12T12:00:00Z")),
+      userTimeZones: fixedTimeZones(),
+      tm: memoryTm,
+    };
+    const view = unwrap(
+      await createCreateAccount(deps)({
+        spaceId: "space-usd",
+        userId: "u-ana",
+        name: "Chase",
+        type: "BANK",
+        openingBalance: money(0n, "USD"),
+      }),
+    );
+    expect(view.currency).toBe("USD");
+    expect(accounts.rows[0]!.currency).toBe("USD");
+  });
+
   it("keeps the common attributes it is given (HU-E2-05)", async () => {
     const { accounts, create } = setup();
     const view = unwrap(

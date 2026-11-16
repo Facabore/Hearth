@@ -42,6 +42,8 @@ export const createCreateAccount =
         ownerUserId: input.userId,
         name: input.name,
         type: input.type,
+        // D29, slice MC3: a new account takes the space's currency.
+        currency: space.currency,
         openingBalance: openingBalance.value,
         attributes: input.attributes,
         terms: terms.value,
@@ -53,5 +55,5 @@ export const createCreateAccount =
       if (!(await deps.accounts.addUnlessNameTaken(account.value)))
         return err(domainError("AccountNameTaken"));
       // A new account has no movements yet.
-      return ok(toView(account.value, space.currency, await todayFor(deps, input.userId)));
+      return ok(toView(account.value, await todayFor(deps, input.userId)));
     });

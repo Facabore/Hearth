@@ -1024,6 +1024,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
           ledger: ledgerQueries,
           plans: budgetPlans,
         }),
+        // D29, slice MC3 (HU-E1-03): a money-free space's accounts follow its currency change.
+        accountCurrency: accountsDeps.accounts,
       }),
       listPeriods: createListSpacePeriods({ access, storedPeriods, clock, timeZone: env.APP_TIMEZONE }),
       createSpace: createCreateSpace({

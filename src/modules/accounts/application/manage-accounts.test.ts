@@ -27,6 +27,7 @@ const account = (id: string, name: string, overrides: Partial<Account> = {}): Ac
   name,
   type: "BANK",
   ownerUserId: "u-ana",
+  currency: "COP",
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: now,

@@ -37,7 +37,7 @@ export const createListAccounts =
       .sort((a, b) => a.name.localeCompare(b.name, "es"));
     const today = await todayFor(deps, input.userId);
     const { currency } = membership.value;
-    const items = await withBalances(deps.movements, accounts, currency, input.asOf ?? null, today);
+    const items = await withBalances(deps.movements, accounts, input.asOf ?? null, today);
     // totalsOf skips archived accounts, so `includeArchived` never changes the totals.
     return ok({ items, currency, totals: totalsOf(items) });
   };
@@ -54,7 +54,6 @@ export const createGetAccount =
     const [view] = await withBalances(
       deps.movements,
       [account],
-      membership.value.currency,
       input.asOf ?? null,
       await todayFor(deps, input.userId),
     );

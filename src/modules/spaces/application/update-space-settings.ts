@@ -21,12 +21,23 @@ export interface SpaceUsage {
   hasMoneyRecords(spaceId: string): Promise<boolean>;
 }
 
+/**
+ * D29, slice MC3 (HU-E1-03): re-tags every account of a space to a new currency. The space currency changes only while
+ * the space holds no money (SpaceCurrencyLocked below), so all its accounts are money-free, not yet fixed, and must
+ * follow the change. The accounts module owns the implementation; the composition root binds it.
+ */
+export interface AccountCurrencyRetagger {
+  retagCurrency(spaceId: string, currency: string): Promise<void>;
+}
+
 export interface UpdateSpaceSettingsDeps {
   readonly spaces: SpaceSettingsRepository;
   /** Issue #245: the currency and the period policy change only while no money write or plan creation is inside. */
   readonly spaceLocks: Pick<SpaceLocks, "lockForLifecycle">;
   readonly access: SpaceAccess;
   readonly usage: SpaceUsage;
+  /** D29, slice MC3 (HU-E1-03): follows the space currency onto its accounts; left out, no account is re-tagged. */
+  readonly accountCurrency?: AccountCurrencyRetagger;
   readonly tm: TransactionManager;
 }
 
@@ -85,5 +96,10 @@ export const createUpdateSpaceSettings =
       };
       // D10: plan boundaries are stored, so a new policy only affects periods without a plan.
       await deps.spaces.updateSettings(current.spaceId, settings);
+      // D29, slice MC3 (HU-E1-03): the space holds no money when its currency changes, so every account is money-free
+      // and must follow it; re-tag them in this same settings transaction, which already holds the lifecycle lock.
+      if (currency.value.code !== current.currency) {
+        await deps.accountCurrency?.retagCurrency(current.spaceId, currency.value.code);
+      }
       return ok(toSpaceSummary({ ...current, ...settings }));
     });

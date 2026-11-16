@@ -10,6 +10,7 @@ const held = (name: string, type: AccountType, pesos: number) => ({
   name,
   type,
   ownerUserId: "u-ana",
+  currency: "COP",
   openingBalance: 0n,
   archivedAt: null,
   createdAt: at,

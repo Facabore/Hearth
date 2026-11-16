@@ -16,15 +16,20 @@ export interface AccountView extends Account {
 export const todayFor = async (deps: Pick<AccountsDeps, "clock" | "userTimeZones">, userId: string) =>
   todayIn(deps.clock, await deps.userTimeZones.timeZoneOf(userId));
 
-export const toView = (account: Account, currency: string, today: LocalDate, net = 0n): AccountView => {
+export const toView = (account: Account, today: LocalDate, net = 0n): AccountView => {
   const balance = account.openingBalance + net;
-  return { ...account, currency, balance, figures: termFigures(account.terms, balance, today) };
+  // D29, slice MC3: the view's currency is the account's own stored currency, no longer threaded from the space.
+  return {
+    ...account,
+    currency: account.currency,
+    balance,
+    figures: termFigures(account.terms, balance, today),
+  };
 };
 
 export const withBalances = async (
   movements: AccountMovements,
   accounts: readonly Account[],
-  currency: string,
   asOf: LocalDate | null,
   today: LocalDate,
 ): Promise<AccountView[]> => {
@@ -33,5 +38,5 @@ export const withBalances = async (
     accounts.map((a) => a.id),
     asOf,
   );
-  return accounts.map((a) => toView(a, currency, today, net.get(a.id) ?? 0n));
+  return accounts.map((a) => toView(a, today, net.get(a.id) ?? 0n));
 };

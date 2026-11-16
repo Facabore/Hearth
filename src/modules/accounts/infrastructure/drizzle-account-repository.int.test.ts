@@ -17,6 +17,7 @@ const account = (space: SpaceFixture, overrides: Partial<Account> = {}): Account
   name: "Bancolombia",
   type: "BANK",
   ownerUserId: space.userId,
+  currency: "COP",
   openingBalance: 200_000_000n,
   archivedAt: null,
   createdAt: new Date("2026-10-12T12:00:00Z"),
@@ -89,6 +90,19 @@ describe("DrizzleAccountRepository", () => {
   it("requires an owner for every account type except SHARED_FUND", async () => {
     const space = await personalSpaceFixture(db, pool);
     await expect(repo.add(account(space, { ownerUserId: null }))).rejects.toThrow();
+  });
+
+  it("re-tags every account of a space to a new currency, and leaves other spaces alone (D29, slice MC3)", async () => {
+    const ana = await personalSpaceFixture(db, pool);
+    const juan = await personalSpaceFixture(db, pool, "Juan");
+    const anaBank = account(ana, { name: "Bancolombia" });
+    const anaCash = account(ana, { name: "Efectivo", type: "CASH" });
+    const juanBank = account(juan, { name: "Davivienda" });
+    for (const a of [anaBank, anaCash, juanBank]) await repo.add(a);
+    await repo.retagCurrency(ana.spaceId, "USD");
+    expect((await repo.findById(anaBank.id))?.currency).toBe("USD");
+    expect((await repo.findById(anaCash.id))?.currency).toBe("USD");
+    expect((await repo.findById(juanBank.id))?.currency).toBe("COP");
   });
 });
 

@@ -52,6 +52,6 @@ export const createUpdateAccount =
       // Issue #245: a concurrent writer may take the name after `siblings` was read; the store decides then.
       if (!(await deps.accounts.save(revised.value))) return err(domainError("AccountNameTaken"));
       const today = await todayFor(deps, input.userId);
-      const [view] = await withBalances(deps.movements, [revised.value], space.currency, null, today);
+      const [view] = await withBalances(deps.movements, [revised.value], null, today);
       return ok(view!);
     });

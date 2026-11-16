@@ -41,6 +41,7 @@ const rowOf = (account: Account) => ({
   name: account.name,
   type: account.type,
   ownerUserId: account.ownerUserId,
+  currency: account.currency,
   openingBalance: account.openingBalance,
   archivedAt: account.archivedAt,
   createdAt: account.createdAt,
@@ -76,6 +77,12 @@ export class DrizzleAccountRepository implements AccountRepository {
   async listBySpace(spaceId: string): Promise<Account[]> {
     const rows = await this.tm.executor().select().from(accounts).where(eq(accounts.spaceId, spaceId));
     return rows.map(toAccount);
+  }
+
+  async retagCurrency(spaceId: string, currency: string): Promise<void> {
+    // D29, slice MC3 (HU-E1-03): one UPDATE for the whole space; it runs only when the space currency changes, which
+    // is allowed only while the space holds no money, so no account has movements and re-tagging every one is correct.
+    await this.tm.executor().update(accounts).set({ currency }).where(eq(accounts.spaceId, spaceId));
   }
 
   async findById(accountId: string): Promise<Account | null> {
