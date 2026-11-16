@@ -18,6 +18,8 @@
 | 9 | Registrar gasto · en otra moneda | A USD expense on a COP card, the converted amount and the bank's real amount |
 | 10 | Transferencia · entre monedas | "Sale de" and "Llega a" in each account's currency |
 | 11 | Ajustes · moneda y tus datos | The display currency and the way into import and export |
+| 12 | Nueva cuenta · moneda | A new account's currency, the space's by default, chosen before any movement and fixed after (#324) |
+| 13 | Moneda · hoja | The currency sheet: search by name or code, the most used first, then every ISO 4217 currency |
 
 The way in is Más's "Importar y exportar" tile, which reads "Próximamente" today (#279, P311), and Ajustes links to it too (board 11). Slices: #322 (MC1), #323 (MC2), #324 (MC3), #325 (MC4), #326 (IE1), #327 (IE2), #328 (IE3). The boards follow the approved medium density (P324). They are drawn at 390 px; the 320 px, dark and English checks come with each story, as #309–#313 did.
 **Builds on:** HU-E8-04 (CSV import), HU-E8-05 (Splitwise import) and HU-E8-06 (multi-currency spaces) in [E8](../backlog/E8-hardening-and-later.md). This design replaces HU-E8-06's scope and gives HU-E8-04 and HU-E8-05 one shared pipeline.
