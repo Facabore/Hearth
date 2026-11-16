@@ -25,7 +25,15 @@ const batchOf = (row: BatchRow): ImportBatch => ({
   status: row.status,
   snapshot: row.snapshot === null ? null : decodeSnapshot(row.snapshot as StoredSnapshot),
   mappings: row.mappings as ImportMappings,
-  counts: row.counts as ImportCounts | null,
+  // Counts stored before restores were counted lack those two fields: such a confirm restored nothing.
+  counts:
+    row.counts === null
+      ? null
+      : ({
+          accountsRestored: 0,
+          categoriesRestored: 0,
+          ...(row.counts as Partial<ImportCounts>),
+        } as ImportCounts),
   rowErrors: row.rowErrors as SourceIssue[],
   created: row.created as CreatedEntities,
   createdAt: row.createdAt,
@@ -152,7 +160,11 @@ const LINK_BATCH = 5000;
 export class DrizzleImportLinks implements ImportLinkRepository {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
-  async linksOf(spaceId: string, sourceApp: string): Promise<ImportLink[]> {
+  linksOf(spaceId: string, sourceApp: string): Promise<ImportLink[]> {
+    return this.read(spaceId, sourceApp, false);
+  }
+
+  private async read(spaceId: string, sourceApp: string, undone: boolean): Promise<ImportLink[]> {
     if (!isUuid(spaceId)) return [];
     return this.tm
       .executor()
@@ -170,9 +182,13 @@ export class DrizzleImportLinks implements ImportLinkRepository {
         and(
           eq(importLinks.spaceId, spaceId),
           eq(importLinks.sourceApp, sourceApp),
-          ne(importBatches.status, "UNDONE"),
+          undone ? eq(importBatches.status, "UNDONE") : ne(importBatches.status, "UNDONE"),
         ),
       );
+  }
+
+  async undoneLinksOf(spaceId: string, sourceApp: string): Promise<ImportLink[]> {
+    return this.read(spaceId, sourceApp, true);
   }
 
   async upsert(links: readonly ImportLink[]): Promise<void> {

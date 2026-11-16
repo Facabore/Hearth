@@ -61,6 +61,12 @@ export interface ProfileChange {
   readonly timeFormat?: TimeFormat | null;
   readonly dateFormat?: DateFormat | null;
   readonly weekStart?: WeekStart | null;
+  /**
+   * D29, slice MC4 (design §4): the ISO 4217 currency of this person's totals and unified view; null means "my
+   * personal space's currency". It is not a format and follows no installation rule; an unknown code is refused in the
+   * use case (`UnknownCurrency`).
+   */
+  readonly displayCurrency?: string | null;
 }
 
 const effective = <K extends FormatField>(

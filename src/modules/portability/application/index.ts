@@ -64,10 +64,16 @@ export type {
   SnapshotReader,
 } from "./import-ports";
 export type { ImportAccountView, ImportCategoryView, ImportView } from "./import-view";
-export { createStartImport, type StartImport } from "./start-import";
+export {
+  createAuthorizeImport,
+  createStartImport,
+  type AuthorizeImport,
+  type StartImport,
+} from "./start-import";
 export { createAdjustImport, type AdjustImport, type ImportChanges } from "./adjust-import";
 export { createConfirmImport, type ConfirmImport, type ImportResult } from "./confirm-import";
 export { createUndoImport, type UndoImport, type UndoneImport } from "./undo-import";
+export { startImportSnapshotJob, type ImportSnapshotJobDeps } from "./import-snapshot-job";
 export {
   createListImports,
   createRemoveExpiredSnapshots,

@@ -20,6 +20,9 @@ export const user = pgTable(
     timeFormat: text("time_format", { enum: TIME_FORMATS }),
     dateFormat: text("date_format", { enum: DATE_FORMATS }),
     weekStart: text("week_start", { enum: WEEK_STARTS }),
+    // D29, slice MC4: the ISO 4217 currency of this person's totals and unified view; null means "my personal space's
+    // currency". An open set (any circulating code), so no check constraint; the use case refuses unknown codes.
+    displayCurrency: text("display_currency"),
     createdAt: tz("created_at").notNull().defaultNow(),
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },

@@ -152,6 +152,12 @@ export function UnifiedView({
           <p className="text-sm text-muted">{t("empty")}</p>
         )}
       </section>
+      {/* D29, slice MC4: figures from other currencies were converted at each day's rate, so they are approximate. */}
+      {view.converted ? (
+        <p data-testid="converted-note" className="text-sm text-muted">
+          {t("converted", { currency: view.currency })}
+        </p>
+      ) : null}
       {view.otherCurrencySpaces.map((space) => (
         <p key={space.spaceId} className="text-sm text-muted [overflow-wrap:anywhere]">
           {t("otherCurrency", { name: space.name, currency: space.currency })}

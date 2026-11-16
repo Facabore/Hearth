@@ -271,6 +271,13 @@
     {
       "idx": 38,
       "version": "7",
+      "when": 1794823058208,
+      "tag": "0038_display_currency",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
       "when": 1794838249653,
       "tag": "0039_import_batches",
       "breakpoints": true

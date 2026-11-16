@@ -116,4 +116,23 @@ describe("DrizzleExchangeRates", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe("NoExchangeRate");
   });
+
+  it("answers the day of the stored rate it used, the oldest leg's for a cross rate, and flags a stale one (D29, MC4)", async () => {
+    await repo.save([
+      rate("2026-11-15", "USD", "COP", "4100", "trm"),
+      rate("2026-11-05", "EUR", "USD", "1.1", "ecb"),
+    ]);
+
+    const direct = await repo.datedRateOn("USD", "COP", on("2026-11-16"));
+    expect(direct.ok && [direct.value.rate.value, direct.value.date, direct.value.stale]).toEqual([
+      "4100",
+      "2026-11-15",
+      false,
+    ]);
+    // EUR->COP rests on the ECB rate of 5 November, 11 days before the day asked for: answered, and stale.
+    const cross = await repo.datedRateOn("EUR", "COP", on("2026-11-16"));
+    expect(cross.ok && [cross.value.date, cross.value.stale]).toEqual(["2026-11-05", true]);
+    const none = await repo.datedRateOn("USD", "COP", on("2026-11-14"));
+    expect(!none.ok && none.error.code).toBe("NoExchangeRate");
+  });
 });

@@ -4,18 +4,32 @@ import type { SourceAccountType, SourceIssue, SourceSnapshot } from "./source-sn
 /** Design §3.2: an upload is a DRAFT until it is confirmed; a confirmed import can be undone once. */
 export type ImportStatus = "DRAFT" | "CONFIRMED" | "UNDONE";
 
-/** Where a source account's movements go: one of the person's accounts in the space, or a new one (design §2.1). */
+/**
+ * Where a source account's movements go: one of the person's accounts in the space, or a new one (design §2.1). An
+ * existing account may be an archived one only when an undone import of this source created it: the confirm restores
+ * it. A new account's `name` is one no account of the space holds, archived ones included (`checkMappings` settles it).
+ */
 export type AccountMapping =
   | { readonly kind: "existing"; readonly accountId: string }
-  | { readonly kind: "new"; readonly type: SourceAccountType; readonly currency: string };
+  | {
+      readonly kind: "new";
+      readonly type: SourceAccountType;
+      readonly currency: string;
+      readonly name?: string;
+    };
 
 /**
- * Where a source category's movements go (design §2.2): an existing category, or a new one in `groupId`. A
- * subcategory's new category goes under whatever its parent maps to, so its `groupId` is null.
+ * Where a source category's movements go (design §2.2): an existing category (an archived one only when an undone
+ * import of this source created it, which the confirm restores), or a new one named `name`. A new top-level category
+ * goes in `groupId`, or, when it is null, in the group `IMPORT_GROUP_NAME` the confirm finds or creates; a new
+ * subcategory goes under whatever its parent maps to, so its `groupId` is null.
  */
 export type CategoryMapping =
   | { readonly kind: "existing"; readonly categoryId: string }
-  | { readonly kind: "new"; readonly groupId: string | null };
+  | { readonly kind: "new"; readonly groupId: string | null; readonly name?: string };
+
+/** Design §2.2: the group new categories go in when the space has no live group to offer. */
+export const IMPORT_GROUP_NAME = "Importado de Money Manager";
 
 export interface ImportMappings {
   /** The zone the instants are read in (design §2.3); the person's own by default. */
@@ -29,7 +43,10 @@ export interface ImportMappings {
 /** What a confirm did (design §3.2), as the history shows it. */
 export interface ImportCounts {
   readonly accountsCreated: number;
+  /** Accounts an earlier, undone import of this source created, restored instead of created again (design §3.3). */
+  readonly accountsRestored: number;
   readonly categoriesCreated: number;
+  readonly categoriesRestored: number;
   readonly movementsImported: number;
   /** Already linked by an earlier import that was not undone (design §3.3): never written twice. */
   readonly alreadyImported: number;

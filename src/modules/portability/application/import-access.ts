@@ -1,6 +1,7 @@
 import { authorizeSpaceAction, type SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, ok, type Result } from "@/shared/kernel";
 import type { ImportBatch } from "../domain/import-batch";
+import type { PriorLinks } from "../domain/mapping-proposals";
 import type { ImportDeps, ImportLink } from "./import-ports";
 
 /**
@@ -23,12 +24,28 @@ export const authorizeImporter = async (
 export const ownBatch = (batch: ImportBatch | null, userId: string): Result<ImportBatch> =>
   batch === null || batch.userId !== userId ? err(domainError("ImportNotFound")) : ok(batch);
 
-/** Design §3.3: what earlier imports linked each source account and category to (folded adjustments left out). */
-export const priorLinksOf = (links: readonly ImportLink[]) => ({
-  accounts: new Map(
+const byType = (links: readonly ImportLink[], type: "ACCOUNT" | "CATEGORY") =>
+  new Map(
     links
-      .filter((l) => l.entityType === "ACCOUNT" && !l.sourceKey.startsWith("opening:"))
+      .filter((l) => l.entityType === type && !l.sourceKey.startsWith("opening:"))
       .map((l) => [l.sourceKey, l.entityId]),
-  ),
-  categories: new Map(links.filter((l) => l.entityType === "CATEGORY").map((l) => [l.sourceKey, l.entityId])),
-});
+  );
+
+/**
+ * Design §3.3: what earlier imports of this source linked each source account and category to, those that stand and
+ * those that were undone apart (folded adjustments left out).
+ */
+export const priorLinksFor = async (
+  deps: Pick<ImportDeps, "links">,
+  spaceId: string,
+  sourceApp: string,
+): Promise<PriorLinks> => {
+  const live = await deps.links.linksOf(spaceId, sourceApp);
+  const undone = await deps.links.undoneLinksOf(spaceId, sourceApp);
+  return {
+    accounts: byType(live, "ACCOUNT"),
+    categories: byType(live, "CATEGORY"),
+    undoneAccounts: byType(undone, "ACCOUNT"),
+    undoneCategories: byType(undone, "CATEGORY"),
+  };
+};

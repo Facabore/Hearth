@@ -52,6 +52,13 @@ export const ProfileResponseSchema = MeResponseSchema.extend({
         .describe("The installation's language, what Reset stores; es until HU-E8-18 stores one."),
     }),
     locked: z.array(z.enum(LOCKABLE_FIELDS)),
+    displayCurrency: z
+      .string()
+      .nullable()
+      .optional()
+      .describe(
+        "D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency.",
+      ),
   }),
 });
 
@@ -66,10 +73,21 @@ export const UpdateMeBodySchema = z.object({
   timeFormat: TimeFormat.nullable().optional(),
   dateFormat: DateFormat.nullable().optional(),
   weekStart: WeekStart.nullable().optional(),
+  /** D29 (MC4): the person's display currency as an ISO 4217 code; null returns to their personal space's currency. */
+  displayCurrency: z.string().length(3).nullable().optional(),
 });
 
-/** HU-E1-15: the profile as `GET` and `PATCH /api/v1/me` answer it. */
-export const meDto = (view: ProfileView) => ({ ...view.user, preferences: view.preferences });
+/**
+ * HU-E1-15: the profile as `GET` and `PATCH /api/v1/me` answer it. D29 (MC4): `displayCurrency` is sent only once the
+ * person chose one, so a client that never asked for it receives exactly what it received before (additive only).
+ */
+export const meDto = (view: ProfileView) => {
+  const { displayCurrency, ...preferences } = view.preferences;
+  return {
+    ...view.user,
+    preferences: displayCurrency === null ? preferences : { ...preferences, displayCurrency },
+  };
+};
 
 const security: Record<string, string[]>[] = [{ cookieAuth: [] }, { bearerAuth: [] }];
 const profile = (description: string) => ({

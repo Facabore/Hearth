@@ -234,6 +234,23 @@ describe("public details (HU-E1-08)", () => {
     expect(publicDetailsOf("InvalidAllocation", { reason: "percentNotHundred" })).toEqual({});
   });
 
+  it("names an import mapping's reason and source, the size limit, and the record a confirm could not create (D28)", () => {
+    expect(
+      publicDetailsOf("InvalidImportMapping", { reason: "currencyMismatch", sourceId: "a-usd", extra: "x" }),
+    ).toEqual({ reason: "currencyMismatch", sourceId: "a-usd" });
+    expect(publicDetailsOf("ImportFileTooLarge", { maxBytes: 20_971_520 })).toEqual({ maxBytes: 20_971_520 });
+    expect(
+      publicDetailsOf("ImportTargetRefused", { sourceId: "a-bank", reason: "InvalidAccountName" }),
+    ).toEqual({
+      sourceId: "a-bank",
+      reason: "InvalidAccountName",
+    });
+    // The upload's other refusals keep the reader's details (an app name, a driver message) private.
+    expect(
+      publicDetailsOf("UnreadableBackup", { app: "money-manager", reason: "file is not a database" }),
+    ).toEqual({});
+  });
+
   it("names the field an account type refuses, in its public form, and never the stored attribute (HU-E2-06)", async () => {
     const details = publicDetailsOf("AccountAttributeNotAllowed", {
       field: "monthlyRate",

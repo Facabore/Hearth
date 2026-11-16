@@ -6,6 +6,7 @@ import type { ImportDeps } from "./import-ports";
 export interface UndoneImport {
   readonly id: string;
   readonly status: "UNDONE";
+  /** The batch's movements this undo deleted; one the person had deleted already is not counted. */
   readonly movementsDeleted: number;
   readonly accountsArchived: number;
   readonly categoriesArchived: number;
@@ -37,9 +38,11 @@ export const createUndoImport =
       if (!undone.ok) return undone;
       const { created } = batch.value;
 
+      let movementsDeleted = 0;
       for (const movementId of created.movements) {
         const deleted = await deps.writer.deleteMovement({ ...who, movementId });
         if (!deleted.ok) return deleted;
+        if (deleted.value) movementsDeleted += 1;
       }
       const targets = await deps.writer.targetsOf(who.spaceId, who.userId);
       if (!targets.ok) return targets;
@@ -67,7 +70,7 @@ export const createUndoImport =
       return ok({
         id: undone.value.id,
         status: "UNDONE" as const,
-        movementsDeleted: created.movements.length,
+        movementsDeleted,
         accountsArchived,
         categoriesArchived,
       });

@@ -82,7 +82,9 @@ The same container also fetches daily exchange rates itself (D30): a timer runs 
 - `exchange_rate_source_failed` (`source`, `name`): storing one source's rates failed, for example because the database was unreachable; the other sources still ran.
 - `exchange_rate_job_failed` (`name`): a whole run failed, for example because the database was unreachable; the next tick runs again.
 
-`next build` never starts either job. `next dev` does, every 300 s (recurrences) and every day (exchange rates) by default like the server: set `RECURRENCE_JOB_INTERVAL_SECONDS=0` and `EXCHANGE_RATE_JOB_INTERVAL_SECONDS=0` in your local environment to keep them off while you develop.
+The same container also removes the snapshots of old imports itself (D28, design §3.5): a timer runs the job when the server starts and then `IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS` after each run ends (default 86400, a day; `0` turns it off). It sets to null the snapshot (the data read from an uploaded backup) of every import confirmed, undone or abandoned as a draft more than 7 days ago; the import's row stays for the history. A removal is idempotent, so a restart or a second container does no harm. Each run logs `import_snapshots_removed` with the count, never a snapshot's contents; a run that fails logs `import_snapshot_job_failed` with the error's name only.
+
+`next build` never starts any of these jobs. `next dev` does, every 300 s (recurrences) and every day (exchange rates, import snapshots) by default like the server: set `RECURRENCE_JOB_INTERVAL_SECONDS=0`, `EXCHANGE_RATE_JOB_INTERVAL_SECONDS=0` and `IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS=0` in your local environment to keep them off while you develop.
 
 ## Closing sign-up
 

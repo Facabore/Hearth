@@ -1,7 +1,7 @@
 import { ok, type Result } from "@/shared/kernel";
 import { NOTHING_CREATED, type ImportBatch } from "../domain/import-batch";
 import { proposeMappings } from "../domain/mapping-proposals";
-import { authorizeImporter, priorLinksOf } from "./import-access";
+import { authorizeImporter, priorLinksFor } from "./import-access";
 import type { ImportDeps } from "./import-ports";
 import { viewOf, type ImportView } from "./import-view";
 
@@ -28,7 +28,6 @@ export const createStartImport =
     return deps.tm.run(async () => {
       const targets = await deps.writer.targetsOf(input.spaceId, input.userId);
       if (!targets.ok) return targets;
-      const links = await deps.links.linksOf(input.spaceId, snapshot.sourceApp);
       const timeZone = await deps.userTimeZones.timeZoneOf(input.userId);
       const batch: ImportBatch = {
         id: deps.ids.next<"ImportBatch">(),
@@ -38,7 +37,12 @@ export const createStartImport =
         fileSha256,
         status: "DRAFT",
         snapshot,
-        mappings: proposeMappings(snapshot, targets.value, priorLinksOf(links), timeZone),
+        mappings: proposeMappings(
+          snapshot,
+          targets.value,
+          await priorLinksFor(deps, input.spaceId, snapshot.sourceApp),
+          timeZone,
+        ),
         counts: null,
         rowErrors: [],
         created: NOTHING_CREATED,
@@ -50,4 +54,20 @@ export const createStartImport =
       const view = await viewOf(deps, batch, snapshot);
       return view.ok ? ok(view.value) : view;
     });
+  };
+
+export type AuthorizeImport = (input: {
+  readonly spaceId: string;
+  readonly userId: string;
+}) => Promise<Result<void>>;
+
+/**
+ * Design §3.5: whether the requester may upload here (`money.record`, personal space), asked before the upload's body
+ * is read, so a VIEWER or a stranger never makes the server buffer a file.
+ */
+export const createAuthorizeImport =
+  (deps: Pick<ImportDeps, "access">): AuthorizeImport =>
+  async (input) => {
+    const importer = await authorizeImporter(deps, input.spaceId, input.userId);
+    return importer.ok ? ok(undefined) : importer;
   };

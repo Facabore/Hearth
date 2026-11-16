@@ -8,7 +8,7 @@ import type {
 } from "../domain/import-batch";
 import { planImport } from "../domain/import-plan";
 import { previewImport, type ExistingMovement, type ImportPreview } from "../domain/import-planner";
-import type { SourceIssue, SourceSnapshot } from "../domain/source-snapshot";
+import type { SourceAccountType, SourceIssue, SourceSnapshot } from "../domain/source-snapshot";
 import type { ImportDeps, ImportLink } from "./import-ports";
 
 /** What earlier imports and Hearth already hold, as the planner reads it (design §3.1, §3.3). */
@@ -61,6 +61,7 @@ export const knownFor = async (
       date: movement.date,
       amountMinor: movement.amountMinor,
       kind: movement.kind,
+      ...(movement.incoming === true ? { incoming: true as const } : {}),
     })),
   );
   const preview = previewImport(snapshot, { timeZone: mappings.timeZone, existing });
@@ -74,7 +75,7 @@ export const knownFor = async (
 export interface ImportAccountView {
   readonly sourceId: string;
   readonly name: string;
-  readonly type: string;
+  readonly type: SourceAccountType;
   readonly currency: string;
   readonly cutOffDay: number | null;
   readonly paymentDay: number | null;

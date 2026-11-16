@@ -108,7 +108,11 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
       }),
     );
     expect(screen.getByText("No hay movimientos programados en los próximos 30 días.")).toBeInTheDocument();
-    expect(screen.getByText("Viaje usa USD: sus movimientos no se suman aquí.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Viaje usa USD y algunos de sus movimientos no tienen tasa de cambio: esos no se suman aquí.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("offers to add a recurring movement when nothing is scheduled (HU-E9-09, ruling P270, #178 item 4)", async () => {

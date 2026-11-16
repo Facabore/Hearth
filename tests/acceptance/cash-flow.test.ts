@@ -1,4 +1,5 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { PATCH as patchMe } from "@/app/api/v1/me/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { POST as archiveAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/[accountId]/archive/route";
@@ -214,6 +215,41 @@ describe("the cash-flow calendar (#150, rulings P238–P240 of M6c)", () => {
       [],
       { date: "2026-10-28", balance: cop(1_100_000) },
     ]);
+  });
+
+  it("projects in the person's display currency: today's money at today's rate, each movement at its day's (D29, MC4)", async () => {
+    // GBP, which no other test stores a rate for, so this rate converts only this projection.
+    await app.pool.query(
+      `INSERT INTO exchange_rates (date, base, quote, rate, source, fetched_at)
+       VALUES ('2026-10-28', 'GBP', 'COP', '5000', 'test', now()) ON CONFLICT DO NOTHING`,
+    );
+    const h = await householdWithFund();
+    const salary = await defined(h.ana.personal, h.ana.personal.spaceId, {
+      description: "Salario",
+      amount: cop(3_000_000),
+      template: {
+        type: "INCOME",
+        categoryId: await categoryWithKey(h.ana.personal, "salary"),
+        accountId: h.ana.account,
+      },
+      schedule: { kind: "MONTHLY", day: 30 },
+      mode: "AUTO",
+      startDate: "2026-10-30",
+    });
+    toEnd.push({ spaceId: h.ana.personal.spaceId, user: h.ana.personal, id: salary.id });
+    const chosen = await call(patchMe, "PATCH", "/api/v1/me", {
+      user: h.ana.personal,
+      body: { displayCurrency: "GBP" },
+    });
+    expect(chosen.status).toBe(200);
+    const flow = await flowOf(h.ana.personal, "30");
+    const gbp = (pence: number) => ({ amount: String(pence), currency: "GBP" });
+    // $ 2.000.000 at 1/5.000 is £ 400; the $ 3.000.000 salary is £ 600, and the movement keeps its own amount.
+    expect(flow).toMatchObject({ currency: "GBP", opening: gbp(40_000), converted: true });
+    expect(
+      flow.dates.map((d) => [d.date, d.movements[0]!.amount, d.movements[0]!.effect, d.balanceAfter]),
+    ).toEqual([["2026-10-30", cop(3_000_000), gbp(60_000), gbp(100_000)]]);
+    expect(flow.otherCurrencySpaces).toEqual([]);
   });
 
   it("answers 30 days by default and refuses any other window", async () => {

@@ -22,6 +22,7 @@ describe("loadEnv", () => {
       LOG_LEVEL: "info",
       RECURRENCE_JOB_INTERVAL_SECONDS: 300,
       EXCHANGE_RATE_JOB_INTERVAL_SECONDS: 86_400,
+      IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: 86_400,
       HEARTH_SIGN_UP: "open",
     });
   });
@@ -81,6 +82,21 @@ describe("loadEnv", () => {
     for (const bad of ["-1", "1.5", "86401", "", " ", "abc"])
       expect(() => loadEnv({ ...valid, EXCHANGE_RATE_JOB_INTERVAL_SECONDS: bad })).toThrow(
         /EXCHANGE_RATE_JOB_INTERVAL_SECONDS/,
+      );
+  });
+
+  it("reads the import snapshot cleanup interval in seconds, a day by default, 0 turning the job off (D28)", () => {
+    expect(loadEnv({ ...valid }).IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS).toBe(86_400);
+    expect(
+      loadEnv({ ...valid, IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: "0" }).IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS,
+    ).toBe(0);
+    expect(
+      loadEnv({ ...valid, IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: "3600" })
+        .IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS,
+    ).toBe(3600);
+    for (const bad of ["-1", "1.5", "86401", "", " ", "abc"])
+      expect(() => loadEnv({ ...valid, IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS: bad })).toThrow(
+        /IMPORT_SNAPSHOT_JOB_INTERVAL_SECONDS/,
       );
   });
 

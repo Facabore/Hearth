@@ -4,7 +4,7 @@ import { createSpaceAccess } from "@/modules/spaces/application";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { FixedClock, ok } from "@/shared/kernel";
+import { domainError, err, FixedClock, ok } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
 import { fixedTimeZones } from "../../../../tests/support/fakes";
 import { personalSpaceFixture, type SpaceFixture } from "../../../../tests/support/fixtures";
@@ -38,7 +38,11 @@ const countingWriter = (): ImportWriter & { readonly recorded: string[] } => {
   return {
     recorded,
     targetsOf: async () =>
-      ok({ accounts: [], groups: [{ id: otros, key: "other", archived: false }], categories: [] }),
+      ok({
+        accounts: [],
+        groups: [{ id: otros, name: "Otros", key: "other", archived: false }],
+        categories: [],
+      }),
     movementsOf: async () => [],
     createAccount: id,
     createCategory: id,
@@ -54,9 +58,12 @@ const countingWriter = (): ImportWriter & { readonly recorded: string[] } => {
       recorded.push("transfer");
       return id();
     },
-    deleteMovement: async () => ok(undefined),
+    deleteMovement: async () => ok(true),
     archiveAccount: async () => ok(undefined),
+    restoreAccount: async () => ok(undefined),
     archiveCategory: async () => ok(undefined),
+    restoreCategory: async () => ok(undefined),
+    createCategoryGroup: id,
     accountInUse: async () => false,
     categoryInUse: async () => false,
   };
@@ -161,6 +168,24 @@ describe("DrizzleImportBatches (D28, design §3.5)", () => {
     );
   });
 
+  it("reads counts stored before restores were counted as having restored nothing", async () => {
+    const ana = await personalSpaceFixture(db, pool, "Ana");
+    const batch = batchFor(ana, {
+      status: "CONFIRMED",
+      createdAt: new Date("2026-11-10T00:00:00Z"),
+      confirmedAt: new Date("2026-11-10T00:01:00Z"),
+    });
+    await batches.add(batch);
+    // The counts as a confirm stored them before accountsRestored and categoriesRestored existed.
+    await pool.query(
+      `UPDATE import_batches SET counts = '{"accountsCreated":1,"categoriesCreated":2,"movementsRecorded":3}'::jsonb WHERE id = $1`,
+      [batch.id],
+    );
+    const [read] = (await batches.listBySpace(ana.spaceId)).filter((b) => b.id === batch.id);
+    expect(read?.counts).toMatchObject({ accountsCreated: 1, accountsRestored: 0, categoriesRestored: 0 });
+    expect((await batches.find(ana.spaceId, batch.id))?.counts).toMatchObject({ accountsRestored: 0 });
+  });
+
   it("names the last confirm of a file by its hash, never the batch asking or an undone one", async () => {
     const ana = await personalSpaceFixture(db, pool, "Ana");
     const hash = "b".repeat(64);
@@ -251,5 +276,27 @@ describe("two confirms of one draft (D28, design §3.2)", () => {
       "income",
       "transfer",
     ]);
+  });
+});
+
+describe("a confirm the accounts module refuses (D28, design §3.2)", () => {
+  it("answers ImportTargetRefused naming the source account and the module's code, and writes nothing", async () => {
+    const ana = await personalSpaceFixture(db, pool, "Ana");
+    const writer = countingWriter();
+    const importId = await draftIn(ana, depsWith({ writer }));
+    const refusing: ImportWriter = {
+      ...writer,
+      createAccount: async (input) =>
+        input.name === "Banco Uno" ? err(domainError("InvalidAccountName")) : ok(randomUUID()),
+    };
+
+    const confirmed = await createConfirmImport(depsWith({ writer: refusing }))({ ...ana, importId });
+
+    expect(confirmed).toEqual({
+      ok: false,
+      error: { code: "ImportTargetRefused", details: { sourceId: "a-bank", reason: "InvalidAccountName" } },
+    });
+    expect(writer.recorded).toEqual([]);
+    expect((await new DrizzleImportBatches(tm).find(ana.spaceId, importId))?.status).toBe("DRAFT");
   });
 });

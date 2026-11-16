@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { PATCH as adjustImport } from "@/app/api/v1/spaces/[spaceId]/imports/[importId]/route";
 import { POST as confirmImport } from "@/app/api/v1/spaces/[spaceId]/imports/[importId]/confirm/route";
 import { POST as undoImport } from "@/app/api/v1/spaces/[spaceId]/imports/[importId]/undo/route";
@@ -7,7 +8,7 @@ import { GET as listImports, POST as startImport } from "@/app/api/v1/spaces/[sp
 import { setContainerForTests, type Container } from "@/composition/container";
 import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, routeParams, startTestApp, type TestUser } from "../support/app";
-import { categoryWithKey, cop, post, starterAccount } from "../support/ledger";
+import { categoryWithKey, cop, newAccount, post, starterAccount } from "../support/ledger";
 import { moneyManagerBackup } from "../support/money-manager-backup";
 import { joinAs, newSharedSpace } from "../support/spaces";
 
@@ -35,6 +36,44 @@ const upload = (user: TestUser, bytes: Uint8Array, spaceId = user.spaceId) => {
     routeParams({ spaceId }),
   );
 };
+
+const MB = 1024 * 1024;
+
+/** A request body of `total` zero bytes in 1 MB chunks, which counts how much of it was read. */
+const streamed = (total: number) => {
+  let pulled = 0;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        const size = Math.min(MB, total - pulled);
+        pulled += size;
+        controller.enqueue(new Uint8Array(size));
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return { stream, pulled: () => pulled };
+};
+
+/** Uploads a raw stream as the body, as a client sending chunked or with any length it declares. */
+const uploadStream = (
+  user: TestUser,
+  stream: ReadableStream<Uint8Array>,
+  headers: Record<string, string> = {},
+) =>
+  startImport(
+    new Request(`http://localhost:3000/api/v1/spaces/${user.spaceId}/imports`, {
+      method: "POST",
+      headers: { cookie: user.cookie, "content-type": "multipart/form-data; boundary=x", ...headers },
+      body: stream,
+      duplex: "half",
+    } as RequestInit),
+    routeParams({ spaceId: user.spaceId }),
+  );
 
 interface Preview {
   id: string;
@@ -119,9 +158,9 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     const mappings = Object.fromEntries(preview.accounts.map((a) => [a.sourceId, a.mapping]));
     expect(mappings).toEqual({
       "a-cash": { kind: "existing", accountId: await starterAccount(ana, "Efectivo") },
-      "a-bank": { kind: "new", type: "BANK", currency: "COP" },
-      "a-usd": { kind: "new", type: "BANK", currency: "USD" },
-      "a-card": { kind: "new", type: "CREDIT_CARD", currency: "COP" },
+      "a-bank": { kind: "new", type: "BANK", currency: "COP", name: "Banco Uno" },
+      "a-usd": { kind: "new", type: "BANK", currency: "USD", name: "US savings" },
+      "a-card": { kind: "new", type: "CREDIT_CARD", currency: "COP", name: "Visa" },
     });
     const categories = Object.fromEntries(preview.categories.map((c) => [c.sourceId, c.mapping]));
     expect(categories["c-food"]).toEqual({
@@ -133,7 +172,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
       categoryId: await categoryWithKey(ana, "salary"),
     });
     expect(categories["c-guitar"]).toMatchObject({ kind: "new" });
-    expect(categories["c-food-sub"]).toEqual({ kind: "new", groupId: null });
+    expect(categories["c-food-sub"]).toEqual({ kind: "new", groupId: null, name: "Supermercado" });
     expect(preview.plan).toEqual({
       movements: 6,
       alreadyImported: [],
@@ -144,11 +183,55 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     expect(await liveMovements(ana.spaceId)).toBe(0);
   });
 
-  it("refuses a file over 20 MB with 422 ImportFileTooLarge, before reading it", async () => {
+  it("refuses a file over 20 MB with 422 ImportFileTooLarge", async () => {
     const ana = await registerUser("Ana");
     const big = new Uint8Array(20 * 1024 * 1024 + 1);
     big.set(backup);
-    expect(await problemOf(await upload(ana, big))).toEqual([422, "ImportFileTooLarge"]);
+    const refused = await upload(ana, big);
+    expect(refused.status).toBe(422);
+    expect(await refused.json()).toMatchObject({ code: "ImportFileTooLarge", maxBytes: 20 * 1024 * 1024 });
+  });
+
+  it("refuses a body whose declared length is over the limit without reading any of it", async () => {
+    const ana = await registerUser("Ana");
+    const body = streamed(30 * MB);
+    const response = await uploadStream(ana, body.stream, { "content-length": String(30 * MB) });
+    expect(await problemOf(response)).toEqual([422, "ImportFileTooLarge"]);
+    expect(body.pulled()).toBe(0);
+  });
+
+  it("stops reading a body sent without a length once it passes the limit", async () => {
+    const ana = await registerUser("Ana");
+    const body = streamed(30 * MB);
+    const response = await uploadStream(ana, body.stream);
+    expect(await problemOf(response)).toEqual([422, "ImportFileTooLarge"]);
+    // At most the limit, its framing allowance and one more chunk were read: never the whole 30 MB.
+    expect(body.pulled()).toBeLessThanOrEqual(21 * MB + 64 * 1024);
+  });
+
+  it("refuses a third upload at once while two are still being read, without reading its body", async () => {
+    const ana = await registerUser("Ana");
+    let release = () => {};
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const held = () =>
+      new ReadableStream<Uint8Array>(
+        {
+          async pull(controller) {
+            await released;
+            controller.close();
+          },
+        },
+        { highWaterMark: 0 },
+      );
+    const first = uploadStream(ana, held());
+    const second = uploadStream(ana, held());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const third = streamed(1 * MB);
+    const refused = await uploadStream(ana, third.stream);
+    expect(await problemOf(refused)).toEqual([429, "TooManyRequests"]);
+    expect(third.pulled()).toBe(0);
+    release();
+    await Promise.all([first, second]);
   });
 
   it("refuses a file that is not a Money Manager backup with 422 ImportFileNotRecognized", async () => {
@@ -170,12 +253,33 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     }
   });
 
+  it("gives up on a body that stops arriving, answering 422 ImportTimedOut, and frees its slot", async () => {
+    const ana = await registerUser("Ana");
+    const hasty = startTestApp({ uploadReadTimeoutMs: 50 });
+    const stalled = () =>
+      new ReadableStream<Uint8Array>({ pull: () => new Promise<void>(() => {}) }, { highWaterMark: 0 });
+    try {
+      const [first, second] = await Promise.all([uploadStream(ana, stalled()), uploadStream(ana, stalled())]);
+      expect(await problemOf(first)).toEqual([422, "ImportTimedOut"]);
+      expect(await problemOf(second)).toEqual([422, "ImportTimedOut"]);
+      expect((await upload(ana, backup)).status).toBe(201);
+    } finally {
+      setContainerForTests(app);
+      await hasty.pool.end();
+    }
+  });
+
   it("refuses a VIEWER with 403, and a shared space with 409 ImportRequiresPersonalSpace", async () => {
     const ana = await registerUser("Ana");
     const sofi = await registerUser("Sofi");
     const household = await newSharedSpace(ana);
     await joinAs(ana, household, sofi, "VIEWER");
     expect(await problemOf(await upload(sofi, backup, household))).toEqual([403, "InsufficientRole"]);
+    // Refused before the body is read: a VIEWER or a stranger never makes the server buffer an upload.
+    const body = streamed(5 * MB);
+    const refused = await uploadStream({ ...sofi, spaceId: household }, body.stream);
+    expect(await problemOf(refused)).toEqual([403, "InsufficientRole"]);
+    expect(body.pulled()).toBe(0);
     expect(await problemOf(await upload(ana, backup, household))).toEqual([
       409,
       "ImportRequiresPersonalSpace",
@@ -203,7 +307,9 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
       status: "CONFIRMED",
       counts: {
         accountsCreated: 3,
+        accountsRestored: 0,
         categoriesCreated: 2,
+        categoriesRestored: 0,
         movementsImported: 5,
         alreadyImported: 0,
         duplicatesSkipped: 0,
@@ -333,6 +439,62 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
     expect(result.counts).toMatchObject({ movementsImported: 5, duplicatesSkipped: 0 });
   });
 
+  it("finds a likely duplicate transfer by what reached an account already in Hearth", async () => {
+    const ana = await registerUser("Ana");
+    const cash = await starterAccount(ana, "Efectivo");
+    const typed = await post(recordTransfer, ana, "transfers", {
+      date: "2025-01-25",
+      amount: cop(20_000),
+      sourceAccountId: await starterAccount(ana, "Cuenta bancaria"),
+      destinationAccountId: cash,
+    });
+    expect(typed.status).toBe(201);
+    const leg = {
+      wdate: "2025-01-25",
+      zdate: Date.UTC(2025, 0, 25, 15),
+      currency: 1 as const,
+      txUidTrans: "t2",
+    };
+    const withTransfer = moneyManagerBackup([
+      {
+        ...leg,
+        uid: "m20",
+        doType: 3,
+        asset: "a-bank",
+        toAsset: "a-cash",
+        entered: "20000.0",
+        inAccount: 20000,
+      },
+      {
+        ...leg,
+        uid: "m21",
+        doType: 4,
+        asset: "a-cash",
+        toAsset: "a-bank",
+        entered: "20000.0",
+        inAccount: 20000,
+      },
+    ]);
+
+    const response = await upload(ana, withTransfer);
+
+    expect(((await response.json()) as Preview).duplicates).toEqual(["t2"]);
+  });
+
+  it("replays the first answer to a confirm sent again with the same idempotency key, importing nothing twice", async () => {
+    const ana = await registerUser("Ana");
+    const preview = await uploaded(ana);
+    const key = crypto.randomUUID();
+    const first = await confirm(ana, preview.id, key);
+    const before = await liveMovements(ana.spaceId);
+
+    const again = await confirm(ana, preview.id, key);
+
+    expect([first.status, again.status]).toEqual([200, 200]);
+    expect(await again.json()).toEqual(await first.json());
+    expect(await liveMovements(ana.spaceId)).toBe(before);
+  });
+
   it("refuses a second confirm of the same draft with 409 ImportNotDraft", async () => {
     const ana = await registerUser("Ana");
     const { preview } = await imported(ana);
@@ -373,9 +535,14 @@ describe("PATCH /api/v1/spaces/{spaceId}/imports/{importId} (D28, design §3.2)"
     // An existing account keeps its own opening balance: the early adjustment waits for the ADJUSTMENT type.
     expect(view.plan).toMatchObject({ adjustmentsInOpeningBalance: 0, adjustmentsNotImported: 2 });
 
-    expect(
-      await problemOf(await adjust({ accounts: { "a-usd": { kind: "existing", accountId: bank } } })),
-    ).toEqual([422, "InvalidImportMapping"]);
+    const refused = await adjust({ accounts: { "a-usd": { kind: "existing", accountId: bank } } });
+    expect(refused.status).toBe(422);
+    // The client learns which source account and why, to word it (design §3.2).
+    expect(await refused.json()).toMatchObject({
+      code: "InvalidImportMapping",
+      reason: "currencyMismatch",
+      sourceId: "a-usd",
+    });
     expect(await problemOf(await adjust({ timeZone: "Mars/Olympus" }))).toEqual([422, "InvalidTimeZone"]);
   });
 });
@@ -425,6 +592,28 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
     expect(again.plan.movements).toBe(EVERY_ROW.length);
   });
 
+  it("counts only the movements it deleted, never one the person had deleted already", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const { rows } = await app.pool.query(
+      "SELECT id FROM transactions WHERE space_id = $1 AND description = 'Almuerzo'",
+      [ana.spaceId],
+    );
+    await app.ledger.deleteTransaction({
+      spaceId: ana.spaceId,
+      userId: ana.userId,
+      transactionId: rows[0].id,
+    });
+
+    const response = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+
+    expect(await response.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 4 });
+    expect(await liveMovements(ana.spaceId)).toBe(0);
+  });
+
   it("refuses to undo a draft with 409 ImportNotConfirmed", async () => {
     const ana = await registerUser("Ana");
     const preview = await uploaded(ana);
@@ -433,5 +622,77 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       params: { spaceId: ana.spaceId, importId: preview.id },
     });
     expect(await problemOf(response)).toEqual([409, "ImportNotConfirmed"]);
+  });
+});
+
+describe("a re-import after an undo, and names the space already holds (D28, design §3.3)", () => {
+  const undo = (user: TestUser, importId: string) =>
+    call(undoImport, "POST", importPath(user, importId, "/undo"), {
+      user,
+      params: { spaceId: user.spaceId, importId },
+    });
+
+  it("confirms the same file again after an undo, restoring the accounts and categories the undo archived", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const bank = await accountNamed(ana.spaceId, "Banco Uno");
+    expect((await undo(ana, preview.id)).status).toBe(200);
+
+    const again = await uploaded(ana);
+    expect(again.accounts.find((a) => a.sourceId === "a-bank")?.mapping).toEqual({
+      kind: "existing",
+      accountId: bank?.id,
+    });
+    const result = await confirmed(ana, again.id);
+
+    expect(result.counts).toMatchObject({
+      accountsCreated: 0,
+      accountsRestored: 3,
+      categoriesCreated: 0,
+      categoriesRestored: 2,
+      movementsImported: 5,
+    });
+    expect(await accountNamed(ana.spaceId, "Banco Uno")).toMatchObject({ id: bank?.id, archived_at: null });
+    expect(await liveMovements(ana.spaceId)).toBe(5);
+  });
+
+  it("gives a new account or category a name no archived one holds, and says so in the preview", async () => {
+    const ana = await registerUser("Ana");
+    const archived = await newAccount(ana, "banco uno", 0, "SAVINGS");
+    await app.accounts.archiveAccount({ spaceId: ana.spaceId, userId: ana.userId, accountId: archived });
+    const otros = (
+      await app.pool.query("SELECT id FROM category_groups WHERE space_id = $1 AND key = 'other'", [
+        ana.spaceId,
+      ])
+    ).rows[0].id as string;
+    const guitar = await app.categories.createCategory({
+      spaceId: ana.spaceId,
+      userId: ana.userId,
+      groupId: otros,
+      name: "Guitarra",
+    });
+    if (!guitar.ok) throw new Error(guitar.error.code);
+    await app.categories.archiveCategory({
+      spaceId: ana.spaceId,
+      userId: ana.userId,
+      categoryId: guitar.value.id,
+    });
+
+    const preview = await uploaded(ana);
+    expect(preview.accounts.find((a) => a.sourceId === "a-bank")?.mapping).toEqual({
+      kind: "new",
+      type: "BANK",
+      currency: "COP",
+      name: "Banco Uno (Money Manager)",
+    });
+    expect(preview.categories.find((c) => c.sourceId === "c-guitar")?.mapping).toEqual({
+      kind: "new",
+      groupId: otros,
+      name: "Guitarra (Money Manager)",
+    });
+    const result = await confirmed(ana, preview.id);
+
+    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 2, movementsImported: 5 });
+    expect(await accountNamed(ana.spaceId, "Banco Uno (Money Manager)")).toMatchObject({ archived_at: null });
   });
 });

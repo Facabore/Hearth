@@ -1,4 +1,5 @@
 import type { ExchangeRate, LocalDate, Result } from "@/shared/kernel";
+import type { DatedRate } from "../domain";
 
 /** One quote a source gives against its base currency, as an exact decimal string. */
 export interface SourceRate {
@@ -56,4 +57,13 @@ export interface ExchangeRateRepository {
   rateOn(base: string, quote: string, on: LocalDate): Promise<Result<ExchangeRate>>;
   /** The earliest day `source` has a stored rate for, or null when it has none (whether its history is filled in). */
   earliestDate(source: string): Promise<LocalDate | null>;
+}
+
+/**
+ * D29 (MC4): the read that totals and reports convert with: `rateOn`'s rate together with the day of the stored rate it
+ * came from (for a cross rate, the oldest day among the stored rates it went through) and whether that day is more
+ * than `STALE_AFTER_DAYS` days before `on`. Kept apart from the repository so the daily job's port stays as it is.
+ */
+export interface DatedRateReader {
+  datedRateOn(base: string, quote: string, on: LocalDate): Promise<Result<DatedRate>>;
 }

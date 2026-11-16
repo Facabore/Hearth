@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { ExchangeRate, type LocalDate } from "@/shared/kernel";
+import { unwrap } from "../../../../tests/support/fakes";
 import { NO_ATTRIBUTES, switchesOf, type AccountId, type AccountType } from "./account";
-import { totalsOf } from "./account-totals";
+import { convertedTotalsOf, totalsOf } from "./account-totals";
 
 const at = new Date("2026-10-16T12:00:00Z");
+const on = (iso: string) => iso as LocalDate;
 const held = (name: string, type: AccountType, pesos: number, currency = "COP") => ({
   ...NO_ATTRIBUTES,
   id: `acc-${name}` as AccountId,
@@ -79,5 +82,48 @@ describe("available money and net worth (HU-E2-07)", () => {
     expect(totalsOf(switched, "COP")).toEqual({ available: 1_230_000_000n, netWorth: 365_000_000n });
     const archived = ana.map((a) => (a.name === "Nequi" ? { ...a, archivedAt: at } : a));
     expect(totalsOf(archived, "COP")).toEqual({ available: 200_000_000n, netWorth: 365_000_000n });
+  });
+});
+
+describe("totals converted on read (D29, slice MC4, board 8)", () => {
+  const usdCop = {
+    rate: unwrap(ExchangeRate.of("USD", "COP", "4100")),
+    date: on("2026-11-15"),
+    stale: false,
+  };
+  const space = [
+    held("Bancolombia", "BANK", 1_469_600),
+    { ...held("Dolares", "BANK", 0, "USD"), balance: 51_240n },
+  ];
+
+  it("converts an account in another currency at its rate and says which rate and day it used", () => {
+    const { totals, conversion } = convertedTotalsOf(space, "COP", new Map([["USD", usdCop]]));
+    // US$ 512,40 at 4.100 is $ 2.100.840; with $ 1.469.600 the available money is ≈ $ 3.570.440.
+    expect(totals).toEqual({ available: 357_044_000n, netWorth: 357_044_000n });
+    expect(conversion.converted).toEqual(new Map([["acc-Dolares", 210_084_000n]]));
+    expect(conversion.rates).toEqual([
+      { currency: "USD", rate: usdCop.rate, unit: 410_000n, date: "2026-11-15", stale: false },
+    ]);
+    expect(conversion.withoutRate).toEqual([]);
+  });
+
+  it("leaves an account with no rate out of the totals and flags it, never counting it at 1:1", () => {
+    const { totals, conversion } = convertedTotalsOf(space, "COP", new Map());
+    expect(totals).toEqual({ available: 146_960_000n, netWorth: 146_960_000n });
+    expect(conversion).toEqual({ converted: new Map(), rates: [], withoutRate: ["acc-Dolares"] });
+  });
+
+  it("keeps a stale rate, flagged", () => {
+    const old = { ...usdCop, date: on("2026-11-05"), stale: true };
+    const { conversion } = convertedTotalsOf(space, "COP", new Map([["USD", old]]));
+    expect(conversion.rates.map((r) => [r.date, r.stale])).toEqual([["2026-11-05", true]]);
+  });
+
+  it("converts nothing, and asks no rate, when every account is in the space's currency", () => {
+    expect(convertedTotalsOf(ana, "COP", new Map()).conversion).toEqual({
+      converted: new Map(),
+      rates: [],
+      withoutRate: [],
+    });
   });
 });
