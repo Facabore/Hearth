@@ -144,8 +144,8 @@ export const moneyManagerBackup = (movements: readonly BackupMovement[] = DEFAUL
     CREATE TABLE INOUTCOME (uid TEXT, DO_TYPE INTEGER, WDATE TEXT, ZDATE INTEGER, UTIME INTEGER, assetUid TEXT, toAssetUid TEXT, ctgUid TEXT, ZMONEY TEXT, currencyUid INTEGER, IN_ZMONEY TEXT, AMOUNT_ACCOUNT REAL, txUidTrans TEXT, ZCONTENT TEXT, ZDATA TEXT, IS_DEL INTEGER);
     CREATE TABLE TAG (uid TEXT, NAME TEXT);
     CREATE TABLE TX_TAG (txUid TEXT, tagUid TEXT);
-    CREATE TABLE BUDGET (uid TEXT, ctgUid TEXT, BUDGET_PERIOD INTEGER);
-    CREATE TABLE ZETC (dataTypeKey TEXT, VALUE TEXT);
+    CREATE TABLE BUDGET (uid TEXT, targetUid TEXT, BUDGET_PERIOD INTEGER);
+    CREATE TABLE ZETC (dataTypeKey TEXT, ZDATA TEXT);
   `);
   const currency = db.prepare("INSERT INTO CURRENCY VALUES (?,?,?,?,?,?,?)");
   currency.run(1, "COP", "COP", 1, "1", 0, 0);

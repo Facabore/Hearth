@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { isErr, type Result } from "@/shared/kernel";
 import type { SourceSnapshot } from "../domain/source-snapshot";
 import { MAX_IMPORT_BYTES, MoneyManagerAdapter } from "./money-manager-adapter";
+import { MONEY_MANAGER_TABLES } from "../../../../tests/support/money-manager-real-schema";
 
 type MovementRow = [
   uid: string,
@@ -31,8 +32,8 @@ const buildFixture = (extra: readonly MovementRow[] = [], extraSql = ""): Uint8A
     CREATE TABLE INOUTCOME (uid TEXT, DO_TYPE INTEGER, WDATE TEXT, ZDATE INTEGER, UTIME INTEGER, assetUid TEXT, toAssetUid TEXT, ctgUid TEXT, ZMONEY TEXT, currencyUid INTEGER, IN_ZMONEY TEXT, AMOUNT_ACCOUNT REAL, txUidTrans TEXT, ZCONTENT TEXT, ZDATA TEXT, IS_DEL INTEGER);
     CREATE TABLE TAG (uid TEXT, NAME TEXT);
     CREATE TABLE TX_TAG (txUid TEXT, tagUid TEXT);
-    CREATE TABLE BUDGET (uid TEXT, ctgUid TEXT, BUDGET_PERIOD INTEGER);
-    CREATE TABLE ZETC (dataTypeKey TEXT, VALUE TEXT);
+    CREATE TABLE BUDGET (uid TEXT, targetUid TEXT, BUDGET_PERIOD INTEGER);
+    CREATE TABLE ZETC (dataTypeKey TEXT, ZDATA TEXT);
   `);
 
   const currency = db.prepare("INSERT INTO CURRENCY VALUES (?,?,?,?,?,?,?)");
@@ -668,5 +669,37 @@ describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
     );
     expect(snapshot.movements.find((m) => m.sourceKey === "far")?.occurredAt).toBeNull();
     expect(snapshot.warnings).toContainEqual({ code: "InvalidInstant", sourceKey: "far" });
+  });
+});
+
+describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
+  /** A backup built from Money Manager's own table definitions, with one row per read table, every column named. */
+  const realBackup = (): Uint8Array => {
+    const db = new DatabaseSync(":memory:");
+    for (const table of MONEY_MANAGER_TABLES) db.exec(table);
+    db.exec(`
+      INSERT INTO CURRENCY (uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY, IS_DEL) VALUES ('1', 'COP', 'COP', 1, 0);
+      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ) VALUES ('a-bank', 'Banco', 1, '1', 0);
+      INSERT INTO ZCATEGORY (uid, NAME, TYPE, pUid, STATUS, C_IS_DEL, ORDERSEQ) VALUES ('c-food', 'Comida', 1, '', 0, 0, 0);
+      INSERT INTO INOUTCOME (uid, DO_TYPE, WDATE, ZDATE, UTIME, assetUid, ctgUid, ZMONEY, currencyUid, IN_ZMONEY,
+        AMOUNT_ACCOUNT, txUidTrans, ZCONTENT, IS_DEL)
+        VALUES ('m1', 1, '2025-01-10', ${Date.UTC(2025, 0, 10, 5)}, 0, 'a-bank', 'c-food', '50000.0', '1', '50000.0',
+          50000, '', 'Almuerzo', 0);
+      INSERT INTO TAG (uid, name) VALUES ('t1', 'comida');
+      INSERT INTO TX_TAG (txUid, tagUid) VALUES ('m1', 't1');
+      INSERT INTO BUDGET (uid, targetUid, IS_DEL) VALUES ('b1', 'c-food', 0);
+      INSERT INTO ZETC (dataTypeKey, ZDATA) VALUES ('start_day', '1');
+    `);
+    const bytes = db.serialize();
+    db.close();
+    return bytes;
+  };
+
+  it("reads a backup whose tables are Money Manager's own, not only the synthetic ones", () => {
+    const result = new MoneyManagerAdapter().read({ bytes: realBackup() });
+    expect(isErr(result) ? result.error : null).toBeNull();
+    const snapshot = (result as { value: SourceSnapshot }).value;
+    expect(snapshot.accounts.map((account) => account.name)).toEqual(["Banco"]);
+    expect(snapshot.movements).toHaveLength(1);
   });
 });

@@ -39,8 +39,10 @@ const QUERIES = {
   txTag: "SELECT txUid, tagUid FROM TX_TAG",
   movements: "SELECT * FROM INOUTCOME",
   categories: "SELECT * FROM ZCATEGORY",
-  budgets: "SELECT uid, ctgUid FROM BUDGET",
-  startDay: "SELECT VALUE FROM ZETC WHERE dataTypeKey = 'start_day'",
+  // Money Manager names a budget's category `targetUid` (its own schema, version 19), not `ctgUid` as INOUTCOME does.
+  budgets: "SELECT uid, targetUid FROM BUDGET",
+  // A setting's value is in ZETC.ZDATA; the table has no VALUE column.
+  startDay: "SELECT ZDATA FROM ZETC WHERE dataTypeKey = 'start_day'",
 } as const;
 
 type TableRows = Readonly<Record<keyof typeof QUERIES, Row[]>>;
@@ -196,7 +198,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     const { categories, deletedCategories } = this.categories(rows, usedCategories);
     const budgets: SourceBudget[] = rows.budgets.map((row) => ({
       sourceId: str(row.uid),
-      categorySourceId: trimmed(row.ctgUid),
+      categorySourceId: trimmed(row.targetUid),
     }));
 
     return ok({
@@ -458,7 +460,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
   private startDay(rows: TableRows): number | null {
     const row = rows.startDay[0];
     if (row === undefined) return null;
-    const value = Number(str(row.VALUE));
+    const value = Number(str(row.ZDATA));
     return Number.isInteger(value) ? value : null;
   }
 }
