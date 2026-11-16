@@ -113,7 +113,11 @@ const movementRow = (space: ExportedSpace, m: ExportedMovement): string[] => [
         ? m.category.name
         : `${m.category.parent} › ${m.category.name}`,
   ),
-  decimalCell(BigInt(m.amount.amount), m.amount.currency),
+  // #329: a balance adjustment keeps its direction in the CSV, money out of its account as a negative amount.
+  decimalCell(
+    m.type === "ADJUSTMENT" && m.sourceAccount !== null ? -BigInt(m.amount.amount) : BigInt(m.amount.amount),
+    m.amount.currency,
+  ),
   m.amount.currency,
   textCell(paidBy(m)),
   textCell(accountsOf(m)),

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { GET as exportMyData } from "@/app/api/v1/me/export/route";
+import { POST as recordAdjustment } from "@/app/api/v1/spaces/[spaceId]/adjustments/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/route";
 import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
@@ -251,6 +252,41 @@ describe("GET /api/v1/me/export (D28, design §3.6)", () => {
     expect(accounts).not.toContain("Davivienda");
     expect(categories!.split("\r\n")[0]).toBe("space,group,category,subcategory,catalog key,archived");
     expect(categories).toContain(",groceries,no");
+  });
+
+  it("keeps a balance adjustment's direction in the CSV: money out is a negative amount (#329)", async () => {
+    const h = await household();
+    for (const [description, pesos] of [
+      ["Ajuste entra", 5_000],
+      ["Ajuste sale", -2_000],
+    ] as const) {
+      const response = await post(recordAdjustment, h.ana.personal, "adjustments", {
+        accountId: h.ana.account,
+        amount: cop(pesos),
+        date: "2026-10-07",
+        description,
+      });
+      expect(response.status).toBe(201);
+    }
+    const response = await exportAs(h.ana.personal, "format=csv");
+    const [movements] = readZip(new Uint8Array(await response.arrayBuffer())).map((e) =>
+      new TextDecoder().decode(e.data),
+    );
+    const row = (text: string) =>
+      movements!
+        .split("\r\n")
+        .find((r) => r.split(",")[5] === text)!
+        .split(",");
+    expect([row("Ajuste entra")[4], row("Ajuste entra")[8], row("Ajuste entra")[11]]).toEqual([
+      "ADJUSTMENT",
+      "5000.00",
+      "Bancolombia",
+    ]);
+    expect([row("Ajuste sale")[4], row("Ajuste sale")[8], row("Ajuste sale")[11]]).toEqual([
+      "ADJUSTMENT",
+      "-2000.00",
+      "Bancolombia",
+    ]);
   });
 
   it("answers 429 TooManyRequests once a person exported a few times within a minute", async () => {
