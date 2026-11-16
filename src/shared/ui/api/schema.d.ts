@@ -2009,7 +2009,7 @@ export interface components {
                         amount: components["schemas"]["MoneyOutput"];
                     }[];
                     shares: {
-                        /** @description A member by display name; the name is null for a member no longer in the space. */
+                        /** @description A member by display name, a member who left the space included (D15); the name is null only for an id the space never had. */
                         member: {
                             memberId: string;
                             name: string | null;

@@ -17535,7 +17535,7 @@
                                     "name"
                                   ],
                                   "additionalProperties": false,
-                                  "description": "A member by display name; the name is null for a member no longer in the space."
+                                  "description": "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had."
                                 },
                                 {
                                   "type": "null"
@@ -17601,7 +17601,7 @@
                                 "name"
                               ],
                               "additionalProperties": false,
-                              "description": "A member by display name; the name is null for a member no longer in the space."
+                              "description": "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had."
                             },
                             "amount": {
                               "$ref": "#/components/schemas/MoneyOutput"
@@ -17638,7 +17638,7 @@
                               "name"
                             ],
                             "additionalProperties": false,
-                            "description": "A member by display name; the name is null for a member no longer in the space."
+                            "description": "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had."
                           },
                           {
                             "type": "null"
@@ -17665,7 +17665,7 @@
                               "name"
                             ],
                             "additionalProperties": false,
-                            "description": "A member by display name; the name is null for a member no longer in the space."
+                            "description": "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had."
                           },
                           {
                             "type": "null"
@@ -17875,7 +17875,7 @@
                               "name"
                             ],
                             "additionalProperties": false,
-                            "description": "A member by display name; the name is null for a member no longer in the space."
+                            "description": "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had."
                           },
                           {
                             "type": "null"
@@ -18037,7 +18037,7 @@
                                   "name"
                                 ],
                                 "additionalProperties": false,
-                                "description": "A member by display name; the name is null for a member no longer in the space."
+                                "description": "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had."
                               }
                             }
                           },

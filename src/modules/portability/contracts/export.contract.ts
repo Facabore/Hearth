@@ -20,7 +20,9 @@ const PolicySchema = z.discriminatedUnion("kind", [
 
 const MemberRefSchema = z
   .object({ memberId: z.string(), name: z.string().nullable() })
-  .describe("A member by display name; the name is null for a member no longer in the space.");
+  .describe(
+    "A member by display name, a member who left the space included (D15); the name is null only for an id the space never had.",
+  );
 
 const AccountRefSchema = z
   .object({ id: z.string(), name: z.string() })
