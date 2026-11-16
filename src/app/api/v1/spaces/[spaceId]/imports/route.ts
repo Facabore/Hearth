@@ -57,6 +57,29 @@ export const POST = defineRoute({
     const allowed = await portability.authorizeImport({ spaceId: params.spaceId!, userId: user!.id });
     if (!allowed.ok) return allowed;
     if (Number(request.headers.get("content-length") ?? "0") > MAX_BODY_BYTES) return tooLarge();
+    // The whole upload holds a slot, from the first byte read to the preview: a burst of uploads is refused before any
+    // of its bodies is buffered, not only once their reads reach the worker.
+    if (uploadsInFlight >= MAX_UPLOADS_IN_FLIGHT) return err(domainError("TooManyRequests"));
+    uploadsInFlight += 1;
+    try {
+      return await readAndStart(request, portability, params.spaceId!, user!.id);
+    } finally {
+      uploadsInFlight -= 1;
+    }
+  },
+});
+
+/** Design §3.5: uploads read at once by this server process, the same bound as the reader's workers. */
+const MAX_UPLOADS_IN_FLIGHT = 2;
+let uploadsInFlight = 0;
+
+const readAndStart = async (
+  request: Request,
+  portability: ReturnType<typeof getContainer>["portability"],
+  spaceId: string,
+  userId: string,
+) => {
+  {
     const body = await readAtMost(request.body, MAX_BODY_BYTES);
     if (body === null) return tooLarge();
     let form: FormData;
@@ -72,13 +95,13 @@ export const POST = defineRoute({
     if (source !== null && source !== "money-manager") return invalid("source", "Unknown source");
     if (file.size > MAX_IMPORT_BYTES) return tooLarge();
     const result = await portability.startImport({
-      spaceId: params.spaceId!,
-      userId: user!.id,
+      spaceId,
+      userId,
       bytes: new Uint8Array(await file.arrayBuffer()),
     });
     return result.ok ? ok({ status: 201, body: importPreviewDto(result.value) }) : result;
-  },
-});
+  }
+};
 
 /** D28, design §3.2: the space's import history. */
 export const GET = defineRoute({

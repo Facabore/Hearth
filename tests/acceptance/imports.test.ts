@@ -209,6 +209,31 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     expect(body.pulled()).toBeLessThanOrEqual(21 * MB + 64 * 1024);
   });
 
+  it("refuses a third upload at once while two are still being read, without reading its body", async () => {
+    const ana = await registerUser("Ana");
+    let release = () => {};
+    const released = new Promise<void>((resolve) => (release = resolve));
+    const held = () =>
+      new ReadableStream<Uint8Array>(
+        {
+          async pull(controller) {
+            await released;
+            controller.close();
+          },
+        },
+        { highWaterMark: 0 },
+      );
+    const first = uploadStream(ana, held());
+    const second = uploadStream(ana, held());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const third = streamed(1 * MB);
+    const refused = await uploadStream(ana, third.stream);
+    expect(await problemOf(refused)).toEqual([429, "TooManyRequests"]);
+    expect(third.pulled()).toBe(0);
+    release();
+    await Promise.all([first, second]);
+  });
+
   it("refuses a file that is not a Money Manager backup with 422 ImportFileNotRecognized", async () => {
     const ana = await registerUser("Ana");
     expect(await problemOf(await upload(ana, new TextEncoder().encode("hola")))).toEqual([
