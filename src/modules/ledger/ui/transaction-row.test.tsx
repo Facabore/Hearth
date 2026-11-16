@@ -617,3 +617,51 @@ describe('the round icon of a movement with no category (board "Cuenta · Movimi
     expect(iconPath()).toHaveAttribute("d", SYMBOL_PATHS.dots);
   });
 });
+
+describe("a balance adjustment's row (design Q4, #329)", () => {
+  const adjustment = (overrides: Partial<TransactionDto>) =>
+    transactionDto({
+      id: "t-adjust",
+      type: "ADJUSTMENT",
+      description: "",
+      amount: cop(50_000),
+      date: "2026-10-12",
+      categoryId: null,
+      payments: [],
+      shares: [],
+      sourceAccountId: null,
+      destinationAccountId: "a-bank",
+      ...overrides,
+    });
+
+  it("names money in as an adjustment of its account, with a plus sign", () => {
+    renderRow(adjustment({}));
+    expect(rowText()).toBe("Ajuste de saldoBancolombia+$ 50.000");
+  });
+
+  it("signs money out with a minus, and names its kind beside the account when a description titles it", () => {
+    renderRow(
+      adjustment({
+        description: "Cuadre con el banco",
+        amount: cop(20_000),
+        sourceAccountId: "a-bank",
+        destinationAccountId: null,
+      }),
+    );
+    expect(rowText()).toBe("Cuadre con el bancoAjuste de saldo · Bancolombia−$ 20.000");
+  });
+
+  it("reads Balance adjustment in English and wears the sliders", () => {
+    renderWithIntl(
+      <ol>
+        <TransactionRow tx={adjustment({})} context={context} />
+      </ol>,
+      { locale: "en" },
+    );
+    expect(rowText()).toBe("Balance adjustmentBancolombia+$ 50.000");
+    expect(screen.getByRole("listitem").querySelector("svg[aria-hidden='true'] path")).toHaveAttribute(
+      "d",
+      UI_ICONS.sliders,
+    );
+  });
+});

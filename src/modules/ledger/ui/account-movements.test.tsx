@@ -125,6 +125,57 @@ describe("a personal account's movements (ruling P327, board 'Cuenta · Movimien
   });
 });
 
+describe("a balance adjustment on its account's screen (design Q4, #329)", () => {
+  const adjusted = (overrides: Parameters<typeof transactionDto>[0]) =>
+    activityItemDto({
+      space: { id: "sp-personal", name: "Personal", kind: "PERSONAL", color: "PINE" },
+      transaction: transactionDto({
+        type: "ADJUSTMENT",
+        date: "2026-11-10",
+        categoryId: null,
+        payments: [],
+        shares: [],
+        ...overrides,
+      }),
+    });
+
+  it("signs it by its direction and moves a USD account by its own leg", () => {
+    const page: MyTransactionPageDto = {
+      period: NOVEMBER,
+      totals: { share: cop(0), income: cop(0) },
+      nextCursor: null,
+      items: [
+        adjusted({
+          id: "t-in",
+          description: "",
+          amount: cop(50_000),
+          sourceAccountId: null,
+          destinationAccountId: "a-bank",
+        }),
+        adjusted({
+          id: "t-out",
+          description: "Cuadre",
+          amount: cop(10_000),
+          sourceAccountId: "a-bank",
+          destinationAccountId: null,
+          sourceAmount: { amount: "250", currency: "USD" },
+        }),
+      ],
+    };
+    renderWithIntl(
+      <PersonalAccountMovements
+        page={page}
+        period="2026-11"
+        context={context()}
+        today={TODAY}
+        account={{ id: "a-bank", fund: false }}
+        href="/spaces/sp-personal/accounts/a-bank"
+      />,
+    );
+    expect(rowsOf()).toEqual(["Ajuste de saldo+$ 50.000", "CuadreAjuste de saldo−US$ 2,50"]);
+  });
+});
+
 describe("a shared fund's movements (ruling P327, board 'Fondo de Hogar · Movimientos · #315')", () => {
   /** Board C: what Fondo de Hogar paid and received in November. */
   const page: TransactionPageDto = {

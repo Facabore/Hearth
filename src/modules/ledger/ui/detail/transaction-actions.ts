@@ -23,7 +23,8 @@ const NONE: TransactionActions = { edit: false, delete: false, note: null };
  * Editar: only whoever's account the money moves through may change it, so the sheet never offers an edit the API
  * refuses. Settlements are deleted and recorded again (P188); a fund contribution is its payer's to change, which its
  * edit screen does by converting it into an expense (issue #195). D26 (P328): either half of an expense paid for the fund
- * keeps the other's amount, date and payment, so neither is edited; deleting one deletes both.
+ * keeps the other's amount, date and payment, so neither is edited; deleting one deletes both. A balance adjustment
+ * (design Q4) is only deleted here: the API edits its amount, date and description, but no screen does yet.
  */
 export const actionsFor = (
   tx: TransactionDto,
@@ -33,6 +34,8 @@ export const actionsFor = (
   const { role, userId } = viewer;
   if (!(role === "OWNER" || role === "ADMIN" || (role === "MEMBER" && tx.createdBy === userId))) return NONE;
   if (tx.type === "SETTLEMENT") return { edit: false, delete: true, note: { key: "SETTLEMENT" } };
+  // Design Q4 (#329): a balance adjustment has no edit screen yet (it needs its board); it is deleted from its detail.
+  if (tx.type === "ADJUSTMENT") return { edit: false, delete: true, note: null };
   if (tx.linkedTransactionId) return { edit: false, delete: true, note: { key: "PAID_FOR_FUND" } };
   const byUser = (id: string) => members.find((m) => m.userId === id);
   const byMember = (id: string | null) => members.find((m) => m.id === id);

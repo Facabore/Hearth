@@ -108,6 +108,7 @@ import {
   createRecordPairSettlement,
   createRecordSettlement,
   createRecordTransfer,
+  createRecordAdjustment,
   createDefineRecurrence,
   type DefineRecurrence,
   type RecurrenceDeps,
@@ -160,6 +161,7 @@ import {
   type RecordSettlement,
   type Transaction,
   type RecordTransfer,
+  type RecordAdjustment,
 } from "@/modules/ledger/application";
 import { DrizzleAuditLog } from "@/modules/ledger/infrastructure/drizzle-audit-log";
 import { DrizzleLedgerQueries } from "@/modules/ledger/infrastructure/drizzle-ledger-queries";
@@ -411,6 +413,7 @@ export interface Container extends RouteDeps {
     readonly recordExpense: RecordExpense;
     readonly recordIncome: RecordIncome;
     readonly recordTransfer: RecordTransfer;
+    readonly recordAdjustment: RecordAdjustment;
     readonly recordFundContribution: RecordFundContribution;
     readonly recordSettlement: RecordSettlement;
     readonly listTransactions: ListTransactions;
@@ -741,6 +744,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const recordExpense = createRecordExpense(ledgerDeps);
   const recordIncome = createRecordIncome(ledgerDeps);
   const recordTransfer = createRecordTransfer(ledgerDeps);
+  const recordAdjustment = createRecordAdjustment(ledgerDeps);
   const recordFundContribution = createRecordFundContribution(ledgerDeps);
   // HU-E4-11 … HU-E4-13: recurrences live in the ledger and record through its own use cases (ruling P21).
   const recurrenceRepository = new DrizzleRecurrenceRepository(tm);
@@ -1089,6 +1093,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordExpense,
       recordIncome,
       recordTransfer,
+      recordAdjustment,
       deleteTransaction: createDeleteTransaction(ledgerDeps),
     }),
     digest: (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex"),
@@ -1213,6 +1218,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordExpense,
       recordIncome,
       recordTransfer,
+      recordAdjustment,
       recordFundContribution,
       recordSettlement: createRecordSettlement(ledgerDeps),
       listTransactions: createListTransactions(ledgerDeps),

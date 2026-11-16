@@ -73,7 +73,7 @@ export interface ExportCategorySource {
   readonly subcategories: readonly Omit<ExportCategorySource, "subcategories">[];
 }
 
-export type ExportMovementType = "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+export type ExportMovementType = "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
 
 export interface ExportMovementSource {
   readonly id: string;

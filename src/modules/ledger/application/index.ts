@@ -50,6 +50,11 @@ export {
 export { createRecordIncome, type RecordIncome, type RecordIncomeInput } from "./record-income";
 export { createRecordTransfer, type RecordTransfer, type RecordTransferInput } from "./record-transfer";
 export {
+  createRecordAdjustment,
+  type RecordAdjustment,
+  type RecordAdjustmentInput,
+} from "./record-adjustment";
+export {
   createRecordFundContribution,
   type RecordFundContribution,
   type RecordFundContributionInput,

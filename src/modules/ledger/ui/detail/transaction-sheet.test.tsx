@@ -549,3 +549,40 @@ describe("an expense paid for the fund (D26, P328)", () => {
     );
   });
 });
+
+describe("a balance adjustment's detail (design Q4, #329)", () => {
+  const adjustment = transactionDto({
+    id: "t-adjust",
+    type: "ADJUSTMENT",
+    description: "",
+    amount: cop(20_000),
+    date: "2026-10-31",
+    categoryId: null,
+    payments: [],
+    shares: [],
+    sourceAccountId: "a-bank",
+    destinationAccountId: null,
+  });
+
+  it("shows its kind, its account and a signed amount, and offers Eliminar only", () => {
+    open(detailOf(adjustment));
+    expect(screen.getByRole("dialog", { name: "Ajuste de saldo" })).toBeInTheDocument();
+    expect(described()).toBe("−$ 20.000");
+    expect(definition("Tipo")).toBe("Ajuste de saldo");
+    expect(definition("Cuenta")).toBe("Bancolombia");
+    expect(terms()).not.toContain("Categoría");
+    expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Eliminar" })).toBeEnabled();
+  });
+
+  it("signs money in with a plus and reads Balance adjustment in English", () => {
+    open(detailOf({ ...adjustment, sourceAccountId: null, destinationAccountId: "a-bank" }), ORIGIN, "en");
+    expect(described()).toBe("+$ 20.000");
+    expect(definition("Type")).toBe("Balance adjustment");
+  });
+
+  it("offers a VIEWER nothing to do with it", () => {
+    open(detailOf(adjustment, [], { userId: "u-sofi", role: "VIEWER", memberId: null }));
+    expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
+  });
+});

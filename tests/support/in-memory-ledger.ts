@@ -215,7 +215,10 @@ export class InMemoryTransactions
       // when the leg is undefined (the leg equals the base), like DrizzleLedgerQueries.netMovements' COALESCE.
       if (t.type !== "EXPENSE" && t.destinationAccountId === accountId)
         net += ("destinationAmount" in t ? t.destinationAmount : undefined) ?? t.amount;
-      if ((t.type === "TRANSFER" || t.type === "SETTLEMENT") && t.sourceAccountId === accountId)
+      if (
+        (t.type === "TRANSFER" || t.type === "SETTLEMENT" || t.type === "ADJUSTMENT") &&
+        t.sourceAccountId === accountId
+      )
         net -= ("sourceAmount" in t ? t.sourceAmount : undefined) ?? t.amount;
       if (t.type === "EXPENSE") {
         for (const payment of t.payments)
@@ -381,6 +384,8 @@ const involves = (t: Transaction, f: Involving): boolean => {
     return t.payments.some((p) => theirs(p.memberId)) || t.shares.some((s) => theirs(s.memberId));
   if (t.type === "INCOME") return theirs(t.receivingMemberId);
   if (t.type === "TRANSFER") return theirs(t.payerMemberId);
+  // Design Q4: an adjustment names nobody.
+  if (t.type === "ADJUSTMENT") return false;
   return theirs(t.payerMemberId) || theirs(t.receivingMemberId) || theirs(t.onBehalfOfMemberId);
 };
 

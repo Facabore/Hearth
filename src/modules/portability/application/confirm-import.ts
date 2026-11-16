@@ -215,6 +215,10 @@ const record = async (
     ...(movement.note === null ? {} : { description: movement.note }),
     time: timeOf(movement, timeZone),
   };
+  // Design Q4 (#329): a balance adjustment the opening balance did not take, signed, in its account's own currency.
+  if (movement.kind === "ADJUSTMENT") {
+    return deps.writer.recordAdjustment({ ...base, accountId: account.id, amount: movement.amount });
+  }
   if (movement.kind === "TRANSFER") {
     const destination =
       movement.toAccountSourceId === null ? undefined : resolved.accounts.get(movement.toAccountSourceId);
@@ -321,10 +325,12 @@ export const createConfirmImport =
         ),
       ];
       const rowErrors: SourceIssue[] = [];
+      let adjustmentsRefused = 0;
       for (const movement of plan.toRecord) {
         const id = await record(deps, space, input.userId, movement, resolved, mappings.value.timeZone);
         if (!id.ok) {
           rowErrors.push(rowError(movement.sourceKey, id.error));
+          if (movement.kind === "ADJUSTMENT") adjustmentsRefused += 1;
           continue;
         }
         movements.push(id.value);
@@ -351,7 +357,8 @@ export const createConfirmImport =
         alreadyImported: plan.alreadyImported.length,
         duplicatesSkipped: plan.duplicatesSkipped.length,
         adjustmentsInOpeningBalance: plan.folded.length,
-        adjustmentsNotImported: plan.adjustmentsNotImported.length,
+        // Design Q4 (#329): the adjustments the ledger refused (each a row error too); every other one was imported.
+        adjustmentsNotImported: adjustmentsRefused,
         rowErrors: rowErrors.length,
       };
       // What the undo reverts: every movement it recorded, and every account and category it created or restored.

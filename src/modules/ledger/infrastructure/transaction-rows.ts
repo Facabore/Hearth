@@ -15,6 +15,12 @@ type TransactionRow = typeof transactions.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect & { readonly accountCurrency: string | null };
 type ShareRow = typeof shares.$inferSelect;
 
+/** The types that may move money out of a source account (design Q4: an adjustment out names its account there). */
+const hasSource = (
+  tx: Transaction,
+): tx is Extract<Transaction, { type: "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT" }> =>
+  tx.type === "TRANSFER" || tx.type === "SETTLEMENT" || tx.type === "ADJUSTMENT";
+
 /** Per-type columns; the transactions_shape check pins which ones each type sets. */
 export const transactionRow = (tx: Transaction): typeof transactions.$inferInsert => ({
   id: tx.id,
@@ -31,11 +37,11 @@ export const transactionRow = (tx: Transaction): typeof transactions.$inferInser
   originalAmount: tx.originalAmount ?? null,
   originalCurrency: tx.originalCurrency ?? null,
   // D29, slice MC3: each account leg with its currency (its account's own); an expense's are on its payments.
-  sourceAmount: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? (tx.sourceAmount ?? null) : null,
+  sourceAmount: hasSource(tx) ? (tx.sourceAmount ?? null) : null,
   destinationAmount: tx.type === "EXPENSE" ? null : (tx.destinationAmount ?? null),
-  sourceCurrency: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? (tx.sourceCurrency ?? null) : null,
+  sourceCurrency: hasSource(tx) ? (tx.sourceCurrency ?? null) : null,
   destinationCurrency: tx.type === "EXPENSE" ? null : (tx.destinationCurrency ?? null),
-  sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
+  sourceAccountId: hasSource(tx) ? tx.sourceAccountId : null,
   destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
   receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
   payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
@@ -170,6 +176,21 @@ const toTransaction = (
         onBehalfOfMemberId: row.onBehalfOfMemberId,
         linkedTransactionId: row.linkedTransactionId as TransactionId | null,
         // D29, slice MC3: a leg's currency round-trips with its amount (null column ↔ absent field).
+        ...(row.sourceAmount === null || row.sourceCurrency === null
+          ? {}
+          : { sourceAmount: row.sourceAmount, sourceCurrency: row.sourceCurrency }),
+        ...(row.destinationAmount === null || row.destinationCurrency === null
+          ? {}
+          : { destinationAmount: row.destinationAmount, destinationCurrency: row.destinationCurrency }),
+      };
+    // Design Q4: one account, on the side the money moved; its leg round-trips with its currency, as a transfer's.
+    case "ADJUSTMENT":
+      return {
+        ...base,
+        type: "ADJUSTMENT",
+        categoryId: null,
+        sourceAccountId: row.sourceAccountId,
+        destinationAccountId: row.destinationAccountId,
         ...(row.sourceAmount === null || row.sourceCurrency === null
           ? {}
           : { sourceAmount: row.sourceAmount, sourceCurrency: row.sourceCurrency }),

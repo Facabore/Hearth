@@ -5427,7 +5427,8 @@
                 "EXPENSE",
                 "INCOME",
                 "TRANSFER",
-                "SETTLEMENT"
+                "SETTLEMENT",
+                "ADJUSTMENT"
               ]
             }
           },
@@ -6738,6 +6739,149 @@
         }
       }
     },
+    "/api/v1/spaces/{spaceId}/adjustments": {
+      "post": {
+        "operationId": "recordAdjustment",
+        "summary": "Adjust one account's balance (Ajuste de saldo): a signed amount in the account's own currency, never spending or income",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "schema": {
+              "type": "string",
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  },
+                  "occurredAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "accountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "amount",
+                  "accountId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The recorded transaction; ETag carries its version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/fund-contributions": {
       "post": {
         "operationId": "recordFundContribution",
@@ -7169,7 +7313,8 @@
                 "EXPENSE",
                 "INCOME",
                 "TRANSFER",
-                "SETTLEMENT"
+                "SETTLEMENT",
+                "ADJUSTMENT"
               ]
             }
           },
@@ -7662,7 +7807,7 @@
             }
           },
           "409": {
-            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
+            "description": "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AdjustmentHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -15840,7 +15985,7 @@
                                     "type": "integer",
                                     "minimum": -9007199254740991,
                                     "maximum": 9007199254740991,
-                                    "description": "Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4)."
+                                    "description": "Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview."
                                   },
                                   "rowErrors": {
                                     "type": "integer",
@@ -16187,7 +16332,7 @@
       "post": {
         "operationId": "confirmImport",
         "summary": "Import a draft into the ledger, in one transaction",
-        "description": "Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before their account's first movement become its opening balance; later ones are counted as not imported yet.",
+        "description": "Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
         "security": [
           {
             "cookieAuth": []
@@ -16291,7 +16436,7 @@
                               "type": "integer",
                               "minimum": -9007199254740991,
                               "maximum": 9007199254740991,
-                              "description": "Balance adjustments after their account's first movement: not imported yet (the ADJUSTMENT type, Q4)."
+                              "description": "Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview."
                             },
                             "rowErrors": {
                               "type": "integer",
@@ -17891,7 +18036,8 @@
               "EXPENSE",
               "INCOME",
               "TRANSFER",
-              "SETTLEMENT"
+              "SETTLEMENT",
+              "ADJUSTMENT"
             ]
           },
           "description": {
@@ -18524,7 +18670,8 @@
                           "EXPENSE",
                           "INCOME",
                           "TRANSFER",
-                          "SETTLEMENT"
+                          "SETTLEMENT",
+                          "ADJUSTMENT"
                         ]
                       },
                       "date": {
@@ -20008,7 +20155,8 @@
               "EXPENSE",
               "INCOME",
               "TRANSFER",
-              "SETTLEMENT"
+              "SETTLEMENT",
+              "ADJUSTMENT"
             ]
           },
           "description": {
@@ -21128,7 +21276,8 @@
               "EXPENSE",
               "INCOME",
               "TRANSFER",
-              "SETTLEMENT"
+              "SETTLEMENT",
+              "ADJUSTMENT"
             ]
           },
           "description": {

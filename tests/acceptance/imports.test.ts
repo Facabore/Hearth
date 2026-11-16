@@ -146,7 +146,8 @@ const accountNamed = async (spaceId: string, name: string) =>
   (await app.pool.query("SELECT * FROM accounts WHERE space_id = $1 AND name = $2", [spaceId, name]))
     .rows[0] as Record<string, unknown> | undefined;
 
-const EVERY_ROW = ["m1", "m2", "t1", "m5", "m6", "m7"];
+// Design Q4 (#329): adj1, the bank's adjustment after its first movement, is a movement of its own.
+const EVERY_ROW = ["m1", "m2", "t1", "m5", "m6", "m7", "adj1"];
 
 describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
   it("answers the preview: counts, proposed mappings and the plan, with nothing in the ledger", async () => {
@@ -174,11 +175,11 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     expect(categories["c-guitar"]).toMatchObject({ kind: "new" });
     expect(categories["c-food-sub"]).toEqual({ kind: "new", groupId: null, name: "Supermercado" });
     expect(preview.plan).toEqual({
-      movements: 6,
+      movements: 7,
       alreadyImported: [],
       duplicatesSkipped: 0,
       adjustmentsInOpeningBalance: 1,
-      adjustmentsNotImported: 1,
+      adjustmentsNotImported: 0,
     });
     expect(await liveMovements(ana.spaceId)).toBe(0);
   });
@@ -310,11 +311,11 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
         accountsRestored: 0,
         categoriesCreated: 2,
         categoriesRestored: 0,
-        movementsImported: 5,
+        movementsImported: 6,
         alreadyImported: 0,
         duplicatesSkipped: 0,
         adjustmentsInOpeningBalance: 1,
-        adjustmentsNotImported: 1,
+        adjustmentsNotImported: 0,
         rowErrors: 1,
       },
       // A USD expense from the USD account needs a USD→COP rate for its date, and there is none: that row only.
@@ -367,6 +368,12 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
         original_amount: "2000",
         original_currency: "USD",
       }),
+      // Design Q4 (#329): the bank's later adjustment, -1,000.00 COP, is a balance adjustment out of it.
+      expect.objectContaining({
+        type: "ADJUSTMENT",
+        date: "2025-03-01",
+        amount: "100000",
+      }),
     ]);
   });
 
@@ -377,7 +384,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
 
     const again = await uploaded(ana);
     expect(again.previouslyImportedAt).toBe("2026-11-16T15:00:00.000Z");
-    expect(again.plan.alreadyImported.sort()).toEqual(["adj0", "m1", "m2", "m5", "m7", "t1"]);
+    expect(again.plan.alreadyImported.sort()).toEqual(["adj0", "adj1", "m1", "m2", "m5", "m7", "t1"]);
     expect(again.accounts.every((a) => a.mapping.kind === "existing")).toBe(true);
     const result = await confirmed(ana, again.id);
 
@@ -385,7 +392,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
       accountsCreated: 0,
       categoriesCreated: 0,
       movementsImported: 0,
-      alreadyImported: 6,
+      alreadyImported: 7,
       rowErrors: 1,
     });
     expect(await liveMovements(ana.spaceId)).toBe(before);
@@ -436,7 +443,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
     expect(((await included.json()) as Preview).plan.duplicatesSkipped).toBe(0);
 
     const result = await confirmed(ana, preview.id);
-    expect(result.counts).toMatchObject({ movementsImported: 5, duplicatesSkipped: 0 });
+    expect(result.counts).toMatchObject({ movementsImported: 6, duplicatesSkipped: 0 });
   });
 
   it("finds a likely duplicate transfer by what reached an account already in Hearth", async () => {
@@ -532,8 +539,12 @@ describe("PATCH /api/v1/spaces/{spaceId}/imports/{importId} (D28, design §3.2)"
       kind: "existing",
       accountId: bank,
     });
-    // An existing account keeps its own opening balance: the early adjustment waits for the ADJUSTMENT type.
-    expect(view.plan).toMatchObject({ adjustmentsInOpeningBalance: 0, adjustmentsNotImported: 2 });
+    // An existing account keeps its own opening balance: both adjustments are ADJUSTMENT movements (design Q4).
+    expect(view.plan).toMatchObject({
+      movements: 8,
+      adjustmentsInOpeningBalance: 0,
+      adjustmentsNotImported: 0,
+    });
 
     const refused = await adjust({ accounts: { "a-usd": { kind: "existing", accountId: bank } } });
     expect(refused.status).toBe(422);
@@ -562,7 +573,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
     expect(await response.json()).toEqual({
       id: preview.id,
       status: "UNDONE",
-      movementsDeleted: 5,
+      movementsDeleted: 6,
       accountsArchived: 3,
       categoriesArchived: 2,
     });
@@ -571,7 +582,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       "SELECT count(*) FROM transactions WHERE space_id = $1 AND deleted_at IS NOT NULL",
       [ana.spaceId],
     );
-    expect(Number(rows[0].count)).toBe(5);
+    expect(Number(rows[0].count)).toBe(6);
     expect((await accountNamed(ana.spaceId, "Banco Uno"))?.archived_at).not.toBeNull();
     // The starter account the import only used stays as it was.
     expect((await accountNamed(ana.spaceId, "Efectivo"))?.id).toBe(cash);
@@ -610,8 +621,41 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       params: { spaceId: ana.spaceId, importId: preview.id },
     });
 
-    expect(await response.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 4 });
+    expect(await response.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 5 });
     expect(await liveMovements(ana.spaceId)).toBe(0);
+  });
+
+  it("imports a later balance adjustment as an ADJUSTMENT of its account, linked, and its undo deletes it (design Q4)", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const bank = (await accountNamed(ana.spaceId, "Banco Uno"))!;
+    const adjustment = async () =>
+      (
+        await app.pool.query(
+          `SELECT t.id, t.source_account_id, t.destination_account_id, t.amount, t.deleted_at
+             FROM transactions t WHERE t.space_id = $1 AND t.type = 'ADJUSTMENT'`,
+          [ana.spaceId],
+        )
+      ).rows;
+    const [row] = await adjustment();
+    expect(row).toMatchObject({
+      source_account_id: bank.id,
+      destination_account_id: null,
+      amount: "100000",
+      deleted_at: null,
+    });
+    const links = await app.pool.query(
+      "SELECT entity_type FROM import_links WHERE space_id = $1 AND source_key = 'adj1' AND entity_id = $2",
+      [ana.spaceId, row.id],
+    );
+    expect(links.rows).toEqual([{ entity_type: "MOVEMENT" }]);
+
+    const undone = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+    expect(undone.status).toBe(200);
+    expect((await adjustment())[0].deleted_at).not.toBeNull();
   });
 
   it("refuses to undo a draft with 409 ImportNotConfirmed", async () => {
@@ -650,10 +694,16 @@ describe("a re-import after an undo, and names the space already holds (D28, des
       accountsRestored: 3,
       categoriesCreated: 0,
       categoriesRestored: 2,
-      movementsImported: 5,
+      movementsImported: 6,
+      // The restored bank still holds adj0 in its opening balance: kept there, never recorded on top of it.
+      adjustmentsInOpeningBalance: 1,
     });
-    expect(await accountNamed(ana.spaceId, "Banco Uno")).toMatchObject({ id: bank?.id, archived_at: null });
-    expect(await liveMovements(ana.spaceId)).toBe(5);
+    expect(await accountNamed(ana.spaceId, "Banco Uno")).toMatchObject({
+      id: bank?.id,
+      archived_at: null,
+      opening_balance: "5000000",
+    });
+    expect(await liveMovements(ana.spaceId)).toBe(6);
   });
 
   it("gives a new account or category a name no archived one holds, and says so in the preview", async () => {
@@ -692,7 +742,7 @@ describe("a re-import after an undo, and names the space already holds (D28, des
     });
     const result = await confirmed(ana, preview.id);
 
-    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 2, movementsImported: 5 });
+    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 2, movementsImported: 6 });
     expect(await accountNamed(ana.spaceId, "Banco Uno (Money Manager)")).toMatchObject({ archived_at: null });
   });
 });

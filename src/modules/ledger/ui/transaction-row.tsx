@@ -22,6 +22,17 @@ export interface RowContext {
 }
 
 /**
+ * The sign a row's amount carries, so its direction never rests on color alone: an expense takes money out, an income
+ * brings it in, and a balance adjustment (design Q4) either way, by the side its one account is on.
+ */
+const signOf = (tx: TransactionDto): "+" | "-" | null => {
+  if (tx.type === "EXPENSE") return "-";
+  if (tx.type === "INCOME") return "+";
+  if (tx.type === "ADJUSTMENT") return tx.destinationAccountId === null ? "-" : "+";
+  return null;
+};
+
+/**
  * HU-E9-03, the Activity artboard's row: no "use client" and no server import, so both sides render it. Ruling P324
  * (medium density): a flat row of at most two lines, the title and one line that states each fact once, and the
  * amount on the right; no card and no border of its own, the list draws the hairlines.
@@ -94,7 +105,12 @@ export function TransactionRow({
     meta.push(t("transfer", { from: name(tx.sourceAccountId), to: name(tx.destinationAccountId) }));
   else if (tx.type === "SETTLEMENT")
     meta.push(t("settlement", { from: member(tx.payerMemberId), to: member(tx.receivingMemberId) }));
-  else {
+  else if (tx.type === "ADJUSTMENT") {
+    // Design Q4 (#329): a balance adjustment names its kind (when a description titles the row) and its one account.
+    if (tx.description) meta.push(t("type.ADJUSTMENT"));
+    const account = name(tx.destinationAccountId ?? tx.sourceAccountId);
+    if (account) meta.push(account);
+  } else {
     // #286 (audit pass 3, A12): a movement with no description is titled by its category, so it does not repeat it.
     const path = tx.categoryId && (tx.description || !found) ? categoryPath(groups, tx.categoryId) : null;
     // Inicio's rows named it before P324, so their accessible names keep it; Movimientos' never did (P284).
@@ -120,7 +136,7 @@ export function TransactionRow({
   }
   const kind = kindOf(tx);
   const money = formatMoney(moved?.amount ?? tx.amount, formats);
-  const sign = moved?.sign ?? (tx.type === "EXPENSE" ? "-" : tx.type === "INCOME" ? "+" : null);
+  const sign = moved?.sign ?? signOf(tx);
   const amount = sign === "-" ? `${MINUS}${money}` : sign === "+" ? `+${money}` : money;
   const icon = found ? (
     <CategoryIcon icon={found.category.icon} color={found.category.color} size={36} />
@@ -134,6 +150,8 @@ export function TransactionRow({
           contribution to the fund the wallet. */}
       {kind === "TRANSFER" ? (
         <Icon name="swap" size={20} />
+      ) : kind === "ADJUSTMENT" ? (
+        <Icon name="sliders" size={20} />
       ) : (
         <SymbolIcon name={kind === "FUND_CONTRIBUTION" ? "wallet" : "dots"} size={20} />
       )}

@@ -17,6 +17,7 @@ import {
   type DeleteTransaction,
   type RecordExpense,
   type RecordIncome,
+  type RecordAdjustment,
   type RecordTransfer,
   type Transaction,
   type TransactionPosition,
@@ -56,6 +57,13 @@ export const movementOnAccount = (tx: Transaction, accountId: string): HearthMov
   if (tx.type === "TRANSFER" && tx.destinationAccountId === accountId) {
     return { ...at, amountMinor: tx.destinationAmount ?? tx.amount, kind: "TRANSFER", incoming: true };
   }
+  // Design Q4: a balance adjustment, signed as the source's own are (money in positive, out negative).
+  if (tx.type === "ADJUSTMENT" && tx.destinationAccountId === accountId) {
+    return { ...at, amountMinor: tx.destinationAmount ?? tx.amount, kind: "ADJUSTMENT" };
+  }
+  if (tx.type === "ADJUSTMENT" && tx.sourceAccountId === accountId) {
+    return { ...at, amountMinor: -(tx.sourceAmount ?? tx.amount), kind: "ADJUSTMENT" };
+  }
   return null;
 };
 
@@ -74,6 +82,7 @@ export interface UseCaseImportWriterSources {
   readonly recordExpense: RecordExpense;
   readonly recordIncome: RecordIncome;
   readonly recordTransfer: RecordTransfer;
+  readonly recordAdjustment: RecordAdjustment;
   readonly deleteTransaction: DeleteTransaction;
 }
 
@@ -158,6 +167,8 @@ export const createUseCaseImportWriter = (sources: UseCaseImportWriterSources): 
       idOf(await sources.recordIncome({ ...input, ...importedWhen(time) })),
     recordTransfer: async ({ time, ...input }) =>
       idOf(await sources.recordTransfer({ ...input, ...importedWhen(time) })),
+    recordAdjustment: async ({ time, ...input }) =>
+      idOf(await sources.recordAdjustment({ ...input, ...importedWhen(time) })),
     deleteMovement: async ({ movementId, ...input }) => {
       const deleted = await sources.deleteTransaction({ ...input, transactionId: movementId });
       // D8: a movement the person deleted already stays as they left it, and this call did not delete it.
