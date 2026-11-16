@@ -1,4 +1,4 @@
-import { currencyOf, domainError, err, flatMap, Money, type Result } from "@/shared/kernel";
+import { domainError, err, Money, type Result } from "@/shared/kernel";
 
 /**
  * Money Manager writes decimals as `"12345.0"`, with a trailing fractional zero even for a zero-decimal currency such
@@ -16,28 +16,30 @@ const trimDecimal = (value: string): string => {
 export const moneyFromDecimal = (value: string, currency: string): Result<Money> =>
   Money.fromMajor(trimDecimal(value.trim()), currency);
 
+const EXPONENT_FORM = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/;
+
 /**
- * numerator rounded to the nearest integer at `exponent` decimals, ties to the even one (the kernel's only money
- * rounding, D29). `value` is a float field (`AMOUNT_ACCOUNT`), already in the account's currency.
+ * The shortest decimal that reads back as this float (`String(value)`), with exponent notation (`1e-7`, `1.5e+21`)
+ * written out digit for digit. Moving the decimal point is exact; nothing is rounded here.
  */
-const roundHalfEven = (value: number, exponent: number): bigint => {
-  const negative = value < 0;
-  const scaled = Math.abs(value) * 10 ** exponent;
-  const floor = Math.floor(scaled);
-  const fraction = scaled - floor;
-  let rounded = floor;
-  if (fraction > 0.5) rounded = floor + 1;
-  else if (fraction === 0.5) rounded = floor % 2 === 0 ? floor : floor + 1;
-  return BigInt(negative ? -rounded : rounded);
+const plainDecimal = (value: number): string => {
+  const text = String(value);
+  const match = text.match(EXPONENT_FORM);
+  if (!match) return text;
+  const [, sign, lead, rest = "", exponent] = match;
+  const digits = `${lead}${rest}`;
+  const point = 1 + Number(exponent);
+  if (point <= 0) return `${sign}0.${"0".repeat(-point)}${digits}`;
+  if (point >= digits.length) return `${sign}${digits}${"0".repeat(point - digits.length)}`;
+  return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`;
 };
 
 /**
- * A float field (`AMOUNT_ACCOUNT`) converted to minor units with the kernel's half-even rounding only (design §2.3,
- * D29). An infinite or NaN value is `InvalidMoneyPrecision`.
+ * A float field (`AMOUNT_ACCOUNT`) in minor units (design §2.3, D29): its shortest decimal form, rounded half to even
+ * by the kernel (`Money.fromDecimalRounded`), so 1.015 is 1.02 and never the double's 1.01499…. An infinite or NaN
+ * value is `InvalidMoneyPrecision`.
  */
 export const moneyFromFloat = (value: number, currency: string): Result<Money> =>
-  flatMap(currencyOf(currency), (c) =>
-    Number.isFinite(value)
-      ? Money.ofMinor(roundHalfEven(value, c.exponent), currency)
-      : err(domainError("InvalidMoneyPrecision", { value: String(value) })),
-  );
+  Number.isFinite(value)
+    ? Money.fromDecimalRounded(plainDecimal(value), currency)
+    : err(domainError("InvalidMoneyPrecision", { value: String(value) }));

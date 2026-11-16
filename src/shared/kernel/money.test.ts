@@ -94,4 +94,27 @@ describe("Money", () => {
     expect(cop("3").equals(cop("3"))).toBe(true);
     expect(unwrap(Money.fromMajor("-12.50", "USD")).minor).toBe(-1250n);
   });
+
+  it("rounds a longer decimal half to even at the currency's minor unit (D29)", () => {
+    const usd = (decimal: string) => unwrap(Money.fromDecimalRounded(decimal, "USD")).minor;
+    expect(usd("1.015")).toBe(102n);
+    expect(usd("0.575")).toBe(58n);
+    expect(usd("1.225")).toBe(122n);
+    expect(usd("1.2251")).toBe(123n);
+    expect(usd("-0.575")).toBe(-58n);
+    expect(usd("-1.225")).toBe(-122n);
+    expect(usd("12.5")).toBe(1250n);
+    expect(usd("7")).toBe(700n);
+    expect(unwrap(Money.fromDecimalRounded("2.5", "JPY")).minor).toBe(2n);
+    expect(unwrap(Money.fromDecimalRounded("3.5", "JPY")).minor).toBe(4n);
+  });
+
+  it("refuses a decimal it cannot read exactly, and an unknown currency", () => {
+    for (const bad of ["1e-7", "1.", ".5", "1,5", "NaN", "Infinity", ""]) {
+      const result = Money.fromDecimalRounded(bad, "USD");
+      expect(isErr(result) && result.error.code).toBe("InvalidMoneyPrecision");
+    }
+    const unknown = Money.fromDecimalRounded("1", "XXX");
+    expect(isErr(unknown) && unknown.error.code).toBe("UnknownCurrency");
+  });
 });
