@@ -21,7 +21,7 @@ type MovementRow = [
  * Builds a tiny, synthetic Money Manager SQLite backup covering every mapping rule, in memory, and returns its bytes:
  * nothing is written to disk. No real or personal data. `extra` adds movement rows for one test.
  */
-const buildFixture = (extra: readonly MovementRow[] = []): Uint8Array => {
+const buildFixture = (extra: readonly MovementRow[] = [], extraSql = ""): Uint8Array => {
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE CURRENCY (uid INTEGER, ISO TEXT, MAIN_ISO TEXT, IS_MAIN_CURRENCY INTEGER, RATE TEXT, DECIMAL_POINT INTEGER, SYMBOL_POSITION INTEGER);
@@ -321,6 +321,7 @@ const buildFixture = (extra: readonly MovementRow[] = []): Uint8Array => {
     );
   }
 
+  if (extraSql !== "") db.exec(extraSql);
   const bytes = db.serialize();
   db.close();
   return bytes;
@@ -595,5 +596,56 @@ describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
       { code: "TransferOneSideZero", sourceKey: "t-zero-out" },
     ]);
     expect(snapshot.skipped.zeroAmountMovements).toBe(1);
+  });
+
+  it("reads tags without joining the upload's tables, once each and at most ten per movement", () => {
+    const sameTag = Array.from({ length: 60 }, () => "('tg-same', 'repeated')").join(",");
+    const links = Array.from({ length: 60 }, () => "('m1', 'tg-same')").join(",");
+    const many = Array.from({ length: 15 }, (_, i) => `('tg-${i}', 'tag${i}')`).join(",");
+    const manyLinks = Array.from({ length: 15 }, (_, i) => `('m2', 'tg-${i}')`).join(",");
+    const snapshot = readOk(
+      buildFixture(
+        [],
+        `INSERT INTO TAG VALUES ${sameTag}, ${many}; INSERT INTO TX_TAG VALUES ${links}, ${manyLinks};`,
+      ),
+    );
+    const note = (key: string) => snapshot.movements.find((m) => m.sourceKey === key)?.note ?? "";
+    expect(note("m1").match(/#repeated/g)).toHaveLength(1);
+    expect(note("m2").match(/#tag\d+/g)).toHaveLength(10);
+  });
+
+  it("reports a movement type it does not know as a row error, never as a balance adjustment", () => {
+    const snapshot = readOk(
+      buildFixture([["odd-type", 9, "2025-04-01", day, "a-bank", "", 1, "1000.0", 1000, ""]]),
+    );
+    expect(snapshot.errors).toContainEqual({
+      code: "UnknownMovementType",
+      sourceKey: "odd-type",
+      details: { doType: "9" },
+    });
+    expect(snapshot.movements.find((m) => m.sourceKey === "odd-type")).toBeUndefined();
+  });
+
+  it("reports an account in a currency it does not know as a row error and still reads the rest", () => {
+    const snapshot = readOk(
+      buildFixture(
+        [["on-odd", 1, "2025-04-01", day, "a-odd", "c-food", 1, "1000.0", 1000, ""]],
+        "INSERT INTO ASSETS VALUES ('a-odd', 'Odd', 1, 99, 50, 0, 0, '', '', 0, 0);",
+      ),
+    );
+    expect(snapshot.errors).toContainEqual(
+      expect.objectContaining({ code: "UnknownCurrency", sourceKey: "a-odd" }),
+    );
+    expect(snapshot.accounts.find((a) => a.sourceId === "a-odd")).toBeUndefined();
+    expect(snapshot.warnings).toContainEqual({ code: "MovementWithoutAccount", sourceKey: "on-odd" });
+    expect(snapshot.movements.map((m) => m.sourceKey)).toContain("m1");
+  });
+
+  it("keeps a movement whose instant is out of range, without the instant and with a warning", () => {
+    const snapshot = readOk(
+      buildFixture([["far", 1, "2025-04-01", 9e15, "a-bank", "c-food", 1, "1000.0", 1000, ""]]),
+    );
+    expect(snapshot.movements.find((m) => m.sourceKey === "far")?.occurredAt).toBeNull();
+    expect(snapshot.warnings).toContainEqual({ code: "InvalidInstant", sourceKey: "far" });
   });
 });

@@ -50,6 +50,9 @@ const trimmed = (value: unknown): string | null => {
 const isSet = (value: unknown): value is string => trimmed(value) !== null && trimmed(value) !== "0";
 
 /** A row-level problem as code plus plain-string data, for the preview to word (design §3.2). */
+/** A backup is never asked for more tags per movement than a note can usefully carry. */
+const MAX_TAGS_PER_MOVEMENT = 10;
+
 const rowIssue = (sourceKey: string, error: DomainError): SourceIssue =>
   error.details === undefined
     ? { code: error.code, sourceKey }
@@ -156,11 +159,20 @@ export class MoneyManagerAdapter implements SourceAdapter {
     }
 
     // Accounts, minus their type, which needs each account's balance (group 5 Loan, gap G4).
+    // An account in a currency the backup does not list, or Hearth does not know, is a row error: its movements then
+    // come out as MovementWithoutAccount, and the rest of the backup still reads (§3.2).
     const accountInfo = new Map<string, { row: Row; currency: string; groupUid: number }>();
+    const accountErrors: SourceIssue[] = [];
     for (const row of this.all(db, "SELECT * FROM ASSETS")) {
       const currency = currencyByUid.get(num(row.currencyUid));
       if (currency === undefined || isErr(currencyOf(currency))) {
-        return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: "currency" }));
+        accountErrors.push(
+          rowIssue(
+            str(row.uid),
+            domainError("UnknownCurrency", { currency: currency ?? String(row.currencyUid ?? "") }),
+          ),
+        );
+        continue;
       }
       accountInfo.set(str(row.uid), { row, currency, groupUid: num(row.groupUid) });
     }
@@ -206,22 +218,30 @@ export class MoneyManagerAdapter implements SourceAdapter {
       settings: { startDay: this.startDay(db), mainCurrency },
       skipped: { zeroAmountMovements, deletedCategories },
       warnings,
-      errors,
+      errors: [...accountErrors, ...errors],
     });
   }
 
+  /**
+   * Each movement's tag names. The two tables are read apart and joined here, never in SQL: a crafted backup whose
+   * TX_TAG and TAG rows all share one uid would make a SQL join's output grow as their product. Names are kept once
+   * each, at most MAX_TAGS_PER_MOVEMENT per movement.
+   */
   private tags(db: DatabaseSync): Map<string, string[]> {
-    const byMovement = new Map<string, string[]>();
-    for (const row of this.all(
-      db,
-      "SELECT TX_TAG.txUid AS txUid, TAG.NAME AS NAME FROM TX_TAG JOIN TAG ON TAG.uid = TX_TAG.tagUid",
-    )) {
-      const key = str(row.txUid);
+    const names = new Map<string, string>();
+    for (const row of this.all(db, "SELECT uid, NAME FROM TAG")) {
       const name = trimmed(row.NAME);
-      if (name === null) continue;
-      (byMovement.get(key) ?? byMovement.set(key, []).get(key)!).push(name);
+      if (name !== null && !names.has(str(row.uid))) names.set(str(row.uid), name);
     }
-    return byMovement;
+    const byMovement = new Map<string, Set<string>>();
+    for (const row of this.all(db, "SELECT txUid, tagUid FROM TX_TAG")) {
+      const name = names.get(str(row.tagUid));
+      if (name === undefined) continue;
+      const key = str(row.txUid);
+      const tags = byMovement.get(key) ?? byMovement.set(key, new Set()).get(key)!;
+      if (tags.size < MAX_TAGS_PER_MOVEMENT) tags.add(name);
+    }
+    return new Map([...byMovement].map(([key, tags]) => [key, [...tags]]));
   }
 
   private note(texts: readonly unknown[], tags: readonly string[]): string | null {
@@ -256,6 +276,18 @@ export class MoneyManagerAdapter implements SourceAdapter {
     const transfers = new Map<string, { sourceKey: string; out?: Row; in?: Row }>();
     let zeroAmountMovements = 0;
 
+    // ZDATE is epoch milliseconds; one out of Date's range keeps the movement, untimed, with a warning.
+    const instantOf = (row: Row, sourceKey: string): Date | null => {
+      const ms = num(row.ZDATE);
+      if (!(ms > 0)) return null;
+      const instant = new Date(ms);
+      if (Number.isNaN(instant.getTime())) {
+        warnings.push({ code: "InvalidInstant", sourceKey });
+        return null;
+      }
+      return instant;
+    };
+
     const bump = (accountId: string, minor: bigint) =>
       balances.set(accountId, (balances.get(accountId) ?? 0n) + minor);
 
@@ -281,6 +313,11 @@ export class MoneyManagerAdapter implements SourceAdapter {
         continue;
       }
 
+      // 0 income, 1 expense, 7 and 8 balance adjustments (design §1.2); any other type is not guessed at.
+      if (doType !== 0 && doType !== 1 && doType !== 7 && doType !== 8) {
+        errors.push({ code: "UnknownMovementType", sourceKey: uid, details: { doType: String(doType) } });
+        continue;
+      }
       const account = accountInfo.get(str(row.assetUid));
       if (account === undefined) {
         warnings.push({ code: "MovementWithoutAccount", sourceKey: uid });
@@ -321,7 +358,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
         sourceKey: uid,
         kind,
         date: date.value,
-        occurredAt: num(row.ZDATE) > 0 ? new Date(num(row.ZDATE)) : null,
+        occurredAt: instantOf(row, uid),
         accountSourceId: str(row.assetUid),
         toAccountSourceId: null,
         categorySourceId,
@@ -376,7 +413,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
         sourceKey: key,
         kind: "TRANSFER",
         date: date.value,
-        occurredAt: num(out.ZDATE) > 0 ? new Date(num(out.ZDATE)) : null,
+        occurredAt: instantOf(out, key),
         accountSourceId: str(out.assetUid),
         toAccountSourceId: str(into.assetUid),
         categorySourceId: null,
