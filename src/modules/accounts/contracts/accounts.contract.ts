@@ -24,6 +24,7 @@ import {
   type AccountList,
   type AccountView,
   type AttributeChanges,
+  type CurrencyChangePreview,
   type TermsInput,
 } from "../application";
 
@@ -330,6 +331,54 @@ export const accountDto = (view: AccountView): z.infer<typeof AccountSchema> => 
   },
 });
 
+/** Ruling P336: the rate as a plain decimal ("4020.5"); its value is the domain's (InvalidExchangeRate). */
+const ExchangeRateText = z.string().min(1).max(32);
+
+export const PreviewAccountCurrencyQuerySchema = z.object({
+  currency: z.string().length(3).describe("The new currency, ISO 4217."),
+  rate: ExchangeRateText.optional().describe(
+    "1 unit of the account's currency in the new one; absent, the latest stored rate on or before today is used.",
+  ),
+});
+
+export const ChangeAccountCurrencyBodySchema = z.object({
+  currency: z.string().length(3).describe("The new currency, ISO 4217."),
+  rate: ExchangeRateText.describe(
+    "1 unit of the account's currency in the new one, as a plain decimal; any positive value.",
+  ),
+});
+
+export const AccountCurrencyPreviewSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  rate: z.string().nullable().describe("The rate used; null when none was given and none is stored."),
+  rateDate: z.iso
+    .date()
+    .nullable()
+    .describe("The day of the stored rate offered; null when the rate was given or there is none."),
+  movements: z.number().int().describe("The live movements whose amount in the account converts."),
+  balanceBefore: MoneySchema,
+  balanceAfter: MoneySchema.nullable().describe("Null without a rate."),
+});
+
+export const currencyPreviewDto = (
+  preview: CurrencyChangePreview,
+): z.infer<typeof AccountCurrencyPreviewSchema> => ({
+  from: preview.from,
+  to: preview.to,
+  rate: preview.rate,
+  rateDate: preview.rateDate,
+  movements: preview.movements,
+  balanceBefore: {
+    amount: preview.balanceBefore.minor.toString(),
+    currency: preview.balanceBefore.currency.code,
+  },
+  balanceAfter:
+    preview.balanceAfter === null
+      ? null
+      : { amount: preview.balanceAfter.minor.toString(), currency: preview.balanceAfter.currency.code },
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 const AccountPath = SpacePath.extend({ accountId: z.string() });
 const one = (description: string) => ({ description, content: jsonContent(AccountSchema) });
@@ -422,6 +471,44 @@ export const accountsPaths: ZodOpenApiPathsObject = {
           "409": "AccountNameTaken, AccountTypeImmutable, SpaceArchived, AccountAttributeNotAllowed",
           "422":
             "ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate",
+        }),
+      },
+    },
+  },
+  "/api/v1/spaces/{spaceId}/accounts/{accountId}/currency": {
+    get: {
+      operationId: "previewAccountCurrency",
+      summary:
+        "What changing an account's currency would do: the rate (given or the latest stored), how many movements convert, and the balance before and after (P336)",
+      ...securedByUser,
+      requestParams: { path: AccountPath, query: PreviewAccountCurrencyQuerySchema },
+      responses: {
+        "200": { description: "The preview", content: jsonContent(AccountCurrencyPreviewSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, AccountNotFound",
+          "409": "CurrencyUnchanged, SpaceArchived",
+          "422": "ValidationFailed, UnknownCurrency, InvalidExchangeRate, ConvertedAmountTooSmall",
+        }),
+      },
+    },
+    put: {
+      operationId: "changeAccountCurrency",
+      summary:
+        "Change an account's currency: its opening balance, terms and what each live movement moved it by convert at the rate; each movement keeps its amount in its own space's currency unless it only moves this account in its own space (P336)",
+      ...securedByUser,
+      requestParams: { path: AccountPath },
+      requestBody: { content: jsonContent(ChangeAccountCurrencyBodySchema) },
+      responses: {
+        "200": one("The account in its new currency"),
+        ...problems({
+          "401": "Unauthenticated",
+          "403": "InsufficientRole",
+          "404": "SpaceNotFound, AccountNotFound",
+          "409": "CurrencyUnchanged, SpaceArchived",
+          "412": "PreconditionFailed",
+          "422": "ValidationFailed, UnknownCurrency, InvalidExchangeRate, ConvertedAmountTooSmall",
         }),
       },
     },

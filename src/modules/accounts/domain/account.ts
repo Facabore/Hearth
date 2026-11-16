@@ -185,8 +185,8 @@ export interface Account extends AccountAttributes {
   /** Null only for SHARED_FUND accounts (HU-E2-02). */
   readonly ownerUserId: string | null;
   /**
-   * D29, slice MC3: the account's own currency as an ISO 4217 code, the space's by default. It is fixed once the
-   * account has movements (that enforcement is a later slice); in this slice it always equals the space's currency.
+   * D29, slice MC3: the account's own currency as an ISO 4217 code, the space's by default. Ruling P336: it changes
+   * only through the currency change, which converts its money and its movements at the rate the person confirms.
    */
   readonly currency: string;
   /** Minor units of the account's currency, which equals the space currency in this slice; may be negative (credit cards). */

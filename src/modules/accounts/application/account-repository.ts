@@ -22,4 +22,6 @@ export interface AccountRepository {
    * holds no money (SpaceCurrencyLocked), so all its accounts are money-free and not yet fixed, and must follow it.
    */
   retagCurrency(spaceId: string, currency: string): Promise<void>;
+  /** Ruling P336: one account's currency with its opening balance and terms, converted into it. */
+  saveCurrency(account: Account): Promise<void>;
 }

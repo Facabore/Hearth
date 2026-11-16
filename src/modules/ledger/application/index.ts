@@ -95,6 +95,13 @@ export {
 } from "./edit-transaction";
 export { createListAudit, type ListAudit } from "./list-audit";
 export {
+  createConvertAccountMovements,
+  type AccountMovementsConversion,
+  type ConvertAccountMovements,
+  type ConvertAccountMovementsDeps,
+  type ConvertedMovements,
+} from "./convert-account-movements";
+export {
   createListScheduledMovements,
   type ListScheduledMovements,
   type ScheduledMovement,

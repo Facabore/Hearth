@@ -1,13 +1,13 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, exists, isNull, or, sql } from "drizzle-orm";
 import type { Executor } from "@/shared/infrastructure/db/client";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
-import type { TransactionRepository } from "../application/ports";
+import type { AccountMovementSource, TransactionRepository } from "../application/ports";
 import type { Transaction } from "../domain/transaction";
 import { payments, shares, transactions } from "./ledger.schema";
 import { loadTransactions, paymentRows, shareRows, transactionRow } from "./transaction-rows";
 
-export class DrizzleTransactionRepository implements TransactionRepository {
+export class DrizzleTransactionRepository implements TransactionRepository, AccountMovementSource {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   /** Ruling P322: one INSERT for all of them, so a gift's halves, which point at each other, land together. */
@@ -38,6 +38,46 @@ export class DrizzleTransactionRepository implements TransactionRepository {
       );
     const [found] = await loadTransactions(db, rows);
     return found ?? null;
+  }
+
+  /** Ruling P336: a live movement where the account pays, receives, sends or is adjusted. */
+  private touching(accountId: string) {
+    return and(
+      isNull(transactions.deletedAt),
+      or(
+        eq(transactions.sourceAccountId, accountId),
+        eq(transactions.destinationAccountId, accountId),
+        exists(
+          this.tm
+            .executor()
+            .select({ one: sql`1` })
+            .from(payments)
+            .where(and(eq(payments.transactionId, transactions.id), eq(payments.accountId, accountId))),
+        ),
+      ),
+    );
+  }
+
+  async spacesWith(accountId: string): Promise<string[]> {
+    if (!isUuid(accountId)) return [];
+    const rows = await this.tm
+      .executor()
+      .selectDistinct({ spaceId: transactions.spaceId })
+      .from(transactions)
+      .where(this.touching(accountId))
+      .orderBy(asc(transactions.spaceId));
+    return rows.map((row) => row.spaceId);
+  }
+
+  async movementsOf(accountId: string): Promise<Transaction[]> {
+    if (!isUuid(accountId)) return [];
+    const db = this.tm.executor();
+    const rows = await db
+      .select()
+      .from(transactions)
+      .where(this.touching(accountId))
+      .orderBy(asc(transactions.date), asc(transactions.id));
+    return loadTransactions(db, rows);
   }
 
   /** Compare-and-set on version: a concurrent writer that read the same version updates nothing. */

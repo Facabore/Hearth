@@ -624,6 +624,24 @@ export interface paths {
         patch: operations["updateAccount"];
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/accounts/{accountId}/currency": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What changing an account's currency would do: the rate (given or the latest stored), how many movements convert, and the balance before and after (P336) */
+        get: operations["previewAccountCurrency"];
+        /** Change an account's currency: its opening balance, terms and what each live movement moved it by convert at the rate; each movement keeps its amount in its own space's currency unless it only moves this account in its own space (P336) */
+        put: operations["changeAccountCurrency"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/accounts/{accountId}/archive": {
         parameters: {
             query?: never;
@@ -5396,6 +5414,177 @@ export interface operations {
                 };
             };
             /** @description ValidationFailed, InvalidAccountName, UnknownCurrency, CurrencyMismatch, InvalidCreditLimit, InvalidBillingDay, InvalidRate, InvalidTermDeposit, InvalidTerm, InvalidAmount, InvalidDate */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    previewAccountCurrency: {
+        parameters: {
+            query: {
+                /** @description The new currency, ISO 4217. */
+                currency: string;
+                /** @description 1 unit of the account's currency in the new one; absent, the latest stored rate on or before today is used. */
+                rate?: string;
+            };
+            header?: never;
+            path: {
+                spaceId: string;
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        from: string;
+                        to: string;
+                        /** @description The rate used; null when none was given and none is stored. */
+                        rate: string | null;
+                        /** @description The day of the stored rate offered; null when the rate was given or there is none. */
+                        rateDate: string | null;
+                        /** @description The live movements whose amount in the account converts. */
+                        movements: number;
+                        balanceBefore: components["schemas"]["MoneyOutput"];
+                        /** @description Null without a rate. */
+                        balanceAfter: components["schemas"]["MoneyOutput"] | null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CurrencyUnchanged, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, UnknownCurrency, InvalidExchangeRate, ConvertedAmountTooSmall */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    changeAccountCurrency: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                accountId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description The new currency, ISO 4217. */
+                    currency: string;
+                    /** @description 1 unit of the account's currency in the new one, as a plain decimal; any positive value. */
+                    rate: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The account in its new currency */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Account"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description CurrencyUnchanged, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description PreconditionFailed */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, UnknownCurrency, InvalidExchangeRate, ConvertedAmountTooSmall */
             422: {
                 headers: {
                     [name: string]: unknown;

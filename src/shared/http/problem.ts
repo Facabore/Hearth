@@ -16,6 +16,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["NotASpaceMember", 422],
   ["UnknownCurrency", 422],
   ["CurrencyMismatch", 422],
+  // Ruling P336: a rate that turns a movement of the account into nothing.
+  ["ConvertedAmountTooSmall", 422],
   // D29, slice MC3: no rate for the date, or a foreign amount split or paid for the fund; the person changes the request
   // (the default would be 409).
   ["ExchangeRateRequired", 422],

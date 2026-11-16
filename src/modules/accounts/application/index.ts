@@ -38,6 +38,15 @@ export {
 export type { AccountTotals, ConversionRate, TotalsConversion } from "../domain/account-totals";
 export type { AccountRates } from "./rates";
 export { createUpdateAccount, type AccountChanges, type UpdateAccount } from "./update-account";
+export {
+  createChangeAccountCurrency,
+  createPreviewAccountCurrency,
+  type AccountMoneyConversion,
+  type ChangeAccountCurrency,
+  type ChangeAccountCurrencyDeps,
+  type CurrencyChangePreview,
+  type PreviewAccountCurrency,
+} from "./change-account-currency";
 export type { AccountTerms, TermFigures, TermsChange } from "../domain/account-terms";
 export { NO_TERMS } from "../domain/account-terms";
 export { percentText, ratePpmOf } from "../domain/rate";

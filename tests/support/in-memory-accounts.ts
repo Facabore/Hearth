@@ -22,6 +22,9 @@ export class InMemoryAccounts implements AccountRepository {
   async retagCurrency(spaceId: string, currency: string) {
     this.rows = this.rows.map((a) => (a.spaceId === spaceId ? { ...a, currency } : a));
   }
+  async saveCurrency(account: Account) {
+    this.rows = this.rows.map((a) => (a.id === account.id ? account : a));
+  }
   async save(account: Account) {
     const taken = this.rows.some(
       (a) =>

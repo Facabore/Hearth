@@ -85,6 +85,19 @@ export class DrizzleAccountRepository implements AccountRepository {
     await this.tm.executor().update(accounts).set({ currency }).where(eq(accounts.spaceId, spaceId));
   }
 
+  async saveCurrency(account: Account): Promise<void> {
+    await this.tm
+      .executor()
+      .update(accounts)
+      .set({
+        currency: account.currency,
+        openingBalance: account.openingBalance,
+        creditLimit: account.terms.creditLimit,
+        principal: account.terms.principal,
+      })
+      .where(eq(accounts.id, account.id));
+  }
+
   async findById(accountId: string): Promise<Account | null> {
     // Ids come from request bodies and URLs; anything that is not a UUID would fail the uuid cast.
     if (!isUuid(accountId)) return null;

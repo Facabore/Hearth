@@ -91,6 +91,14 @@ export interface TransactionRepository {
   save(transaction: Transaction, expectedVersion: number): Promise<boolean>;
 }
 
+/** Ruling P336: the live movements of one account, in every space it moves money in. */
+export interface AccountMovementSource {
+  /** The ids of the spaces holding a live movement of the account, sorted, so locks are always taken in one order. */
+  spacesWith(accountId: string): Promise<string[]>;
+  /** Every live movement of the account (its payments, incomes, transfers, settlements and adjustments). */
+  movementsOf(accountId: string): Promise<Transaction[]>;
+}
+
 export interface AuditEntry {
   readonly id: string;
   readonly transactionId: string;

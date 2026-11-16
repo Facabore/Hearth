@@ -36,6 +36,7 @@ const hookedAccounts = (afterInsert: (account: Account) => Promise<void>): Accou
     findById: (accountId) => real.findById(accountId),
     save: (account) => real.save(account),
     retagCurrency: (spaceId, currency) => real.retagCurrency(spaceId, currency),
+    saveCurrency: (account) => real.saveCurrency(account),
     add: async (account: Account) => {
       await real.add(account);
       await afterInsert(account);

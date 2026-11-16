@@ -8,7 +8,12 @@ import {
   createListAccounts,
   createRestoreAccount,
   createSeedStarterAccounts,
+  createChangeAccountCurrency,
+  createPreviewAccountCurrency,
   createUpdateAccount,
+  type ChangeAccountCurrency,
+  type ChangeAccountCurrencyDeps,
+  type PreviewAccountCurrency,
   holdsMoney,
   switchesOf,
   type AccountRepository,
@@ -97,6 +102,7 @@ import {
   createDeleteTransaction,
   createRestoreTransaction,
   createUndoConversion,
+  createConvertAccountMovements,
   createEditTransaction,
   createGetTransaction,
   createListAudit,
@@ -402,6 +408,9 @@ export interface Container extends RouteDeps {
   readonly accounts: {
     readonly createAccount: CreateAccount;
     readonly updateAccount: UpdateAccount;
+    /** Ruling P336: what changing an account's currency would do, and the change itself. */
+    readonly previewAccountCurrency: PreviewAccountCurrency;
+    readonly changeAccountCurrency: ChangeAccountCurrency;
     readonly archiveAccount: ArchiveAccount;
     readonly restoreAccount: RestoreAccount;
     /** Issue 169: the personal space's starter accounts its empty state offers. */
@@ -692,11 +701,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const getAccount = createGetAccount(accountsDeps);
   const listAccounts = createListAccounts(accountsDeps);
   const budgetCategories = budgetCategoriesOf(categoryRepository);
+  const transactionRepository = new DrizzleTransactionRepository(tm);
   const ledgerDeps: LedgerDeps = {
     access,
     // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.
     spaceLocks: spaceRepository,
-    transactions: new DrizzleTransactionRepository(tm),
+    transactions: transactionRepository,
     // HU-E4-07: payers and participants are current members of the space, in join order.
     members: spaceRepository,
     query: ledgerQueries,
@@ -742,6 +752,22 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     tm,
   };
   const recordExpense = createRecordExpense(ledgerDeps);
+  // Ruling P336: an account's new currency reaches its movements through the ledger, which owns them (ADR 0001).
+  const currencyChangeDeps: ChangeAccountCurrencyDeps = {
+    ...accountsDeps,
+    lifecycleLocks: spaceRepository,
+    conversion: {
+      convert: createConvertAccountMovements({
+        movements: transactionRepository,
+        transactions: transactionRepository,
+        audit: ledgerDeps.audit,
+        closedPeriods: ledgerDeps.closedPeriods,
+        spaceLocks: spaceRepository,
+        ids,
+        clock,
+      }),
+    },
+  };
   const recordIncome = createRecordIncome(ledgerDeps);
   const recordTransfer = createRecordTransfer(ledgerDeps);
   const recordAdjustment = createRecordAdjustment(ledgerDeps);
@@ -1208,6 +1234,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     accounts: {
       createAccount: createCreateAccount(accountsDeps),
       updateAccount: createUpdateAccount(accountsDeps),
+      previewAccountCurrency: createPreviewAccountCurrency(currencyChangeDeps),
+      changeAccountCurrency: createChangeAccountCurrency(currencyChangeDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       restoreAccount: createRestoreAccount(accountsDeps),
       createStarterAccounts: seedStarterAccounts,

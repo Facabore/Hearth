@@ -5190,6 +5190,310 @@
         }
       }
     },
+    "/api/v1/spaces/{spaceId}/accounts/{accountId}/currency": {
+      "get": {
+        "operationId": "previewAccountCurrency",
+        "summary": "What changing an account's currency would do: the rate (given or the latest stored), how many movements convert, and the balance before and after (P336)",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "accountId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3,
+              "description": "The new currency, ISO 4217."
+            },
+            "required": true,
+            "description": "The new currency, ISO 4217."
+          },
+          {
+            "in": "query",
+            "name": "rate",
+            "schema": {
+              "description": "1 unit of the account's currency in the new one; absent, the latest stored rate on or before today is used.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "description": "1 unit of the account's currency in the new one; absent, the latest stored rate on or before today is used."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "rate": {
+                      "description": "The rate used; null when none was given and none is stored.",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "rateDate": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "The day of the stored rate offered; null when the rate was given or there is none."
+                    },
+                    "movements": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "The live movements whose amount in the account converts."
+                    },
+                    "balanceBefore": {
+                      "$ref": "#/components/schemas/MoneyOutput"
+                    },
+                    "balanceAfter": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Null without a rate."
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "rate",
+                    "rateDate",
+                    "movements",
+                    "balanceBefore",
+                    "balanceAfter"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CurrencyUnchanged, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, UnknownCurrency, InvalidExchangeRate, ConvertedAmountTooSmall",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "changeAccountCurrency",
+        "summary": "Change an account's currency: its opening balance, terms and what each live movement moved it by convert at the rate; each movement keeps its amount in its own space's currency unless it only moves this account in its own space (P336)",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "accountId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "currency": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 3,
+                    "description": "The new currency, ISO 4217."
+                  },
+                  "rate": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32,
+                    "description": "1 unit of the account's currency in the new one, as a plain decimal; any positive value."
+                  }
+                },
+                "required": [
+                  "currency",
+                  "rate"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The account in its new currency",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "InsufficientRole",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound, AccountNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CurrencyUnchanged, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "PreconditionFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, UnknownCurrency, InvalidExchangeRate, ConvertedAmountTooSmall",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/accounts/{accountId}/archive": {
       "post": {
         "operationId": "archiveAccount",
