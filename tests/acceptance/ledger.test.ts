@@ -234,6 +234,25 @@ describe("recording in another currency (D29, MC3)", () => {
     expect(await balanceOf(ana, wallet)).toEqual(usd(-1_250));
   });
 
+  it("applies a converted amount sent alone to a USD expense (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const wallet = await usdWalletOf(ana);
+    const tx = await recorded(
+      post(recordExpense, ana, "expenses", {
+        amount: usd(100),
+        date: RATE_DAY,
+        categoryId: ana.groceries,
+        accountId: wallet,
+      }),
+    );
+    const charged = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { convertedAmount: cop(410_000) },
+    });
+    expect(charged.status).toBe(200);
+    expect(await charged.json()).toMatchObject({ amount: cop(410_000), originalAmount: usd(100) });
+    expect(await balanceOf(ana, wallet)).toEqual(usd(-100));
+  });
+
   it("keeps a USD expense's legs on a description edit and recomputes them from a new amount (D29)", async () => {
     const ana = await ledgerUser("Ana");
     const wallet = await usdWalletOf(ana);

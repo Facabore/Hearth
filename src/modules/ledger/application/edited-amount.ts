@@ -1,5 +1,5 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
-import { domainError, err, ok, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 import type { Transaction } from "../domain/transaction";
 import { inSpaceCurrency } from "./checks";
 import type { LedgerDeps } from "./deps";
@@ -18,8 +18,32 @@ export interface EditedAmount {
 }
 
 /**
+ * D29: the amount an edit's `convertedAmount` or `destinationAmount` sent alone goes with: what a foreign expense or
+ * income was entered in, or an own transfer's "Sale" (its source leg, else the base amount). `destinationAmount` fits
+ * an own transfer only (InvalidTransferLeg) and `convertedAmount` a foreign expense or income only
+ * (InvalidOriginalAmount); null when the edit sends none of the three.
+ */
+const amountOf = (current: Transaction, changes: EditChanges): Result<Money | null> => {
+  const ownTransfer = current.type === "TRANSFER" && current.payerMemberId === null;
+  const entered = current.type === "EXPENSE" || current.type === "INCOME";
+  if (changes.destinationAmount !== undefined && !ownTransfer) return err(domainError("InvalidTransferLeg"));
+  if (changes.convertedAmount !== undefined && !entered) return err(domainError("InvalidOriginalAmount"));
+  if (changes.amount !== undefined) return ok(changes.amount);
+  if (changes.convertedAmount !== undefined) {
+    if (current.originalAmount === undefined || current.originalCurrency === undefined) {
+      return err(domainError("InvalidOriginalAmount"));
+    }
+    return Money.ofMinor(current.originalAmount, current.originalCurrency);
+  }
+  if (changes.destinationAmount === undefined || current.type !== "TRANSFER") return ok(null);
+  return current.sourceAmount === undefined || current.sourceCurrency === undefined
+    ? Money.ofMinor(current.amount, current.currency)
+    : Money.ofMinor(current.sourceAmount, current.sourceCurrency);
+};
+
+/**
  * D29, sections 4.1 and 4.2: an edit's new `amount` read by the rules of recording its type, at the edited date's rate;
- * null when the edit sends no amount (`convertedAmount` and `destinationAmount` go with it). An expense or income takes
+ * null when the edit sends no amount nor what goes with one (`amountOf`). An expense or income takes
  * any currency and keeps the original (the converted amount wins over the rate); an own transfer's amount is "Sale" in
  * the source account's currency, with "Llega" given or at the rate; a fund contribution or settlement stays in the base.
  */
@@ -30,8 +54,10 @@ export const editedAmountOf = async (
   changes: EditChanges,
   date: LocalDate,
 ): Promise<Result<EditedAmount | null>> => {
-  const amount = changes.amount;
-  if (amount === undefined) return ok(null);
+  const sent = amountOf(current, changes);
+  if (!sent.ok) return sent;
+  if (sent.value === null) return ok(null);
+  const amount = sent.value;
   if (current.type === "EXPENSE" || current.type === "INCOME") {
     const base = await baseAmountOf(deps, space, amount, changes.convertedAmount, date);
     if (!base.ok) return base;

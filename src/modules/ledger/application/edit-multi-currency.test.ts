@@ -202,3 +202,102 @@ describe("editing the other multi-currency movements (D29, B2)", () => {
     expect(store.netOf(ACCOUNTS.usdWallet.id)).toBe(-200_00n);
   });
 });
+
+describe("an edit that sends only what arrived or what was charged (D29)", () => {
+  const usdIncome = async (deps: ReturnType<typeof world>["deps"]) =>
+    unwrap(
+      await createRecordIncome(deps)({
+        spaceId: "space-ana",
+        userId: "u-ana",
+        date: day,
+        categoryId: CATEGORIES.salary.id,
+        amount: usd(100_00n),
+        accountId: ACCOUNTS.usdWallet.id,
+      }),
+    );
+  const copToUsd = async (deps: ReturnType<typeof world>["deps"]) =>
+    unwrap(
+      await createRecordTransfer(deps)({
+        spaceId: "space-ana",
+        userId: "u-ana",
+        date: day,
+        amount: money(40_000_000n),
+        sourceAccountId: ACCOUNTS.bancolombia.id,
+        destinationAccountId: ACCOUNTS.usdWallet.id,
+      }),
+    );
+
+  it("re-bases a foreign expense on a new converted amount, keeping what was entered", async () => {
+    const { deps, store, edit } = world();
+    const market = await usdMarket(deps);
+    const edited = unwrap(await edit(market, { convertedAmount: money(41_000_000n) })) as Expense;
+    expect(edited).toMatchObject({ amount: 41_000_000n, originalAmount: 100_00n, originalCurrency: "USD" });
+    expect(edited.payments[0]).toMatchObject({ amount: 41_000_000n, accountAmount: 100_00n });
+    expect(store.netOf(ACCOUNTS.usdWallet.id)).toBe(-100_00n);
+  });
+
+  it("refuses a converted amount on a movement entered in the base currency", async () => {
+    const { deps, edit } = world();
+    const { expense } = unwrap(
+      await createRecordExpense(deps)({
+        spaceId: "space-ana",
+        userId: "u-ana",
+        date: day,
+        categoryId: CATEGORIES.groceries.id,
+        amount: money(40_000_000n),
+        accountId: ACCOUNTS.bancolombia.id,
+      }),
+    );
+    expect(codeOf(await edit(expense, { convertedAmount: money(41_000_000n) }))).toBe(
+      "InvalidOriginalAmount",
+    );
+  });
+
+  it("applies a new arriving amount alone to a cross-currency own transfer", async () => {
+    const { deps, store, edit } = world();
+    const transfer = await copToUsd(deps);
+    const edited = unwrap(await edit(transfer, { destinationAmount: usd(99_00n) })) as Transfer;
+    expect(edited).toMatchObject({
+      amount: 40_000_000n,
+      destinationAmount: 99_00n,
+      destinationCurrency: "USD",
+    });
+    expect(store.netOf(ACCOUNTS.usdWallet.id)).toBe(99_00n);
+    expect(codeOf(await edit(edited, { destinationAmount: money(1_00n) }))).toBe("CurrencyMismatch");
+  });
+
+  it("refuses what does not fit the movement's type", async () => {
+    const { deps, edit } = world();
+    const market = await usdMarket(deps);
+    const transfer = await copToUsd(deps);
+    expect(codeOf(await edit(market, { destinationAmount: usd(1_00n) }))).toBe("InvalidTransferLeg");
+    expect(codeOf(await edit(await usdIncome(deps), { destinationAmount: usd(1_00n) }))).toBe(
+      "InvalidTransferLeg",
+    );
+    expect(codeOf(await edit(transfer, { convertedAmount: money(1_00n) }))).toBe("InvalidOriginalAmount");
+  });
+
+  it("refuses a converted amount or an arriving amount on a settlement", async () => {
+    const { deps } = householdLedger(undefined, { rates: fakeRates(RATES) });
+    const settlement = unwrap(
+      await createRecordSettlement(deps)({
+        spaceId: "space-household",
+        userId: "u-ana",
+        date: day,
+        amount: money(40_000_000n),
+        payerMemberId: "member-ana",
+        receivingMemberId: "member-juan",
+      }),
+    );
+    const edit = (changes: EditChanges) =>
+      createEditTransaction(deps)({
+        spaceId: "space-household",
+        userId: "u-ana",
+        transactionId: settlement.id,
+        expectedVersion: null,
+        changes,
+      });
+    expect(codeOf(await edit({ convertedAmount: money(1_00n) }))).toBe("InvalidOriginalAmount");
+    expect(codeOf(await edit({ destinationAmount: money(1_00n) }))).toBe("InvalidTransferLeg");
+  });
+});
