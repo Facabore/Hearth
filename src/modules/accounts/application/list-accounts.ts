@@ -48,28 +48,33 @@ export const createListAccounts =
     const items = await withBalances(deps.movements, accounts, input.asOf ?? null, today);
     // The totals skip archived accounts, so `includeArchived` never changes them. D29, slice MC4: an active account in
     // another currency converts at the latest rate on or before the day asked for (`asOf`, else today); one with no
-    // rate is left out and flagged, never counted at 1:1.
+    // rate is left out and flagged, never counted at 1:1; any other failure of the rates is answered as it is.
     const rates = await ratesInto(deps.rates, items, currency, input.asOf ?? today);
-    return ok({ items, currency, ...convertedTotalsOf(items, currency, rates) });
+    if (!rates.ok) return rates;
+    return ok({ items, currency, ...convertedTotalsOf(items, currency, rates.value) });
   };
 
-/** The dated rate from each foreign currency of the active accounts into `currency`, on or before `on`. */
+/**
+ * The dated rate from each foreign currency of the active accounts into `currency`, on or before `on`. A currency with
+ * `NoExchangeRate` is left out of the map (its accounts are flagged); any other error stops the read.
+ */
 const ratesInto = async (
   rates: AccountRates | undefined,
   items: readonly AccountView[],
   currency: string,
   on: LocalDate,
-): Promise<ReadonlyMap<string, ConversionRate>> => {
+): Promise<Result<ReadonlyMap<string, ConversionRate>>> => {
   const resolved = new Map<string, ConversionRate>();
-  if (rates === undefined) return resolved;
+  if (rates === undefined) return ok(resolved);
   const foreign = new Set(
     items.filter((a) => a.archivedAt === null && a.currency !== currency).map((a) => a.currency),
   );
   for (const base of foreign) {
     const rate = await rates.datedRateOn(base, currency, on);
     if (rate.ok) resolved.set(base, rate.value);
+    else if (rate.error.code !== "NoExchangeRate") return rate;
   }
-  return resolved;
+  return ok(resolved);
 };
 
 export const createGetAccount =

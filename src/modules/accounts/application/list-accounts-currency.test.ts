@@ -95,4 +95,25 @@ describe("space totals converted on read (D29, slice MC4)", () => {
     expect(list.totals.available).toBe(210_084_000n);
     expect(list.conversion.rates).toMatchObject([{ date: "2026-11-15", stale: true }]);
   });
+
+  it("subtracts a converted debt from net worth: a USD credit card owing US$ 100", async () => {
+    const { rates } = storedRates({ base: "USD", quote: "COP", rate: "4100", date: "2026-11-15" });
+    const card = account("acc-card", "Visa USD", {
+      type: "CREDIT_CARD",
+      currency: "USD",
+      openingBalance: -10_000n,
+    });
+    const list = unwrap(await setup(rates, account("acc-cop", "Bancolombia"), card)(asAna));
+    // US$ -100 at 4.100 is $ -410.000: out of net worth, and a card never counts in the available money.
+    expect(list.totals).toEqual({ available: 146_960_000n, netWorth: 105_960_000n });
+    expect(list.conversion.converted.get("acc-card")).toBe(-41_000_000n);
+  });
+
+  it("answers the rates port's failure instead of reading it as no rate", async () => {
+    const failing: AccountRates = {
+      datedRateOn: async () => err(domainError("ExchangeRateSourceUnavailable")),
+    };
+    const listed = await setup(failing, account("acc-cop", "Bancolombia"), usd)(asAna);
+    expect(!listed.ok && listed.error.code).toBe("ExchangeRateSourceUnavailable");
+  });
 });
