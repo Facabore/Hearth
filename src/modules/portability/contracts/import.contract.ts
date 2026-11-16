@@ -311,7 +311,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "startImport",
       summary: "Upload another app's backup and get its preview",
       description:
-        "Reads a Money Manager SQLite backup (multipart field `file`, at most 20 MB) in memory, off the server's thread, for at most 30 seconds, and stores a draft with its hash and what was read; the file is never stored. Nothing reaches the ledger. Only a member who records money, in their personal space.",
+        "Reads a Money Manager SQLite backup (multipart field `file`, at most 20 MB) in memory, off the server's thread, for at most 30 seconds (a server reads a few uploads at once; one more answers 429 TooManyRequests), and stores a draft with its hash and what was read; the file is never stored. Nothing reaches the ledger. Only a member who records money, in their personal space.",
       ...securedByUser,
       requestParams: { path: SpacePath },
       requestBody: { content: { "multipart/form-data": { schema: UploadFieldsSchema } } },
@@ -323,6 +323,7 @@ export const importPaths: ZodOpenApiPathsObject = {
           "409": "ImportRequiresPersonalSpace, SpaceArchived",
           "422":
             "ValidationFailed, ImportFileTooLarge, ImportFileNotRecognized, UnreadableBackup, ZipBackupNotSupported, ImportTimedOut",
+          "429": "TooManyRequests",
         }),
       },
     },

@@ -93,9 +93,21 @@ parentPort.postMessage(answer);
 `;
 
 /**
- * `extractTables` in a `node:worker_threads` worker that is terminated after `timeoutMs` (design §3.5): a crafted file
- * whose reads take too long answers `timedOut` and never blocks the server's own thread. The bytes are copied to the
- * worker in memory; nothing is written to disk.
+ * Design §3.5: the most memory a worker may take. The SQLite database itself lives outside the JavaScript heap; this
+ * bounds the rows built from it (a 20 MB file's rows fit with room to spare) and the worker's own stack.
+ */
+const RESOURCE_LIMITS = { maxOldGenerationSizeMb: 256, maxYoungGenerationSizeMb: 32, stackSizeMb: 4 };
+
+let live = 0;
+
+/** How many import workers are running in this process now (they are counted until their thread has exited). */
+export const liveWorkers = (): number => live;
+
+/**
+ * `extractTables` in a `node:worker_threads` worker with bounded memory that is terminated after `timeoutMs` (design
+ * §3.5): a crafted file whose reads take too long answers `timedOut` and never blocks the server's own thread. The
+ * answer comes only once the worker's thread has stopped. The bytes are copied to the worker in memory; nothing is
+ * written to disk.
  */
 export const extractInWorker = (
   bytes: Uint8Array,
@@ -103,17 +115,31 @@ export const extractInWorker = (
   timeoutMs: number,
 ): Promise<Extracted> =>
   new Promise((resolve) => {
-    const worker = new Worker(WORKER_SOURCE, { eval: true, workerData: { bytes, spec } });
-    let settled = false;
-    const settle = (answer: Extracted) => {
-      if (settled) return;
-      settled = true;
+    const worker = new Worker(WORKER_SOURCE, {
+      eval: true,
+      workerData: { bytes, spec },
+      resourceLimits: RESOURCE_LIMITS,
+    });
+    live += 1;
+    let exited = false;
+    let answer: Extracted | null = null;
+    const finish = () => {
+      if (exited && answer !== null) resolve(answer);
+    };
+    const settle = (outcome: Extracted) => {
+      if (answer !== null) return;
+      answer = outcome;
       clearTimeout(timer);
-      void worker.terminate();
-      resolve(answer);
+      if (exited) finish();
+      else void worker.terminate();
     };
     const timer = setTimeout(() => settle({ kind: "timedOut" }), timeoutMs);
-    worker.once("message", (answer: Extracted) => settle(answer));
+    worker.once("message", (outcome: Extracted) => settle(outcome));
     worker.once("error", (cause) => settle({ kind: "unreadable", reason: String(cause) }));
-    worker.once("exit", () => settle({ kind: "unreadable", reason: "worker exited" }));
+    worker.once("exit", () => {
+      exited = true;
+      live -= 1;
+      settle({ kind: "unreadable", reason: "worker exited" });
+      finish();
+    });
   });

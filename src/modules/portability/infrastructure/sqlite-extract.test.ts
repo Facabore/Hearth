@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isErr } from "@/shared/kernel";
 import { moneyManagerBackup } from "../../../../tests/support/money-manager-backup";
 import { MONEY_MANAGER_READ, MoneyManagerAdapter } from "./money-manager-adapter";
-import { extractInWorker, extractTables } from "./sqlite-extract";
+import { extractInWorker, extractTables, liveWorkers } from "./sqlite-extract";
 import { createWorkerSnapshotReader } from "./worker-snapshot-reader";
 
 const backup = moneyManagerBackup();
@@ -47,5 +47,20 @@ describe("the SQLite reads in a worker (design §3.5)", () => {
     const zip = new Uint8Array([0x50, 0x4b, 3, 4]);
     const read = await createWorkerSnapshotReader().read(zip);
     expect(isErr(read) && read.error.code).toBe("ZipBackupNotSupported");
+  });
+});
+
+describe("the import workers' limits (design §3.5)", () => {
+  it("answers TooManyRequests past the concurrent workers allowed, and takes a new read once one ends", async () => {
+    const reader = createWorkerSnapshotReader(30_000, 1);
+    const [first, second] = await Promise.all([reader.read(backup), reader.read(backup)]);
+    expect(first.ok).toBe(true);
+    expect(isErr(second) && second.error.code).toBe("TooManyRequests");
+    expect((await reader.read(backup)).ok).toBe(true);
+  });
+
+  it("has stopped the worker by the time a timed-out read answers", async () => {
+    expect(await extractInWorker(backup, MONEY_MANAGER_READ, 0)).toEqual({ kind: "timedOut" });
+    expect(liveWorkers()).toBe(0);
   });
 });

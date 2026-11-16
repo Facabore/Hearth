@@ -1650,7 +1650,7 @@ export interface paths {
         put?: never;
         /**
          * Upload another app's backup and get its preview
-         * @description Reads a Money Manager SQLite backup (multipart field `file`, at most 20 MB) in memory, off the server's thread, for at most 30 seconds, and stores a draft with its hash and what was read; the file is never stored. Nothing reaches the ledger. Only a member who records money, in their personal space.
+         * @description Reads a Money Manager SQLite backup (multipart field `file`, at most 20 MB) in memory, off the server's thread, for at most 30 seconds (a server reads a few uploads at once; one more answers 429 TooManyRequests), and stores a draft with its hash and what was read; the file is never stored. Nothing reaches the ledger. Only a member who records money, in their personal space.
          */
         post: operations["startImport"];
         delete?: never;
@@ -10181,6 +10181,15 @@ export interface operations {
             };
             /** @description ValidationFailed, ImportFileTooLarge, ImportFileNotRecognized, UnreadableBackup, ZipBackupNotSupported, ImportTimedOut */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TooManyRequests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
