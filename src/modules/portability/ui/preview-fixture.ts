@@ -1,0 +1,133 @@
+import type { ImportPreviewDto, ImportResultDto, ImportSummaryDto } from "./dto";
+
+// Test data for this module's screens and the single-page app's import flow: a Money Manager draft as the API answers
+// it, shaped like board 3's example. Nothing in the app imports it.
+
+export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): ImportPreviewDto => ({
+  id: "imp-1",
+  status: "DRAFT",
+  sourceApp: "money-manager",
+  createdAt: "2026-11-15T15:00:00.000Z",
+  previouslyImportedAt: null,
+  timeZone: "America/Bogota",
+  counts: { income: 104, expense: 830, transfer: 300, adjustment: 6, total: 1240, skippedZero: 0 },
+  dateRange: { first: "2025-05-06", last: "2026-11-13" },
+  accounts: [
+    {
+      sourceId: "a-1",
+      name: "Ahorros Bancolombia",
+      type: "SAVINGS",
+      currency: "COP",
+      cutOffDay: null,
+      paymentDay: null,
+      sourceClosingBalance: { amount: "146960000", currency: "COP" },
+      mapping: { kind: "existing", accountId: "acc-bancolombia" },
+    },
+    {
+      sourceId: "a-2",
+      name: "Visa Oro",
+      type: "CREDIT_CARD",
+      currency: "COP",
+      cutOffDay: 15,
+      paymentDay: 30,
+      sourceClosingBalance: { amount: "-50000000", currency: "COP" },
+      mapping: { kind: "new", type: "CREDIT_CARD", currency: "COP", name: "Visa Oro" },
+    },
+    {
+      sourceId: "a-3",
+      name: "Cuenta en dólares",
+      type: "BANK",
+      currency: "USD",
+      cutOffDay: null,
+      paymentDay: null,
+      sourceClosingBalance: { amount: "51240", currency: "USD" },
+      // The person already has an account of this name: the confirm will use a free one.
+      mapping: { kind: "new", type: "BANK", currency: "USD", name: "Cuenta en dólares (Money Manager)" },
+    },
+  ],
+  categories: [
+    {
+      sourceId: "c-food",
+      name: "Food",
+      icon: "🍜",
+      kind: "EXPENSE",
+      parentSourceId: null,
+      archived: false,
+      catalogKey: "groceries",
+      mapping: { kind: "existing", categoryId: "cat-mercado" },
+    },
+    {
+      sourceId: "c-delivery",
+      name: "Domicilio",
+      icon: null,
+      kind: "EXPENSE",
+      parentSourceId: "c-food",
+      archived: false,
+      catalogKey: null,
+      mapping: { kind: "new", groupId: null, name: "Domicilio" },
+    },
+    {
+      sourceId: "c-misc",
+      name: "Varios",
+      icon: "🧺",
+      kind: "EXPENSE",
+      parentSourceId: null,
+      archived: false,
+      catalogKey: null,
+      mapping: { kind: "new", groupId: "grp-otros", name: "Varios" },
+    },
+    {
+      sourceId: "c-salary",
+      name: "Salary",
+      icon: "💰",
+      kind: "INCOME",
+      parentSourceId: null,
+      archived: false,
+      catalogKey: "salary",
+      mapping: { kind: "existing", categoryId: "cat-salario" },
+    },
+  ],
+  duplicates: ["m-7", "m-8", "m-9"],
+  includeDuplicates: [],
+  plan: {
+    movements: 1237,
+    alreadyImported: [],
+    duplicatesSkipped: 3,
+    adjustmentsInOpeningBalance: 0,
+    adjustmentsNotImported: 0,
+  },
+  leftOut: { budgets: 2, zeroAmountMovements: 0 },
+  warnings: [],
+  errors: [],
+  ...overrides,
+});
+
+export const resultFixture = (overrides: Partial<ImportResultDto> = {}): ImportResultDto => ({
+  id: "imp-1",
+  status: "CONFIRMED",
+  counts: {
+    accountsCreated: 2,
+    accountsRestored: 0,
+    categoriesCreated: 2,
+    categoriesRestored: 0,
+    movementsImported: 1237,
+    alreadyImported: 0,
+    duplicatesSkipped: 3,
+    adjustmentsInOpeningBalance: 0,
+    adjustmentsNotImported: 0,
+    rowErrors: 0,
+  },
+  rowErrors: [],
+  ...overrides,
+});
+
+export const summaryFixture = (overrides: Partial<ImportSummaryDto> = {}): ImportSummaryDto => ({
+  id: "imp-1",
+  sourceApp: "money-manager",
+  status: "CONFIRMED",
+  createdAt: "2026-11-15T15:00:00.000Z",
+  confirmedAt: "2026-11-15T15:05:00.000Z",
+  undoneAt: null,
+  counts: resultFixture().counts,
+  ...overrides,
+});

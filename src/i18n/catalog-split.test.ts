@@ -109,6 +109,7 @@ const homeRoute = createRoute({
       "areas/invitation",
       "areas/members",
       "areas/plan",
+      "areas/portability",
       "areas/recurrences",
       "areas/settings",
       "areas/space",

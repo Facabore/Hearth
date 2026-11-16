@@ -81,6 +81,17 @@ export const ReferralsPending = () => (
   <SpaceScreenPending title={useTranslations("referrals")("title")} back="/more" shape="list" />
 );
 
+/** D28: Importar y exportar, back to Más. */
+export const ImportHubPending = () => (
+  <SpaceScreenPending title={useTranslations("shell.more")("exportImport")} back="/more" shape="list" />
+);
+
+/** D28: a screen of the import flow or the export, whose title only its area knows: the way back alone. */
+export function ImportFlowPending() {
+  const { spaceId } = useParams({ strict: false });
+  return <LoadingScreen header={{ backHref: `/spaces/${spaceId}/data` }} shape="list" />;
+}
+
 export const MembersPending = () => (
   <SpaceScreenPending title={useTranslations("members")("title")} shape="list" />
 );

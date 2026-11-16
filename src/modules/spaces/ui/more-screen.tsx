@@ -11,8 +11,8 @@ const TILE =
 /**
  * Ruling P311 (board "Más · módulos · P311"): the bar's Más, where the app's modules live as a grid of square tiles in
  * three columns. The live ones open the active space's Configuración, Cuentas, Categorías and Recurrentes; the
- * modules still to come (Estadísticas #277, Calendario #278, Exportar e importar #279) say "Próximamente" and open
- * nothing. The person's own settings stay in her profile, as the note under the grid says. Ruling P314 (#284, audit
+ * modules still to come (Estadísticas #277, Calendario #278) say "Próximamente" and open nothing; Importar y exportar
+ * (#279, D28) opens its hub. The person's own settings stay in her profile, as the note under the grid says. Ruling P314 (#284, audit
  * pass 3 A4): "Planea tu mes" leads the grid and opens the space's Plan, which otherwise has only Configuración's row.
  */
 export function MoreScreen({ spaceId }: { readonly spaceId: string }) {
@@ -46,7 +46,7 @@ export function MoreScreen({ spaceId }: { readonly spaceId: string }) {
         {live(`${base}/recurrences`, <SymbolIcon name="receipt" />, t("recurring"))}
         {soon(<SymbolIcon name="trend" />, t("stats"))}
         {soon(<Icon name="calendar" />, t("calendar"))}
-        {soon(<Icon name="archive" />, t("exportImport"))}
+        {live(`${base}/data`, <Icon name="archive" />, t("exportImport"))}
       </ul>
       <p className="text-sm text-muted">{t("note")}</p>
     </div>

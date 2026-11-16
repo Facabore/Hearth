@@ -6,7 +6,7 @@ import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { MoreScreen } from "./more-screen";
 
 describe("Más, the space's modules (ruling P311)", () => {
-  it("draws a grid of square tiles in three columns: Planea tu mes, Configuración, Cuentas, Categorías and Recurrentes open", async () => {
+  it("draws a grid of square tiles in three columns: Planea tu mes, Configuración, Cuentas, Categorías, Recurrentes and Importar y exportar open", async () => {
     const { container } = renderWithIntl(<MoreScreen spaceId="sp-household" />);
     expect(screen.getByRole("heading", { level: 1, name: "Más" })).toBeInTheDocument();
     const grid = screen.getByRole("list");
@@ -22,6 +22,8 @@ describe("Más, the space's modules (ruling P311)", () => {
       ["Cuentas", "/spaces/sp-household/accounts"],
       ["Categorías", "/spaces/sp-household/categories"],
       ["Recurrentes", "/spaces/sp-household/recurrences"],
+      // D28 (#279): Importar y exportar opens its hub; the imports in it are the personal space's.
+      ["Importar y exportar", "/spaces/sp-household/data"],
     ]);
     for (const tile of within(grid).getAllByRole("link")) {
       expect(tile).toHaveClass("aspect-square", "min-h-11", "text-center");
@@ -30,7 +32,7 @@ describe("Más, the space's modules (ruling P311)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows Estadísticas, Calendario and Exportar e importar as Próximamente, muted and not links", () => {
+  it("shows Estadísticas and Calendario as Próximamente, muted and not links", () => {
     renderWithIntl(<MoreScreen spaceId="sp-household" />);
     const grid = screen.getByRole("list");
     const soon = within(grid)
@@ -39,7 +41,6 @@ describe("Más, the space's modules (ruling P311)", () => {
     expect(soon.map((item) => item.textContent)).toEqual([
       "EstadísticasPróximamente",
       "CalendarioPróximamente",
-      "Exportar e importarPróximamente",
     ]);
     for (const item of soon) expect(item.firstElementChild).toHaveClass("text-muted");
     expect(
@@ -50,7 +51,11 @@ describe("Más, the space's modules (ruling P311)", () => {
   it("words the tiles in English", () => {
     renderWithIntl(<MoreScreen spaceId="sp-household" />, { locale: "en" });
     expect(screen.getByRole("heading", { level: 1, name: "More" })).toBeInTheDocument();
-    expect(screen.getAllByText(en.shell.more.soon)).toHaveLength(3);
+    expect(screen.getAllByText(en.shell.more.soon)).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Import and export" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/data",
+    );
     expect(screen.getByRole("link", { name: "Plan your month" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plan",
