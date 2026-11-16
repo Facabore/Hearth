@@ -1851,6 +1851,8 @@ export interface components {
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
             originalAmount?: components["schemas"]["MoneyOutput"];
+            sourceAmount?: components["schemas"]["MoneyOutput"];
+            destinationAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
@@ -1970,6 +1972,8 @@ export interface components {
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
             originalAmount?: components["schemas"]["MoneyOutput"];
+            sourceAmount?: components["schemas"]["MoneyOutput"];
+            destinationAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
@@ -2175,6 +2179,8 @@ export interface components {
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
             originalAmount?: components["schemas"]["MoneyOutput"];
+            sourceAmount?: components["schemas"]["MoneyOutput"];
+            destinationAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
@@ -5477,6 +5483,7 @@ export interface operations {
                     occurredAt?: string | null;
                     timeZone?: string;
                     amount: components["schemas"]["Money"];
+                    destinationAmount?: components["schemas"]["Money"];
                     sourceAccountId: string;
                     destinationAccountId: string;
                 };
@@ -6222,6 +6229,7 @@ export interface operations {
                     occurredAt?: string | null;
                     timeZone?: string;
                     amount: components["schemas"]["Money"];
+                    destinationAmount?: components["schemas"]["Money"];
                     sourceAccountId: string;
                     destinationAccountId: string;
                     /** @constant */

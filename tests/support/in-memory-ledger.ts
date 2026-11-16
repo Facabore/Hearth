@@ -69,8 +69,9 @@ const sharedFund = (id: string, spaceId: string, archived = false, currency = "C
 export const ACCOUNTS = {
   bancolombia: personalAccount("acc-bancolombia", "space-ana", "u-ana"),
   nequi: personalAccount("acc-nequi", "space-ana", "u-ana"),
-  // D29, slice MC3: Ana's USD account, for recording movements in her space's non-base currency.
+  // D29, slice MC3: Ana's USD accounts, for recording movements and transfers in her space's non-base currency.
   usdWallet: personalAccount("acc-usd-wallet", "space-ana", "u-ana", false, "USD"),
+  usdSavings: personalAccount("acc-usd-savings", "space-ana", "u-ana", false, "USD"),
   oldNequi: personalAccount("acc-old-nequi", "space-ana", "u-ana", true),
   davivienda: personalAccount("acc-davivienda", "space-juan", "u-juan"),
   // HU-E4-09/10: shared funds are recognised by their type; their missing owner is incidental.

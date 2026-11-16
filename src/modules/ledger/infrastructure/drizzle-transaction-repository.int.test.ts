@@ -182,7 +182,13 @@ describe("original and per-leg amounts (D29, slice MC3)", () => {
     const move = unwrap(
       recordTransfer({ ...common(50_000_000n), sourceAccountId: bank, destinationAccountId: wallet }),
     );
-    const transfer = { ...move, sourceAmount: 12_50n, destinationAmount: 40_000_000n };
+    const transfer = {
+      ...move,
+      sourceAmount: 12_50n,
+      sourceCurrency: "USD",
+      destinationAmount: 40_000_000n,
+      destinationCurrency: "COP",
+    };
     await repo.add(income);
     await repo.add(transfer);
     expect(await repo.findById(space.spaceId, income.id)).toEqual(income);

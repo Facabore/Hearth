@@ -31,6 +31,9 @@ export const transactionRow = (tx: Transaction): typeof transactions.$inferInser
   originalCurrency: tx.originalCurrency ?? null,
   sourceAmount: tx.type === "TRANSFER" ? (tx.sourceAmount ?? null) : null,
   destinationAmount: tx.type === "INCOME" || tx.type === "TRANSFER" ? (tx.destinationAmount ?? null) : null,
+  // D29, slice MC3: only a transfer carries its legs' currencies; an income's leg currency is its original currency.
+  sourceCurrency: tx.type === "TRANSFER" ? (tx.sourceCurrency ?? null) : null,
+  destinationCurrency: tx.type === "TRANSFER" ? (tx.destinationCurrency ?? null) : null,
   sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
   destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
   receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
@@ -138,6 +141,9 @@ const toTransaction = (
         payerMemberId: row.payerMemberId,
         ...(row.sourceAmount === null ? {} : { sourceAmount: row.sourceAmount }),
         ...(row.destinationAmount === null ? {} : { destinationAmount: row.destinationAmount }),
+        // D29, slice MC3: a leg's currency round-trips with its amount (null column ↔ absent field).
+        ...(row.sourceCurrency === null ? {} : { sourceCurrency: row.sourceCurrency }),
+        ...(row.destinationCurrency === null ? {} : { destinationCurrency: row.destinationCurrency }),
         ...linked,
       };
     case "SETTLEMENT":

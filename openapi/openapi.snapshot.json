@@ -6566,6 +6566,9 @@
                   "amount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "destinationAmount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "sourceAccountId": {
                     "type": "string",
                     "minLength": 1,
@@ -8285,6 +8288,9 @@
                         "maxLength": 64
                       },
                       "amount": {
+                        "$ref": "#/components/schemas/Money"
+                      },
+                      "destinationAmount": {
                         "$ref": "#/components/schemas/Money"
                       },
                       "sourceAccountId": {
@@ -16765,6 +16771,12 @@
           "originalAmount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
+          "sourceAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "destinationAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
           "categoryId": {
             "type": [
               "string",
@@ -17305,6 +17317,12 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "originalAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "sourceAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "destinationAmount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "categoryId": {
@@ -18416,6 +18434,12 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "originalAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "sourceAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "destinationAmount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "categoryId": {

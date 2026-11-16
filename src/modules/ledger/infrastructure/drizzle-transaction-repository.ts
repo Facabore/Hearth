@@ -58,6 +58,8 @@ export class DrizzleTransactionRepository implements TransactionRepository {
         originalCurrency: row.originalCurrency,
         sourceAmount: row.sourceAmount,
         destinationAmount: row.destinationAmount,
+        sourceCurrency: row.sourceCurrency,
+        destinationCurrency: row.destinationCurrency,
         // P186: an edit may move an income's or a transfer's accounts; an expense keeps both null (transactions_shape).
         sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId,

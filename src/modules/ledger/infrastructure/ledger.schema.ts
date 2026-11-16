@@ -58,6 +58,10 @@ export const transactions = pgTable(
     // (a transfer's "Sale" and "Llega", an income's destination). Null means the leg equals the base amount.
     sourceAmount: money("source_amount"),
     destinationAmount: money("destination_amount"),
+    // D29, slice MC3: the currency each present transfer leg is in (its account's own, 4.1); set exactly when its leg
+    // amount is. An income's destination leg is in the row's original currency, so it keeps no separate column.
+    sourceCurrency: text("source_currency"),
+    destinationCurrency: text("destination_currency"),
     sourceAccountId: uuid("source_account_id").references(() => accounts.id),
     destinationAccountId: uuid("destination_account_id").references(() => accounts.id),
     receivingMemberId: uuid("receiving_member_id"),
@@ -121,6 +125,13 @@ export const transactions = pgTable(
       sql`(${t.originalAmount} IS NULL OR ${t.originalAmount} > 0)
         AND (${t.sourceAmount} IS NULL OR ${t.sourceAmount} > 0)
         AND (${t.destinationAmount} IS NULL OR ${t.destinationAmount} > 0)`,
+    ),
+    // D29, slice MC3: a transfer leg's currency is present iff its leg amount is (4.1); the destination column is a
+    // transfer's "Llega" only, so an income's own-currency destination leg leaves it null.
+    check(
+      "transactions_leg_currencies",
+      sql`(${t.sourceCurrency} IS NULL) = (${t.sourceAmount} IS NULL)
+        AND (${t.type} = 'INCOME' OR (${t.destinationCurrency} IS NULL) = (${t.destinationAmount} IS NULL))`,
     ),
     check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose

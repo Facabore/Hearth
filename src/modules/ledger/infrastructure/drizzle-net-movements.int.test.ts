@@ -196,7 +196,13 @@ describe("net movements use each account's leg amount, COALESCED to the base amo
 
     // A transfer's two legs: the bank loses 12.50 (source leg), Nequi gains 40.000.000 (its own-currency leg).
     const move = w.transfer("2026-10-07", 50_000_000n);
-    await repo.add({ ...move, sourceAmount: 12_50n, destinationAmount: 40_000_000n });
+    await repo.add({
+      ...move,
+      sourceAmount: 12_50n,
+      sourceCurrency: "USD",
+      destinationAmount: 40_000_000n,
+      destinationCurrency: "COP",
+    });
     expect(await w.figures()).toEqual([25_00n - 12_50n, 40_000_000n]);
 
     // A base-only income (null legs) still uses the base amount: the fallback COALESCE.

@@ -23,6 +23,9 @@ export interface TransactionDto {
   amount: MoneyDto;
   /** D29, slice MC3: what was charged, in its own currency, when the movement was in another currency; absent otherwise. */
   originalAmount?: MoneyDto;
+  /** D29, slice MC3: each account leg in its own currency, when it differs from the base amount; absent otherwise. */
+  sourceAmount?: MoneyDto;
+  destinationAmount?: MoneyDto;
   categoryId: string | null;
   payments: { memberId: string | null; accountId: string | null; amount: MoneyDto }[];
   shares: { memberId: string; amount: MoneyDto; splitMethod: string }[];

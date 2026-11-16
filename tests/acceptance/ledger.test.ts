@@ -169,6 +169,29 @@ describe("recording in another currency (D29, MC3)", () => {
     // Bancolombia opens at 2,000,000 COP and receives the 410,000 COP base amount.
     expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_410_000));
   });
+
+  it("records a COP \u2192 USD transfer, keeps the USD destination leg, and moves each account in its own currency", async () => {
+    const ana = await ledgerUser("Ana");
+    // A USD account in Ana's COP space: its currency is set directly here, as a later slice will do over HTTP.
+    const usdWallet = await newAccount(ana, "USD Wallet", 0);
+    await app.pool.query("UPDATE accounts SET currency = 'USD' WHERE id = $1", [usdWallet]);
+    const transfer = await recorded(
+      post(recordTransfer, ana, "transfers", {
+        amount: cop(400_000),
+        destinationAmount: usd(100),
+        date: "2026-10-06",
+        sourceAccountId: ana.bancolombia,
+        destinationAccountId: usdWallet,
+      }),
+    );
+    expect(transfer).toMatchObject({ type: "TRANSFER", categoryId: null, amount: cop(400_000) });
+    // S === base, so the source keeps no "Sale" leg; the "Llega" leg is the USD that arrived.
+    expect(transfer.sourceAmount).toBeUndefined();
+    expect(transfer.destinationAmount).toEqual(usd(100));
+    // Each account moves in its own currency: Bancolombia (COP) by the base amount, the wallet (USD) by the USD leg.
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_600_000));
+    expect(await balanceOf(ana, usdWallet)).toEqual(usd(100));
+  });
 });
 
 describe("income, transfers and computed balances (HU-E4-02, HU-E4-03, HU-E2-04)", () => {

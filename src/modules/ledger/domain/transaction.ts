@@ -77,6 +77,9 @@ export interface Transfer extends TransactionBase {
   /** D29, slice MC3: "Sale" and "Llega" in each account's own currency, when either differs from the base amount. */
   readonly sourceAmount?: bigint;
   readonly destinationAmount?: bigint;
+  /** D29, slice MC3: the currency each present leg is in (its account's own); set exactly when its leg amount is. */
+  readonly sourceCurrency?: string;
+  readonly destinationCurrency?: string;
 }
 
 /**
@@ -266,12 +269,40 @@ export const recordIncome = (
   });
 };
 
+/**
+ * D29, slice MC3: a transfer leg ("Sale"/"Llega") is an amount in its account's own currency; its amount and currency
+ * come together and are positive, or neither is present (the leg equals the base amount, so no leg is stored).
+ */
+const transferLegOf = (
+  amount: bigint | undefined,
+  currency: string | undefined,
+): Result<{ readonly amount: bigint; readonly currency: string } | null> => {
+  if (amount === undefined && currency === undefined) return ok(null);
+  if (amount === undefined || currency === undefined) return err(domainError("InvalidTransferLeg"));
+  const positive = positiveAmount(amount);
+  if (!positive.ok) return positive;
+  return ok({ amount, currency });
+};
+
 export const recordTransfer = (
-  input: NewTransaction & { readonly sourceAccountId: string; readonly destinationAccountId: string },
+  input: NewTransaction & {
+    readonly sourceAccountId: string;
+    readonly destinationAccountId: string;
+    /** D29, slice MC3: "Sale" in the source account's own currency, when it differs from the base amount. */
+    readonly sourceAmount?: bigint;
+    readonly sourceCurrency?: string;
+    /** D29, slice MC3: "Llega" in the destination account's own currency, when it differs from the base amount. */
+    readonly destinationAmount?: bigint;
+    readonly destinationCurrency?: string;
+  },
 ): Result<Transfer> => {
   const base = baseOf(input);
   if (!base.ok) return base;
   if (input.sourceAccountId === input.destinationAccountId) return err(domainError("SameAccountTransfer"));
+  const source = transferLegOf(input.sourceAmount, input.sourceCurrency);
+  if (!source.ok) return source;
+  const destination = transferLegOf(input.destinationAmount, input.destinationCurrency);
+  if (!destination.ok) return destination;
   return ok({
     ...base.value,
     type: "TRANSFER" as const,
@@ -279,6 +310,12 @@ export const recordTransfer = (
     sourceAccountId: input.sourceAccountId,
     destinationAccountId: input.destinationAccountId,
     payerMemberId: null,
+    ...(source.value === null
+      ? {}
+      : { sourceAmount: source.value.amount, sourceCurrency: source.value.currency }),
+    ...(destination.value === null
+      ? {}
+      : { destinationAmount: destination.value.amount, destinationCurrency: destination.value.currency }),
   });
 };
 

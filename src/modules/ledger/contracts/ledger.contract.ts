@@ -98,6 +98,13 @@ export const TransactionSchema = z.object({
    * space's base currency; absent when the amount is wholly in the base currency. Additive: existing clients ignore it.
    */
   originalAmount: MoneySchema.optional(),
+  /**
+   * D29, slice MC3: each account leg in its own currency, when it differs from the base amount: a transfer's "Sale"
+   * (`sourceAmount`) and "Llega" (`destinationAmount`), and an income's destination (`destinationAmount`). Absent when
+   * the leg equals the base amount. Additive: existing clients ignore them.
+   */
+  sourceAmount: MoneySchema.optional(),
+  destinationAmount: MoneySchema.optional(),
   categoryId: z.string().nullable(),
   payments: z.array(PaymentSchema),
   shares: z.array(ShareSchema),
@@ -268,7 +275,13 @@ export const RecordTransferBodySchema = z.object({
   date: z.iso.date().optional(),
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
+  /** D29, slice MC3: what LEAVES the source account ("Sale"), in the source account's own currency. */
   amount: MoneySchema,
+  /**
+   * D29, section 4.1: what ARRIVES at the destination ("Llega"), in the destination account's own currency, when it
+   * differs from the source's; suggested from the rate and, when given, it wins. Additive and optional.
+   */
+  destinationAmount: MoneySchema.optional(),
   sourceAccountId: IdSchema,
   destinationAccountId: IdSchema,
 });
@@ -405,6 +418,33 @@ export const settlementFromBody = (
   });
 };
 
+/**
+ * D29, slice MC3: the account legs a transaction exposes, each in its own currency. A transfer keeps both legs'
+ * currencies next to their amounts (4.1); an income's destination leg is always in the row's original currency.
+ */
+const transactionLegs = (
+  tx: Transaction,
+): {
+  sourceAmount?: { amount: string; currency: string };
+  destinationAmount?: { amount: string; currency: string };
+} => {
+  const leg = (minor: bigint | undefined, currency: string | undefined) =>
+    minor === undefined || currency === undefined ? undefined : { amount: minor.toString(), currency };
+  if (tx.type === "TRANSFER") {
+    const source = leg(tx.sourceAmount, tx.sourceCurrency);
+    const destination = leg(tx.destinationAmount, tx.destinationCurrency);
+    return {
+      ...(source === undefined ? {} : { sourceAmount: source }),
+      ...(destination === undefined ? {} : { destinationAmount: destination }),
+    };
+  }
+  if (tx.type === "INCOME") {
+    const destination = leg(tx.destinationAmount, tx.originalCurrency);
+    return destination === undefined ? {} : { destinationAmount: destination };
+  }
+  return {};
+};
+
 export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchema> => {
   const money = (minor: bigint) => ({ amount: minor.toString(), currency: tx.currency });
   return {
@@ -419,6 +459,9 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     ...(tx.originalAmount === undefined || tx.originalCurrency === undefined
       ? {}
       : { originalAmount: { amount: tx.originalAmount.toString(), currency: tx.originalCurrency } }),
+    // D29, slice MC3: each account leg in its own currency, when stored: a transfer's "Sale"/"Llega" from its leg
+    // currency (4.1), an income's destination from the row's original currency.
+    ...transactionLegs(tx),
     categoryId: tx.categoryId,
     payments:
       tx.type === "EXPENSE"

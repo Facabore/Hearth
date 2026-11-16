@@ -260,6 +260,13 @@
       "when": 1794813880265,
       "tag": "0036_ledger_leg_amounts",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794818554919,
+      "tag": "0037_transfer_leg_currencies",
+      "breakpoints": true
     }
   ]
 }
