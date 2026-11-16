@@ -219,7 +219,8 @@
     "ImportTimedOut": "Reading the file took too long. Try again, or export a fresh backup.",
     "InvalidImportMapping": "One of the choices doesn't fit: pick an account in the same currency, and a category or group that still exists.",
     "UnreadableBackup": "We couldn't read this backup. Export it again and upload the new file.",
-    "ZipBackupNotSupported": "Compressed backups (.mmbak) can't be read yet. Export the backup as a .sqlite file."
+    "ZipBackupNotSupported": "Compressed backups (.mmbak) can't be read yet. Export the backup as a .sqlite file.",
+    "ImportTargetRefused": "One account or category from the file can't be created as it is. Change its mapping and confirm again."
   },
   "warnings": {
     "FundBalanceNegative": "The balance of {account} is now {balance}. A contribution to the fund can cover it."

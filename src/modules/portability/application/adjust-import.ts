@@ -1,7 +1,7 @@
 import type { Result } from "@/shared/kernel";
 import { draftSnapshot, type AccountMapping, type CategoryMapping } from "../domain/import-batch";
 import { checkMappings } from "../domain/mapping-proposals";
-import { authorizeImporter, ownBatch } from "./import-access";
+import { authorizeImporter, ownBatch, priorLinksFor } from "./import-access";
 import type { ImportDeps } from "./import-ports";
 import { viewOf, type ImportView } from "./import-view";
 
@@ -45,6 +45,7 @@ export const createAdjustImport =
           includeDuplicates: changes.includeDuplicates ?? current.includeDuplicates,
         },
         targets.value,
+        await priorLinksFor(deps, input.spaceId, snapshot.value.sourceApp),
       );
       if (!mappings.ok) return mappings;
       const adjusted = { ...batch.value, mappings: mappings.value };

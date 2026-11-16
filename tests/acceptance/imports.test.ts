@@ -7,7 +7,7 @@ import { GET as listImports, POST as startImport } from "@/app/api/v1/spaces/[sp
 import { setContainerForTests, type Container } from "@/composition/container";
 import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, routeParams, startTestApp, type TestUser } from "../support/app";
-import { categoryWithKey, cop, post, starterAccount } from "../support/ledger";
+import { categoryWithKey, cop, newAccount, post, starterAccount } from "../support/ledger";
 import { moneyManagerBackup } from "../support/money-manager-backup";
 import { joinAs, newSharedSpace } from "../support/spaces";
 
@@ -119,9 +119,9 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     const mappings = Object.fromEntries(preview.accounts.map((a) => [a.sourceId, a.mapping]));
     expect(mappings).toEqual({
       "a-cash": { kind: "existing", accountId: await starterAccount(ana, "Efectivo") },
-      "a-bank": { kind: "new", type: "BANK", currency: "COP" },
-      "a-usd": { kind: "new", type: "BANK", currency: "USD" },
-      "a-card": { kind: "new", type: "CREDIT_CARD", currency: "COP" },
+      "a-bank": { kind: "new", type: "BANK", currency: "COP", name: "Banco Uno" },
+      "a-usd": { kind: "new", type: "BANK", currency: "USD", name: "US savings" },
+      "a-card": { kind: "new", type: "CREDIT_CARD", currency: "COP", name: "Visa" },
     });
     const categories = Object.fromEntries(preview.categories.map((c) => [c.sourceId, c.mapping]));
     expect(categories["c-food"]).toEqual({
@@ -133,7 +133,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
       categoryId: await categoryWithKey(ana, "salary"),
     });
     expect(categories["c-guitar"]).toMatchObject({ kind: "new" });
-    expect(categories["c-food-sub"]).toEqual({ kind: "new", groupId: null });
+    expect(categories["c-food-sub"]).toEqual({ kind: "new", groupId: null, name: "Supermercado" });
     expect(preview.plan).toEqual({
       movements: 6,
       alreadyImported: [],
@@ -203,7 +203,9 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
       status: "CONFIRMED",
       counts: {
         accountsCreated: 3,
+        accountsRestored: 0,
         categoriesCreated: 2,
+        categoriesRestored: 0,
         movementsImported: 5,
         alreadyImported: 0,
         duplicatesSkipped: 0,
@@ -433,5 +435,77 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       params: { spaceId: ana.spaceId, importId: preview.id },
     });
     expect(await problemOf(response)).toEqual([409, "ImportNotConfirmed"]);
+  });
+});
+
+describe("a re-import after an undo, and names the space already holds (D28, design §3.3)", () => {
+  const undo = (user: TestUser, importId: string) =>
+    call(undoImport, "POST", importPath(user, importId, "/undo"), {
+      user,
+      params: { spaceId: user.spaceId, importId },
+    });
+
+  it("confirms the same file again after an undo, restoring the accounts and categories the undo archived", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const bank = await accountNamed(ana.spaceId, "Banco Uno");
+    expect((await undo(ana, preview.id)).status).toBe(200);
+
+    const again = await uploaded(ana);
+    expect(again.accounts.find((a) => a.sourceId === "a-bank")?.mapping).toEqual({
+      kind: "existing",
+      accountId: bank?.id,
+    });
+    const result = await confirmed(ana, again.id);
+
+    expect(result.counts).toMatchObject({
+      accountsCreated: 0,
+      accountsRestored: 3,
+      categoriesCreated: 0,
+      categoriesRestored: 2,
+      movementsImported: 5,
+    });
+    expect(await accountNamed(ana.spaceId, "Banco Uno")).toMatchObject({ id: bank?.id, archived_at: null });
+    expect(await liveMovements(ana.spaceId)).toBe(5);
+  });
+
+  it("gives a new account or category a name no archived one holds, and says so in the preview", async () => {
+    const ana = await registerUser("Ana");
+    const archived = await newAccount(ana, "banco uno", 0, "SAVINGS");
+    await app.accounts.archiveAccount({ spaceId: ana.spaceId, userId: ana.userId, accountId: archived });
+    const otros = (
+      await app.pool.query("SELECT id FROM category_groups WHERE space_id = $1 AND key = 'other'", [
+        ana.spaceId,
+      ])
+    ).rows[0].id as string;
+    const guitar = await app.categories.createCategory({
+      spaceId: ana.spaceId,
+      userId: ana.userId,
+      groupId: otros,
+      name: "Guitarra",
+    });
+    if (!guitar.ok) throw new Error(guitar.error.code);
+    await app.categories.archiveCategory({
+      spaceId: ana.spaceId,
+      userId: ana.userId,
+      categoryId: guitar.value.id,
+    });
+
+    const preview = await uploaded(ana);
+    expect(preview.accounts.find((a) => a.sourceId === "a-bank")?.mapping).toEqual({
+      kind: "new",
+      type: "BANK",
+      currency: "COP",
+      name: "Banco Uno (Money Manager)",
+    });
+    expect(preview.categories.find((c) => c.sourceId === "c-guitar")?.mapping).toEqual({
+      kind: "new",
+      groupId: otros,
+      name: "Guitarra (Money Manager)",
+    });
+    const result = await confirmed(ana, preview.id);
+
+    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 2, movementsImported: 5 });
+    expect(await accountNamed(ana.spaceId, "Banco Uno (Money Manager)")).toMatchObject({ archived_at: null });
   });
 });

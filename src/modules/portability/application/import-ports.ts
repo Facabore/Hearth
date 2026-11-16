@@ -48,6 +48,8 @@ export interface ImportLink {
 export interface ImportLinkRepository {
   /** Design §3.3: the links of the space for one source app, those of undone batches left out. */
   linksOf(spaceId: string, sourceApp: string): Promise<ImportLink[]>;
+  /** The links of undone batches only: what a re-import of the same source may restore (design §3.3). */
+  undoneLinksOf(spaceId: string, sourceApp: string): Promise<ImportLink[]>;
   /** Writes the links; a key already linked (by an undone batch, or a re-mapped account) points at the new entity. */
   upsert(links: readonly ImportLink[]): Promise<void>;
 }
@@ -58,6 +60,8 @@ export interface HearthMovement {
   readonly date: LocalDate;
   readonly amountMinor: bigint;
   readonly kind: SourceMovementKind;
+  /** A transfer that reached this account, as opposed to one that left it. */
+  readonly incoming?: true;
 }
 
 /** When a recorded movement happened (HU-E4-14): its instant and zone, or its date alone. */
@@ -127,9 +131,15 @@ export interface ImportWriter {
       readonly destinationAmount?: Money;
     },
   ): Promise<Result<string>>;
-  /** D8: a logical delete through the ledger; a movement already deleted is left as it is. */
-  deleteMovement(input: { spaceId: string; userId: string; movementId: string }): Promise<Result<void>>;
+  /**
+   * D8: a logical delete through the ledger; a movement already deleted is left as it is. Answers whether this call
+   * deleted it.
+   */
+  deleteMovement(input: { spaceId: string; userId: string; movementId: string }): Promise<Result<boolean>>;
   archiveAccount(input: { spaceId: string; userId: string; accountId: string }): Promise<Result<void>>;
+  restoreAccount(input: { spaceId: string; userId: string; accountId: string }): Promise<Result<void>>;
+  restoreCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
+  createCategoryGroup(input: { spaceId: string; userId: string; name: string }): Promise<Result<string>>;
   archiveCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
   /** Whether a live movement still uses the account or the category (D8: deleted ones do not count). */
   accountInUse(spaceId: string, accountId: string): Promise<boolean>;

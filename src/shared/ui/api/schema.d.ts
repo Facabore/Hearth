@@ -2230,6 +2230,7 @@ export interface components {
                     /** @enum {string} */
                     type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
                     currency: string;
+                    name: string;
                 };
             }[];
             categories: {
@@ -2248,8 +2249,10 @@ export interface components {
                 } | {
                     /** @constant */
                     kind: "new";
-                    /** @description The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to. */
+                    /** @description The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to. */
                     groupId: string | null;
+                    /** @description Absent only for a subcategory that merges into what its parent maps to. */
+                    name?: string;
                 };
             }[];
             /** @description Source keys of likely duplicates of movements already in Hearth. */
@@ -10051,7 +10054,10 @@ export interface operations {
                             undoneAt: string | null;
                             counts: {
                                 accountsCreated: number;
+                                /** @description Accounts an undone import of the same source created, restored instead of created again. */
+                                accountsRestored: number;
                                 categoriesCreated: number;
+                                categoriesRestored: number;
                                 movementsImported: number;
                                 alreadyImported: number;
                                 duplicatesSkipped: number;
@@ -10119,7 +10125,10 @@ export interface operations {
                      * @description The backup, at most 20 MB; never stored.
                      */
                     file: string;
-                    /** @enum {string} */
+                    /**
+                     * @description Optional: the app is detected from the file.
+                     * @enum {string}
+                     */
                     source?: "money-manager";
                 };
             };
@@ -10206,6 +10215,7 @@ export interface operations {
                             /** @enum {string} */
                             type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
                             currency: string;
+                            name?: string;
                         };
                     };
                     categories?: {
@@ -10216,8 +10226,9 @@ export interface operations {
                         } | {
                             /** @constant */
                             kind: "new";
-                            /** @description The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to. */
+                            /** @description The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to. */
                             groupId: string | null;
+                            name?: string;
                         };
                     };
                     /** @description Every likely duplicate to import anyway; replaces the list the draft has. */
@@ -10308,7 +10319,10 @@ export interface operations {
                         status: "DRAFT" | "CONFIRMED" | "UNDONE";
                         counts: {
                             accountsCreated: number;
+                            /** @description Accounts an undone import of the same source created, restored instead of created again. */
+                            accountsRestored: number;
                             categoriesCreated: number;
+                            categoriesRestored: number;
                             movementsImported: number;
                             alreadyImported: number;
                             duplicatesSkipped: number;
@@ -10355,7 +10369,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, SpaceArchived, AccountNameTaken, CategoryNameTaken, IdempotencyKeyConflict */
+            /** @description ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, ImportTargetRefused, SpaceArchived, IdempotencyKeyConflict */
             409: {
                 headers: {
                     [name: string]: unknown;

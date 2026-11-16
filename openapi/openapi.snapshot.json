@@ -15521,6 +15521,7 @@
                     "description": "The backup, at most 20 MB; never stored."
                   },
                   "source": {
+                    "description": "Optional: the app is detected from the file.",
                     "type": "string",
                     "enum": [
                       "money-manager"
@@ -15684,7 +15685,18 @@
                                     "minimum": -9007199254740991,
                                     "maximum": 9007199254740991
                                   },
+                                  "accountsRestored": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991,
+                                    "description": "Accounts an undone import of the same source created, restored instead of created again."
+                                  },
                                   "categoriesCreated": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991
+                                  },
+                                  "categoriesRestored": {
                                     "type": "integer",
                                     "minimum": -9007199254740991,
                                     "maximum": 9007199254740991
@@ -15723,7 +15735,9 @@
                                 },
                                 "required": [
                                   "accountsCreated",
+                                  "accountsRestored",
                                   "categoriesCreated",
+                                  "categoriesRestored",
                                   "movementsImported",
                                   "alreadyImported",
                                   "duplicatesSkipped",
@@ -15895,6 +15909,11 @@
                             "currency": {
                               "type": "string",
                               "pattern": "^[A-Z]{3}$"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
                             }
                           },
                           "required": [
@@ -15952,7 +15971,12 @@
                                   "type": "null"
                                 }
                               ],
-                              "description": "The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to."
+                              "description": "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to."
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
                             }
                           },
                           "required": [
@@ -16112,7 +16136,18 @@
                               "minimum": -9007199254740991,
                               "maximum": 9007199254740991
                             },
+                            "accountsRestored": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "Accounts an undone import of the same source created, restored instead of created again."
+                            },
                             "categoriesCreated": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991
+                            },
+                            "categoriesRestored": {
                               "type": "integer",
                               "minimum": -9007199254740991,
                               "maximum": 9007199254740991
@@ -16151,7 +16186,9 @@
                           },
                           "required": [
                             "accountsCreated",
+                            "accountsRestored",
                             "categoriesCreated",
+                            "categoriesRestored",
                             "movementsImported",
                             "alreadyImported",
                             "duplicatesSkipped",
@@ -16238,7 +16275,7 @@
             }
           },
           "409": {
-            "description": "ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, SpaceArchived, AccountNameTaken, CategoryNameTaken, IdempotencyKeyConflict",
+            "description": "ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, ImportTargetRefused, SpaceArchived, IdempotencyKeyConflict",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -19234,12 +19271,16 @@
                         "currency": {
                           "type": "string",
                           "pattern": "^[A-Z]{3}$"
+                        },
+                        "name": {
+                          "type": "string"
                         }
                       },
                       "required": [
                         "kind",
                         "type",
-                        "currency"
+                        "currency",
+                        "name"
                       ],
                       "additionalProperties": false
                     }
@@ -19338,7 +19379,11 @@
                               "type": "null"
                             }
                           ],
-                          "description": "The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to."
+                          "description": "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to."
+                        },
+                        "name": {
+                          "description": "Absent only for a subcategory that merges into what its parent maps to.",
+                          "type": "string"
                         }
                       },
                       "required": [

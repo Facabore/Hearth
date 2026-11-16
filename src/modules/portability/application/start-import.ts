@@ -1,7 +1,7 @@
 import { ok, type Result } from "@/shared/kernel";
 import { NOTHING_CREATED, type ImportBatch } from "../domain/import-batch";
 import { proposeMappings } from "../domain/mapping-proposals";
-import { authorizeImporter, priorLinksOf } from "./import-access";
+import { authorizeImporter, priorLinksFor } from "./import-access";
 import type { ImportDeps } from "./import-ports";
 import { viewOf, type ImportView } from "./import-view";
 
@@ -28,7 +28,6 @@ export const createStartImport =
     return deps.tm.run(async () => {
       const targets = await deps.writer.targetsOf(input.spaceId, input.userId);
       if (!targets.ok) return targets;
-      const links = await deps.links.linksOf(input.spaceId, snapshot.sourceApp);
       const timeZone = await deps.userTimeZones.timeZoneOf(input.userId);
       const batch: ImportBatch = {
         id: deps.ids.next<"ImportBatch">(),
@@ -38,7 +37,12 @@ export const createStartImport =
         fileSha256,
         status: "DRAFT",
         snapshot,
-        mappings: proposeMappings(snapshot, targets.value, priorLinksOf(links), timeZone),
+        mappings: proposeMappings(
+          snapshot,
+          targets.value,
+          await priorLinksFor(deps, input.spaceId, snapshot.sourceApp),
+          timeZone,
+        ),
         counts: null,
         rowErrors: [],
         created: NOTHING_CREATED,

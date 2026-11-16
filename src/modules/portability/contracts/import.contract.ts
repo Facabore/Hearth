@@ -10,6 +10,7 @@ import {
 } from "@/shared/http/contracts";
 import type {
   ImportAccountView,
+  SourceIssue,
   ImportCategoryView,
   ImportResult,
   ImportSummary,
@@ -28,22 +29,47 @@ const ACCOUNT_TYPES = [
   "OTHER",
 ] as const;
 
-const AccountMappingSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("existing"), accountId: IdSchema }),
+const CURRENCY = z.string().regex(/^[A-Z]{3}$/, { error: "Currency must be an ISO 4217 code" });
+const NAME = z.string().trim().min(1).max(60);
+
+const ExistingAccountSchema = z.object({ kind: z.literal("existing"), accountId: IdSchema });
+const ExistingCategorySchema = z.object({ kind: z.literal("existing"), categoryId: IdSchema });
+const GROUP_ID = IdSchema.nullable().describe(
+  "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to.",
+);
+
+/** A mapping as the person sends it: a new record's name is optional, the source's by default. */
+const AccountMappingInputSchema = z.discriminatedUnion("kind", [
+  ExistingAccountSchema,
   z.object({
     kind: z.literal("new"),
     type: z.enum(ACCOUNT_TYPES),
-    currency: z.string().regex(/^[A-Z]{3}$/, { error: "Currency must be an ISO 4217 code" }),
+    currency: CURRENCY,
+    name: NAME.optional(),
   }),
 ]);
+const CategoryMappingInputSchema = z.discriminatedUnion("kind", [
+  ExistingCategorySchema,
+  z.object({ kind: z.literal("new"), groupId: GROUP_ID, name: NAME.optional() }),
+]);
 
+/**
+ * A mapping as the preview answers it: a new record's `name` is the one the confirm will use, which no record of its
+ * scope holds (archived ones included); it differs from the source's name when that one is taken.
+ */
+const AccountMappingSchema = z.discriminatedUnion("kind", [
+  ExistingAccountSchema,
+  z.object({ kind: z.literal("new"), type: z.enum(ACCOUNT_TYPES), currency: CURRENCY, name: z.string() }),
+]);
 const CategoryMappingSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("existing"), categoryId: IdSchema }),
+  ExistingCategorySchema,
   z.object({
     kind: z.literal("new"),
-    groupId: IdSchema.nullable().describe(
-      "The group a new top-level category goes in; ignored for a subcategory, which goes under what its parent maps to.",
-    ),
+    groupId: GROUP_ID,
+    name: z
+      .string()
+      .optional()
+      .describe("Absent only for a subcategory that merges into what its parent maps to."),
   }),
 ]);
 
@@ -53,8 +79,8 @@ const SourceKeySchema = z.string().min(1).max(200);
 export const AdjustImportBodySchema = z
   .object({
     timeZone: z.string().min(1).max(64).optional(),
-    accounts: z.record(SourceKeySchema, AccountMappingSchema).optional(),
-    categories: z.record(SourceKeySchema, CategoryMappingSchema).optional(),
+    accounts: z.record(SourceKeySchema, AccountMappingInputSchema).optional(),
+    categories: z.record(SourceKeySchema, CategoryMappingInputSchema).optional(),
     includeDuplicates: z
       .array(SourceKeySchema)
       .max(100_000)
@@ -71,7 +97,12 @@ const IssueSchema = z.object({
 
 const CountsSchema = z.object({
   accountsCreated: z.number().int(),
+  accountsRestored: z
+    .number()
+    .int()
+    .describe("Accounts an undone import of the same source created, restored instead of created again."),
   categoriesCreated: z.number().int(),
+  categoriesRestored: z.number().int(),
   movementsImported: z.number().int(),
   alreadyImported: z.number().int(),
   duplicatesSkipped: z.number().int(),
@@ -181,39 +212,88 @@ export const ImportHistorySchema = z.object({
 
 const iso = (date: Date | null) => (date === null ? null : date.toISOString());
 
-const accountDto = (a: ImportAccountView) => ({
-  ...a,
+type PreviewDto = z.infer<typeof ImportPreviewSchema>;
+type MappingDto<T> = T extends { readonly kind: "new" } ? T & { readonly name: string } : T;
+
+/** Every new mapping the view answers was settled by `checkMappings` or the proposals, so it carries its name. */
+const named = <T extends { readonly kind: string; readonly name?: string }>(mapping: T, fallback: string) =>
+  (mapping.kind === "new" ? { ...mapping, name: mapping.name ?? fallback } : mapping) as MappingDto<T>;
+
+const accountDto = (a: ImportAccountView): PreviewDto["accounts"][number] => ({
+  sourceId: a.sourceId,
+  name: a.name,
+  type: a.type,
+  currency: a.currency,
+  cutOffDay: a.cutOffDay,
+  paymentDay: a.paymentDay,
   sourceClosingBalance: moneyToDto(a.sourceClosingBalance),
+  mapping: named(a.mapping, a.name),
 });
-const categoryDto = (c: ImportCategoryView) => ({ ...c });
 
-export const importPreviewDto = (view: ImportView): z.infer<typeof ImportPreviewSchema> =>
-  ({
-    ...view,
-    createdAt: view.createdAt.toISOString(),
-    previouslyImportedAt: iso(view.previouslyImportedAt),
-    accounts: view.accounts.map(accountDto),
-    categories: view.categories.map(categoryDto),
-  }) as z.infer<typeof ImportPreviewSchema>;
+const categoryDto = (c: ImportCategoryView): PreviewDto["categories"][number] => ({
+  sourceId: c.sourceId,
+  name: c.name,
+  icon: c.icon,
+  kind: c.kind,
+  parentSourceId: c.parentSourceId,
+  archived: c.archived,
+  catalogKey: c.catalogKey,
+  mapping: c.mapping,
+});
 
-export const importResultDto = (result: ImportResult): z.infer<typeof ImportResultSchema> =>
-  result as z.infer<typeof ImportResultSchema>;
+const issueDto = (issue: SourceIssue) => ({
+  code: issue.code,
+  sourceKey: issue.sourceKey,
+  ...(issue.details === undefined ? {} : { details: { ...issue.details } }),
+});
+
+export const importPreviewDto = (view: ImportView): PreviewDto => ({
+  id: view.id,
+  status: view.status,
+  sourceApp: view.sourceApp,
+  createdAt: view.createdAt.toISOString(),
+  previouslyImportedAt: iso(view.previouslyImportedAt),
+  timeZone: view.timeZone,
+  counts: { ...view.counts },
+  dateRange: view.dateRange === null ? null : { first: view.dateRange.first, last: view.dateRange.last },
+  accounts: view.accounts.map(accountDto),
+  categories: view.categories.map(categoryDto),
+  duplicates: [...view.duplicates],
+  includeDuplicates: [...view.includeDuplicates],
+  plan: { ...view.plan, alreadyImported: [...view.plan.alreadyImported] },
+  leftOut: { ...view.leftOut },
+  warnings: view.warnings.map(issueDto),
+  errors: view.errors.map(issueDto),
+});
+
+export const importResultDto = (result: ImportResult): z.infer<typeof ImportResultSchema> => ({
+  id: result.id,
+  status: result.status,
+  counts: result.counts === null ? null : { ...result.counts },
+  rowErrors: result.rowErrors.map(issueDto),
+});
 
 export const importHistoryDto = (items: readonly ImportSummary[]): z.infer<typeof ImportHistorySchema> => ({
   items: items.map((i) => ({
-    ...i,
+    id: i.id,
+    sourceApp: i.sourceApp,
+    status: i.status,
     createdAt: i.createdAt.toISOString(),
     confirmedAt: iso(i.confirmedAt),
     undoneAt: iso(i.undoneAt),
+    counts: i.counts === null ? null : { ...i.counts },
   })),
 });
 
-export const undoneImportDto = (undone: UndoneImport): z.infer<typeof UndoneImportSchema> => undone;
+export const undoneImportDto = (undone: UndoneImport): z.infer<typeof UndoneImportSchema> => ({ ...undone });
 
-/** The multipart field the upload reads, and an optional source app (only Money Manager for now). */
+/**
+ * The multipart field the upload reads, and an optional source app. The app is detected from the file itself; `source`
+ * only refuses an upload that names an app this server does not read (only Money Manager for now).
+ */
 export const UploadFieldsSchema = z.object({
   file: z.string().meta({ format: "binary" }).describe("The backup, at most 20 MB; never stored."),
-  source: z.enum(["money-manager"]).optional(),
+  source: z.enum(["money-manager"]).optional().describe("Optional: the app is detected from the file."),
 });
 
 const SpacePath = z.object({ spaceId: z.string() });
@@ -291,7 +371,7 @@ export const importPaths: ZodOpenApiPathsObject = {
           ...BASE,
           "404": "SpaceNotFound, ImportNotFound",
           "409":
-            "ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, SpaceArchived, AccountNameTaken, CategoryNameTaken, IdempotencyKeyConflict",
+            "ImportNotDraft, ImportSnapshotExpired, ImportRequiresPersonalSpace, ImportTargetRefused, SpaceArchived, IdempotencyKeyConflict",
           "422": "InvalidImportMapping, InvalidIdempotencyKey",
         }),
       },

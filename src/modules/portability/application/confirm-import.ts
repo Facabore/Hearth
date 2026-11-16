@@ -3,15 +3,16 @@ import { domainError, err, localDateIn, Money, ok, type DomainError, type Result
 import {
   confirmBatch,
   draftSnapshot,
+  IMPORT_GROUP_NAME,
   type CreatedEntities,
   type ImportBatch,
   type ImportCounts,
   type ImportMappings,
 } from "../domain/import-batch";
 import { openingKeyOf, planImport } from "../domain/import-plan";
-import { checkMappings, type HearthTargets } from "../domain/mapping-proposals";
+import { checkMappings, importGroupOf, type HearthTargets } from "../domain/mapping-proposals";
 import type { SourceIssue, SourceMovement, SourceSnapshot } from "../domain/source-snapshot";
-import { authorizeImporter, ownBatch } from "./import-access";
+import { authorizeImporter, ownBatch, priorLinksFor } from "./import-access";
 import type { ImportDeps, ImportLink, MovementTime } from "./import-ports";
 import { knownFor } from "./import-view";
 
@@ -45,9 +46,12 @@ const rowError = (sourceKey: string, error: DomainError): SourceIssue => ({
     : { details: Object.fromEntries(Object.entries(error.details).map(([k, v]) => [k, String(v)])) }),
 });
 
-/** A refusal that stops the whole confirm, naming the source row it is about. */
+/**
+ * A refusal of an account or category that stops the whole confirm, naming the source record it is about and the
+ * module's own code (`ImportTargetRefused`, design §3.2). Names never cause one: `checkMappings` settled them.
+ */
 const about = (sourceId: string, error: DomainError) =>
-  err(domainError(error.code, { ...error.details, sourceId }));
+  err(domainError("ImportTargetRefused", { sourceId, reason: error.code }));
 
 /**
  * HU-E4-14, design §2.3: a movement keeps its date, and its instant in the chosen zone when that instant falls on that
@@ -82,7 +86,16 @@ interface Resolved {
   readonly categories: Map<string, string>;
 }
 
-/** The accounts the import creates, with their opening balance (gap G1), and those it maps to; all or nothing. */
+/** What a confirm created and what it restored (design §3.3), which its undo archives again. */
+interface Brought {
+  readonly created: string[];
+  readonly restored: string[];
+}
+
+/**
+ * The accounts the import creates, with their opening balance (gap G1) and their settled names, those it restores
+ * (archived by an undone import of this source) and those it maps to; all or nothing.
+ */
 const resolveAccounts = async (
   deps: Pick<ImportDeps, "writer">,
   input: { spaceId: string; userId: string },
@@ -90,14 +103,18 @@ const resolveAccounts = async (
   mappings: ImportMappings,
   targets: HearthTargets,
   openingBalances: ReadonlyMap<string, bigint>,
-  created: string[],
+  brought: Brought,
 ): Promise<Result<Resolved["accounts"]>> => {
   const accounts: Resolved["accounts"] = new Map();
   for (const account of snapshot.accounts) {
-    const mapping = mappings.accounts[account.sourceId];
-    if (mapping === undefined) continue;
+    const mapping = mappings.accounts[account.sourceId]!;
     if (mapping.kind === "existing") {
       const target = targets.accounts.find((a) => a.id === mapping.accountId)!;
+      if (target.archived) {
+        const restored = await deps.writer.restoreAccount({ ...input, accountId: target.id });
+        if (!restored.ok) return about(account.sourceId, restored.error);
+        brought.restored.push(target.id);
+      }
       accounts.set(account.sourceId, { id: target.id, currency: target.currency });
       continue;
     }
@@ -105,25 +122,23 @@ const resolveAccounts = async (
     if (!opening.ok) return about(account.sourceId, opening.error);
     const id = await deps.writer.createAccount({
       ...input,
-      name: account.name,
+      name: mapping.name ?? account.name,
       type: mapping.type,
       openingBalance: opening.value,
       cutOffDay: account.cutOffDay,
       paymentDay: account.paymentDay,
     });
     if (!id.ok) return about(account.sourceId, id.error);
-    created.push(id.value);
+    brought.created.push(id.value);
     accounts.set(account.sourceId, { id: id.value, currency: mapping.currency });
   }
   return ok(accounts);
 };
 
-const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-
 /**
- * The categories the import creates and those it maps to (design §2.2), parents first; all or nothing. A new category
- * whose name a live sibling already has merges into it. A subcategory whose parent maps to a subcategory merges into
- * that one, since Hearth has three levels (D20).
+ * The categories the import creates (under their settled names), restores and maps to (design §2.2), parents first;
+ * all or nothing. A new top-level category with no group goes in the import's own group, found or created once. A
+ * subcategory whose parent maps to a subcategory merges into that one, since Hearth has three levels (D20).
  */
 const resolveCategories = async (
   deps: Pick<ImportDeps, "writer">,
@@ -131,59 +146,53 @@ const resolveCategories = async (
   snapshot: SourceSnapshot,
   mappings: ImportMappings,
   targets: HearthTargets,
-  created: string[],
+  brought: Brought,
 ): Promise<Result<Resolved["categories"]>> => {
   const categories = new Map<string, string>();
-  const known = targets.categories.filter((c) => !c.archived).map((c) => ({ ...c }));
+  const isSubcategory = new Map(targets.categories.map((c) => [c.id, c.parentCategoryId !== null]));
+  let importGroup = importGroupOf(targets.groups)?.id;
   const ordered = [
     ...snapshot.categories.filter((c) => c.parentSourceId === null),
     ...snapshot.categories.filter((c) => c.parentSourceId !== null),
   ];
   for (const category of ordered) {
-    const mapping = mappings.categories[category.sourceId];
-    if (mapping === undefined) continue;
+    const mapping = mappings.categories[category.sourceId]!;
     if (mapping.kind === "existing") {
-      categories.set(category.sourceId, mapping.categoryId);
+      const target = targets.categories.find((c) => c.id === mapping.categoryId)!;
+      if (target.archived) {
+        const restored = await deps.writer.restoreCategory({ ...input, categoryId: target.id });
+        if (!restored.ok) return about(category.sourceId, restored.error);
+        brought.restored.push(target.id);
+      }
+      categories.set(category.sourceId, target.id);
       continue;
     }
-    let parentCategoryId: string | null = null;
-    if (category.parentSourceId !== null) {
+    let placement: { groupId: string } | { parentCategoryId: string };
+    if (category.parentSourceId === null) {
+      if (mapping.groupId === null && importGroup === undefined) {
+        const group = await deps.writer.createCategoryGroup({ ...input, name: IMPORT_GROUP_NAME });
+        if (!group.ok) return about(category.sourceId, group.error);
+        importGroup = group.value;
+      }
+      placement = { groupId: mapping.groupId ?? importGroup! };
+    } else {
       const parentId = categories.get(category.parentSourceId);
-      if (parentId === undefined) continue;
-      const parent = known.find((c) => c.id === parentId);
-      if (parent?.parentCategoryId != null) {
+      if (parentId === undefined) return about(category.sourceId, domainError("CategoryNotFound"));
+      if (isSubcategory.get(parentId) === true) {
         categories.set(category.sourceId, parentId);
         continue;
       }
-      parentCategoryId = parentId;
-    }
-    const groupId = parentCategoryId === null ? mapping.groupId : null;
-    const sibling = known.find(
-      (c) =>
-        sameName(c.name, category.name) &&
-        c.parentCategoryId === parentCategoryId &&
-        (parentCategoryId !== null || c.groupId === groupId),
-    );
-    if (sibling !== undefined) {
-      categories.set(category.sourceId, sibling.id);
-      continue;
+      placement = { parentCategoryId: parentId };
     }
     const id = await deps.writer.createCategory({
       ...input,
-      name: category.name,
-      ...(parentCategoryId === null ? { groupId: groupId! } : { parentCategoryId }),
-      emoji: parentCategoryId === null ? category.icon : null,
+      ...placement,
+      name: mapping.name ?? category.name,
+      emoji: "groupId" in placement ? category.icon : null,
     });
     if (!id.ok) return about(category.sourceId, id.error);
-    created.push(id.value);
-    known.push({
-      id: id.value,
-      groupId: groupId ?? "",
-      parentCategoryId,
-      name: category.name,
-      key: null,
-      archived: false,
-    });
+    brought.created.push(id.value);
+    isSubcategory.set(id.value, "parentCategoryId" in placement);
     categories.set(category.sourceId, id.value);
   }
   return ok(categories);
@@ -237,7 +246,8 @@ const record = async (
  * accounts and categories, records every movement through the ledger's use cases, so an import stores only what a
  * person could record, writes the links, and answers the counts. A movement already linked is skipped; a movement the
  * ledger refuses (no rate for its date, a closed period) is a row error and the rest still imports; a refused account or
- * category stops everything, since its movements could not go anywhere.
+ * category stops everything (`ImportTargetRefused`, naming it), since its movements could not go anywhere. Accounts and
+ * categories an undone import of this source created are restored rather than created again (design §3.3).
  */
 export const createConfirmImport =
   (deps: ImportDeps): ConfirmImport =>
@@ -254,18 +264,21 @@ export const createConfirmImport =
       if (!snapshot.ok) return snapshot;
       const targets = await deps.writer.targetsOf(space.spaceId, input.userId);
       if (!targets.ok) return targets;
-      const mappings = checkMappings(snapshot.value, batch.value.mappings, targets.value);
+      const mappings = checkMappings(
+        snapshot.value,
+        batch.value.mappings,
+        targets.value,
+        await priorLinksFor(deps, space.spaceId, snapshot.value.sourceApp),
+      );
       if (!mappings.ok) return mappings;
       const known = await knownFor(deps, space.spaceId, snapshot.value, mappings.value);
       if (!known.ok) return known;
       const plan = planImport(snapshot.value, mappings.value, known.value);
 
       const who = { spaceId: space.spaceId, userId: input.userId };
-      const created: { accounts: string[]; categories: string[]; movements: string[] } = {
-        accounts: [],
-        categories: [],
-        movements: [],
-      };
+      const accountsBrought: Brought = { created: [], restored: [] };
+      const categoriesBrought: Brought = { created: [], restored: [] };
+      const movements: string[] = [];
       const accounts = await resolveAccounts(
         deps,
         who,
@@ -273,7 +286,7 @@ export const createConfirmImport =
         mappings.value,
         targets.value,
         plan.openingBalances,
-        created.accounts,
+        accountsBrought,
       );
       if (!accounts.ok) return accounts;
       const categories = await resolveCategories(
@@ -282,7 +295,7 @@ export const createConfirmImport =
         snapshot.value,
         mappings.value,
         targets.value,
-        created.categories,
+        categoriesBrought,
       );
       if (!categories.ok) return categories;
       const resolved: Resolved = { accounts: accounts.value, categories: categories.value };
@@ -314,35 +327,40 @@ export const createConfirmImport =
           rowErrors.push(rowError(movement.sourceKey, id.error));
           continue;
         }
-        created.movements.push(id.value);
+        movements.push(id.value);
         links.push(link(movement.sourceKey, "MOVEMENT", id.value));
       }
 
       // Design §2.2: a deleted source category still used by a movement is imported, then archived; only one the
-      // import created, never a category of the person's.
+      // import created or restored, never a category of the person's.
+      const ours = new Set([...categoriesBrought.created, ...categoriesBrought.restored]);
       for (const category of snapshot.value.categories.filter((c) => c.deleted)) {
         const id = resolved.categories.get(category.sourceId);
-        if (id === undefined || !created.categories.includes(id)) continue;
+        if (id === undefined || !ours.has(id)) continue;
         const archived = await deps.writer.archiveCategory({ ...who, categoryId: id });
         if (!archived.ok) return about(category.sourceId, archived.error);
       }
       await deps.links.upsert(links);
 
       const counts: ImportCounts = {
-        accountsCreated: created.accounts.length,
-        categoriesCreated: created.categories.length,
-        movementsImported: created.movements.length,
+        accountsCreated: accountsBrought.created.length,
+        accountsRestored: accountsBrought.restored.length,
+        categoriesCreated: categoriesBrought.created.length,
+        categoriesRestored: categoriesBrought.restored.length,
+        movementsImported: movements.length,
         alreadyImported: plan.alreadyImported.length,
         duplicatesSkipped: plan.duplicatesSkipped.length,
         adjustmentsInOpeningBalance: plan.folded.length,
         adjustmentsNotImported: plan.adjustmentsNotImported.length,
         rowErrors: rowErrors.length,
       };
-      const outcome: { counts: ImportCounts; rowErrors: SourceIssue[]; created: CreatedEntities } = {
-        counts,
-        rowErrors,
-        created,
+      // What the undo reverts: every movement it recorded, and every account and category it created or restored.
+      const created: CreatedEntities = {
+        accounts: [...accountsBrought.created, ...accountsBrought.restored],
+        categories: [...categoriesBrought.created, ...categoriesBrought.restored],
+        movements,
       };
+      const outcome = { counts, rowErrors, created };
       const confirmed = confirmBatch(batch.value, outcome, deps.clock.now());
       if (!confirmed.ok) return confirmed;
       await deps.batches.save(confirmed.value);
