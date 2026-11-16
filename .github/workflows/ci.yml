@@ -75,7 +75,10 @@ jobs:
       - name: Unit, integration, acceptance and operations tests (disposable containers through the Docker CLI)
         run: pnpm test
 
+  # Owner, 2026-11-13 ("e2e solo en main"): a push to development skips the end-to-end scenarios, so its feedback is
+  # the fast gates only. Pull requests (development into main included), main and a manual run still play them all.
   e2e:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/development'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
