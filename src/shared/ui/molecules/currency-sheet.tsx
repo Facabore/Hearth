@@ -27,9 +27,9 @@ const searchable = (text: string): string =>
 
 /**
  * D29 (boards 12 and 13): the one currency sheet, for a new account's currency and a person's display currency. A
- * search by name or code, "Más usadas" (the primary currency, then USD and EUR) and "Todas" (every currency the kernel
- * knows, by name), with a check on the chosen one; choosing closes it. `primary` is the space's currency, or the
- * personal space's, and `primaryNote` says so under it ("la de Personal").
+ * search by name or code, "Más usadas" (the primary currency, then USD and EUR) and "Todas" (the kernel's
+ * `CURRENCY_CODES`, through `knownCurrencyCodes`, sorted by name), with a check on the chosen one; choosing closes it.
+ * `primary` is the space's currency, or the personal space's, and `primaryNote` says so under it ("la de Personal").
  */
 export function CurrencySheet({
   open,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { knownCurrency } from "@/shared/kernel/currency";
+import { CURRENCY_CODES } from "@/shared/kernel/currency-codes";
 import { currencyName, currencyTitle } from "./currency-names";
 import { knownCurrencyCodes } from "./known-currencies";
 
@@ -8,6 +9,8 @@ describe("currencies the sheet offers (D29, board 13)", () => {
     const codes = knownCurrencyCodes();
     expect(codes).toEqual(expect.arrayContaining(["COP", "USD", "EUR", "JPY", "MXN", "BRL", "VED"]));
     for (const refused of ["XAU", "XDR", "XSU", "CUC", "SLL", "ZWL"]) expect(codes).not.toContain(refused);
+    // The kernel's own list, so the sheet and the server agree by construction.
+    expect(codes).toEqual(CURRENCY_CODES);
     expect(codes.every((code) => knownCurrency(code) !== undefined)).toBe(true);
     expect([...codes].sort()).toEqual(codes);
   });
