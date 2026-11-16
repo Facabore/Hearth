@@ -55,3 +55,19 @@ export const createStartImport =
       return view.ok ? ok(view.value) : view;
     });
   };
+
+export type AuthorizeImport = (input: {
+  readonly spaceId: string;
+  readonly userId: string;
+}) => Promise<Result<void>>;
+
+/**
+ * Design §3.5: whether the requester may upload here (`money.record`, personal space), asked before the upload's body
+ * is read, so a VIEWER or a stranger never makes the server buffer a file.
+ */
+export const createAuthorizeImport =
+  (deps: Pick<ImportDeps, "access">): AuthorizeImport =>
+  async (input) => {
+    const importer = await authorizeImporter(deps, input.spaceId, input.userId);
+    return importer.ok ? ok(undefined) : importer;
+  };

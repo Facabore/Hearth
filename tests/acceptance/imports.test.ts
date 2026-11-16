@@ -37,6 +37,44 @@ const upload = (user: TestUser, bytes: Uint8Array, spaceId = user.spaceId) => {
   );
 };
 
+const MB = 1024 * 1024;
+
+/** A request body of `total` zero bytes in 1 MB chunks, which counts how much of it was read. */
+const streamed = (total: number) => {
+  let pulled = 0;
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        const size = Math.min(MB, total - pulled);
+        pulled += size;
+        controller.enqueue(new Uint8Array(size));
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return { stream, pulled: () => pulled };
+};
+
+/** Uploads a raw stream as the body, as a client sending chunked or with any length it declares. */
+const uploadStream = (
+  user: TestUser,
+  stream: ReadableStream<Uint8Array>,
+  headers: Record<string, string> = {},
+) =>
+  startImport(
+    new Request(`http://localhost:3000/api/v1/spaces/${user.spaceId}/imports`, {
+      method: "POST",
+      headers: { cookie: user.cookie, "content-type": "multipart/form-data; boundary=x", ...headers },
+      body: stream,
+      duplex: "half",
+    } as RequestInit),
+    routeParams({ spaceId: user.spaceId }),
+  );
+
 interface Preview {
   id: string;
   status: string;
@@ -145,13 +183,30 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     expect(await liveMovements(ana.spaceId)).toBe(0);
   });
 
-  it("refuses a file over 20 MB with 422 ImportFileTooLarge, before reading it", async () => {
+  it("refuses a file over 20 MB with 422 ImportFileTooLarge", async () => {
     const ana = await registerUser("Ana");
     const big = new Uint8Array(20 * 1024 * 1024 + 1);
     big.set(backup);
     const refused = await upload(ana, big);
     expect(refused.status).toBe(422);
     expect(await refused.json()).toMatchObject({ code: "ImportFileTooLarge", maxBytes: 20 * 1024 * 1024 });
+  });
+
+  it("refuses a body whose declared length is over the limit without reading any of it", async () => {
+    const ana = await registerUser("Ana");
+    const body = streamed(30 * MB);
+    const response = await uploadStream(ana, body.stream, { "content-length": String(30 * MB) });
+    expect(await problemOf(response)).toEqual([422, "ImportFileTooLarge"]);
+    expect(body.pulled()).toBe(0);
+  });
+
+  it("stops reading a body sent without a length once it passes the limit", async () => {
+    const ana = await registerUser("Ana");
+    const body = streamed(30 * MB);
+    const response = await uploadStream(ana, body.stream);
+    expect(await problemOf(response)).toEqual([422, "ImportFileTooLarge"]);
+    // At most the limit, its framing allowance and one more chunk were read: never the whole 30 MB.
+    expect(body.pulled()).toBeLessThanOrEqual(21 * MB + 64 * 1024);
   });
 
   it("refuses a file that is not a Money Manager backup with 422 ImportFileNotRecognized", async () => {
@@ -179,6 +234,11 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     const household = await newSharedSpace(ana);
     await joinAs(ana, household, sofi, "VIEWER");
     expect(await problemOf(await upload(sofi, backup, household))).toEqual([403, "InsufficientRole"]);
+    // Refused before the body is read: a VIEWER or a stranger never makes the server buffer an upload.
+    const body = streamed(5 * MB);
+    const refused = await uploadStream({ ...sofi, spaceId: household }, body.stream);
+    expect(await problemOf(refused)).toEqual([403, "InsufficientRole"]);
+    expect(body.pulled()).toBe(0);
     expect(await problemOf(await upload(ana, backup, household))).toEqual([
       409,
       "ImportRequiresPersonalSpace",

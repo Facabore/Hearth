@@ -228,6 +228,7 @@ import {
 import { cryptoReferralRandom } from "@/modules/referrals/infrastructure/crypto-referral-random";
 import {
   createAdjustImport,
+  createAuthorizeImport,
   createConfirmImport,
   createExportPersonData,
   createListImports,
@@ -235,6 +236,7 @@ import {
   createStartImport,
   createUndoImport,
   type AdjustImport,
+  type AuthorizeImport,
   type ConfirmImport,
   type ExportPersonData,
   type ListImports,
@@ -480,6 +482,8 @@ export interface Container extends RouteDeps {
   /** D28, design §3.6: the person's data export. */
   readonly portability: {
     readonly exportPersonData: ExportPersonData;
+    /** D28, design §3.5: whether the requester may upload here, asked before the upload is read. */
+    readonly authorizeImport: AuthorizeImport;
     /** D28, design §3.2: the Money Manager import's upload, adjustments, confirm, undo and history. */
     readonly startImport: StartImport;
     readonly adjustImport: AdjustImport;
@@ -1341,6 +1345,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     portability: {
       exportPersonData,
+      authorizeImport: createAuthorizeImport(importDeps),
       startImport: createStartImport(importDeps),
       adjustImport: createAdjustImport(importDeps),
       confirmImport: createConfirmImport(importDeps),
