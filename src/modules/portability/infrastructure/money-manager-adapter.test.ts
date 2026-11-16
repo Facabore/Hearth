@@ -1,15 +1,28 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { isErr, isOk } from "@/shared/kernel";
+import { beforeAll, describe, expect, it } from "vitest";
+import { isErr, type Result } from "@/shared/kernel";
 import type { SourceSnapshot } from "../domain/source-snapshot";
-import { MoneyManagerAdapter } from "./money-manager-adapter";
+import { MAX_IMPORT_BYTES, MoneyManagerAdapter } from "./money-manager-adapter";
 
-/** Builds a tiny, synthetic Money Manager SQLite backup covering every mapping rule. No real or personal data. */
-const buildFixture = (path: string): void => {
-  const db = new DatabaseSync(path);
+type MovementRow = [
+  uid: string,
+  doType: number,
+  wdate: string,
+  zdate: number,
+  asset: string,
+  ctg: string,
+  currencyUid: number,
+  inZmoney: string,
+  amountAccount: number,
+  txUidTrans: string,
+];
+
+/**
+ * Builds a tiny, synthetic Money Manager SQLite backup covering every mapping rule, in memory, and returns its bytes:
+ * nothing is written to disk. No real or personal data. `extra` adds movement rows for one test.
+ */
+const buildFixture = (extra: readonly MovementRow[] = []): Uint8Array => {
+  const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE CURRENCY (uid INTEGER, ISO TEXT, MAIN_ISO TEXT, IS_MAIN_CURRENCY INTEGER, RATE TEXT, DECIMAL_POINT INTEGER, SYMBOL_POSITION INTEGER);
     CREATE TABLE ASSETGROUP (uid INTEGER, NAME TEXT);
@@ -276,27 +289,69 @@ const buildFixture = (path: string): void => {
   db.prepare("INSERT INTO BUDGET VALUES (?,?,?)").run("b1", "c-food", 0);
   db.prepare("INSERT INTO ZETC VALUES (?,?)").run("start_day", "1");
 
+  for (const [
+    uid,
+    doType,
+    wdate,
+    zdate,
+    asset,
+    ctg,
+    currencyUid,
+    inZmoney,
+    amountAccount,
+    txUidTrans,
+  ] of extra) {
+    movement.run(
+      uid,
+      doType,
+      wdate,
+      zdate,
+      0,
+      asset,
+      "",
+      ctg,
+      inZmoney,
+      currencyUid,
+      inZmoney,
+      amountAccount,
+      txUidTrans,
+      "",
+      "",
+      0,
+    );
+  }
+
+  const bytes = db.serialize();
   db.close();
+  return bytes;
 };
 
+const readOk = (bytes: Uint8Array): SourceSnapshot => {
+  const read = new MoneyManagerAdapter().read({ bytes });
+  if (isErr(read)) throw new Error(read.error.code);
+  return read.value;
+};
+
+const errorCode = (read: Result<SourceSnapshot>): string | null => (isErr(read) ? read.error.code : null);
+
 describe("MoneyManagerAdapter (design §1-2)", () => {
-  let dir: string;
-  let file: string;
+  let bytes: Uint8Array;
   let snapshot: SourceSnapshot;
 
   beforeAll(() => {
-    dir = mkdtempSync(join(tmpdir(), "mm-fixture-"));
-    file = join(dir, "backup.sqlite");
-    buildFixture(file);
-    const read = new MoneyManagerAdapter().read({ path: file });
-    if (isErr(read)) throw new Error(read.error.code);
-    snapshot = read.value;
+    bytes = buildFixture();
+    snapshot = readOk(bytes);
   });
 
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
-
-  it("detects a Money Manager backup", () => {
-    expect(new MoneyManagerAdapter().detect({ path: file })).toBe(true);
+  it("detects a Money Manager backup, and nothing else", () => {
+    expect(new MoneyManagerAdapter().detect({ bytes })).toBe(true);
+    expect(new MoneyManagerAdapter().detect({ bytes: new TextEncoder().encode("this is not sqlite") })).toBe(
+      false,
+    );
+    const other = new DatabaseSync(":memory:");
+    other.exec("CREATE TABLE notes (id INTEGER)");
+    expect(new MoneyManagerAdapter().detect({ bytes: other.serialize() })).toBe(false);
+    other.close();
   });
 
   it("maps every account group to a Hearth type", () => {
@@ -402,19 +457,143 @@ describe("MoneyManagerAdapter (design §1-2)", () => {
   });
 
   it("reports a zip backup as not yet supported", () => {
-    const zip = join(dir, "backup.mmbak");
-    writeFileSync(zip, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]));
-    const read = new MoneyManagerAdapter().read({ path: zip });
-    expect(isErr(read)).toBe(true);
-    if (isErr(read)) expect(read.error.code).toBe("ZipBackupNotSupported");
+    const zip = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]);
+    expect(errorCode(new MoneyManagerAdapter().read({ bytes: zip }))).toBe("ZipBackupNotSupported");
   });
 
-  it("returns a stable error for an unreadable file", () => {
-    const bad = join(dir, "not-a-db.sqlite");
-    writeFileSync(bad, "this is not sqlite");
-    const read = new MoneyManagerAdapter().read({ path: bad });
-    expect(isErr(read)).toBe(true);
-    if (isErr(read)) expect(read.error.code).toBe("UnreadableBackup");
-    expect(isOk(read)).toBe(false);
+  it("refuses a file that is not a SQLite database (design §3.5)", () => {
+    const text = new TextEncoder().encode("this is not sqlite");
+    expect(errorCode(new MoneyManagerAdapter().read({ bytes: text }))).toBe("ImportFileNotRecognized");
+    expect(errorCode(new MoneyManagerAdapter().read({ bytes: new Uint8Array() }))).toBe(
+      "ImportFileNotRecognized",
+    );
+  });
+
+  it("refuses a SQLite database that is not a Money Manager backup", () => {
+    const other = new DatabaseSync(":memory:");
+    other.exec("CREATE TABLE notes (id INTEGER)");
+    const read = new MoneyManagerAdapter().read({ bytes: other.serialize() });
+    other.close();
+    expect(errorCode(read)).toBe("ImportFileNotRecognized");
+  });
+
+  it("refuses a backup whose tables are views, so a crafted query cannot run unbounded", () => {
+    const crafted = new DatabaseSync(":memory:");
+    crafted.exec(`
+      CREATE TABLE ASSETS (uid TEXT);
+      CREATE TABLE seed (n INTEGER);
+      CREATE VIEW INOUTCOME AS SELECT * FROM seed a, seed b, seed c, seed d;
+    `);
+    const read = new MoneyManagerAdapter().read({ bytes: crafted.serialize() });
+    crafted.close();
+    expect(errorCode(read)).toBe("ImportFileNotRecognized");
+  });
+
+  it("refuses more than 20 MB before reading it (design §3.5)", () => {
+    expect(MAX_IMPORT_BYTES).toBe(20 * 1024 * 1024);
+    const big = new Uint8Array(MAX_IMPORT_BYTES + 1);
+    big.set(bytes.subarray(0, 16));
+    const read = new MoneyManagerAdapter().read({ bytes: big });
+    expect(errorCode(read)).toBe("ImportFileTooLarge");
+    expect(isErr(read) && read.error.details).toEqual({ maxBytes: MAX_IMPORT_BYTES });
+  });
+
+  it("returns a stable error for a SQLite file it cannot read", () => {
+    const corrupt = bytes.slice(0, 200);
+    expect(errorCode(new MoneyManagerAdapter().read({ bytes: corrupt }))).toBe("UnreadableBackup");
+  });
+
+  it("leaves the uploaded bytes as they were", () => {
+    const copy = bytes.slice();
+    readOk(copy);
+    expect(copy).toEqual(bytes);
+  });
+});
+
+describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
+  const day = Date.UTC(2025, 3, 1, 5);
+
+  it("rounds an account-currency float half to even with the kernel, from its shortest decimal (D29)", () => {
+    const snapshot = readOk(
+      buildFixture([
+        // Entered in COP on the USD account, so the amount is AMOUNT_ACCOUNT (a float) in USD.
+        ["f1", 1, "2025-04-01", day, "a-usd", "c-food", 1, "4060.0", 1.015, ""],
+        ["f2", 1, "2025-04-01", day, "a-usd", "c-food", 1, "2300.0", 0.575, ""],
+        ["f3", 1, "2025-04-01", day, "a-usd", "c-food", 1, "4900.0", 1.225, ""],
+        ["f4", 1, "2025-04-01", day, "a-usd", "c-food", 1, "1.0", 1e-7, ""],
+        ["f5", 1, "2025-04-01", day, "a-usd", "c-food", 1, "1.0", 1.5e21, ""],
+      ]),
+    );
+    const minor = (key: string) => snapshot.movements.find((m) => m.sourceKey === key)?.amount.minor;
+    expect(minor("f1")).toBe(102n);
+    expect(minor("f2")).toBe(58n);
+    expect(minor("f3")).toBe(122n);
+    // 1e-7 dollars rounds to zero cents: skipped and counted like any zero amount.
+    expect(minor("f4")).toBeUndefined();
+    expect(snapshot.skipped.zeroAmountMovements).toBe(2);
+    expect(minor("f5")).toBe(150000000000000000000000n);
+  });
+
+  it("turns a malformed amount or date into a row error and still reads the other rows", () => {
+    const snapshot = readOk(
+      buildFixture([
+        ["bad-amount", 1, "2025-04-01", day, "a-bank", "c-food", 1, "12.345", 12.345, ""],
+        ["bad-date", 1, "2025-13-40", day, "a-bank", "c-food", 1, "1000.0", 1000, ""],
+        ["bad-float", 1, "2025-04-01", day, "a-usd", "c-food", 1, "1000.0", Number.NaN, ""],
+      ]),
+    );
+    expect(snapshot.errors).toEqual([
+      { code: "InvalidMoneyPrecision", sourceKey: "bad-amount", details: { value: "12.345" } },
+      { code: "InvalidDate", sourceKey: "bad-date", details: { value: "2025-13-40" } },
+      { code: "InvalidMoneyPrecision", sourceKey: "bad-float", details: { value: "NaN" } },
+    ]);
+    expect(snapshot.movements.map((m) => m.sourceKey)).toContain("m1");
+    expect(snapshot.movements.find((m) => m.sourceKey.startsWith("bad-"))).toBeUndefined();
+  });
+
+  it("reports warnings as codes with the row's key, never as sentences", () => {
+    const snapshot = readOk(
+      buildFixture([
+        ["orphan", 1, "2025-04-01", day, "a-missing", "c-food", 1, "1000.0", 1000, ""],
+        ["half", 3, "2025-04-01", day, "a-bank", "", 1, "1000.0", 1000, "t-half"],
+      ]),
+    );
+    expect(snapshot.warnings).toEqual([
+      { code: "MovementWithoutAccount", sourceKey: "orphan" },
+      { code: "TransferIncomplete", sourceKey: "t-half" },
+    ]);
+  });
+
+  it("keys a transfer row without txUidTrans by its own uid, so such rows never pair up", () => {
+    const snapshot = readOk(
+      buildFixture([
+        ["lone-out", 3, "2025-04-01", day, "a-bank", "", 1, "1000.0", 1000, ""],
+        ["lone-in", 4, "2025-04-01", day, "a-cash", "", 1, "1000.0", 1000, ""],
+        ["lone-out-2", 3, "2025-04-01", day, "a-sav", "", 1, "2000.0", 2000, ""],
+      ]),
+    );
+    expect(snapshot.movements.filter((m) => m.kind === "TRANSFER").map((m) => m.sourceKey)).toEqual(["t1"]);
+    expect(snapshot.warnings).toEqual([
+      { code: "TransferIncomplete", sourceKey: "lone-out" },
+      { code: "TransferIncomplete", sourceKey: "lone-in" },
+      { code: "TransferIncomplete", sourceKey: "lone-out-2" },
+    ]);
+  });
+
+  it("skips a transfer with only one side at zero, with a warning, instead of keeping a zero amount", () => {
+    const snapshot = readOk(
+      buildFixture([
+        ["z-out", 3, "2025-04-01", day, "a-bank", "", 1, "1000.0", 1000, "t-zero-in"],
+        ["z-in", 4, "2025-04-01", day, "a-cash", "", 1, "0.0", 0, "t-zero-in"],
+        ["y-out", 3, "2025-04-01", day, "a-bank", "", 1, "0.0", 0, "t-zero-out"],
+        ["y-in", 4, "2025-04-01", day, "a-cash", "", 1, "500.0", 500, "t-zero-out"],
+      ]),
+    );
+    expect(snapshot.movements.find((m) => m.sourceKey.startsWith("t-zero"))).toBeUndefined();
+    expect(snapshot.warnings).toEqual([
+      { code: "TransferOneSideZero", sourceKey: "t-zero-in" },
+      { code: "TransferOneSideZero", sourceKey: "t-zero-out" },
+    ]);
+    expect(snapshot.skipped.zeroAmountMovements).toBe(1);
   });
 });

@@ -6,6 +6,7 @@ export type {
   SourceCategory,
   SourceMovement,
   SourceMovementKind,
+  SourceIssue,
   SourceSettings,
   SourceSnapshot,
 } from "../domain/source-snapshot";

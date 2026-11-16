@@ -1,6 +1,12 @@
-import { isErr, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
+import { isErr, localDateIn, Money, ok, parseTimeZone, type LocalDate, type Result } from "@/shared/kernel";
 import { matchCatalog, type CatalogMatch } from "./category-match";
-import type { SourceAccount, SourceMovement, SourceMovementKind, SourceSnapshot } from "./source-snapshot";
+import type {
+  SourceAccount,
+  SourceIssue,
+  SourceMovement,
+  SourceMovementKind,
+  SourceSnapshot,
+} from "./source-snapshot";
 
 /** A Hearth movement already present, so a matching source movement is a duplicate (design §3.1, §3.3). */
 export interface ExistingMovement {
@@ -57,7 +63,10 @@ export interface ImportPreview {
   readonly categories: readonly CategoryProposal[];
   readonly duplicates: readonly { readonly sourceKey: string }[];
   readonly leftOut: { readonly budgets: number; readonly zeroAmountMovements: number };
-  readonly warnings: readonly string[];
+  /** The adapter's warnings, then one `DateZoneMismatch` per movement whose date the chosen zone does not confirm. */
+  readonly warnings: readonly SourceIssue[];
+  /** Rows the adapter could not read; they are left out of everything above (design §3.2). */
+  readonly errors: readonly SourceIssue[];
 }
 
 const fingerprint = (
@@ -90,11 +99,33 @@ const applyToBalances = (balances: Map<string, bigint>, movement: SourceMovement
 };
 
 /**
+ * Design §2.3: a movement keeps `WDATE`, but when its instant falls on another calendar day in the chosen zone the
+ * preview says so, with both dates, so the person can pick another zone before confirming.
+ */
+const dateZoneMismatches = (movements: readonly SourceMovement[], timeZone: string): SourceIssue[] =>
+  movements.flatMap((movement) => {
+    if (movement.occurredAt === null) return [];
+    const zoneDate = localDateIn(movement.occurredAt, timeZone);
+    return zoneDate === movement.date
+      ? []
+      : [
+          {
+            code: "DateZoneMismatch",
+            sourceKey: movement.sourceKey,
+            details: { date: movement.date, zoneDate, timeZone },
+          },
+        ];
+  });
+
+/**
  * The dry run (design §3.1, §3.2): counts by kind, the date range, a proposed mapping and closing balance for each
- * account, a proposed target for each category, likely duplicates, and what is left out. Pure: it reads nothing and
- * writes nothing. It never throws; a balance whose currency is unknown is the one way it fails (`UnknownCurrency`).
+ * account, a proposed target for each category, likely duplicates, warnings, row errors, and what is left out. Pure:
+ * it reads nothing and writes nothing. It never throws; it fails only on an unknown zone (`InvalidTimeZone`) or a
+ * balance whose currency is unknown (`UnknownCurrency`).
  */
 export const previewImport = (snapshot: SourceSnapshot, options: PreviewOptions): Result<ImportPreview> => {
+  const timeZone = parseTimeZone(options.timeZone);
+  if (isErr(timeZone)) return timeZone;
   const counts = { income: 0, expense: 0, transfer: 0, adjustment: 0 };
   let first: LocalDate | null = null;
   let last: LocalDate | null = null;
@@ -155,6 +186,7 @@ export const previewImport = (snapshot: SourceSnapshot, options: PreviewOptions)
     categories,
     duplicates,
     leftOut: { budgets: snapshot.budgets.length, zeroAmountMovements: snapshot.skipped.zeroAmountMovements },
-    warnings: snapshot.warnings,
+    warnings: [...snapshot.warnings, ...dateZoneMismatches(snapshot.movements, timeZone.value)],
+    errors: snapshot.errors,
   });
 };

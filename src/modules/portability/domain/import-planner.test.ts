@@ -54,6 +54,7 @@ const snapshot = (over: Partial<SourceSnapshot> = {}): SourceSnapshot => ({
   settings: { startDay: 1, mainCurrency: "COP" },
   skipped: { zeroAmountMovements: 0, deletedCategories: 0 },
   warnings: [],
+  errors: [],
   ...over,
 });
 
@@ -187,5 +188,68 @@ describe("previewImport (design §3.1, §3.2)", () => {
     if (isErr(preview)) throw new Error(preview.error.code);
     expect(preview.value.dateRange).toBeNull();
     expect(preview.value.counts.total).toBe(0);
+  });
+
+  it("warns when a movement's date is not its instant's date in the chosen zone, and keeps the date (§2.3)", () => {
+    const snap = snapshot({
+      accounts: [account({ sourceId: "a", type: "BANK" })],
+      movements: [
+        // 2025-01-10 03:00 UTC is 2025-01-09 22:00 in Bogotá (UTC−5).
+        movement({
+          sourceKey: "late",
+          kind: "EXPENSE",
+          accountSourceId: "a",
+          amount: cop(100n),
+          date: "2025-01-10" as LocalDate,
+          occurredAt: new Date(Date.UTC(2025, 0, 10, 3)),
+        }),
+        movement({
+          sourceKey: "same",
+          kind: "EXPENSE",
+          accountSourceId: "a",
+          amount: cop(100n),
+          date: "2025-01-10" as LocalDate,
+          occurredAt: new Date(Date.UTC(2025, 0, 10, 5)),
+        }),
+        movement({ sourceKey: "no-instant", kind: "EXPENSE", accountSourceId: "a", amount: cop(100n) }),
+      ],
+      warnings: [{ code: "TransferIncomplete", sourceKey: "t9" }],
+    });
+
+    const bogota = previewImport(snap, { timeZone: "America/Bogota" });
+    if (isErr(bogota)) throw new Error(bogota.error.code);
+    expect(bogota.value.warnings).toEqual([
+      { code: "TransferIncomplete", sourceKey: "t9" },
+      {
+        code: "DateZoneMismatch",
+        sourceKey: "late",
+        details: { date: "2025-01-10", zoneDate: "2025-01-09", timeZone: "America/Bogota" },
+      },
+    ]);
+    expect(bogota.value.dateRange).toEqual({ first: "2025-01-10", last: "2025-01-10" });
+
+    // In UTC and in Tokyo both instants fall on 2025-01-10: the chosen zone is what the check reads.
+    const utc = previewImport(snap, { timeZone: "UTC" });
+    if (isErr(utc)) throw new Error(utc.error.code);
+    expect(utc.value.warnings.filter((w) => w.code === "DateZoneMismatch").map((w) => w.sourceKey)).toEqual(
+      [],
+    );
+    const tokyo = previewImport(snap, { timeZone: "Asia/Tokyo" });
+    if (isErr(tokyo)) throw new Error(tokyo.error.code);
+    expect(tokyo.value.warnings.filter((w) => w.code === "DateZoneMismatch").map((w) => w.sourceKey)).toEqual(
+      [],
+    );
+  });
+
+  it("refuses an unknown time zone", () => {
+    const preview = previewImport(snapshot(), { timeZone: "Mars/Olympus" });
+    expect(isErr(preview) && preview.error.code).toBe("InvalidTimeZone");
+  });
+
+  it("lists the rows the adapter could not read as errors per row (§3.2)", () => {
+    const errors = [{ code: "InvalidMoneyPrecision", sourceKey: "m9", details: { value: "12.345" } }];
+    const preview = previewImport(snapshot({ errors }), { timeZone: "America/Bogota" });
+    if (isErr(preview)) throw new Error(preview.error.code);
+    expect(preview.value.errors).toEqual(errors);
   });
 });

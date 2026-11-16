@@ -199,7 +199,7 @@ The preview is the dry run: counts by kind, the date range, every account with i
 
 ### 3.5 Safety
 
-The file is untrusted: at most 20 MB, read in memory by a WebAssembly SQLite reader (`sql.js`; no native module, no file system, no extensions) or a streaming CSV parser, with a time limit. The raw file is never stored: the batch keeps its hash and the neutral snapshot, and the snapshot is removed physically 7 days after the batch is confirmed or abandoned, like the other technical data D8 allows to delete. The file's contents never reach a log (`failureOf` only).
+The file is untrusted: at most 20 MB, read in memory by a WebAssembly SQLite reader (`sql.js`; no native module, no file system, no extensions) or a streaming CSV parser, with a time limit. The Money Manager reader uses Node's built-in `node:sqlite` instead of `sql.js` (no new dependency): `DatabaseSync.deserialize` (Node 24.16+; `.nvmrc`, Docker and CI run 24.21) loads the uploaded bytes into an in-memory database, so nothing touches the file system, with extensions off, the defensive flag on, an authorizer that allows only reads, and the file refused when a table it reads is a view, so every query is a scan bounded by the 20 MB. The raw file is never stored: the batch keeps its hash and the neutral snapshot, and the snapshot is removed physically 7 days after the batch is confirmed or abandoned, like the other technical data D8 allows to delete. The file's contents never reach a log (`failureOf` only).
 
 ### 3.6 Export
 

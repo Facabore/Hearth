@@ -1,6 +1,15 @@
-import { closeSync, openSync, readSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
-import { currencyOf, domainError, err, isErr, localDate, ok, type Money, type Result } from "@/shared/kernel";
+import { constants, DatabaseSync } from "node:sqlite";
+import {
+  currencyOf,
+  domainError,
+  err,
+  isErr,
+  localDate,
+  ok,
+  type DomainError,
+  type Money,
+  type Result,
+} from "@/shared/kernel";
 import type { SourceAdapter, SourceFile } from "../application/source-adapter";
 import { moneyFromDecimal, moneyFromFloat } from "../domain/amounts";
 import { accountTypeForGroup } from "../domain/account-type-map";
@@ -9,75 +18,127 @@ import type {
   SourceAccount,
   SourceBudget,
   SourceCategory,
+  SourceIssue,
   SourceMovement,
   SourceSnapshot,
 } from "../domain/source-snapshot";
 
 type Row = Record<string, unknown>;
 
+/** The largest upload an import reads (design §3.5); a bigger one is refused before any parsing. */
+export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
+
+/** Every SQLite 3 file starts with these 16 bytes ("SQLite format 3" and a NUL). */
+const SQLITE_HEADER = new TextEncoder().encode("SQLite format 3\u0000");
+
+/** The tables this reader queries. Each must be a real table, so a crafted view cannot make a query run unbounded. */
+const READ_TABLES = ["CURRENCY", "ASSETS", "ZCATEGORY", "INOUTCOME", "TAG", "TX_TAG", "BUDGET", "ZETC"];
+
+const startsWith = (bytes: Uint8Array, prefix: Uint8Array): boolean =>
+  bytes.length >= prefix.length && prefix.every((byte, index) => bytes[index] === byte);
+
 const str = (value: unknown): string =>
   typeof value === "string" ? value : value == null ? "" : String(value);
 const num = (value: unknown): number => (typeof value === "number" ? value : Number(value ?? 0));
+/** A float amount field: a missing value is NaN (refused as a row error), never a silent zero. */
+const floatField = (value: unknown): number =>
+  typeof value === "number" ? value : value == null || value === "" ? Number.NaN : Number(value);
 const trimmed = (value: unknown): string | null => {
   const text = str(value).trim();
   return text === "" ? null : text;
 };
 const isSet = (value: unknown): value is string => trimmed(value) !== null && trimmed(value) !== "0";
 
+/** A row-level problem as code plus plain-string data, for the preview to word (design §3.2). */
+const rowIssue = (sourceKey: string, error: DomainError): SourceIssue =>
+  error.details === undefined
+    ? { code: error.code, sourceKey }
+    : {
+        code: error.code,
+        sourceKey,
+        details: Object.fromEntries(
+          Object.entries(error.details).map(([key, value]) => [key, String(value)]),
+        ),
+      };
+
+/** Only reads: any write, ATTACH, PRAGMA, function call or recursive query in this connection is refused. */
+const readOnlyAuthorizer = (actionCode: number): number =>
+  actionCode === constants.SQLITE_SELECT || actionCode === constants.SQLITE_READ
+    ? constants.SQLITE_OK
+    : constants.SQLITE_DENY;
+
 /**
- * Reads a Money Manager (Realbyte, Android/iOS) SQLite backup read-only and translates it into a neutral
- * `SourceSnapshot` (design §1-2). It uses Node's built-in `node:sqlite`; no new dependency and no network. A `.mmbak`
- * that is a zip is reported as not yet supported (`ZipBackupNotSupported`); only the raw `.sqlite` is read for now.
+ * Reads a Money Manager (Realbyte, Android/iOS) SQLite backup and translates it into a neutral `SourceSnapshot`
+ * (design §1-2). The upload is untrusted (§3.5): at most `MAX_IMPORT_BYTES`, loaded from its bytes into an in-memory
+ * `node:sqlite` database (`deserialize`; never a file on disk), with extensions off, the defensive flag on, and an
+ * authorizer that only lets it read. A `.mmbak` that is a zip is reported as not yet supported
+ * (`ZipBackupNotSupported`); only the raw `.sqlite` is read for now.
  */
 export class MoneyManagerAdapter implements SourceAdapter {
   readonly sourceApp = "money-manager";
 
   detect(file: SourceFile): boolean {
-    if (this.isZip(file.path)) return false;
-    let db: DatabaseSync | undefined;
+    const opened = this.open(file.bytes);
+    if (isErr(opened)) return false;
     try {
-      db = new DatabaseSync(file.path, { readOnly: true });
-      const tables = new Set(
-        db
-          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-          .all()
-          .map((row) => str((row as Row).name)),
-      );
-      return tables.has("ASSETS") && tables.has("INOUTCOME");
+      return this.recognized(opened.value);
     } catch {
       return false;
     } finally {
-      db?.close();
+      opened.value.close();
     }
   }
 
   read(file: SourceFile): Result<SourceSnapshot> {
-    if (this.isZip(file.path)) {
-      return err(domainError("ZipBackupNotSupported", { app: this.sourceApp }));
-    }
-    let db: DatabaseSync | undefined;
+    const opened = this.open(file.bytes);
+    if (isErr(opened)) return opened;
+    const db = opened.value;
     try {
-      db = new DatabaseSync(file.path, { readOnly: true });
+      if (!this.recognized(db)) return err(domainError("ImportFileNotRecognized", { app: this.sourceApp }));
       return this.build(db);
     } catch (cause) {
       return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: String(cause) }));
     } finally {
-      db?.close();
+      db.close();
     }
   }
 
-  private isZip(path: string): boolean {
-    const head = Buffer.alloc(2);
-    let fd: number | undefined;
-    try {
-      fd = openSync(path, "r");
-      readSync(fd, head, 0, 2, 0);
-    } catch {
-      return false;
-    } finally {
-      if (fd !== undefined) closeSync(fd);
+  /** Size, then zip, then the SQLite header, all before parsing; then the bytes become a read-only memory database. */
+  private open(bytes: Uint8Array): Result<DatabaseSync> {
+    if (bytes.length > MAX_IMPORT_BYTES) {
+      return err(domainError("ImportFileTooLarge", { maxBytes: MAX_IMPORT_BYTES }));
     }
-    return head[0] === 0x50 && head[1] === 0x4b; // "PK": a zip local-file header
+    if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+      // "PK": a zip local-file header
+      return err(domainError("ZipBackupNotSupported", { app: this.sourceApp }));
+    }
+    if (!startsWith(bytes, SQLITE_HEADER)) {
+      return err(domainError("ImportFileNotRecognized", { app: this.sourceApp }));
+    }
+    const db = new DatabaseSync(":memory:", { allowExtension: false, defensive: true });
+    try {
+      // `deserialize` copies the bytes into SQLite's own memory; the caller's buffer is never touched.
+      db.deserialize(bytes);
+      db.setAuthorizer(readOnlyAuthorizer);
+      return ok(db);
+    } catch (cause) {
+      db.close();
+      return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: String(cause) }));
+    }
+  }
+
+  /** Money Manager's two core tables exist, and nothing the reader queries is a view (names are case-insensitive). */
+  private recognized(db: DatabaseSync): boolean {
+    const types = new Map(
+      this.all(db, "SELECT name, type FROM sqlite_master").map((row) => [
+        str(row.name).toUpperCase(),
+        str(row.type),
+      ]),
+    );
+    const isTable = (name: string) => types.get(name) === "table";
+    return (
+      isTable("ASSETS") && isTable("INOUTCOME") && READ_TABLES.every((name) => types.get(name) !== "view")
+    );
   }
 
   private all(db: DatabaseSync, sql: string): Row[] {
@@ -105,9 +166,12 @@ export class MoneyManagerAdapter implements SourceAdapter {
     }
 
     const tagsByMovement = this.tags(db);
-    const movementsResult = this.movements(db, accountInfo, tagsByMovement, currencyByUid);
-    if (isErr(movementsResult)) return movementsResult;
-    const { movements, zeroAmountMovements, usedCategories, warnings, balances } = movementsResult.value;
+    const { movements, zeroAmountMovements, usedCategories, warnings, errors, balances } = this.movements(
+      db,
+      accountInfo,
+      tagsByMovement,
+      currencyByUid,
+    );
 
     const accounts: SourceAccount[] = [];
     for (const [sourceId, info] of accountInfo) {
@@ -142,6 +206,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
       settings: { startDay: this.startDay(db), mainCurrency },
       skipped: { zeroAmountMovements, deletedCategories },
       warnings,
+      errors,
     });
   }
 
@@ -173,18 +238,22 @@ export class MoneyManagerAdapter implements SourceAdapter {
     accountInfo: Map<string, { currency: string }>,
     tagsByMovement: Map<string, string[]>,
     currencyByUid: Map<number, string>,
-  ): Result<{
+  ): {
     movements: SourceMovement[];
     zeroAmountMovements: number;
     usedCategories: Set<string>;
-    warnings: string[];
+    warnings: SourceIssue[];
+    errors: SourceIssue[];
     balances: Map<string, bigint>;
-  }> {
+  } {
     const movements: SourceMovement[] = [];
     const usedCategories = new Set<string>();
-    const warnings: string[] = [];
+    const warnings: SourceIssue[] = [];
+    const errors: SourceIssue[] = [];
     const balances = new Map<string, bigint>();
-    const transfers = new Map<string, { out?: Row; in?: Row }>();
+    // Keyed by `txUidTrans`; a row without one is keyed by its own `uid` (in a separate key space), so it never pairs
+    // with another such row and is reported under its own key.
+    const transfers = new Map<string, { sourceKey: string; out?: Row; in?: Row }>();
     let zeroAmountMovements = 0;
 
     const bump = (accountId: string, minor: bigint) =>
@@ -196,15 +265,17 @@ export class MoneyManagerAdapter implements SourceAdapter {
       const entered = currencyByUid.get(num(row.currencyUid));
       return entered === accountCurrency
         ? moneyFromDecimal(str(row.IN_ZMONEY), accountCurrency)
-        : moneyFromFloat(num(row.AMOUNT_ACCOUNT), accountCurrency);
+        : moneyFromFloat(floatField(row.AMOUNT_ACCOUNT), accountCurrency);
     };
 
     for (const row of this.all(db, "SELECT * FROM INOUTCOME")) {
       if (num(row.IS_DEL) !== 0) continue;
+      const uid = str(row.uid);
       const doType = num(row.DO_TYPE);
       if (doType === 3 || doType === 4) {
-        const key = str(row.txUidTrans);
-        const pair = transfers.get(key) ?? transfers.set(key, {}).get(key)!;
+        const shared = trimmed(row.txUidTrans);
+        const key = shared === null ? `row:${uid}` : `tx:${shared}`;
+        const pair = transfers.get(key) ?? transfers.set(key, { sourceKey: shared ?? uid }).get(key)!;
         if (doType === 3) pair.out = row;
         else pair.in = row;
         continue;
@@ -212,33 +283,42 @@ export class MoneyManagerAdapter implements SourceAdapter {
 
       const account = accountInfo.get(str(row.assetUid));
       if (account === undefined) {
-        warnings.push(`Movimiento ${str(row.uid)} sin cuenta`);
+        warnings.push({ code: "MovementWithoutAccount", sourceKey: uid });
         continue;
       }
       const date = localDate(str(row.WDATE));
-      if (isErr(date)) return date;
+      if (isErr(date)) {
+        errors.push(rowIssue(uid, date.error));
+        continue;
+      }
       const amount = accountAmount(row, account.currency);
-      if (isErr(amount)) return amount;
+      if (isErr(amount)) {
+        errors.push(rowIssue(uid, amount.error));
+        continue;
+      }
       if (amount.value.minor === 0n) {
         zeroAmountMovements += 1;
         continue;
+      }
+
+      const entered = currencyByUid.get(num(row.currencyUid));
+      let originalAmount: Money | null = null;
+      if (entered !== undefined && entered !== account.currency) {
+        const original = moneyFromDecimal(str(row.IN_ZMONEY), entered);
+        if (isErr(original)) {
+          errors.push(rowIssue(uid, original.error));
+          continue;
+        }
+        originalAmount = original.value;
       }
 
       const kind = doType === 0 ? "INCOME" : doType === 1 ? "EXPENSE" : "ADJUSTMENT";
       const categorySourceId = kind === "ADJUSTMENT" ? null : trimmed(row.ctgUid);
       if (categorySourceId !== null) usedCategories.add(categorySourceId);
 
-      const entered = currencyByUid.get(num(row.currencyUid));
-      let originalAmount: Money | null = null;
-      if (entered !== undefined && entered !== account.currency) {
-        const original = moneyFromDecimal(str(row.IN_ZMONEY), entered);
-        if (isErr(original)) return original;
-        originalAmount = original.value;
-      }
-
       bump(str(row.assetUid), kind === "EXPENSE" ? -amount.value.minor : amount.value.minor);
       movements.push({
-        sourceKey: str(row.uid),
+        sourceKey: uid,
         kind,
         date: date.value,
         occurredAt: num(row.ZDATE) > 0 ? new Date(num(row.ZDATE)) : null,
@@ -248,50 +328,66 @@ export class MoneyManagerAdapter implements SourceAdapter {
         amount: amount.value,
         originalAmount,
         toAmount: null,
-        note: this.note([row.ZCONTENT, row.ZDATA], tagsByMovement.get(str(row.uid)) ?? []),
+        note: this.note([row.ZCONTENT, row.ZDATA], tagsByMovement.get(uid) ?? []),
       });
     }
 
-    for (const [key, pair] of transfers) {
-      if (!pair.out || !pair.in) {
-        warnings.push(`Transferencia ${key} incompleta`);
+    for (const { sourceKey: key, out, in: into } of transfers.values()) {
+      if (!out || !into) {
+        warnings.push({ code: "TransferIncomplete", sourceKey: key });
         continue;
       }
-      const from = accountInfo.get(str(pair.out.assetUid));
-      const to = accountInfo.get(str(pair.in.assetUid));
+      const from = accountInfo.get(str(out.assetUid));
+      const to = accountInfo.get(str(into.assetUid));
       if (from === undefined || to === undefined) {
-        warnings.push(`Transferencia ${key} sin cuenta`);
+        warnings.push({ code: "TransferWithoutAccount", sourceKey: key });
         continue;
       }
-      const date = localDate(str(pair.out.WDATE));
-      if (isErr(date)) return date;
-      const fromAmount = accountAmount(pair.out, from.currency);
-      if (isErr(fromAmount)) return fromAmount;
-      const toAmount = accountAmount(pair.in, to.currency);
-      if (isErr(toAmount)) return toAmount;
-      if (fromAmount.value.minor === 0n && toAmount.value.minor === 0n) {
+      const date = localDate(str(out.WDATE));
+      if (isErr(date)) {
+        errors.push(rowIssue(key, date.error));
+        continue;
+      }
+      const fromAmount = accountAmount(out, from.currency);
+      if (isErr(fromAmount)) {
+        errors.push(rowIssue(key, fromAmount.error));
+        continue;
+      }
+      const toAmount = accountAmount(into, to.currency);
+      if (isErr(toAmount)) {
+        errors.push(rowIssue(key, toAmount.error));
+        continue;
+      }
+      const fromZero = fromAmount.value.minor === 0n;
+      const toZero = toAmount.value.minor === 0n;
+      if (fromZero && toZero) {
         zeroAmountMovements += 1;
         continue;
       }
+      if (fromZero || toZero) {
+        // Money left one account and nothing reached the other (or the reverse): never imported with a zero side.
+        warnings.push({ code: "TransferOneSideZero", sourceKey: key });
+        continue;
+      }
 
-      bump(str(pair.out.assetUid), -fromAmount.value.minor);
-      bump(str(pair.in.assetUid), toAmount.value.minor);
+      bump(str(out.assetUid), -fromAmount.value.minor);
+      bump(str(into.assetUid), toAmount.value.minor);
       movements.push({
         sourceKey: key,
         kind: "TRANSFER",
         date: date.value,
-        occurredAt: num(pair.out.ZDATE) > 0 ? new Date(num(pair.out.ZDATE)) : null,
-        accountSourceId: str(pair.out.assetUid),
-        toAccountSourceId: str(pair.in.assetUid),
+        occurredAt: num(out.ZDATE) > 0 ? new Date(num(out.ZDATE)) : null,
+        accountSourceId: str(out.assetUid),
+        toAccountSourceId: str(into.assetUid),
         categorySourceId: null,
         amount: fromAmount.value,
         originalAmount: null,
         toAmount: toAmount.value,
-        note: this.note([pair.out.ZCONTENT, pair.out.ZDATA], tagsByMovement.get(str(pair.out.uid)) ?? []),
+        note: this.note([out.ZCONTENT, out.ZDATA], tagsByMovement.get(str(out.uid)) ?? []),
       });
     }
 
-    return ok({ movements, zeroAmountMovements, usedCategories, warnings, balances });
+    return { movements, zeroAmountMovements, usedCategories, warnings, errors, balances };
   }
 
   private categories(

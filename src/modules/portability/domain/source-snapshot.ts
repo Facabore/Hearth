@@ -14,8 +14,21 @@ export interface SourceSnapshot {
   readonly budgets: readonly SourceBudget[];
   readonly settings: SourceSettings;
   readonly skipped: SkippedCounts;
-  /** Human-facing notes an adapter could not avoid (an unpaired transfer row, a zip accepted as its `.sqlite`). */
-  readonly warnings: readonly string[];
+  /** Rows read with a caveat or left out on purpose (an unpaired transfer row, one side of a transfer at zero). */
+  readonly warnings: readonly SourceIssue[];
+  /** Rows that could not be read (a malformed amount or date): left out, the rest of the file still imports (§3.2). */
+  readonly errors: readonly SourceIssue[];
+}
+
+/**
+ * One note about one source row, as a stable PascalCase code plus plain data, so the UI words it in the person's
+ * language (design §3.2). Never a sentence.
+ */
+export interface SourceIssue {
+  readonly code: string;
+  /** The row's source key: Money Manager's `uid`, or `txUidTrans` for a transfer pair. */
+  readonly sourceKey: string;
+  readonly details?: Readonly<Record<string, string>>;
 }
 
 /**
