@@ -1,18 +1,12 @@
-import { knownCurrency } from "@/shared/kernel/currency";
-
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 let known: readonly string[] | null = null;
 
 /**
- * D29: every currency code the kernel knows (`knownCurrency`), in code order. The kernel keeps its list private, so the
- * list is read back through its lookup, once: 26³ map lookups, well under a millisecond, and never a second list here.
+ * D29 (board 13): the ISO 4217 currencies the sheet offers: the ones the runtime knows (`Intl.supportedValuesOf`), in
+ * code order. The SPA may not read the kernel's list (ruling P119 lets it import only `minor-units.ts` of it), and the
+ * two match but for a handful of codes either side; the server still decides, refusing a code the kernel does not know
+ * with UnknownCurrency.
  */
 export const knownCurrencyCodes = (): readonly string[] => {
-  if (known !== null) return known;
-  const codes: string[] = [];
-  for (const a of LETTERS)
-    for (const b of LETTERS)
-      for (const c of LETTERS) if (knownCurrency(`${a}${b}${c}`) !== undefined) codes.push(`${a}${b}${c}`);
-  known = codes;
-  return codes;
+  known ??= [...Intl.supportedValuesOf("currency")].sort();
+  return known;
 };
