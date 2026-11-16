@@ -131,6 +131,13 @@ export interface ImportWriter {
       readonly destinationAmount?: Money;
     },
   ): Promise<Result<string>>;
+  /** Design Q4 (#329): a balance adjustment of one account; `amount` is signed, in the account's own currency. */
+  recordAdjustment(
+    input: MovementBase & {
+      readonly accountId: string;
+      readonly amount: Money;
+    },
+  ): Promise<Result<string>>;
   /**
    * D8: a logical delete through the ledger; a movement already deleted is left as it is. Answers whether this call
    * deleted it.

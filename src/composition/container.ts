@@ -1093,6 +1093,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordExpense,
       recordIncome,
       recordTransfer,
+      recordAdjustment,
       deleteTransaction: createDeleteTransaction(ledgerDeps),
     }),
     digest: (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex"),

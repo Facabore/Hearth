@@ -15,6 +15,8 @@ import type { ImportDeps, ImportLink } from "./import-ports";
 export interface Known {
   readonly links: readonly ImportLink[];
   readonly linkedKeys: ReadonlySet<string>;
+  /** Each adjustment an undone import folded into an opening balance, by its opening key, and that account. */
+  readonly undoneOpenings: ReadonlyMap<string, string>;
   readonly duplicateKeys: ReadonlySet<string>;
   readonly preview: ImportPreview;
 }
@@ -45,6 +47,11 @@ export const knownFor = async (
 ): Promise<Result<Known>> => {
   const links = await deps.links.linksOf(spaceId, snapshot.sourceApp);
   const linkedKeys = linkedKeysOf(links);
+  const undoneOpenings = new Map(
+    (await deps.links.undoneLinksOf(spaceId, snapshot.sourceApp))
+      .filter((l) => l.entityType === "ACCOUNT" && l.sourceKey.startsWith("opening:"))
+      .map((l) => [l.sourceKey, l.entityId] as const),
+  );
   const sourcesOf = new Map<string, string[]>();
   for (const [sourceId, mapping] of Object.entries(mappings.accounts)) {
     if (mapping.kind !== "existing") continue;
@@ -69,7 +76,7 @@ export const knownFor = async (
   const duplicateKeys = new Set(
     preview.value.duplicates.map((d) => d.sourceKey).filter((key) => !linkedKeys.has(key)),
   );
-  return ok({ links, linkedKeys, duplicateKeys, preview: preview.value });
+  return ok({ links, linkedKeys, undoneOpenings, duplicateKeys, preview: preview.value });
 };
 
 export interface ImportAccountView {
@@ -172,7 +179,8 @@ export const viewOf = async (
       alreadyImported: plan.alreadyImported,
       duplicatesSkipped: plan.duplicatesSkipped.length,
       adjustmentsInOpeningBalance: plan.folded.length,
-      adjustmentsNotImported: plan.adjustmentsNotImported.length,
+      // Design Q4 (#329): every adjustment is now imported, folded or as a movement; only a refused one is not.
+      adjustmentsNotImported: 0,
     },
     leftOut: preview.leftOut,
     warnings: preview.warnings,
