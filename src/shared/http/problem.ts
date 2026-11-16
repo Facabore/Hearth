@@ -20,6 +20,12 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   // (the default would be 409).
   ["ExchangeRateRequired", 422],
   ["MultiCurrencyUnsupported", 422],
+  // D28, design §3.5: an upload the importer cannot read; the person picks another file (the default would be 409).
+  ["ImportFileTooLarge", 422],
+  ["ImportFileNotRecognized", 422],
+  ["UnreadableBackup", 422],
+  ["ZipBackupNotSupported", 422],
+  ["ImportTimedOut", 422],
   ["CategoryRequired", 422],
   ["AccountRequired", 422],
   ["PaymentsRequired", 422],

@@ -98,6 +98,22 @@ describe("statusForCode", () => {
     expect(statusForCode(code)).toBe(status);
   });
 
+  it.each([
+    // D28, design §3.5: an upload the importer cannot read is the request's to change, never a conflict.
+    ["ImportFileTooLarge", 422],
+    ["ImportFileNotRecognized", 422],
+    ["UnreadableBackup", 422],
+    ["ZipBackupNotSupported", 422],
+    ["ImportTimedOut", 422],
+    // Their neighbours keep the status they had: the explicit ones, and the conventions' 404 and 409.
+    ["ExchangeRateRequired", 422],
+    ["PreconditionFailed", 412],
+    ["ImportNotFound", 404],
+    ["ImportNotDraft", 409],
+  ])("maps the import code %s to %i (D28)", (code, status) => {
+    expect(statusForCode(code)).toBe(status);
+  });
+
   it.each(["constructor", "toString", "__proto__"])(
     "treats the inherited key %s as an ordinary code",
     (code) => {
