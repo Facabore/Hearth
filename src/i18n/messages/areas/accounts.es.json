@@ -151,7 +151,7 @@
       "rateFrom": "1 {symbol} =",
       "hintStored": "La tasa del {date}. Puedes cambiarla; escribe 1 si solo quieres cambiar la moneda, sin convertir.",
       "hintNone": "No tenemos una tasa entre estas monedas: escríbela. Escribe 1 si solo quieres cambiar la moneda, sin convertir.",
-      "balance": "Saldo hoy: {before} → {after}",
+      "balance": "Saldo hoy: {before} → {after}",
       "movements": "{count, plural, =0 {Su saldo inicial se convierte con esta tasa.} one {Su movimiento y el saldo inicial se convierten con esta tasa.} other {Sus # movimientos y el saldo inicial se convierten con esta tasa.}}",
       "needRate": "Escribe la tasa para ver el saldo en {code}.",
       "confirm": "Cambiar a {code}",

@@ -6,6 +6,7 @@ import { accountDto, cop, spaceDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
+import { enableSheetHistory, sheetDepth } from "@/shared/ui/navigation/sheet-gate";
 import { CurrencyChangeSheet } from "./currency-change-sheet";
 import { EditAccountForm } from "./edit-account-form";
 
@@ -110,5 +111,22 @@ describe("changing an account's currency (P336)", () => {
     );
     expect(screen.getByRole("button", { name: /Moneda/ })).toHaveTextContent("USD");
     expect(screen.getByText(/Si la cambias, sus movimientos pasan a la nueva moneda/)).toBeInTheDocument();
+  });
+
+  it("opens the rate sheet over Editar cuenta once the currency sheet's history entry is given back (P307)", async () => {
+    enableSheetHistory();
+    const { api } = fakeApi({ [PREVIEW]: () => jsonResponse(previewAt("4000", "2026-11-15")) });
+    renderWithIntl(
+      <EditAccountForm space={spaceDto()} account={dollars} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Moneda/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Peso colombiano/ }));
+    expect(
+      await screen.findByRole("dialog", { name: "Nueva moneda: Peso colombiano (COP)" }),
+    ).toBeInTheDocument();
+    // The currency sheet's late Back must not close the rate sheet that opened after it.
+    await waitFor(() => expect(sheetDepth()).toBe(1));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole("dialog", { name: "Nueva moneda: Peso colombiano (COP)" })).toBeInTheDocument();
   });
 });

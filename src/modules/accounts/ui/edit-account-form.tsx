@@ -24,6 +24,7 @@ import { currencyOf } from "@/shared/ui/format/currencies";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { DiscardConfirm } from "@/shared/ui/molecules/discard-confirm";
 import { useLeaveQuestion, type HoldNavigation } from "@/shared/ui/navigation/hold-navigation";
+import { afterSheets } from "@/shared/ui/navigation/sheet-gate";
 import { leaveSheet, screenUnder } from "@/shared/ui/navigation/leave-sheet";
 import { ArchiveAccountButton } from "./account-actions";
 import { AccountAttributeFields } from "./account-attribute-fields";
@@ -184,7 +185,9 @@ export function EditAccountForm({
           space={space}
           hintKey="editHint"
           onChange={(next) => {
-            if (next !== accountCurrency) setNewCurrency(next);
+            // Ruling P307: once the currency sheet has given its history entry back, so its late Back never closes this
+            // one or leaves an entry under it.
+            if (next !== accountCurrency) afterSheets(() => setNewCurrency(next));
           }}
         />
         <NumberField
