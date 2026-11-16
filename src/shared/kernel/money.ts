@@ -37,6 +37,23 @@ export class Money {
     });
   }
 
+  /**
+   * D29: a plain decimal string with any number of fractional digits ("1.015"), rounded half to even at the currency's
+   * minor unit with the same rounding a conversion gets. For a value another app stored as a float, pass its shortest
+   * decimal form; never round the float itself. Anything but `-?digits(.digits)?` is `InvalidMoneyPrecision`.
+   */
+  static fromDecimalRounded(decimal: string, currency: string): Result<Money> {
+    return flatMap(currencyOf(currency), (c) => {
+      const match = decimal.match(MAJOR);
+      if (!match) return err(domainError("InvalidMoneyPrecision", { value: decimal }));
+      const [, sign, whole, fraction = ""] = match;
+      const extra = fraction.length - c.exponent;
+      const digits = BigInt(`${whole}${fraction.padEnd(c.exponent, "0")}`);
+      const signed = sign === "-" ? -digits : digits;
+      return ok(new Money(extra > 0 ? roundHalfEven(signed, 10n ** BigInt(extra)) : signed, c));
+    });
+  }
+
   add(other: Money): Result<Money> {
     return this.sameCurrency(other)
       ? ok(new Money(this.minor + other.minor, this.currency))

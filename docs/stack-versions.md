@@ -4,7 +4,7 @@ Pinned on 2026-10-11 (HU-E0-01). Each entry was the latest stable release that d
 
 | Component | Version | Note |
 |---|---|---|
-| Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.12.0 <25` for local hosts. Vitest 5 requires Node ≥ 22.12 |
+| Node.js | 24.21.0 | Current LTS ("Krypton") in `.nvmrc`, Docker and CI; `engines` accepts `>=24.16.0 <25` for local hosts (24.16 adds `DatabaseSync.deserialize`, which the Money Manager importer reads uploads with, D28). Vitest 5 requires Node ≥ 22.12 |
 | pnpm | 12.11.2 | `packageManager` field; settings in `pnpm-workspace.yaml` |
 | Next.js | 16.4.2 | App Router, standalone output; since #199 (2026-10-28) it serves only the API (`src/app/api/**`), and the screens are the SPA's; 16.4.2 (2026-10-22, #160) fixes GHSA-2464-fhr4-w9xw (critical, Image Optimization API with SVG) and GHSA-p3m5-59mp-jv5r (high, Server Actions DoS), both affecting 16.0.0 to 16.4.0 |
 | React / React DOM | 19.3.0 | |
