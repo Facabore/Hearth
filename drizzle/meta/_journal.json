@@ -239,6 +239,13 @@
       "when": 1794703347972,
       "tag": "0033_referrals",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794808620099,
+      "tag": "0034_exchange_rates",
+      "breakpoints": true
     }
   ]
 }
