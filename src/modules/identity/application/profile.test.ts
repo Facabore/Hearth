@@ -177,6 +177,12 @@ describe("formatting preferences (HU-E1-15)", () => {
     expect((await preferencesOf()).displayCurrency).toBe(null);
   });
 
+  it("stores a display currency typed in lower case as its ISO 4217 code (D29, slice MC4)", async () => {
+    const { update, preferencesOf } = world();
+    unwrap(await update({ user: ana, displayCurrency: "usd" }));
+    expect((await preferencesOf()).displayCurrency).toBe("USD");
+  });
+
   it("keep the stored value under a lock and bring it back when the lock is lifted", async () => {
     const { update, lock, preferencesOf } = world();
     unwrap(await update({ user: ana, dateFormat: "MDY" }));

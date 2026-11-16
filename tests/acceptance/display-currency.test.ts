@@ -35,6 +35,12 @@ describe("display currency (D29, slice MC4)", () => {
     expect((await me(ana)).preferences.displayCurrency).toBe("USD");
   });
 
+  it("takes a code in lower case as its ISO 4217 code", async () => {
+    const ana = await registerUser("Ana");
+    expect((await patch(ana, { displayCurrency: "usd" })).status).toBe(200);
+    expect((await me(ana)).preferences.displayCurrency).toBe("USD");
+  });
+
   it("clears it when set to null, back to their personal space's currency", async () => {
     const ana = await registerUser("Ana");
     expect((await patch(ana, { displayCurrency: "EUR" })).status).toBe(200);

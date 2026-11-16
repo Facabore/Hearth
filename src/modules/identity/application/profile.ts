@@ -88,19 +88,17 @@ export const createUpdateProfile =
     if (locked.length > 0) return err(domainError("PreferenceLocked", { fields: locked }));
     const zone = change.timezone === undefined ? ok(user.timezone) : parseTimeZone(change.timezone);
     if (!zone.ok) return zone;
-    // D29, slice MC4: a display currency must be a known ISO 4217 code; null clears it back to the personal space's.
-    if (
-      change.displayCurrency !== undefined &&
-      change.displayCurrency !== null &&
-      knownCurrency(change.displayCurrency) === undefined
-    ) {
+    // D29, slice MC4: a display currency must be a known ISO 4217 code, whatever its case ("usd" is USD); null clears
+    // it back to the personal space's.
+    const displayCurrency = change.displayCurrency?.toUpperCase() ?? change.displayCurrency;
+    if (typeof displayCurrency === "string" && knownCurrency(displayCurrency) === undefined) {
       return err(domainError("UnknownCurrency", { currency: change.displayCurrency }));
     }
     const locale = change.locale ?? user.locale;
     const fields: ProfileChange = {
       ...(zone.value === user.timezone ? {} : { timezone: zone.value }),
       ...(locale === user.locale ? {} : { locale: change.locale }),
-      ...(change.displayCurrency === undefined ? {} : { displayCurrency: change.displayCurrency }),
+      ...(displayCurrency === undefined ? {} : { displayCurrency }),
       ...formatsIn(change),
     };
     if (Object.keys(fields).length > 0) await deps.profiles.saveProfile(user.id, fields);

@@ -179,6 +179,19 @@ describe("settings: the currency of your totals (D29, slice MC4, board 11)", () 
     expect(bodies).toEqual([{ displayCurrency: "USD" }]);
   });
 
+  it("rolls the row back and says why when the currency is refused", async () => {
+    const { api } = fakeApi({ "PATCH /api/v1/me": () => problemResponse(422, "UnknownCurrency") });
+    renderWithIntl(
+      <SettingsForm backHref="/spaces/sp-personal" me={meDto()} personalSpace={personal} api={api} />,
+    );
+    const row = () => screen.getByRole("button", { name: /Moneda de tus totales/ });
+    await userEvent.click(row());
+    const sheet = await screen.findByRole("dialog", { name: "Moneda de tus totales" });
+    await userEvent.click(within(sheet).getByRole("button", { name: /Dólar estadounidense/ }));
+    expect(await screen.findByText("Esa moneda no está disponible.")).toBeInTheDocument();
+    expect(normalized(row().textContent)).toContain("Peso colombiano (COP) · como tu espacio Personal");
+  });
+
   it("goes back to following the personal space when its currency is chosen again", async () => {
     const bodies: unknown[] = [];
     const { api } = fakeApi({
