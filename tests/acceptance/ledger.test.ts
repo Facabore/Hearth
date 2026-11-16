@@ -22,6 +22,7 @@ import {
   household,
   inSpace,
   joinHousehold,
+  memberIdOf,
   newAccount,
   paysEqually,
   post,
@@ -125,6 +126,174 @@ describe("record a personal expense (HU-E4-01, @critical)", () => {
     const juan = await ledgerUser("Juan");
     const response = await post(recordExpense, juan, "expenses", market(juan), {}, ana);
     expect([response.status, (await response.json()).code]).toEqual([404, "SpaceNotFound"]);
+  });
+});
+
+describe("recording in another currency (D29, MC3)", () => {
+  /** Whole dollars on the wire: USD has two minor digits, like COP. */
+  const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
+
+  it("stores a USD expense on a COP account at the bank's real converted amount and returns the original", async () => {
+    const ana = await ledgerUser("Ana");
+    const body = await recorded(
+      post(recordExpense, ana, "expenses", {
+        description: "Market in USD",
+        amount: usd(100),
+        convertedAmount: cop(410_000),
+        date: "2026-10-05",
+        categoryId: ana.groceries,
+        accountId: ana.bancolombia,
+      }),
+    );
+    // The stored base amount is the space's currency (what the bank charged); the original is kept in USD.
+    expect(body.amount).toEqual(cop(410_000));
+    expect(body.originalAmount).toEqual(usd(100));
+    expect(body.payments[0]).toMatchObject({ accountId: ana.bancolombia, amount: cop(410_000) });
+    // The COP account's balance moves by the base amount (its own currency), not the foreign original.
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_590_000));
+  });
+
+  it("stores a USD income at the bank's real converted amount and moves the account by the base amount", async () => {
+    const ana = await ledgerUser("Ana");
+    const body = await recorded(
+      post(recordIncome, ana, "incomes", {
+        description: "Freelance in USD",
+        amount: usd(100),
+        convertedAmount: cop(410_000),
+        date: "2026-10-25",
+        categoryId: ana.salary,
+        accountId: ana.bancolombia,
+      }),
+    );
+    expect(body.amount).toEqual(cop(410_000));
+    expect(body.originalAmount).toEqual(usd(100));
+    // Bancolombia opens at 2,000,000 COP and receives the 410,000 COP base amount.
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_410_000));
+  });
+
+  it("records a COP \u2192 USD transfer, keeps the USD destination leg, and moves each account in its own currency", async () => {
+    const ana = await ledgerUser("Ana");
+    // A USD account in Ana's COP space: its currency is set directly here, as a later slice will do over HTTP.
+    const usdWallet = await newAccount(ana, "USD Wallet", 0);
+    await app.pool.query("UPDATE accounts SET currency = 'USD' WHERE id = $1", [usdWallet]);
+    const transfer = await recorded(
+      post(recordTransfer, ana, "transfers", {
+        amount: cop(400_000),
+        destinationAmount: usd(100),
+        date: "2026-10-06",
+        sourceAccountId: ana.bancolombia,
+        destinationAccountId: usdWallet,
+      }),
+    );
+    expect(transfer).toMatchObject({ type: "TRANSFER", categoryId: null, amount: cop(400_000) });
+    // S === base, so the source keeps no "Sale" leg; the "Llega" leg is the USD that arrived.
+    expect(transfer.sourceAmount).toBeUndefined();
+    expect(transfer.destinationAmount).toEqual(usd(100));
+    // Each account moves in its own currency: Bancolombia (COP) by the base amount, the wallet (USD) by the USD leg.
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_600_000));
+    expect(await balanceOf(ana, usdWallet)).toEqual(usd(100));
+  });
+
+  it("answers 422 ExchangeRateRequired for a USD expense with no rate and no converted amount (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const response = await post(recordExpense, ana, "expenses", {
+      amount: usd(100),
+      date: "2026-10-05",
+      categoryId: ana.groceries,
+      accountId: ana.bancolombia,
+    });
+    expect([response.status, (await response.json()).code]).toEqual([422, "ExchangeRateRequired"]);
+  });
+
+  it("refuses a USD expense whose single payment is not the entered amount (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const response = await post(recordExpense, ana, "expenses", {
+      amount: usd(100),
+      convertedAmount: cop(410_000),
+      date: "2026-10-05",
+      categoryId: ana.groceries,
+      payments: [
+        { memberId: await memberIdOf(ana, ana.spaceId, "Ana"), accountId: ana.bancolombia, amount: usd(50) },
+      ],
+    });
+    expect([response.status, (await response.json()).code]).toEqual([409, "SharesDoNotMatchAmount"]);
+  });
+
+  /** 2035-03-14, far past every other test's dates, so the rate it stores converts only these movements. */
+  const RATE_DAY = "2035-03-14";
+  const usdWalletOf = async (ana: LedgerUser): Promise<string> => {
+    await app.pool.query(
+      `INSERT INTO exchange_rates (date, base, quote, rate, source, fetched_at)
+       VALUES ($1, 'USD', 'COP', '4000', 'test', now()) ON CONFLICT DO NOTHING`,
+      [RATE_DAY],
+    );
+    const wallet = await newAccount(ana, "USD Wallet", 0);
+    await app.pool.query("UPDATE accounts SET currency = 'USD' WHERE id = $1", [wallet]);
+    return wallet;
+  };
+
+  it("moves a USD account by the converted amount of an expense typed in COP (D29, 4.1)", async () => {
+    const ana = await ledgerUser("Ana");
+    const wallet = await usdWalletOf(ana);
+    const body = await recorded(
+      post(recordExpense, ana, "expenses", {
+        amount: cop(5_000_000),
+        date: RATE_DAY,
+        categoryId: ana.groceries,
+        accountId: wallet,
+      }),
+    );
+    expect(body.amount).toEqual(cop(5_000_000));
+    expect(body.originalAmount).toBeUndefined();
+    expect(body.payments[0]).toMatchObject({ accountId: wallet, accountAmount: usd(1_250) });
+    expect(await balanceOf(ana, wallet)).toEqual(usd(-1_250));
+  });
+
+  it("applies a converted amount sent alone to a USD expense (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const wallet = await usdWalletOf(ana);
+    const tx = await recorded(
+      post(recordExpense, ana, "expenses", {
+        amount: usd(100),
+        date: RATE_DAY,
+        categoryId: ana.groceries,
+        accountId: wallet,
+      }),
+    );
+    const charged = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { convertedAmount: cop(410_000) },
+    });
+    expect(charged.status).toBe(200);
+    expect(await charged.json()).toMatchObject({ amount: cop(410_000), originalAmount: usd(100) });
+    expect(await balanceOf(ana, wallet)).toEqual(usd(-100));
+  });
+
+  it("keeps a USD expense's legs on a description edit and recomputes them from a new amount (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const wallet = await usdWalletOf(ana);
+    const tx = await recorded(
+      post(recordExpense, ana, "expenses", {
+        amount: usd(100),
+        date: RATE_DAY,
+        categoryId: ana.groceries,
+        accountId: wallet,
+      }),
+    );
+    expect(tx).toMatchObject({ amount: cop(400_000), originalAmount: usd(100) });
+    const renamed = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { description: "Groceries" },
+    });
+    expect(renamed.status).toBe(200);
+    expect(await renamed.json()).toMatchObject({ description: "Groceries", originalAmount: usd(100) });
+    expect(await balanceOf(ana, wallet)).toEqual(usd(-100));
+    const repriced = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+      body: { amount: usd(150) },
+    });
+    expect(repriced.status).toBe(200);
+    const edited = (await repriced.json()) as TransactionDto;
+    expect(edited).toMatchObject({ amount: cop(600_000), originalAmount: usd(150) });
+    expect(edited.payments[0]).toMatchObject({ amount: cop(600_000), accountAmount: usd(150) });
+    expect(await balanceOf(ana, wallet)).toEqual(usd(-150));
   });
 });
 

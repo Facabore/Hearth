@@ -19,7 +19,7 @@ export const authorizeWriter = async (
   return authorizeSpaceAction(deps.access, spaceId, userId, "money.record");
 };
 
-/** D6: amounts are in the space currency. */
+/** D6, D29: the base `amount` is in the space's base currency (a later slice keeps the original in another currency). */
 export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<Money> =>
   money.currency.code === space.currency
     ? ok(money)

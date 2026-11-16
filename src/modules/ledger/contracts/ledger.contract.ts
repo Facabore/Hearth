@@ -77,6 +77,11 @@ export const PaymentSchema = z.object({
   memberId: z.string().nullable(),
   accountId: z.string().nullable(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: what left the paying account, in that account's own currency, when it is not the space's base
+   * currency; absent when the account moved by `amount`. Additive: existing clients ignore it.
+   */
+  accountAmount: MoneySchema.optional(),
 });
 export const ShareSchema = z.object({
   memberId: z.string(),
@@ -93,6 +98,19 @@ export const TransactionSchema = z.object({
   /** HU-E4-14: the IANA zone it was recorded in; null exactly when occurredAt is. */
   timeZone: z.string().nullable(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: what was charged, in its own currency, when the movement was entered in a currency other than the
+   * space's base currency; absent when the amount is wholly in the base currency. Additive: existing clients ignore it.
+   */
+  originalAmount: MoneySchema.optional(),
+  /**
+   * D29, slice MC3: each account leg in its own currency, when it differs from the base amount: a transfer's "Sale"
+   * (`sourceAmount`) and "Llega" (`destinationAmount`), an income's destination (`destinationAmount`), and a
+   * settlement's accounts (`sourceAmount`, `destinationAmount`). Absent when
+   * the leg equals the base amount. Additive: existing clients ignore them.
+   */
+  sourceAmount: MoneySchema.optional(),
+  destinationAmount: MoneySchema.optional(),
   categoryId: z.string().nullable(),
   payments: z.array(PaymentSchema),
   shares: z.array(ShareSchema),
@@ -158,6 +176,11 @@ const RecordExpenseFields = z.object({
   timeZone: TimeZoneName.optional(),
   categoryId: IdSchema.optional(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: the real amount in the space's base currency the bank charged, when `amount` is in another
+   * currency; it wins over the rate. Additive and optional; ignored when `amount` is already in the base currency.
+   */
+  convertedAmount: MoneySchema.optional(),
   accountId: IdSchema.optional(),
   payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
   split: SplitBodySchema.optional(),
@@ -219,11 +242,18 @@ export const expenseFromBody = (
   }
   const split = splitFromBody(body.split);
   if (!split.ok) return split;
+  let convertedAmount: Money | undefined;
+  if (body.convertedAmount !== undefined) {
+    const converted = moneyFromDto(body.convertedAmount);
+    if (!converted.ok) return converted;
+    convertedAmount = converted.value;
+  }
   return ok({
     description: body.description,
     ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
+    ...(convertedAmount === undefined ? {} : { convertedAmount }),
     accountId: body.accountId,
     payments,
     split: split.value,
@@ -239,6 +269,11 @@ export const RecordIncomeBodySchema = z.object({
   timeZone: TimeZoneName.optional(),
   categoryId: IdSchema.optional(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: the real amount in the space's base currency the bank credited, when `amount` is in another
+   * currency; it wins over the rate. Additive and optional; ignored when `amount` is already in the base currency.
+   */
+  convertedAmount: MoneySchema.optional(),
   accountId: IdSchema,
 });
 export const RecordTransferBodySchema = z.object({
@@ -246,7 +281,13 @@ export const RecordTransferBodySchema = z.object({
   date: z.iso.date().optional(),
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
+  /** D29, slice MC3: what LEAVES the source account ("Sale"), in the source account's own currency. */
   amount: MoneySchema,
+  /**
+   * D29, section 4.1: what ARRIVES at the destination ("Llega"), in the destination account's own currency, when it
+   * differs from the source's; suggested from the rate and, when given, it wins. Additive and optional.
+   */
+  destinationAmount: MoneySchema.optional(),
   sourceAccountId: IdSchema,
   destinationAccountId: IdSchema,
 });
@@ -315,6 +356,10 @@ export const conversionFromBody = (
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
+  // D29, slice MC3: the bank's converted amount of an income, and what arrives on a transfer, as when recording them.
+  const extra = body.type === "INCOME" ? body.convertedAmount : body.destinationAmount;
+  const extraMoney = extra === undefined ? ok(undefined) : moneyFromDto(extra);
+  if (!extraMoney.ok) return extraMoney;
   return ok(
     body.type === "INCOME"
       ? {
@@ -324,6 +369,7 @@ export const conversionFromBody = (
           categoryId: body.categoryId,
           amount: amount.value,
           accountId: body.accountId,
+          ...(extraMoney.value === undefined ? {} : { convertedAmount: extraMoney.value }),
         }
       : {
           type: body.type,
@@ -332,6 +378,7 @@ export const conversionFromBody = (
           amount: amount.value,
           sourceAccountId: body.sourceAccountId,
           destinationAccountId: body.destinationAccountId,
+          ...(extraMoney.value === undefined ? {} : { destinationAmount: extraMoney.value }),
         },
   );
 };
@@ -383,6 +430,24 @@ export const settlementFromBody = (
   });
 };
 
+/** D29, slice MC3: the account legs a transaction exposes, each in its own account's currency (4.1). */
+const transactionLegs = (
+  tx: Transaction,
+): {
+  sourceAmount?: { amount: string; currency: string };
+  destinationAmount?: { amount: string; currency: string };
+} => {
+  const leg = (minor: bigint | undefined, currency: string | undefined) =>
+    minor === undefined || currency === undefined ? undefined : { amount: minor.toString(), currency };
+  if (tx.type === "EXPENSE") return {};
+  const source = tx.type === "INCOME" ? undefined : leg(tx.sourceAmount, tx.sourceCurrency);
+  const destination = leg(tx.destinationAmount, tx.destinationCurrency);
+  return {
+    ...(source === undefined ? {} : { sourceAmount: source }),
+    ...(destination === undefined ? {} : { destinationAmount: destination }),
+  };
+};
+
 export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchema> => {
   const money = (minor: bigint) => ({ amount: minor.toString(), currency: tx.currency });
   return {
@@ -393,10 +458,23 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     occurredAt: tx.occurredAt?.toISOString() ?? null,
     timeZone: tx.timeZone,
     amount: money(tx.amount),
+    // D29, slice MC3: what was charged in another currency, present only when the row kept an original (its own currency).
+    ...(tx.originalAmount === undefined || tx.originalCurrency === undefined
+      ? {}
+      : { originalAmount: { amount: tx.originalAmount.toString(), currency: tx.originalCurrency } }),
+    // D29, slice MC3: each account leg in its own account's currency, when stored (4.1).
+    ...transactionLegs(tx),
     categoryId: tx.categoryId,
     payments:
       tx.type === "EXPENSE"
-        ? tx.payments.map((p) => ({ memberId: p.memberId, accountId: p.accountId, amount: money(p.amount) }))
+        ? tx.payments.map((p) => ({
+            memberId: p.memberId,
+            accountId: p.accountId,
+            amount: money(p.amount),
+            ...(p.accountAmount === undefined || p.accountCurrency === undefined
+              ? {}
+              : { accountAmount: { amount: p.accountAmount.toString(), currency: p.accountCurrency } }),
+          }))
         : [],
     shares:
       tx.type === "EXPENSE"
@@ -556,7 +634,15 @@ export const EditTransactionBodySchema = z
     occurredAt: Instant.nullable().optional(),
     timeZone: TimeZoneName.optional(),
     categoryId: IdSchema.optional(),
+    /**
+     * D29, slice MC3: read as recording the movement's type reads it: an expense's or income's in any currency (the
+     * original is kept), an own transfer's ("Sale") in the source account's, the others' in the space's.
+     */
     amount: MoneySchema.optional(),
+    /** D29, slice MC3: with an amount in another currency, the real base amount the bank charged; wins over the rate. */
+    convertedAmount: MoneySchema.optional(),
+    /** D29, slice MC3: with an own transfer's amount, what arrived at a destination in another currency ("Llega"). */
+    destinationAmount: MoneySchema.optional(),
     accountId: IdSchema.optional(),
     payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
     sourceAccountId: IdSchema.optional(),
@@ -573,6 +659,11 @@ export const EditTransactionBodySchema = z
 export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySchema>): Result<EditChanges> => {
   const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
   if (!amount.ok) return amount;
+  const converted = body.convertedAmount === undefined ? ok(undefined) : moneyFromDto(body.convertedAmount);
+  if (!converted.ok) return converted;
+  const arriving =
+    body.destinationAmount === undefined ? ok(undefined) : moneyFromDto(body.destinationAmount);
+  if (!arriving.ok) return arriving;
   // Ruling P66: an explicit null `occurredAt` reaches the use case, which answers TimeRequired.
   const when = whenFromBody(body);
   if (!when.ok) return when;
@@ -592,6 +683,8 @@ export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySche
     ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
+    ...(converted.value === undefined ? {} : { convertedAmount: converted.value }),
+    ...(arriving.value === undefined ? {} : { destinationAmount: arriving.value }),
     accountId: body.accountId,
     payments,
     sourceAccountId: body.sourceAccountId,
@@ -1066,7 +1159,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
         "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported`,
     },
     RecordedExpenseSchema,
   ),
@@ -1077,7 +1170,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transfers": recording(
@@ -1087,7 +1180,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, InvalidTransferAmounts`,
     },
   ),
   "/api/v1/spaces/{spaceId}/fund-contributions": recording(
@@ -1098,7 +1191,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409":
         "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
-      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
     },
   ),
   "/api/v1/spaces/{spaceId}/settlements": recording(
@@ -1109,7 +1202,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
       "403": "InsufficientRole, ForgivenessNotAllowed",
-      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transactions": {
@@ -1162,7 +1255,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
             "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts",
         }),
       },
     },
@@ -1239,7 +1332,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "409":
             "TransactionNotConvertible, PeriodClosed, SpaceArchived, AccountArchived, CategoryArchived, SameAccountTransfer, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
           "412": "PreconditionFailed",
-          "422": `${invalidMoney}, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+          "422": `${invalidMoney}, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts`,
         }),
       },
     },
@@ -1286,7 +1379,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, SpaceNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, GuestHasNoAccounts, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
         }),
       },
     },
@@ -1310,7 +1403,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, SpaceNotFound, CategoryNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, GuestHasNoAccounts, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember, ExchangeRateRequired`,
         }),
       },
     },

@@ -1,5 +1,5 @@
 import type { SpaceId } from "@/modules/spaces/application";
-import type { LocalDate } from "@/shared/kernel";
+import type { ExchangeRate, LocalDate, Result } from "@/shared/kernel";
 import type { ChangeSet, SettlementReason, Transaction, TransactionType } from "../domain/transaction";
 
 /** What the ledger needs to know about an account; bound to the accounts module. */
@@ -10,6 +10,17 @@ export interface LedgerAccount {
   /** A SHARED_FUND account, recognised by its type (HU-E4-09/10), never by a missing owner. */
   readonly isSharedFund: boolean;
   readonly archived: boolean;
+  /** D29, slice MC3: the account's own currency (ISO 4217); the space's base currency by default. */
+  readonly currency: string;
+}
+
+/**
+ * D30, slice MC3: the daily rate a foreign-currency movement is converted at when the person gives no real converted
+ * amount. The ledger declares this narrow port and the rates module's repository satisfies it, so the ledger never
+ * imports that module (ADR 0001). `NoExchangeRate` when no rate connects the currencies on that day.
+ */
+export interface LedgerRates {
+  rateOn(base: string, quote: string, on: LocalDate): Promise<Result<ExchangeRate>>;
 }
 
 export interface AccountReader {

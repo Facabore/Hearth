@@ -4,6 +4,8 @@ import type { LocalDate } from "@/shared/kernel";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
 import type { TransactionPosition } from "../application";
 import {
+  ConvertTransactionBodySchema,
+  conversionFromBody,
   DirectSplitBodySchema,
   directSplitFromBody,
   EditTransactionBodySchema,
@@ -245,5 +247,28 @@ describe("edit bodies (HU-E4-06, ruling P186)", () => {
         split: { method: "BY_ALLOCATION", participants: [{ memberId: "member-ana", weight: 1 }] },
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("conversionFromBody in another currency (D29, slice MC3)", () => {
+  const usd = { amount: "10000", currency: "USD" };
+
+  it("keeps an income's converted amount and a transfer's arriving amount, as recording them does", () => {
+    const income = ConvertTransactionBodySchema.parse({
+      type: "INCOME",
+      amount: usd,
+      convertedAmount: { amount: "41000000", currency: "COP" },
+      accountId: "0194f3a0-0000-7000-8000-000000000001",
+      categoryId: "0194f3a0-0000-7000-8000-000000000002",
+    });
+    expect(unwrap(conversionFromBody(income))).toMatchObject({ convertedAmount: money(41_000_000n) });
+    const transfer = ConvertTransactionBodySchema.parse({
+      type: "TRANSFER",
+      amount: { amount: "40000000", currency: "COP" },
+      destinationAmount: usd,
+      sourceAccountId: "0194f3a0-0000-7000-8000-000000000001",
+      destinationAccountId: "0194f3a0-0000-7000-8000-000000000003",
+    });
+    expect(unwrap(conversionFromBody(transfer))).toMatchObject({ destinationAmount: money(100_00n, "USD") });
   });
 });

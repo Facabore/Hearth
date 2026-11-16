@@ -146,6 +146,35 @@ describe("accounts screen (HU-E9-03)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("lists accounts in another currency apart, in their own currency and out of the space totals (board 8, D29)", () => {
+    const chase = accountDto({
+      id: "a-chase",
+      name: "Chase",
+      type: "BANK",
+      balance: { amount: "123456", currency: "USD" },
+      icon: "bank",
+    });
+    renderWithIntl(
+      <AccountsScreen
+        spaceId="sp-personal"
+        list={{ ...list, items: [...list.items, chase] }}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    // The space totals stay in COP and do not add the USD account.
+    const totals = screen.getByRole("region", { name: "Totales" });
+    expect(norm(totals.textContent)).toContain("Disponible$ 4.915.000");
+    // The USD account is listed apart, under its currency, in its own currency, and the copy says it is left out.
+    const other = screen.getByRole("region", { name: "En otras monedas" });
+    expect(norm(other.textContent)).toContain("no entran en el disponible");
+    const usdSection = within(other).getByRole("region", { name: "USD" });
+    expect(within(usdSection).getByTestId("currency-total")).toHaveTextContent("US$ 1.234,56");
+    expect(within(usdSection).getByRole("listitem", { name: /Chase/ })).toBeInTheDocument();
+    // It never appears in the COP type sections.
+    const everyday = screen.getByRole("region", { name: "Bancos, billeteras y efectivo" });
+    expect(within(everyday).queryByRole("listitem", { name: /Chase/ })).toBeNull();
+  });
+
   it("totals each section from its accounts' balances, the sign carrying the direction (board B1 · 07, P292)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const everyday = screen.getByRole("region", { name: "Bancos, billeteras y efectivo" });

@@ -1,4 +1,4 @@
-import { map, type LocalDate, type Money, type Result } from "@/shared/kernel";
+import { domainError, err, map, type LocalDate, type Money, type Result } from "@/shared/kernel";
 import type { Recurrence } from "../domain/recurrence";
 import type { Transaction } from "../domain/transaction";
 import type { LedgerDeps } from "./deps";
@@ -46,6 +46,16 @@ export const recordOccurrence = async (
   recurrence: Recurrence,
   occurrence: { readonly userId: string; readonly date: LocalDate; readonly amount: Money },
 ): Promise<Result<RecordedOccurrence>> => {
+  // D6 for recurrences until a later MC3 slice converts each occurrence at its date (design 4.2): an occurrence is in
+  // its recurrence's currency. The record use cases now take other currencies, so the refusal stays here.
+  if (occurrence.amount.currency.code !== recurrence.currency) {
+    return err(
+      domainError("CurrencyMismatch", {
+        expected: recurrence.currency,
+        actual: occurrence.amount.currency.code,
+      }),
+    );
+  }
   const base = {
     spaceId: recurrence.spaceId,
     userId: occurrence.userId,

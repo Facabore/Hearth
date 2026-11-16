@@ -44,6 +44,7 @@ export const POST = defineRoute({
       name: body.name,
       type: body.type,
       openingBalance: openingBalance.value,
+      ...(body.currency === undefined ? {} : { currency: body.currency }),
       attributes: attributesFromBody(body),
       terms: terms.value,
     });

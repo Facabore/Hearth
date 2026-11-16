@@ -29,6 +29,7 @@ export type {
   Involving,
   LedgerAccount,
   LedgerCategory,
+  LedgerRates,
   MemberBalanceHistory,
   MemberMoneyTotals,
   TransactionFilter,

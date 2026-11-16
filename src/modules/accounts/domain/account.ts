@@ -184,7 +184,12 @@ export interface Account extends AccountAttributes {
   readonly type: AccountType;
   /** Null only for SHARED_FUND accounts (HU-E2-02). */
   readonly ownerUserId: string | null;
-  /** Minor units of the space currency; may be negative (credit cards). */
+  /**
+   * D29, slice MC3: the account's own currency as an ISO 4217 code, the space's by default. It is fixed once the
+   * account has movements (that enforcement is a later slice); in this slice it always equals the space's currency.
+   */
+  readonly currency: string;
+  /** Minor units of the account's currency, which equals the space currency in this slice; may be negative (credit cards). */
   readonly openingBalance: bigint;
   /** HU-E2-06: the type's terms; all null for a type without any. */
   readonly terms: AccountTerms;
@@ -212,6 +217,7 @@ export const openAccount = (input: {
   ownerUserId: string;
   name: string;
   type: AccountType;
+  currency: string;
   openingBalance: bigint;
   now: Date;
   siblings: readonly Account[];
@@ -238,6 +244,7 @@ export const openAccount = (input: {
     name: name.value,
     type: input.type,
     ownerUserId: input.type === "SHARED_FUND" ? null : input.ownerUserId,
+    currency: input.currency,
     openingBalance: input.openingBalance,
     archivedAt: null,
     createdAt: input.now,

@@ -27,6 +27,7 @@ import type { SpaceDebtMovements } from "@/modules/ledger/application/ports";
 import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
 import {
+  fakeRates,
   fakeSpaceAccess,
   fixedTimeZones,
   memoryTm,
@@ -42,24 +43,35 @@ import {
   RecordingSpaceLocks,
 } from "./in-memory-spaces";
 
-const personalAccount = (id: string, spaceId: string, ownerUserId: string, archived = false) => ({
+const personalAccount = (
+  id: string,
+  spaceId: string,
+  ownerUserId: string,
+  archived = false,
+  currency = "COP",
+) => ({
   id,
   spaceId,
   ownerUserId,
   isSharedFund: false,
   archived,
+  currency,
 });
-const sharedFund = (id: string, spaceId: string, archived = false) => ({
+const sharedFund = (id: string, spaceId: string, archived = false, currency = "COP") => ({
   id,
   spaceId,
   ownerUserId: null,
   isSharedFund: true,
   archived,
+  currency,
 });
 
 export const ACCOUNTS = {
   bancolombia: personalAccount("acc-bancolombia", "space-ana", "u-ana"),
   nequi: personalAccount("acc-nequi", "space-ana", "u-ana"),
+  // D29, slice MC3: Ana's USD accounts, for recording movements and transfers in her space's non-base currency.
+  usdWallet: personalAccount("acc-usd-wallet", "space-ana", "u-ana", false, "USD"),
+  usdSavings: personalAccount("acc-usd-savings", "space-ana", "u-ana", false, "USD"),
   oldNequi: personalAccount("acc-old-nequi", "space-ana", "u-ana", true),
   davivienda: personalAccount("acc-davivienda", "space-juan", "u-juan"),
   // HU-E4-09/10: shared funds are recognised by their type; their missing owner is incidental.
@@ -73,6 +85,7 @@ export const ACCOUNTS = {
     ownerUserId: null,
     isSharedFund: false,
     archived: false,
+    currency: "COP",
   },
 } satisfies Record<string, LedgerAccount>;
 
@@ -198,11 +211,15 @@ export class InMemoryTransactions
     let net = 0n;
     for (const t of this.rows) {
       if (t.deletedAt !== null) continue;
-      if (t.type !== "EXPENSE" && t.destinationAccountId === accountId) net += t.amount;
+      // D29, slice MC3: an account's side uses its leg amount in its own currency, falling back to the base amount
+      // when the leg is undefined (the leg equals the base), like DrizzleLedgerQueries.netMovements' COALESCE.
+      if (t.type !== "EXPENSE" && t.destinationAccountId === accountId)
+        net += ("destinationAmount" in t ? t.destinationAmount : undefined) ?? t.amount;
       if ((t.type === "TRANSFER" || t.type === "SETTLEMENT") && t.sourceAccountId === accountId)
-        net -= t.amount;
+        net -= ("sourceAmount" in t ? t.sourceAmount : undefined) ?? t.amount;
       if (t.type === "EXPENSE") {
-        for (const payment of t.payments) if (payment.accountId === accountId) net -= payment.amount;
+        for (const payment of t.payments)
+          if (payment.accountId === accountId) net -= payment.accountAmount ?? payment.amount;
       }
     }
     return net;
@@ -396,6 +413,8 @@ export const ledgerFixture = (overrides: Partial<LedgerDeps> = {}) => {
     audit,
     accounts: accountReader(Object.values(ACCOUNTS)),
     categories: categoryReader(Object.values(CATEGORIES)),
+    // D30, slice MC3: no rate by default, so a foreign amount needs a real converted amount unless a test binds one.
+    rates: fakeRates(),
     closedPeriods: { isClosed: async () => false },
     // HU-E6-08: EQUAL unless a test binds budgeting's allocation weights.
     defaultSplits: { allocationWeights: async () => null },

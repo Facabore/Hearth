@@ -3,13 +3,14 @@ import { NO_ATTRIBUTES, switchesOf, type AccountId, type AccountType } from "./a
 import { totalsOf } from "./account-totals";
 
 const at = new Date("2026-10-16T12:00:00Z");
-const held = (name: string, type: AccountType, pesos: number) => ({
+const held = (name: string, type: AccountType, pesos: number, currency = "COP") => ({
   ...NO_ATTRIBUTES,
   id: `acc-${name}` as AccountId,
   spaceId: "space-ana",
   name,
   type,
   ownerUserId: "u-ana",
+  currency,
   openingBalance: 0n,
   archivedAt: null,
   createdAt: at,
@@ -49,12 +50,18 @@ describe("available money and net worth (HU-E2-07)", () => {
   });
 
   it("totals 2,300,000 available and 3,950,000 net worth with the default switches (@critical)", () => {
-    expect(totalsOf(ana)).toEqual({ available: 230_000_000n, netWorth: 395_000_000n });
+    expect(totalsOf(ana, "COP")).toEqual({ available: 230_000_000n, netWorth: 395_000_000n });
+  });
+
+  it("leaves accounts not in the space currency out of the space totals (D29, slice MC3)", () => {
+    const mixed = [...ana, held("Chase", "BANK", 500_000, "USD"), held("Loan USD", "LOAN", -200_000, "USD")];
+    // The USD accounts add nothing to COP totals until MC4 converts them.
+    expect(totalsOf(mixed, "COP")).toEqual({ available: 230_000_000n, netWorth: 395_000_000n });
   });
 
   it("turns available off for a type that counts in it by default, and keeps it in net worth", () => {
     const withoutBank = ana.map((a) => (a.name === "Bancolombia" ? { ...a, includeInAvailable: false } : a));
-    expect(totalsOf(withoutBank)).toEqual({ available: 30_000_000n, netWorth: 395_000_000n });
+    expect(totalsOf(withoutBank, "COP")).toEqual({ available: 30_000_000n, netWorth: 395_000_000n });
     expect(switchesOf({ type: "BANK", includeInAvailable: false, includeInNetWorth: null })).toEqual({
       includeInAvailable: false,
       includeInNetWorth: true,
@@ -69,8 +76,8 @@ describe("available money and net worth (HU-E2-07)", () => {
           ? { ...a, includeInNetWorth: false }
           : a,
     );
-    expect(totalsOf(switched)).toEqual({ available: 1_230_000_000n, netWorth: 365_000_000n });
+    expect(totalsOf(switched, "COP")).toEqual({ available: 1_230_000_000n, netWorth: 365_000_000n });
     const archived = ana.map((a) => (a.name === "Nequi" ? { ...a, archivedAt: at } : a));
-    expect(totalsOf(archived)).toEqual({ available: 200_000_000n, netWorth: 365_000_000n });
+    expect(totalsOf(archived, "COP")).toEqual({ available: 200_000_000n, netWorth: 365_000_000n });
   });
 });

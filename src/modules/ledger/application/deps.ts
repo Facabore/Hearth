@@ -12,6 +12,7 @@ import type {
   CategoryReader,
   ClosedPeriodGuard,
   DefaultSplitSource,
+  LedgerRates,
   TransactionQuery,
   TransactionRepository,
 } from "./ports";
@@ -29,6 +30,8 @@ export interface LedgerDeps {
   /** HU-E4-10: the fund balance after a fund-paid expense. */
   readonly accountBalances: AccountBalances;
   readonly categories: CategoryReader;
+  /** D29, D30, slice MC3: the daily rate a foreign-currency movement converts at; a read inside the space lock (#89). */
+  readonly rates: LedgerRates;
   readonly closedPeriods: ClosedPeriodGuard;
   /** HU-E6-08: the default split of an expense recorded without one (BY_ALLOCATION or EQUAL). */
   readonly defaultSplits: DefaultSplitSource;

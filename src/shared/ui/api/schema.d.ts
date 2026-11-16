@@ -1870,11 +1870,15 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            originalAmount?: components["schemas"]["MoneyOutput"];
+            sourceAmount?: components["schemas"]["MoneyOutput"];
+            destinationAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
                 accountId: string | null;
                 amount: components["schemas"]["MoneyOutput"];
+                accountAmount?: components["schemas"]["MoneyOutput"];
             }[];
             shares: {
                 memberId: string;
@@ -2186,11 +2190,15 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            originalAmount?: components["schemas"]["MoneyOutput"];
+            sourceAmount?: components["schemas"]["MoneyOutput"];
+            destinationAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
                 accountId: string | null;
                 amount: components["schemas"]["MoneyOutput"];
+                accountAmount?: components["schemas"]["MoneyOutput"];
             }[];
             shares: {
                 memberId: string;
@@ -2390,11 +2398,15 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            originalAmount?: components["schemas"]["MoneyOutput"];
+            sourceAmount?: components["schemas"]["MoneyOutput"];
+            destinationAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
                 accountId: string | null;
                 amount: components["schemas"]["MoneyOutput"];
+                accountAmount?: components["schemas"]["MoneyOutput"];
             }[];
             shares: {
                 memberId: string;
@@ -4880,6 +4892,7 @@ export interface operations {
                     /** @enum {string} */
                     type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER" | "SHARED_FUND";
                     openingBalance: components["schemas"]["Money"];
+                    currency?: string;
                     institution?: string;
                     lastFour?: string;
                     /** @enum {string} */
@@ -5489,6 +5502,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
@@ -5577,7 +5591,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5609,6 +5623,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId: string;
                 };
             };
@@ -5659,7 +5674,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5690,6 +5705,7 @@ export interface operations {
                     occurredAt?: string | null;
                     timeZone?: string;
                     amount: components["schemas"]["Money"];
+                    destinationAmount?: components["schemas"]["Money"];
                     sourceAccountId: string;
                     destinationAccountId: string;
                 };
@@ -5741,7 +5757,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, InvalidTransferAmounts */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5824,7 +5840,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -5912,7 +5928,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6119,6 +6135,8 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount?: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
+                    destinationAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
@@ -6213,7 +6231,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6379,6 +6397,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
@@ -6423,6 +6442,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId: string;
                     /** @constant */
                     type: "INCOME";
@@ -6433,6 +6453,7 @@ export interface operations {
                     occurredAt?: string | null;
                     timeZone?: string;
                     amount: components["schemas"]["Money"];
+                    destinationAmount?: components["schemas"]["Money"];
                     sourceAccountId: string;
                     destinationAccountId: string;
                     /** @constant */
@@ -6507,7 +6528,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6680,7 +6701,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -6812,7 +6833,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember, ExchangeRateRequired */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7662,7 +7683,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, ExchangeRateRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, InvalidFundAccount, NotASpaceMember, InvalidSplit, ParticipantsRequired */
             422: {
                 headers: {
                     [name: string]: unknown;

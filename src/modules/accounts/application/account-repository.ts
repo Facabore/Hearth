@@ -17,4 +17,9 @@ export interface AccountRepository {
    * (issue #245).
    */
   save(account: Account): Promise<boolean>;
+  /**
+   * D29, slice MC3 (HU-E1-03): sets every account of the space to `currency`. A space's currency changes only while it
+   * holds no money (SpaceCurrencyLocked), so all its accounts are money-free and not yet fixed, and must follow it.
+   */
+  retagCurrency(spaceId: string, currency: string): Promise<void>;
 }

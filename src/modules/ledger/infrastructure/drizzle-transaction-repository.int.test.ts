@@ -155,6 +155,72 @@ describe("DrizzleTransactionRepository", () => {
   });
 });
 
+// D29, slice MC3: the storage for per-leg and original amounts round-trips; no recording use case sets them yet, so
+// the test builds the domain objects directly. Null columns read back as absent, so a base-only row is unchanged.
+describe("original and per-leg amounts (D29, slice MC3)", () => {
+  it("round-trips an expense's original amount and a payment's account-leg amount", async () => {
+    // The leg's currency is the paying account's own, read back from the account.
+    const usd = await accountFixture(db, space, "Wallet USD", 0n, "USD");
+    const market: Expense = {
+      ...expense(100_000_000n),
+      originalAmount: 25_00n,
+      originalCurrency: "USD",
+      payments: [
+        {
+          memberId: space.memberId,
+          accountId: usd,
+          amount: 100_000_000n,
+          accountAmount: 25_00n,
+          accountCurrency: "USD",
+        },
+      ],
+    };
+    await repo.add(market);
+    expect(await repo.findById(space.spaceId, market.id)).toEqual(market);
+  });
+
+  it("round-trips an income's and a transfer's per-leg amounts", async () => {
+    const salary = unwrap(
+      recordIncome({
+        ...common(100_000_000n),
+        categoryId: groceries,
+        destinationAccountId: bank,
+        receivingMemberId: space.memberId,
+      }),
+    );
+    const income = {
+      ...salary,
+      destinationAmount: 25_00n,
+      destinationCurrency: "USD",
+      originalAmount: 25_00n,
+      originalCurrency: "USD",
+    };
+    const move = unwrap(
+      recordTransfer({ ...common(50_000_000n), sourceAccountId: bank, destinationAccountId: wallet }),
+    );
+    const transfer = {
+      ...move,
+      sourceAmount: 12_50n,
+      sourceCurrency: "USD",
+      destinationAmount: 40_000_000n,
+      destinationCurrency: "COP",
+    };
+    await repo.add(income);
+    await repo.add(transfer);
+    expect(await repo.findById(space.spaceId, income.id)).toEqual(income);
+    expect(await repo.findById(space.spaceId, transfer.id)).toEqual(transfer);
+  });
+
+  it("reads a base-only row back unchanged, with no leg or original fields", async () => {
+    const market = expense();
+    await repo.add(market);
+    const read = await repo.findById(space.spaceId, market.id);
+    expect(read).toEqual(market);
+    expect(read && "originalAmount" in read).toBe(false);
+    expect(read && "accountAmount" in (read as Expense).payments[0]!).toBe(false);
+  });
+});
+
 describe("DrizzleAuditLog", () => {
   it("appends entries and lists them oldest first", async () => {
     const market = expense();
@@ -207,7 +273,14 @@ describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {
         destinationAccountId: w.bank,
       }),
     );
-    for (const tx of [fromBank, fromPedro, settleUp]) {
+    // D29, slice MC3: a settlement's account leg in that account's own currency round-trips too.
+    const settleInUsd = {
+      ...settleUp,
+      id: randomUUID() as typeof settleUp.id,
+      destinationAmount: 12_50n,
+      destinationCurrency: "USD",
+    };
+    for (const tx of [fromBank, fromPedro, settleUp, settleInUsd]) {
       await repo.add(tx);
       expect(await repo.findById(w.household.spaceId, tx.id)).toEqual(tx);
     }

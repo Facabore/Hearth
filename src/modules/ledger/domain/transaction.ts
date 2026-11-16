@@ -1,4 +1,4 @@
-import { domainError, err, ok, type Id, type LocalDate, type Result } from "@/shared/kernel";
+import { domainError, err, map, ok, type Id, type LocalDate, type Result } from "@/shared/kernel";
 
 export type TransactionId = Id<"Transaction">;
 export type TransactionType = "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
@@ -10,6 +10,10 @@ export interface Payment {
   readonly memberId: string | null;
   readonly accountId: string | null;
   readonly amount: bigint;
+  /** D29, slice MC3: the amount in the paying account's own currency, when it differs from the base amount. */
+  readonly accountAmount?: bigint;
+  /** D29, slice MC3: the paying account's own currency; set exactly when `accountAmount` is. */
+  readonly accountCurrency?: string;
 }
 
 export interface Share {
@@ -30,6 +34,9 @@ interface TransactionBase {
   readonly timeZone: string | null;
   readonly amount: bigint;
   readonly currency: string;
+  /** D29, slice MC3: what was charged when it differs from the base amount; its currency is `originalCurrency`. */
+  readonly originalAmount?: bigint;
+  readonly originalCurrency?: string;
   readonly createdBy: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -52,6 +59,10 @@ export interface Income extends TransactionBase {
   readonly categoryId: string;
   readonly destinationAccountId: string;
   readonly receivingMemberId: string;
+  /** D29, slice MC3: the amount in the destination account's own currency, when it differs from the base amount. */
+  readonly destinationAmount?: bigint;
+  /** D29, slice MC3: the destination account's own currency; set exactly when `destinationAmount` is. */
+  readonly destinationCurrency?: string;
 }
 
 /**
@@ -67,6 +78,12 @@ export interface Transfer extends TransactionBase {
   readonly payerMemberId: string | null;
   /** D26: the fund-paid expense this contribution paid for; absent on every other transfer. */
   readonly linkedTransactionId?: TransactionId;
+  /** D29, slice MC3: "Sale" and "Llega" in each account's own currency, when either differs from the base amount. */
+  readonly sourceAmount?: bigint;
+  readonly destinationAmount?: bigint;
+  /** D29, slice MC3: the currency each present leg is in (its account's own); set exactly when its leg amount is. */
+  readonly sourceCurrency?: string;
+  readonly destinationCurrency?: string;
 }
 
 /**
@@ -86,6 +103,11 @@ export interface Settlement extends TransactionBase {
   readonly onBehalfOfMemberId: string | null;
   /** Ruling P322: the other half of a gift; the payment and its GIFT point at each other. */
   readonly linkedTransactionId: TransactionId | null;
+  /** D29, slice MC3: each account's leg in its own currency, when that account's currency is not the base. */
+  readonly sourceAmount?: bigint;
+  readonly sourceCurrency?: string;
+  readonly destinationAmount?: bigint;
+  readonly destinationCurrency?: string;
 }
 
 /** Ruling P322: why a settlement was recorded. */
@@ -107,6 +129,16 @@ export interface TransactionChanges {
   /** Ruling P186: an income's receiving account, or an own transfer's accounts. */
   readonly sourceAccountId?: string;
   readonly destinationAccountId?: string;
+  /**
+   * D29, slice MC3: the original a new amount was entered in, or null when it was entered in the base currency (the
+   * original goes); absent keeps the current one.
+   */
+  readonly original?: { readonly amount: bigint; readonly currency: string } | null;
+  /**
+   * D29, slice MC3: every account leg again, as recording computes them. Absent keeps them, unless the amount, the
+   * payments or an account change: then a leg no longer holds, so none is kept.
+   */
+  readonly legs?: TransactionLegs;
 }
 
 /**
@@ -140,6 +172,10 @@ const checkParts = (amount: bigint, payments: readonly Payment[], shares: readon
     return err(domainError("MixedFundPayment"));
   }
   if ([...payments, ...shares].some((part) => part.amount <= 0n)) return err(domainError("InvalidAmount"));
+  // D29, slice MC3: a present account leg is money in the account's own currency, so it is positive like the base.
+  if (payments.some((p) => p.accountAmount !== undefined && p.accountAmount <= 0n)) {
+    return err(domainError("InvalidAmount"));
+  }
   if (sum(payments.map((p) => p.amount)) !== amount || sum(shares.map((s) => s.amount)) !== amount) {
     return err(domainError("SharesDoNotMatchAmount"));
   }
@@ -158,7 +194,25 @@ interface NewTransaction {
   /** HU-E4-14: both absent for a transaction without a time. */
   readonly occurredAt?: Date | null;
   readonly timeZone?: string | null;
+  /** D29, slice MC3: what was charged, in `originalCurrency`, when it differs from the base `amount`; both or neither. */
+  readonly originalAmount?: bigint;
+  readonly originalCurrency?: string;
 }
+
+/**
+ * D29, slice MC3: the original amount and its currency come together and are positive, or neither is present (the
+ * movement is wholly in the base currency).
+ */
+const originalOf = (
+  amount: bigint | undefined,
+  currency: string | undefined,
+): Result<{ originalAmount?: bigint; originalCurrency?: string }> => {
+  if (amount === undefined && currency === undefined) return ok({});
+  if (amount === undefined || currency === undefined) return err(domainError("InvalidOriginalAmount"));
+  const positive = positiveAmount(amount);
+  if (!positive.ok) return positive;
+  return ok({ originalAmount: amount, originalCurrency: currency });
+};
 
 const baseOf = (input: NewTransaction): Result<TransactionBase> => {
   const amount = positiveAmount(input.amount);
@@ -169,6 +223,8 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
   if ((occurredAt === null) !== (timeZone === null)) return err(domainError("InvalidTransactionTime"));
   const description = descriptionOf(input.description);
   if (!description.ok) return description;
+  const original = originalOf(input.originalAmount, input.originalCurrency);
+  if (!original.ok) return original;
   return ok({
     id: input.id,
     spaceId: input.spaceId,
@@ -183,6 +239,7 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
     updatedAt: input.now,
     deletedAt: null,
     version: 1,
+    ...original.value,
   });
 };
 
@@ -211,25 +268,56 @@ export const recordIncome = (
     readonly categoryId: string;
     readonly destinationAccountId: string;
     readonly receivingMemberId: string;
+    /** D29, slice MC3: the destination account's leg in its own currency, when that currency is not the base. */
+    readonly destination?: AccountLeg | null;
   },
 ): Result<Income> => {
   const base = baseOf(input);
   if (!base.ok) return base;
-  return ok({
+  const income: Income = {
     ...base.value,
     type: "INCOME" as const,
     categoryId: input.categoryId,
     destinationAccountId: input.destinationAccountId,
     receivingMemberId: input.receivingMemberId,
-  });
+  };
+  return withLegs(income, { destination: input.destination ?? null }) as Result<Income>;
+};
+
+/**
+ * D29, slice MC3: a transfer leg ("Sale"/"Llega") is an amount in its account's own currency; its amount and currency
+ * come together and are positive, or neither is present (the leg equals the base amount, so no leg is stored).
+ */
+const transferLegOf = (
+  amount: bigint | undefined,
+  currency: string | undefined,
+): Result<{ readonly amount: bigint; readonly currency: string } | null> => {
+  if (amount === undefined && currency === undefined) return ok(null);
+  if (amount === undefined || currency === undefined) return err(domainError("InvalidTransferLeg"));
+  const positive = positiveAmount(amount);
+  if (!positive.ok) return positive;
+  return ok({ amount, currency });
 };
 
 export const recordTransfer = (
-  input: NewTransaction & { readonly sourceAccountId: string; readonly destinationAccountId: string },
+  input: NewTransaction & {
+    readonly sourceAccountId: string;
+    readonly destinationAccountId: string;
+    /** D29, slice MC3: "Sale" in the source account's own currency, when it differs from the base amount. */
+    readonly sourceAmount?: bigint;
+    readonly sourceCurrency?: string;
+    /** D29, slice MC3: "Llega" in the destination account's own currency, when it differs from the base amount. */
+    readonly destinationAmount?: bigint;
+    readonly destinationCurrency?: string;
+  },
 ): Result<Transfer> => {
   const base = baseOf(input);
   if (!base.ok) return base;
   if (input.sourceAccountId === input.destinationAccountId) return err(domainError("SameAccountTransfer"));
+  const source = transferLegOf(input.sourceAmount, input.sourceCurrency);
+  if (!source.ok) return source;
+  const destination = transferLegOf(input.destinationAmount, input.destinationCurrency);
+  if (!destination.ok) return destination;
   return ok({
     ...base.value,
     type: "TRANSFER" as const,
@@ -237,6 +325,12 @@ export const recordTransfer = (
     sourceAccountId: input.sourceAccountId,
     destinationAccountId: input.destinationAccountId,
     payerMemberId: null,
+    ...(source.value === null
+      ? {}
+      : { sourceAmount: source.value.amount, sourceCurrency: source.value.currency }),
+    ...(destination.value === null
+      ? {}
+      : { destinationAmount: destination.value.amount, destinationCurrency: destination.value.currency }),
   });
 };
 
@@ -313,7 +407,8 @@ export const giveAway = (payment: Settlement, giftId: TransactionId): Result<[Se
     return err(domainError("GiftRequiresOnBehalfOf"));
   }
   const gift: Settlement = {
-    ...payment,
+    // D29: the gift moves no account, so it carries none of the payment's account legs.
+    ...without(payment, LEG_FIELDS),
     id: giftId,
     payerMemberId: payment.onBehalfOfMemberId,
     receivingMemberId: payment.payerMemberId,
@@ -366,6 +461,93 @@ export const mayForgive = (
     ? recorder.role === "OWNER" || recorder.role === "ADMIN"
     : receiver.userId === recorder.userId;
 
+/** D29, section 4.1: an account's leg, the movement in that account's own currency when it is not the base. */
+export interface AccountLeg {
+  readonly amount: bigint;
+  readonly currency: string;
+}
+
+/**
+ * D29, section 4.1: the legs of a transaction's accounts, null for an account in the base currency (its leg is the base
+ * amount) or no account: an expense's in payment order, the others' source and destination.
+ */
+export interface TransactionLegs {
+  readonly payments?: readonly (AccountLeg | null)[];
+  readonly source?: AccountLeg | null;
+  readonly destination?: AccountLeg | null;
+}
+
+const LEG_FIELDS = [
+  "sourceAmount",
+  "sourceCurrency",
+  "destinationAmount",
+  "destinationCurrency",
+  "accountAmount",
+  "accountCurrency",
+] as const;
+
+/** `value` without the given fields, so an absent leg or original reads as absent, never as undefined. */
+const without = <T extends object>(value: T, fields: readonly string[]): T =>
+  Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key))) as T;
+
+const legOf = (leg: AccountLeg | null | undefined): Result<AccountLeg | null> =>
+  leg === null || leg === undefined ? ok(null) : map(positiveAmount(leg.amount), () => leg);
+
+/**
+ * D29, section 4.1: replaces every account leg of `tx` with `legs`, each positive and only on an account that exists;
+ * a missing leg means the account is in the base currency, so its leg is the base amount and nothing is stored.
+ */
+export const withLegs = (tx: Transaction, legs: TransactionLegs): Result<Transaction> => {
+  const bare = without(tx, LEG_FIELDS);
+  if (tx.type === "EXPENSE") {
+    const given = legs.payments ?? [];
+    if (given.length > tx.payments.length) return err(domainError("InvalidTransferLeg"));
+    const payments: Payment[] = [];
+    for (const [index, payment] of tx.payments.entries()) {
+      const leg = legOf(given[index]);
+      if (!leg.ok) return leg;
+      if (leg.value !== null && payment.accountId === null) return err(domainError("InvalidTransferLeg"));
+      const plain = without(payment, LEG_FIELDS);
+      payments.push(
+        leg.value === null
+          ? plain
+          : { ...plain, accountAmount: leg.value.amount, accountCurrency: leg.value.currency },
+      );
+    }
+    return ok({ ...(bare as Expense), payments });
+  }
+  const source = legOf(legs.source);
+  if (!source.ok) return source;
+  const destination = legOf(legs.destination);
+  if (!destination.ok) return destination;
+  const sourceAccountId = tx.type === "INCOME" ? null : tx.sourceAccountId;
+  if (
+    (source.value !== null && (tx.type === "INCOME" || sourceAccountId === null)) ||
+    (destination.value !== null && tx.destinationAccountId === null)
+  ) {
+    return err(domainError("InvalidTransferLeg"));
+  }
+  return ok({
+    ...bare,
+    ...(source.value === null
+      ? {}
+      : { sourceAmount: source.value.amount, sourceCurrency: source.value.currency }),
+    ...(destination.value === null
+      ? {}
+      : { destinationAmount: destination.value.amount, destinationCurrency: destination.value.currency }),
+  } as Transaction);
+};
+
+/** D29, slice MC3: `tx` with `original` as its original amount, or with none when it is null. */
+const withOriginal = (
+  tx: Transaction,
+  original: { readonly amount: bigint; readonly currency: string } | null,
+): Result<Transaction> => {
+  const bare = without(tx, ["originalAmount", "originalCurrency"]);
+  if (original === null) return ok(bare);
+  return map(originalOf(original.amount, original.currency), (kept) => ({ ...bare, ...kept }) as Transaction);
+};
+
 /**
  * HU-E4-06: a sole payment or share follows a new amount; otherwise the parts must still add up. Ruling P186: new
  * `payments`, `shares` or accounts replace the current ones.
@@ -375,6 +557,21 @@ export const reviseTransaction = (
   changes: TransactionChanges,
   now: Date,
 ): Result<Transaction> => {
+  const revised = revisedParts(tx, changes, now);
+  if (!revised.ok) return revised;
+  const moved =
+    (changes.amount !== undefined && changes.amount !== tx.amount) ||
+    changes.payments !== undefined ||
+    changes.sourceAccountId !== undefined ||
+    changes.destinationAccountId !== undefined;
+  const legs = changes.legs ?? (moved ? {} : undefined);
+  const legged = legs === undefined ? revised : withLegs(revised.value, legs);
+  if (!legged.ok || changes.original === undefined) return legged;
+  // D29, slice MC3: a new amount brings its original (or none, entered in the base currency), as when recording.
+  return withOriginal(legged.value, changes.original);
+};
+
+const revisedParts = (tx: Transaction, changes: TransactionChanges, now: Date): Result<Transaction> => {
   const description =
     changes.description === undefined ? ok(tx.description) : descriptionOf(changes.description);
   if (!description.ok) return description;
@@ -490,11 +687,17 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
   // HU-E4-14: the instant as ISO UTC and its zone, so an edit records the time before and after.
   values.set("occurredAt", tx.occurredAt?.toISOString() ?? null);
   values.set("timeZone", tx.timeZone);
+  // D29, slice MC3: what was entered and what each account moved in its own currency ("minor CODE"), so an edit of
+  // them is kept too; absent (null) for a movement wholly in the base currency, which keeps its audit as it was.
+  values.set("originalAmount", inCurrency(tx.originalAmount, tx.originalCurrency));
   if (tx.type === "EXPENSE") {
     const payments = tx.payments.map((p) => ({
       memberId: p.memberId,
       accountId: p.accountId,
       amount: p.amount.toString(),
+      ...(p.accountAmount === undefined
+        ? {}
+        : { accountAmount: inCurrency(p.accountAmount, p.accountCurrency) }),
     }));
     const shares = tx.shares.map((s) => ({
       memberId: s.memberId,
@@ -508,9 +711,14 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
   if (tx.type !== "EXPENSE") {
     values.set("sourceAccountId", tx.type === "INCOME" ? null : tx.sourceAccountId);
     values.set("destinationAccountId", tx.destinationAccountId);
+    values.set("sourceAmount", tx.type === "INCOME" ? null : inCurrency(tx.sourceAmount, tx.sourceCurrency));
+    values.set("destinationAmount", inCurrency(tx.destinationAmount, tx.destinationCurrency));
   }
   return values;
 };
+
+const inCurrency = (minor: bigint | undefined, currency: string | undefined): string | null =>
+  minor === undefined ? null : `${minor} ${currency ?? ""}`.trim();
 
 export const changesBetween = (before: Transaction, after: Transaction): ChangeSet => {
   const revised = auditedValues(after);

@@ -21,7 +21,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { FixedClock } from "@/shared/kernel";
 import { testDatabase } from "../../tests/support/database";
-import { fixedTimeZones, money, unwrap } from "../../tests/support/fakes";
+import { fakeRates, fixedTimeZones, money, unwrap } from "../../tests/support/fakes";
 import { categoryFixture, sharedLedgerFixture } from "../../tests/support/fixtures";
 import { outcomesOf } from "../../tests/support/locks";
 import { budgetCategoriesOf, categoryUsageOf, ledgerCategoriesOf, spaceUsageOf } from "./container";
@@ -57,10 +57,12 @@ const ledgerDeps: LedgerDeps = {
             ownerUserId: account.ownerUserId,
             isSharedFund: account.type === "SHARED_FUND",
             archived: account.archivedAt !== null,
+            currency: account.currency,
           }
         : null;
     },
   },
+  rates: fakeRates(),
   accountBalances: { balanceOf: async () => 0n },
   categories: ledgerCategoriesOf(categories),
   closedPeriods: { isClosed: async () => false },

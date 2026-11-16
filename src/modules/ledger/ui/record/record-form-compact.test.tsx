@@ -41,6 +41,7 @@ const shared: SharedExpenseContext = {
 const initial: RecordInitial = {
   kind: "EXPENSE",
   amount: "85.000",
+  currency: "COP",
   description: "Market",
   category: { categoryId: "c-groceries", subcategoryId: null },
   accountId: "a-bank",

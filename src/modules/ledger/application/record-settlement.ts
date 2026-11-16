@@ -9,6 +9,7 @@ import {
 } from "../domain/transaction";
 import { authorizeWriter, inSpaceCurrency, openPeriod, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
+import { withAccountLegs } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
 
 export interface RecordSettlementInput extends Omit<WhenInput, "userId"> {
@@ -70,7 +71,7 @@ export const createRecordSettlement =
       const { date, occurredAt, timeZone } = when.value;
       const open = await openPeriod(deps, space.spaceId, date);
       if (!open.ok) return open;
-      const settlement = recordSettlement({
+      const recorded = recordSettlement({
         id: deps.ids.next<"Transaction">(),
         spaceId: space.spaceId,
         description: input.description,
@@ -89,6 +90,10 @@ export const createRecordSettlement =
         onBehalfOfMemberId: input.onBehalfOfMemberId,
         gift: input.gift,
       });
+      if (!recorded.ok) return recorded;
+      // D29, section 4.1: each account's leg in its own currency whenever it is not the base (the rate is a read inside
+      // the held space lock, #89).
+      const settlement = await withAccountLegs(deps, space, recorded.value, []);
       if (!settlement.ok) return settlement;
       const { onBehalfOfMemberId, reason } = settlement.value;
       if (onBehalfOfMemberId !== null && !members.some((m) => m.id === onBehalfOfMemberId)) {

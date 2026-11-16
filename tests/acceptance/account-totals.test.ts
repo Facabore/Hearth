@@ -57,6 +57,20 @@ describe("available money and net worth (HU-E2-07)", () => {
     expect(await totalsOf(w.ana)).toEqual([cop(2_300_000), cop(3_950_000)]);
   });
 
+  it("leaves accounts not in the space currency out of the totals (D29, slice MC3)", async () => {
+    const w = await background();
+    const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
+    const chase = await post(createAccount, w.ana, "accounts", {
+      name: "Chase",
+      type: "BANK",
+      currency: "USD",
+      openingBalance: usd(1_000),
+    });
+    expect(chase.status).toBe(201);
+    // The USD account adds nothing to the COP totals until MC4 converts it.
+    expect(await totalsOf(w.ana)).toEqual([cop(2_300_000), cop(3_950_000)]);
+  });
+
   it("follows the switches, and null returns a switch to its default", async () => {
     const w = await background();
     expect((await patch(w.ana, w.cdt, { includeInAvailable: true })).status).toBe(200);

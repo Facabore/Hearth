@@ -327,7 +327,8 @@ describe("edits and deletes at the edges (HU-E4-06, M1 review)", () => {
       [tx.id, { accountId: savings }, [409, "AccountArchived"]],
       [transfer.id, { categoryId: ana.groceries }, [409, "TransferHasNoCategory"]],
       [tx.id, { amount: cop(0) }, [422, "InvalidAmount"]],
-      [tx.id, { amount: { amount: "100", currency: "USD" } }, [422, "CurrencyMismatch"]],
+      // D29: an expense's amount may be in another currency, as when recording; this date has no rate.
+      [tx.id, { amount: { amount: "100", currency: "USD" } }, [422, "ExchangeRateRequired"]],
       [tx.id, { description: "x".repeat(201) }, [422, "InvalidDescription"]],
       [tx.id, { date: "0000-06-15" }, [422, "InvalidDate"]],
     ];

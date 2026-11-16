@@ -11,7 +11,7 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { FixedClock, type LocalDate } from "@/shared/kernel";
 import { testDatabase } from "../../../../tests/support/database";
-import { codeOf, fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
+import { codeOf, fakeRates, fixedTimeZones, money, unwrap } from "../../../../tests/support/fakes";
 import {
   accountFixture,
   categoryFixture,
@@ -318,8 +318,10 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
           ownerUserId: ana.id,
           isSharedFund: false,
           archived: false,
+          currency: "COP",
         }),
       },
+      rates: fakeRates(),
       accountBalances: { balanceOf: async () => 0n },
       categories: { find: async (_, id) => ({ id, archived: false }), subcategoriesOf: async () => [] },
       closedPeriods,

@@ -1,13 +1,13 @@
 import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import type { TermsChange } from "../domain/account-terms";
 
-/** D6: one currency per space; amounts in any other currency are rejected. */
-export const minorIn = (spaceCurrency: string, money: Money): Result<bigint> =>
-  money.currency.code === spaceCurrency
+/** D29: an account's amounts are in its own currency; amounts in any other currency are rejected. */
+export const minorIn = (currency: string, money: Money): Result<bigint> =>
+  money.currency.code === currency
     ? ok(money.minor)
-    : err(domainError("CurrencyMismatch", { expected: spaceCurrency, actual: money.currency.code }));
+    : err(domainError("CurrencyMismatch", { expected: currency, actual: money.currency.code }));
 
-/** HU-E2-06: terms as the use cases take them; money terms are Money in the space currency. */
+/** HU-E2-06: terms as the use cases take them; money terms are Money in the account's currency (D29). */
 export type TermsInput = Omit<TermsChange, "creditLimit" | "principal"> & {
   readonly creditLimit?: Money | null;
   readonly principal?: Money | null;

@@ -50,6 +50,18 @@ export const transactions = pgTable(
     categoryId: uuid("category_id"),
     amount: money("amount").notNull(),
     currency: text("currency").notNull(),
+    // D29, slice MC3: what was charged when it differs from the base amount, and the base amount's conversion is a
+    // fact of the record (section 4.1). Null means the original equals the base amount in the base currency.
+    originalAmount: money("original_amount"),
+    originalCurrency: text("original_currency"),
+    // D29, slice MC3: each account leg's amount in that account's own currency, when it differs from the base amount
+    // (a transfer's "Sale" and "Llega", an income's destination). Null means the leg equals the base amount.
+    sourceAmount: money("source_amount"),
+    destinationAmount: money("destination_amount"),
+    // D29, slice MC3: the currency each present transfer leg is in (its account's own, 4.1); set exactly when its leg
+    // amount is. An income's destination leg is in the row's original currency, so it keeps no separate column.
+    sourceCurrency: text("source_currency"),
+    destinationCurrency: text("destination_currency"),
     sourceAccountId: uuid("source_account_id").references(() => accounts.id),
     destinationAccountId: uuid("destination_account_id").references(() => accounts.id),
     receivingMemberId: uuid("receiving_member_id"),
@@ -107,6 +119,20 @@ export const transactions = pgTable(
       foreignColumns: [t.id, t.spaceId],
     }),
     check("transactions_amount_positive", sql`${t.amount} > 0`),
+    // D29, slice MC3: a present original or leg amount is money, so it is positive, like the base amount.
+    check(
+      "transactions_leg_amounts_positive",
+      sql`(${t.originalAmount} IS NULL OR ${t.originalAmount} > 0)
+        AND (${t.sourceAmount} IS NULL OR ${t.sourceAmount} > 0)
+        AND (${t.destinationAmount} IS NULL OR ${t.destinationAmount} > 0)`,
+    ),
+    // D29, slice MC3: a transfer leg's currency is present iff its leg amount is (4.1); the destination column is a
+    // transfer's "Llega" only, so an income's own-currency destination leg leaves it null.
+    check(
+      "transactions_leg_currencies",
+      sql`(${t.sourceCurrency} IS NULL) = (${t.sourceAmount} IS NULL)
+        AND (${t.type} = 'INCOME' OR (${t.destinationCurrency} IS NULL) = (${t.destinationAmount} IS NULL))`,
+    ),
     check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose
     // source is null only for a guest (spec 5.2). A SETTLEMENT has both parties and optional accounts.
@@ -151,12 +177,16 @@ export const payments = pgTable(
     memberId: uuid("member_id").references(() => spaceMembers.id),
     accountId: uuid("account_id").references(() => accounts.id),
     amount: money("amount").notNull(),
+    // D29, slice MC3: this payment leg's amount in its account's own currency, when it differs from the base amount.
+    accountAmount: money("account_amount"),
   },
   (t) => [
     primaryKey({ columns: [t.transactionId, t.position] }),
     index("payments_account_idx").on(t.accountId),
     index("payments_member_idx").on(t.memberId),
     check("payments_amount_positive", sql`${t.amount} > 0`),
+    // D29, slice MC3: a present account-leg amount is money, so it is positive, like the base amount.
+    check("payments_account_amount_positive", sql`${t.accountAmount} IS NULL OR ${t.accountAmount} > 0`),
     // Spec 5.2: memberId is null only for fund payments, accountId only for guests, never both.
     check("payments_has_payer", sql`${t.memberId} IS NOT NULL OR ${t.accountId} IS NOT NULL`),
   ],

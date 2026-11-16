@@ -1,5 +1,5 @@
 import { requirePermission, requireRole, WRITERS } from "@/modules/spaces/application";
-import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
+import { currencyOf, domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import { openAccount, type AccountType, type AttributeChanges } from "../domain/account";
 import { todayFor, toView, type AccountView } from "./account-view";
 import { minorIn, termsIn, type TermsInput } from "./currency";
@@ -11,6 +11,8 @@ export interface CreateAccountInput {
   readonly name: string;
   readonly type: AccountType;
   readonly openingBalance: Money;
+  /** D29, slice MC3: the account's own ISO 4217 currency; the space's when absent (UnknownCurrency otherwise). */
+  readonly currency?: string;
   readonly attributes?: AttributeChanges;
   readonly terms?: TermsInput;
 }
@@ -31,9 +33,16 @@ export const createCreateAccount =
       const allowed = input.type === "SHARED_FUND" ? requirePermission(writer.value, "fund.manage") : writer;
       if (!allowed.ok) return allowed;
       const space = allowed.value;
-      const openingBalance = minorIn(space.currency, input.openingBalance);
+      // D29, slice MC3: a new account takes the currency it is given (a known ISO 4217 code), the space's by default.
+      let accountCurrency = space.currency;
+      if (input.currency !== undefined) {
+        const known = currencyOf(input.currency);
+        if (!known.ok) return known;
+        accountCurrency = known.value.code;
+      }
+      const openingBalance = minorIn(accountCurrency, input.openingBalance);
       if (!openingBalance.ok) return openingBalance;
-      const terms = termsIn(space.currency, input.terms);
+      const terms = termsIn(accountCurrency, input.terms);
       if (!terms.ok) return terms;
       const account = openAccount({
         id: deps.ids.next<"Account">(),
@@ -42,6 +51,7 @@ export const createCreateAccount =
         ownerUserId: input.userId,
         name: input.name,
         type: input.type,
+        currency: accountCurrency,
         openingBalance: openingBalance.value,
         attributes: input.attributes,
         terms: terms.value,
@@ -53,5 +63,5 @@ export const createCreateAccount =
       if (!(await deps.accounts.addUnlessNameTaken(account.value)))
         return err(domainError("AccountNameTaken"));
       // A new account has no movements yet.
-      return ok(toView(account.value, space.currency, await todayFor(deps, input.userId)));
+      return ok(toView(account.value, await todayFor(deps, input.userId)));
     });

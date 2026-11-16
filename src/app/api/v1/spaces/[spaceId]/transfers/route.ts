@@ -20,12 +20,20 @@ export const POST = defineRoute({
     if (!amount.ok) return amount;
     const when = whenFromBody(body);
     if (!when.ok) return when;
+    // D29, section 4.1: "Llega" in the destination account's own currency, when the person gave one.
+    let destinationAmount: typeof amount.value | undefined;
+    if (body.destinationAmount !== undefined) {
+      const arrive = moneyFromDto(body.destinationAmount);
+      if (!arrive.ok) return arrive;
+      destinationAmount = arrive.value;
+    }
     const result = await getContainer().ledger.recordTransfer({
       spaceId: params.spaceId!,
       userId: user!.id,
       description: body.description,
       ...when.value,
       amount: amount.value,
+      ...(destinationAmount === undefined ? {} : { destinationAmount }),
       sourceAccountId: body.sourceAccountId,
       destinationAccountId: body.destinationAccountId,
     });

@@ -84,10 +84,10 @@ describe("RecordExpense (HU-E4-01)", () => {
     expect(codeOf(await record({ ...market, accountId: "acc-unknown" }))).toBe("AccountNotFound");
   });
 
-  it("rejects a currency other than the space currency", async () => {
+  it("needs a rate or a converted amount for a currency other than the space currency (D29, MC3)", async () => {
     const { deps } = ledgerFixture();
     expect(codeOf(await createRecordExpense(deps)({ ...market, amount: money(100n, "USD") }))).toBe(
-      "CurrencyMismatch",
+      "ExchangeRateRequired",
     );
   });
 

@@ -18,12 +18,6 @@ export const createRestoreAccount =
       if (!target.ok) return target;
       const restored = restoreAccount(target.value.account);
       await deps.accounts.save(restored);
-      const [view] = await withBalances(
-        deps.movements,
-        [restored],
-        target.value.space.currency,
-        null,
-        await todayFor(deps, input.userId),
-      );
+      const [view] = await withBalances(deps.movements, [restored], null, await todayFor(deps, input.userId));
       return ok(view!);
     });

@@ -154,13 +154,19 @@ export function TransactionSheet({
   const addAccount = (term: string, value: string) => {
     if (value) accounts.push([term, value]);
   };
+  // D29, slice MC3 (boards 9 and 10): a leg in its own currency is shown beside its account ("Chase · US$ 100").
+  const withLeg = (value: string, leg: TransactionDto["sourceAmount"]) =>
+    value && leg ? `${value} · ${formatMoney(leg, formats)}` : value;
   if (tx.type === "EXPENSE")
     addAccount(t("form.account"), paid ? accountOf(paid.accountId, paid.memberId) : "");
   else if (tx.type === "INCOME")
-    addAccount(t("form.receivingAccount"), accountOf(tx.destinationAccountId, tx.receivingMemberId));
+    addAccount(
+      t("form.receivingAccount"),
+      withLeg(accountOf(tx.destinationAccountId, tx.receivingMemberId), tx.destinationAmount),
+    );
   else if (tx.type === "TRANSFER") {
-    addAccount(t("form.from"), accountOf(tx.sourceAccountId, tx.payerMemberId));
-    addAccount(t("form.to"), accountOf(tx.destinationAccountId, null));
+    addAccount(t("form.from"), withLeg(accountOf(tx.sourceAccountId, tx.payerMemberId), tx.sourceAmount));
+    addAccount(t("form.to"), withLeg(accountOf(tx.destinationAccountId, null), tx.destinationAmount));
   } else {
     addAccount(t("form.from"), labelOf(tx.payerMemberId));
     addAccount(t("form.to"), labelOf(tx.receivingMemberId));
@@ -223,6 +229,10 @@ export function TransactionSheet({
           {formatDate(tx.date, formats)} · {time}
         </Definition>
         {category ? <Definition term={t("form.category")}>{category}</Definition> : null}
+        {/* D29, slice MC3 (board 9): the amount above is in the base currency; this is what was charged in its own. */}
+        {tx.originalAmount ? (
+          <Definition term={t("detail.originalAmount")}>{formatMoney(tx.originalAmount, formats)}</Definition>
+        ) : null}
         {accounts.map(([term, value]) => (
           <Definition key={term} term={term}>
             {value}

@@ -53,6 +53,13 @@ export class DrizzleTransactionRepository implements TransactionRepository {
         timeZone: transaction.timeZone,
         categoryId: transaction.categoryId,
         amount: transaction.amount,
+        // D29, slice MC3: the original and leg amounts move with the row (null when they equal the base amount).
+        originalAmount: row.originalAmount,
+        originalCurrency: row.originalCurrency,
+        sourceAmount: row.sourceAmount,
+        destinationAmount: row.destinationAmount,
+        sourceCurrency: row.sourceCurrency,
+        destinationCurrency: row.destinationCurrency,
         // P186: an edit may move an income's or a transfer's accounts; an expense keeps both null (transactions_shape).
         sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId,

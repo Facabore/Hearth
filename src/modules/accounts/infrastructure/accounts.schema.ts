@@ -36,6 +36,9 @@ export const accounts = pgTable(
     name: text("name").notNull(),
     type: text("type", { enum: ACCOUNT_TYPES }).notNull(),
     ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "cascade" }),
+    // D29, slice MC3: the account's own currency (ISO 4217); the migration back-fills it with the space's, and every
+    // account still holds its space's currency until a later slice lets a person pick a different one.
+    currency: text("currency").notNull(),
     openingBalance: bigint("opening_balance", { mode: "bigint" }).notNull(),
     archivedAt: tz("archived_at"),
     // HU-E2-05: optional common attributes; a null icon means the type's default (ruling P50).

@@ -662,7 +662,7 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": `SpaceNotFound, OccurrenceNotFound, ${TEMPLATE_404}`,
           "409": `OccurrenceNotPending, PeriodClosed, ${TEMPLATE_409}, SpaceArchived, IdempotencyKeyConflict`,
-          "422": `ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, ${TEMPLATE_422}`,
+          "422": `ValidationFailed, InvalidAmount, InvalidDate, InvalidOccurrenceDate, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, ExchangeRateRequired, ${TEMPLATE_422}`,
         }),
       },
     },

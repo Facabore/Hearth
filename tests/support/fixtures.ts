@@ -41,6 +41,7 @@ export const accountFixture = async (
   space: SpaceFixture,
   name: string,
   openingBalance = 0n,
+  currency = "COP",
 ): Promise<string> => {
   const id = randomUUID();
   await new DrizzleAccountRepository(new DrizzleTransactionManager(db)).add({
@@ -49,6 +50,8 @@ export const accountFixture = async (
     name,
     type: "BANK",
     ownerUserId: space.userId,
+    // D29, slice MC3: the account's own currency, the space's (COP) by default; overridable to prove the view's rewire.
+    currency,
     openingBalance,
     archivedAt: null,
     createdAt: new Date(),
@@ -138,6 +141,7 @@ export const fundAccountFixture = async (
   spaceId: string,
   name = "Household Fund",
   openingBalance = 0n,
+  currency = "COP",
 ): Promise<string> => {
   const id = randomUUID();
   await new DrizzleAccountRepository(new DrizzleTransactionManager(db)).add({
@@ -146,6 +150,8 @@ export const fundAccountFixture = async (
     name,
     type: "SHARED_FUND",
     ownerUserId: null,
+    // D29, slice MC3: the account's own currency, the shared space's (COP) by default.
+    currency,
     openingBalance,
     archivedAt: null,
     createdAt: new Date(),

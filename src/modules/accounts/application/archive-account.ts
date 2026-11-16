@@ -18,12 +18,6 @@ export const createArchiveAccount =
       if (!target.ok) return target;
       const archived = archiveAccount(target.value.account, deps.clock.now());
       await deps.accounts.save(archived);
-      const [view] = await withBalances(
-        deps.movements,
-        [archived],
-        target.value.space.currency,
-        null,
-        await todayFor(deps, input.userId),
-      );
+      const [view] = await withBalances(deps.movements, [archived], null, await todayFor(deps, input.userId));
       return ok(view!);
     });
