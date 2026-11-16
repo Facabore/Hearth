@@ -33,8 +33,9 @@ export interface ExportSpaceSummary {
 
 /**
  * Design §3.6: what the export reads, through the other modules' own use cases. Every read is for one space the person
- * belongs to and answers what that person may read there. `members` is the authorization point: it is read first, and
- * nothing else of a space is read unless it succeeded (`movements` reads the ledger's query, which checks nothing).
+ * belongs to and answers what that person may read there. `members` is read first, and nothing else of a space is read
+ * unless it succeeded; `movements`, which reads the ledger's own query (it checks nothing), checks the caller's access
+ * again itself, so it never depends on that order.
  */
 export interface ExportReader {
   spacesOf(userId: string): Promise<Result<readonly ExportSpaceSummary[]>>;

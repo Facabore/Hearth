@@ -256,8 +256,11 @@ export const createExportReader = (deps: ExportReaderDeps): ExportReader => ({
     );
   },
 
-  // Authorized by `members`, which the export reads first for every space (ExportReader).
-  async movements(spaceId) {
+  // The ledger query below checks nothing, so this read checks the caller's access itself (D9), even though the
+  // export also reads `members` first: a caller that skips that step still gets no movement.
+  async movements(spaceId, userId) {
+    const access = await deps.listMembers({ spaceId, userId });
+    if (!access.ok) return access;
     const movements: ExportMovementSource[] = [];
     let after = null;
     for (;;) {
