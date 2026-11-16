@@ -1138,7 +1138,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409":
         "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, InvalidPaidForFund, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported`,
     },
     RecordedExpenseSchema,
   ),
@@ -1149,7 +1149,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, CategoryNotFound, AccountNotFound",
       "409": "AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, CategoryRequired, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transfers": recording(
@@ -1159,7 +1159,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "SameAccountTransfer, AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
-      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, InvalidTransferAmounts`,
     },
   ),
   "/api/v1/spaces/{spaceId}/fund-contributions": recording(
@@ -1170,7 +1170,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409":
         "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, SameAccountTransfer, GuestHasNoAccounts",
-      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, AccountNotOwned, AccountRequired, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
     },
   ),
   "/api/v1/spaces/{spaceId}/settlements": recording(
@@ -1181,7 +1181,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "404": "SpaceNotFound, AccountNotFound",
       "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict, GuestHasNoAccounts",
       "403": "InsufficientRole, ForgivenessNotAllowed",
-      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+      "422": `${invalidMoney}, AccountNotOwned, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, GiftRequiresOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
     },
   ),
   "/api/v1/spaces/{spaceId}/transactions": {
@@ -1311,7 +1311,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "409":
             "TransactionNotConvertible, PeriodClosed, SpaceArchived, AccountArchived, CategoryArchived, SameAccountTransfer, SharesDoNotMatchAmount, GuestHasNoAccounts, MixedFundPayment",
           "412": "PreconditionFailed",
-          "422": `${invalidMoney}, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+          "422": `${invalidMoney}, SameTransactionType, CategoryRequired, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, NotASpaceMember, InvalidSplit, InvalidFundAccount, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts`,
         }),
       },
     },
@@ -1358,7 +1358,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, SpaceNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, PeriodClosed, SpaceArchived, GuestHasNoAccounts, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, InvalidSplit (notAPair), AccountNotOwned, NotASpaceMember, InvalidSettlementParties, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
         }),
       },
     },
@@ -1382,7 +1382,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "404": "MemberNotFound, SpaceNotFound, CategoryNotFound, AccountNotFound",
           "409":
             "MemberNameTaken, AccountArchived, CategoryArchived, PeriodClosed, SpaceArchived, SharesDoNotMatchAmount, GuestHasNoAccounts, IdempotencyKeyConflict",
-          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember`,
+          "422": `${invalidMoney}, InvalidMemberName, InvalidDirectCounterpart, AccountNotOwned, DateTimeMismatch, TimeRequired, InvalidTimeZone, InvalidSplit (shareNotPositive, othersPaidByCounterpart, accountWithCounterpart, viewerPayer, notAPair), ParticipantsRequired, AccountRequired, NotASpaceMember, ExchangeRateRequired`,
         }),
       },
     },

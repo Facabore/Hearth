@@ -193,6 +193,17 @@ describe("recording in another currency (D29, MC3)", () => {
     expect(await balanceOf(ana, usdWallet)).toEqual(usd(100));
   });
 
+  it("answers 422 ExchangeRateRequired for a USD expense with no rate and no converted amount (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const response = await post(recordExpense, ana, "expenses", {
+      amount: usd(100),
+      date: "2026-10-05",
+      categoryId: ana.groceries,
+      accountId: ana.bancolombia,
+    });
+    expect([response.status, (await response.json()).code]).toEqual([422, "ExchangeRateRequired"]);
+  });
+
   /** 2035-03-14, far past every other test's dates, so the rate it stores converts only these movements. */
   const RATE_DAY = "2035-03-14";
   const usdWalletOf = async (ana: LedgerUser): Promise<string> => {

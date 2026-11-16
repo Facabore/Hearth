@@ -13,6 +13,12 @@ describe("statusForCode", () => {
     ["NotASpaceMember", 422],
     ["UnknownCurrency", 422],
     ["CurrencyMismatch", 422],
+    // D29, slice MC3: what the request asks cannot be recorded as sent; the person changes it.
+    ["ExchangeRateRequired", 422],
+    ["MultiCurrencyUnsupported", 422],
+    ["InvalidTransferAmounts", 422],
+    ["InvalidTransferLeg", 422],
+    ["InvalidOriginalAmount", 422],
     ["CategoryRequired", 422],
     ["InvalidSettlementParties", 422],
     ["SettlementHasNoCategory", 409],
