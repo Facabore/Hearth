@@ -225,6 +225,9 @@ import {
   type ReferralsDeps,
 } from "@/modules/referrals/application";
 import { cryptoReferralRandom } from "@/modules/referrals/infrastructure/crypto-referral-random";
+import { createExportPersonData, type ExportPersonData } from "@/modules/portability/application";
+import { createExportReader } from "@/modules/portability/infrastructure/export-reader";
+import { zipStored } from "@/modules/portability/infrastructure/zip-writer";
 import type { ExchangeRateRepository } from "@/modules/rates/application";
 import { DrizzleExchangeRates } from "@/modules/rates/infrastructure/drizzle-exchange-rates";
 import { DrizzleReferrals } from "@/modules/referrals/infrastructure/drizzle-referrals";
@@ -452,6 +455,10 @@ export interface Container extends RouteDeps {
     readonly preview: PreviewReferral;
     readonly claim: ClaimReferrer;
   };
+  /** D28, design §3.6: the person's data export. */
+  readonly portability: {
+    readonly exportPersonData: ExportPersonData;
+  };
   /** D30: the global daily exchange-rate store, read on demand and written by the in-container fetch job. */
   readonly rates: {
     readonly repository: ExchangeRateRepository;
@@ -477,6 +484,7 @@ const DEFAULT_AUTH_LIMITS: AuthLimits = { signInPerEmail: 10, signInPerIp: 30, s
 const INSTALLATION_DEFAULT_LOCALE = "es";
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const ONE_HOUR = 60 * 60 * 1000;
+const ONE_MINUTE = 60 * 1000;
 
 export interface ContainerOptions {
   /** Test seam: replaces the post-sign-up provisioning step. */
@@ -490,6 +498,8 @@ export interface ContainerOptions {
   readonly clock?: Clock;
   /** Test seam: the installation's defaults and locks (HU-E1-15); the built-in es-CO rules until HU-E8-18. */
   readonly installationRules?: InstallationRulesReader;
+  /** Exports per person per minute (design §3.6); 5 by default. */
+  readonly exportsPerMinute?: number;
 }
 
 /**
@@ -973,6 +983,37 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // The SPA's link page (`/r/<code>`); the URL carries only the code.
     referralUrl: (code) => new URL(`/r/${code}`, env.BETTER_AUTH_URL).toString(),
   };
+  // D28, design §3.6: the export reads through each module's own use cases, which authorize every read again.
+  const exportsByUser = createFixedWindowLimiter({
+    limit: options.exportsPerMinute ?? 5,
+    windowMs: ONE_MINUTE,
+  });
+  const exportPersonData = createExportPersonData({
+    reader: createExportReader({
+      listMySpaces: createListMySpaces(spaceRepository),
+      listMembers: createListMembers(membersDeps),
+      listAccounts,
+      listCategories: createListCategories({ ...categoriesDeps, counts: categoryUsageCountsOf(tm) }),
+      listRecurrences: createListRecurrences(recurrenceDeps),
+      getPlan: createGetBudgetPlan(budgetingDeps),
+      transactions: ledgerQueries,
+      // Ruling P306's read of every member row, former ones included, as the activity feed binds it.
+      memberNamesIn: (spaceIds) => spaceRepository.namesIn(spaceIds),
+      // Each stored plan period has exactly one plan (D10).
+      planIdsOf: async (spaceId) => {
+        const plans = await Promise.all(
+          (await budgetPlans.storedPeriods(spaceId)).map((period) =>
+            budgetPlans.covering(spaceId, period.start),
+          ),
+        );
+        return plans.flatMap((plan) => (plan === null ? [] : [plan.id]));
+      },
+    }),
+    archive: zipStored,
+    throttle: { allows: (userId) => exportsByUser.hit(userId) },
+    clock,
+    userTimeZones: profiles,
+  });
   const limits = options.authLimits ?? DEFAULT_AUTH_LIMITS;
   const signInByEmail = createFixedWindowLimiter({ limit: limits.signInPerEmail, windowMs: FIFTEEN_MINUTES });
   const signInByIp = createFixedWindowLimiter({ limit: limits.signInPerIp, windowMs: FIFTEEN_MINUTES });
@@ -1228,6 +1269,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       preview: createPreviewReferral(referralsDeps),
       claim: createClaimReferrer(referralsDeps),
     },
+    portability: { exportPersonData },
     rates: {
       repository: new DrizzleExchangeRates(tm),
     },

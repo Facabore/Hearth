@@ -207,6 +207,7 @@ The file is untrusted: at most 20 MB, read in memory by a WebAssembly SQLite rea
 - **JSON** carries a format version, spaces, accounts (with currency and terms), category groups, categories, movements with their payments and shares, recurrences, plans and their lines. It is Hearth's own import source too.
 - **CSV** is a ZIP with `movements.csv`, `accounts.csv` and `categories.csv`, one row per movement, decimal amounts with a dot and their currency code, ISO dates and instants, so any spreadsheet reads it whatever the person's display formats (D23 formats stay in the interface).
 - Rate-limited, and recorded in the person's security log.
+- As built (#327): `format` defaults to `json`. The limit is 5 exports per person per minute, answering 429 `TooManyRequests`. Hearth has no security log yet, so for now an export is not recorded anywhere; that waits for the log. A payment or share by a member who has since left still carries their display name (D15). The CSV's account column names the person's own accounts and the space's shared fund, and never another member's personal account.
 
 ## 4. Multi-currency (D29, D30)
 

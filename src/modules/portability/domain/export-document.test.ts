@@ -40,8 +40,8 @@ const household: ExportSpaceSource = {
   role: "OWNER",
   archived: false,
   members: [
-    { id: "m-ana", displayName: "Ana", role: "OWNER", guest: false, you: true },
-    { id: "m-juan", displayName: "Juan", role: "MEMBER", guest: false, you: false },
+    { id: "m-ana", displayName: "Ana", role: "OWNER", guest: false, you: true, current: true },
+    { id: "m-juan", displayName: "Juan", role: null, guest: false, you: false, current: false },
   ],
   accounts: [],
   categoryGroups: [
@@ -114,6 +114,13 @@ describe("exportDocument (design §3.6, D9)", () => {
       },
     ]);
     expect(JSON.stringify(exported)).not.toContain("acc-juan");
+  });
+
+  it("lists only current members, and still names a former member's payments and shares (D15)", () => {
+    const space = exported.spaces[0]!;
+    expect(space.members.map((m) => m.name)).toEqual(["Ana"]);
+    expect(space.movements[0]!.payments[0]!.member).toEqual({ memberId: "m-juan", name: "Juan" });
+    expect(space.movements[0]!.shares.map((s) => s.member.name)).toEqual(["Ana", "Juan"]);
   });
 
   it("writes the time on the recorder's clock, the instant in RFC 3339 and the category with its group and parent", () => {

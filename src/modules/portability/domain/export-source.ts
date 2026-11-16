@@ -28,6 +28,11 @@ export interface ExportMemberSource {
   readonly guest: boolean;
   /** Whether this member is the person exporting. */
   readonly you: boolean;
+  /**
+   * False for a member who left or was removed (D15): their row stays for the history, so their payments and shares
+   * still carry their name, but they are not listed among the space's members.
+   */
+  readonly current: boolean;
 }
 
 export interface ExportAccountSource {

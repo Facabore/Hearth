@@ -1618,6 +1618,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Everything the caller can see in Hearth, as JSON or as a ZIP of CSV files
+         * @description The caller's personal space and every shared or direct space they currently belong to, or only `spaceId`. Another member's personal account never appears: a payment from it shows only the member's name (D9). Amounts are minor-unit strings with their currency in JSON and plain decimals with a dot in CSV. The CSV ZIP holds movements.csv, accounts.csv and categories.csv, UTF-8 with a BOM. Each person may export a few times per minute (429 TooManyRequests).
+         */
+        get: operations["exportMyData"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1881,6 +1901,204 @@ export interface components {
                 code: "FundBalanceNegative";
                 accountId: string;
                 balance: components["schemas"]["MoneyOutput"];
+            }[];
+        };
+        /** @description Hearth's JSON export, version 1; also an import source (design §3.4). */
+        HearthExport: {
+            /** @constant */
+            format: "hearth-export";
+            /** @constant */
+            version: 1;
+            /** Format: date-time */
+            exportedAt: string;
+            person: {
+                name: string;
+                locale: string;
+                timeZone: string;
+            };
+            spaces: {
+                id: string;
+                name: string;
+                /** @enum {string} */
+                kind: "PERSONAL" | "SHARED" | "DIRECT";
+                currency: string;
+                periodPolicy: {
+                    /** @constant */
+                    kind: "MONTHLY";
+                    day: number;
+                } | {
+                    /** @constant */
+                    kind: "SEMI_MONTHLY";
+                    day1: number;
+                    day2: number;
+                };
+                role: string | null;
+                archived: boolean;
+                members: {
+                    id: string;
+                    name: string;
+                    role: string | null;
+                    guest: boolean;
+                    you: boolean;
+                }[];
+                accounts: {
+                    id: string;
+                    name: string;
+                    type: string;
+                    currency: string;
+                    openingBalance: components["schemas"]["MoneyOutput"];
+                    terms: {
+                        creditLimit: components["schemas"]["MoneyOutput"] | null;
+                        cutOffDay: number | null;
+                        paymentDay: number | null;
+                        monthlyRatePpm: number | null;
+                        annualRatePpm: number | null;
+                        termDays: number | null;
+                        maturityDate: string | null;
+                        principal: components["schemas"]["MoneyOutput"] | null;
+                        termMonths: number | null;
+                    };
+                    archived: boolean;
+                }[];
+                categoryGroups: {
+                    id: string;
+                    name: string;
+                    key: string | null;
+                    archived: boolean;
+                    categories: {
+                        id: string;
+                        name: string;
+                        key: string | null;
+                        archived: boolean;
+                        subcategories: {
+                            id: string;
+                            name: string;
+                            key: string | null;
+                            archived: boolean;
+                        }[];
+                    }[];
+                }[];
+                movements: {
+                    id: string;
+                    /** @enum {string} */
+                    type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                    /** Format: date */
+                    date: string;
+                    /** @description HH:MM on the recorder's clock; null without a time. */
+                    time: string | null;
+                    timeZone: string | null;
+                    occurredAt: string | null;
+                    description: string;
+                    category: {
+                        id: string;
+                        name: string;
+                        group: string;
+                        parent: string | null;
+                    } | null;
+                    amount: components["schemas"]["MoneyOutput"];
+                    payments: {
+                        member: {
+                            memberId: string;
+                            name: string | null;
+                        } | null;
+                        /** @description One of the caller's own accounts or the space's shared fund; null for any other account, such as another member's personal account (D9). */
+                        account: {
+                            id: string;
+                            name: string;
+                        } | null;
+                        amount: components["schemas"]["MoneyOutput"];
+                    }[];
+                    shares: {
+                        /** @description A member by display name; the name is null for a member no longer in the space. */
+                        member: {
+                            memberId: string;
+                            name: string | null;
+                        };
+                        amount: components["schemas"]["MoneyOutput"];
+                        splitMethod: string;
+                    }[];
+                    payer: {
+                        memberId: string;
+                        name: string | null;
+                    } | null;
+                    receiver: {
+                        memberId: string;
+                        name: string | null;
+                    } | null;
+                    /** @description One of the caller's own accounts or the space's shared fund; null for any other account, such as another member's personal account (D9). */
+                    sourceAccount: {
+                        id: string;
+                        name: string;
+                    } | null;
+                    /** @description One of the caller's own accounts or the space's shared fund; null for any other account, such as another member's personal account (D9). */
+                    destinationAccount: {
+                        id: string;
+                        name: string;
+                    } | null;
+                    settlementReason: string | null;
+                }[];
+                recurrences: {
+                    id: string;
+                    type: string;
+                    description: string;
+                    amount: components["schemas"]["MoneyOutput"];
+                    mode: string;
+                    schedule: {
+                        /** @constant */
+                        kind: "MONTHLY";
+                        day: number;
+                    } | {
+                        /** @constant */
+                        kind: "SEMI_MONTHLY";
+                        day1: number;
+                        day2: number;
+                    };
+                    /** Format: date */
+                    startDate: string;
+                    endDate: string | null;
+                    status: string;
+                    nextOccurrence: string | null;
+                    categoryId: string | null;
+                    payer: {
+                        memberId: string;
+                        name: string | null;
+                    } | null;
+                    /** @description One of the caller's own accounts or the space's shared fund; null for any other account, such as another member's personal account (D9). */
+                    sourceAccount: {
+                        id: string;
+                        name: string;
+                    } | null;
+                    /** @description One of the caller's own accounts or the space's shared fund; null for any other account, such as another member's personal account (D9). */
+                    destinationAccount: {
+                        id: string;
+                        name: string;
+                    } | null;
+                }[];
+                plans: {
+                    id: string;
+                    period: {
+                        label: string;
+                        /** Format: date */
+                        startDate: string;
+                        /** Format: date */
+                        endDate: string;
+                    };
+                    status: string;
+                    lines: {
+                        id: string;
+                        name: string;
+                        plannedAmount: components["schemas"]["MoneyOutput"];
+                        funding: string;
+                        rolloverMode: string;
+                        isCatchAll: boolean;
+                        allocationRule: string;
+                        categoryIds: string[];
+                        payers: {
+                            memberId: string;
+                            name: string | null;
+                        }[];
+                    }[];
+                }[];
             }[];
         };
         Invitation: {
@@ -9537,6 +9755,67 @@ export interface operations {
             };
             /** @description ValidationFailed */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    exportMyData: {
+        parameters: {
+            query?: {
+                format?: "json" | "csv";
+                /** @description Only this space, one of the caller's current spaces; any other id answers 404 SpaceNotFound. */
+                spaceId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description An attachment named hearth-export-YYYY-MM-DD.json or .zip, dated in the caller's time zone */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HearthExport"];
+                    "application/zip": string;
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TooManyRequests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

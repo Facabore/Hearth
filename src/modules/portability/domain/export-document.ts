@@ -16,7 +16,7 @@ export interface MoneyValue {
 /** A member as the export names them: by display name, never by anything of their own accounts (D9). */
 export interface MemberRef {
   readonly memberId: string;
-  /** Null for a member who is no longer in the space. */
+  /** Their display name, a former member's too (D15); null only for an id the space never had. */
   readonly name: string | null;
 }
 
@@ -209,13 +209,15 @@ const exportedSpace = (
     periodPolicy: space.periodPolicy,
     role: space.role,
     archived: space.archived,
-    members: space.members.map((m) => ({
-      id: m.id,
-      name: m.displayName,
-      role: m.role,
-      guest: m.guest,
-      you: m.you,
-    })),
+    members: space.members
+      .filter((m) => m.current)
+      .map((m) => ({
+        id: m.id,
+        name: m.displayName,
+        role: m.role,
+        guest: m.guest,
+        you: m.you,
+      })),
     accounts: space.accounts.map((a) => ({
       id: a.id,
       name: a.name,

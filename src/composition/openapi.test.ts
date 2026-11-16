@@ -30,6 +30,23 @@ describe("OpenAPI document", () => {
     expect(doc.components).toEqual(committed.components);
   });
 
+  it("documents the export as Hearth's JSON or a ZIP, with the caller's own space as its only filter (D28)", () => {
+    const operation = doc.paths["/api/v1/me/export"]?.get as {
+      parameters: { name: string; in: string }[];
+      responses: Record<string, { content?: Record<string, unknown> }>;
+    };
+    expect(operation.parameters.map((p) => [p.name, p.in])).toEqual([
+      ["format", "query"],
+      ["spaceId", "query"],
+    ]);
+    expect(Object.keys(operation.responses["200"]?.content ?? {})).toEqual([
+      "application/json",
+      "application/zip",
+    ]);
+    expect(Object.keys(operation.responses)).toEqual(expect.arrayContaining(["401", "404", "422", "429"]));
+    expect(doc.components.schemas.HearthExport).toBeDefined();
+  });
+
   it("registers the recurrence components of M3-C, and no Output variant of them", () => {
     const names = Object.keys(doc.components.schemas);
     expect(names).toEqual(expect.arrayContaining(["RecurrenceDefinition", "Recurrence", "Occurrence"]));
