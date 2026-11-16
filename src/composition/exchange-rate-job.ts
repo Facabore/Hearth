@@ -65,6 +65,7 @@ export const startExchangeRateJob = (deps: ExchangeRateJobDeps, intervalMs: numb
   deps.scheduler.every(intervalMs, async () => {
     const fetchedAt = deps.clock.now();
     for (const source of deps.sources) {
+      // The history is its own step: a failure there (a timeout on the large save) never costs the day's rate.
       try {
         const earliest = await deps.repository.earliestDate(source.key);
         if (earliest === null || earliest > historyDeadline(deps.historyFrom)) {
@@ -86,7 +87,12 @@ export const startExchangeRateJob = (deps: ExchangeRateJobDeps, intervalMs: numb
             });
           }
         }
+      } catch (error) {
+        const { error: name, ...database } = failureOf(error);
+        deps.logger.error("exchange_rate_history_failed", { source: source.key, name, ...database });
+      }
 
+      try {
         const result = await source.fetch();
         if (!result.ok) {
           // Expected and recoverable: the previous day's rate carries over via rateOn's on-or-before lookup.

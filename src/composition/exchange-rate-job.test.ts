@@ -314,4 +314,44 @@ describe("startExchangeRateJob", () => {
       code: "ExchangeRateSourceUnavailable",
     });
   });
+
+  it("still stores the day when saving the history throws, and names that failure apart", async () => {
+    const { scheduler, run } = capturingScheduler();
+    const saved: StoredRate[] = [];
+    const repository: ExchangeRateRepository = {
+      save: async (rates) => {
+        if (rates.some((r) => r.date === "2015-01-02")) throw new Error("statement timeout");
+        saved.push(...rates);
+      },
+      rateOn: async () => err(domainError("NoExchangeRate", {})),
+      earliestDate: async () => null,
+    };
+    const trm = source(
+      "trm",
+      async () =>
+        ok({
+          source: "trm",
+          base: "USD",
+          date: "2026-11-14" as never,
+          rates: [{ quote: "COP", rate: "3316.7" }],
+        }),
+      async () =>
+        ok([
+          {
+            source: "trm",
+            base: "USD",
+            date: "2015-01-02" as never,
+            rates: [{ quote: "COP", rate: "2392.46" }],
+          },
+        ]),
+    );
+    vi.mocked(logger.error).mockClear();
+    startExchangeRateJob(depsWith([trm], repository, scheduler), 86_400_000);
+    await run();
+    expect(saved.map((r) => r.date)).toEqual(["2026-11-14"]);
+    expect(vi.mocked(logger.error)).toHaveBeenCalledWith("exchange_rate_history_failed", {
+      source: "trm",
+      name: "Error",
+    });
+  });
 });
