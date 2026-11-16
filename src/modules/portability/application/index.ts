@@ -35,3 +35,43 @@ export {
   type ExportThrottle,
 } from "./export-person-data";
 export type { ExportDocument } from "../domain/export-document";
+export type {
+  AccountMapping,
+  CategoryMapping,
+  CreatedEntities,
+  ImportBatch,
+  ImportCounts,
+  ImportMappings,
+  ImportStatus,
+} from "../domain/import-batch";
+export { NOTHING_CREATED, SNAPSHOT_RETENTION_DAYS } from "../domain/import-batch";
+export type {
+  HearthAccount,
+  HearthCategory,
+  HearthCategoryGroup,
+  HearthTargets,
+} from "../domain/mapping-proposals";
+export type {
+  HearthMovement,
+  ImportBatchRepository,
+  ImportDeps,
+  ImportEntityType,
+  ImportLink,
+  ImportLinkRepository,
+  ImportWriter,
+  MovementBase,
+  MovementTime,
+  SnapshotReader,
+} from "./import-ports";
+export type { ImportAccountView, ImportCategoryView, ImportView } from "./import-view";
+export { createStartImport, type StartImport } from "./start-import";
+export { createAdjustImport, type AdjustImport, type ImportChanges } from "./adjust-import";
+export { createConfirmImport, type ConfirmImport, type ImportResult } from "./confirm-import";
+export { createUndoImport, type UndoImport, type UndoneImport } from "./undo-import";
+export {
+  createListImports,
+  createRemoveExpiredSnapshots,
+  type ImportSummary,
+  type ListImports,
+  type RemoveExpiredSnapshots,
+} from "./list-imports";

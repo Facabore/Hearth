@@ -267,6 +267,13 @@
       "when": 1794818554919,
       "tag": "0037_transfer_leg_currencies",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794838249653,
+      "tag": "0039_import_batches",
+      "breakpoints": true
     }
   ]
 }
