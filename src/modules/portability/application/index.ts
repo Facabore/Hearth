@@ -21,7 +21,7 @@ export {
   type ImportPreview,
   type PreviewOptions,
 } from "../domain/import-planner";
-export type { SourceAdapter, SourceFile } from "./source-adapter";
+export { MAX_IMPORT_BYTES, type SourceAdapter, type SourceFile } from "./source-adapter";
 export {
   createExportPersonData,
   type Archiver,
