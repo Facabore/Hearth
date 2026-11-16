@@ -15,6 +15,12 @@ import type { ImportPreviewDto } from "./dto";
 import { ImportReviewScreen } from "./import-review-screen";
 import { previewFixture, resultFixture } from "./preview-fixture";
 
+/** The block that pins a screen's main action (#281): sticky at the bottom, the gutter's 16 px above its buttons. */
+const expectPinned = (action: HTMLElement) => {
+  const block = action.closest(".sticky");
+  expect(block).toHaveClass("sticky", "bottom-0", "pt-4", "bg-bg");
+};
+
 const ADJUST = "PATCH /api/v1/spaces/{spaceId}/imports/{importId}";
 const CONFIRM = "POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm";
 const BASE = "/spaces/sp-personal/data/imports/imp-1";
@@ -79,6 +85,28 @@ describe("Revisar importación (D28, board 3)", () => {
     expect(before.getByText("No se importan 2 presupuestos.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Importar 1.237 movimientos" })).toBeEnabled();
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("draws the warnings in board 3's caution tone, and pins Importar at the bottom", () => {
+    renderReview();
+    const card = screen.getByRole("region", { name: "Antes de importar" });
+    // The palette's mustard tint and ink (P135), whose dark pair keeps its contrast; never the debt tone.
+    expect(card).toHaveClass("bg-[var(--pal-mustard-tint)]", "text-[var(--pal-mustard-ink)]");
+    expect(card).not.toHaveClass("bg-owe-soft");
+    expectPinned(screen.getByRole("button", { name: "Importar 1.237 movimientos" }));
+  });
+
+  it("says no later balance adjustment stays out: they import as adjustments (#329)", () => {
+    renderReview(
+      previewFixture({
+        duplicates: [],
+        leftOut: { budgets: 0, zeroAmountMovements: 0 },
+        plan: { ...previewFixture().plan, adjustmentsNotImported: 2, adjustmentsInOpeningBalance: 1 },
+      }),
+    );
+    const card = screen.getByRole("region", { name: "Antes de importar" });
+    expect(card).toHaveTextContent("1 ajuste de saldo pasa al saldo inicial de su cuenta.");
+    expect(card).not.toHaveTextContent(/aún no se importa/);
   });
 
   it("draws no warnings card when nothing stays out, and names an earlier import of the same file", () => {
