@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Transaction } from "@/modules/ledger/application";
-import { movementOnAccount } from "./use-case-import-writer";
+import { domainError, err, ok } from "@/shared/kernel";
+import {
+  createUseCaseImportWriter,
+  movementOnAccount,
+  type UseCaseImportWriterSources,
+} from "./use-case-import-writer";
 
 const base = {
   id: "t",
@@ -45,5 +50,33 @@ describe("movementOnAccount (design §3.1)", () => {
       incoming: true,
     });
     expect(movementOnAccount(transfer, "other")).toBeNull();
+  });
+});
+
+describe("creating an imported category (D22)", () => {
+  const writerWith = (createCategory: UseCaseImportWriterSources["createCategory"]) =>
+    createUseCaseImportWriter({ createCategory } as unknown as UseCaseImportWriterSources);
+  const input = { spaceId: "s", userId: "u", groupId: "g", name: "Guitarra", emoji: "🎸" };
+
+  it("creates it without its emoji when the categories module refuses the emoji as an icon", async () => {
+    const createCategory = vi
+      .fn()
+      .mockResolvedValueOnce(err(domainError("InvalidCategoryIcon")))
+      .mockResolvedValueOnce(ok({ id: "c1" }));
+    expect(await writerWith(createCategory).createCategory(input)).toEqual(ok("c1"));
+    expect(createCategory).toHaveBeenLastCalledWith({
+      spaceId: "s",
+      userId: "u",
+      groupId: "g",
+      name: "Guitarra",
+    });
+  });
+
+  it("never retries any other refusal", async () => {
+    const createCategory = vi.fn().mockResolvedValue(err(domainError("CategoryNameTaken")));
+    expect(await writerWith(createCategory).createCategory(input)).toEqual(
+      err(domainError("CategoryNameTaken")),
+    );
+    expect(createCategory).toHaveBeenCalledTimes(1);
   });
 });

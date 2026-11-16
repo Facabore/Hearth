@@ -440,6 +440,20 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
     expect(((await response.json()) as Preview).duplicates).toEqual(["t2"]);
   });
 
+  it("replays the first answer to a confirm sent again with the same idempotency key, importing nothing twice", async () => {
+    const ana = await registerUser("Ana");
+    const preview = await uploaded(ana);
+    const key = crypto.randomUUID();
+    const first = await confirm(ana, preview.id, key);
+    const before = await liveMovements(ana.spaceId);
+
+    const again = await confirm(ana, preview.id, key);
+
+    expect([first.status, again.status]).toEqual([200, 200]);
+    expect(await again.json()).toEqual(await first.json());
+    expect(await liveMovements(ana.spaceId)).toBe(before);
+  });
+
   it("refuses a second confirm of the same draft with 409 ImportNotDraft", async () => {
     const ana = await registerUser("Ana");
     const { preview } = await imported(ana);
