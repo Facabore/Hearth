@@ -2,11 +2,11 @@
 
 Every decision Hearth has made, in one place. There are three kinds, and each lives where it was decided:
 
-- **Design decisions (D1–D25)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
+- **Design decisions (D1–D30)** are in the [design spec](../specs/2026-10-11-hearth-design.md#6-key-decisions), section 6.
 - **ADRs** record a technology choice: [`docs/adr/`](#adrs).
 - **Rulings (P1–P256)** are execution rulings the controller made while a milestone plan was written or run. Each lives in its plan's Self-Review; this page indexes them.
 
-## Design decisions D1–D27
+## Design decisions D1–D30
 
 Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026-10-11-hearth-design.md#6-key-decisions).
 
@@ -39,6 +39,9 @@ Rationale and rejected alternatives are in [section 6 of the spec](../specs/2026
 | D25 | A movement's type changes by conversion, never by edit: the new expense, income or transfer is recorded through its own use case and the original soft-deleted in one transaction, linked both ways in the audit (`convertedTo`, `convertedFrom`), with an atomic undo; settlements never convert; a personal space converts among the three, and a shared space between an expense and a contribution to its fund (the owner's ruling). Issue #195, 2026-10-27. |
 | D26 | A plan line may name the members who usually pay it, for every month or its period only, changed by OWNER, ADMIN or its payers. With a shared fund, a payer's expense on it is recorded as their contribution plus the fund's payment, two linked movements, so it counts toward what they owe the fund and creates no debt; without a fund the payers only preselect who paid. Issue #316, 2026-11-14; the owner left the model to the controller ("Optemos por lo que mejor veas óptimo a nivel usuario"). |
 | D27 | Referrals: each user has one referral link; an account created through it within 24 hours is that user's referral (one referrer, never oneself), and earns them one point once its email is verified. Points are counted on read and buy nothing yet; the referrer sees first names and dates, never emails. Owner, 2026-11-14; boards approved "Aprobados". |
+| D28 | Import from other apps through one `SourceAdapter` port per app (Money Manager first), a preview that writes nothing, mappings, a one-transaction commit through the existing use cases, source links for safe re-imports, and undo; export to JSON and CSV of what the person can see. Design: `docs/design/2026-11-15-import-export-and-multi-currency.md`. Owner, 2026-11-15, left the open questions to the controller: "Lo que consideres pertinente, ya luego lo vamos viendo". |
+| D29 | Multi-currency, superseding D6's one currency per space and P37: accounts in any currency, a space's currency becomes its base currency, a foreign movement keeps its original amount and per-account amounts and fixes its base amount when recorded, and totals and the unified view convert on read into each person's display currency. |
+| D30 | Exchange rates are public daily facts in one global table, fetched daily through an `ExchangeRateSource` port and never rewritten; conversion is the kernel's, exact and half-even; a rate typed on a movement wins; sources are the TRM for COP and the ECB for the rest. |
 
 ## ADRs
 
