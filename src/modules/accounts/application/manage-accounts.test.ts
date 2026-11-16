@@ -73,6 +73,41 @@ const setup = (net: Record<string, bigint> = {}) => {
   };
 };
 
+describe("editing an account in its own currency (D29, slice MC3)", () => {
+  const withForeign = () => {
+    const world = setup();
+    world.accounts.rows.push(
+      account("acc-usd", "Chase", { currency: "USD", openingBalance: 0n }),
+      account("acc-jpy", "Yen card", { type: "CREDIT_CARD", currency: "JPY", openingBalance: 0n }),
+    );
+    return world;
+  };
+
+  it("takes a USD account's opening balance in USD and refuses one in the space's currency", async () => {
+    const { update } = withForeign();
+    const changes = { openingBalance: money(1_500_00n, "USD") };
+    expect(unwrap(await update({ ...asAna, accountId: "acc-usd", changes }))).toMatchObject({
+      currency: "USD",
+      openingBalance: 1_500_00n,
+    });
+    const inCop = { openingBalance: money(1_500_00n) };
+    expect(codeOf(await update({ ...asAna, accountId: "acc-usd", changes: inCop }))).toBe("CurrencyMismatch");
+  });
+
+  it("takes a JPY card's opening balance and credit limit in yen (exponent 0)", async () => {
+    const { update } = withForeign();
+    const changes = {
+      openingBalance: money(-12_000n, "JPY"),
+      terms: { creditLimit: money(300_000n, "JPY") },
+    };
+    expect(unwrap(await update({ ...asAna, accountId: "acc-jpy", changes }))).toMatchObject({
+      currency: "JPY",
+      openingBalance: -12_000n,
+      terms: expect.objectContaining({ creditLimit: 300_000n }),
+    });
+  });
+});
+
 describe("editing and archiving accounts (HU-E2-03)", () => {
   it("corrects the opening balance and recomputes the balance", async () => {
     const { update } = setup();

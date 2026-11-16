@@ -82,7 +82,8 @@ describe("personal accounts (HU-E2-01)", () => {
       openingBalance: usd(1_000),
     });
     expect(chase.status).toBe(201);
-    expect(await chase.json()).toMatchObject({
+    const chaseBody = (await chase.json()) as AccountDto;
+    expect(chaseBody).toMatchObject({
       name: "Chase",
       openingBalance: usd(1_000),
       balance: usd(1_000),
@@ -102,6 +103,13 @@ describe("personal accounts (HU-E2-01)", () => {
       openingBalance: cop(0),
     });
     expect([unknown.status, (await unknown.json()).code]).toEqual([422, "UnknownCurrency"]);
+    // An edit takes the account's own currency too, never the space's.
+    const corrected = await accountCall(updateAccount, "PATCH", ana, chaseBody, {
+      openingBalance: usd(1_200),
+    });
+    expect([corrected.status, (await corrected.json()).balance]).toEqual([200, usd(1_200)]);
+    const inCop = await accountCall(updateAccount, "PATCH", ana, chaseBody, { openingBalance: cop(10) });
+    expect([inCop.status, (await inCop.json()).code]).toEqual([422, "CurrencyMismatch"]);
   });
 
   it("allows a credit card to start negative and answers rule violations with stable codes", async () => {

@@ -28,14 +28,15 @@ export const createUpdateAccount =
       await deps.spaceLocks.lockForMoneyWrite(input.spaceId);
       const target = await accountForChange(deps, input);
       if (!target.ok) return target;
-      const { space, account, siblings } = target.value;
+      const { account, siblings } = target.value;
       const { changes } = input;
+      // D29, slice MC3: an account's money is in its own currency (the space's by default), never in another.
       const openingBalance =
         changes.openingBalance === undefined
           ? ok(undefined)
-          : minorIn(space.currency, changes.openingBalance);
+          : minorIn(account.currency, changes.openingBalance);
       if (!openingBalance.ok) return openingBalance;
-      const terms = termsIn(space.currency, changes.terms);
+      const terms = termsIn(account.currency, changes.terms);
       if (!terms.ok) return terms;
       const revised = reviseAccount(
         account,

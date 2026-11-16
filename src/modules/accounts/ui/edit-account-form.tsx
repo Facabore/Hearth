@@ -88,12 +88,14 @@ export function EditAccountForm({
   useEffect(() => {
     if (leaving) leaveSheet(router, screenUnder(back));
   }, [leaving, router, back]);
-  const currency = currencyOf(space.currency);
+  // D29, slice MC3: the account's money is typed and sent in its own currency, the space's by default.
+  const accountCurrency = account.openingBalance.currency;
+  const currency = currencyOf(accountCurrency);
   const style = (key: Style, value: AccountEdit[Style]) => setEdit((all) => ({ ...all, [key]: value }));
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const built = editBodyOf(account.type, before, edit, space.currency, formats.numberFormat);
+    const built = editBodyOf(account.type, before, edit, accountCurrency, formats.numberFormat);
     setProblem(null);
     if (!built.ok) {
       setUnreadable(built.field);
@@ -205,7 +207,7 @@ export function EditAccountForm({
           type={account.type}
           idPrefix="ea"
           formats={formats}
-          currency={space.currency}
+          currency={accountCurrency}
           values={edit.fields}
           onChange={(field, next) => {
             setEdit((all) => ({ ...all, fields: { ...all.fields, [field]: next } }));

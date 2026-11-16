@@ -36,6 +36,35 @@ const PATCH = "PATCH /api/v1/spaces/{spaceId}/accounts/{accountId}";
 const render = (api: ReturnType<typeof fakeApi>["api"]) =>
   renderWithIntl(<EditAccountForm space={spaceDto()} account={visa} formats={BUILT_IN_FORMATS} api={api} />);
 
+describe("edit an account in its own currency (D29, slice MC3)", () => {
+  const yen = (amount: number) => ({ amount: String(amount), currency: "JPY" });
+  /** A JPY card (exponent 0) in a COP space: 12.000 ¥ owed, a 300.000 ¥ limit. */
+  const jpyCard = accountDto({
+    ...visa,
+    id: "a-jpy",
+    openingBalance: yen(-12_000),
+    balance: yen(-12_000),
+    terms: { ...visa.terms, creditLimit: yen(300_000) },
+  });
+
+  it("sends a new debt and limit in the account's currency, with its exponent", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(jpyCard) });
+    renderWithIntl(
+      <EditAccountForm space={spaceDto()} account={jpyCard} formats={BUILT_IN_FORMATS} api={api} />,
+    );
+    expect(screen.getByLabelText("Debes hoy")).toHaveValue("12.000");
+    await userEvent.clear(screen.getByLabelText("Debes hoy"));
+    await userEvent.type(screen.getByLabelText("Debes hoy"), "10.000");
+    await userEvent.clear(screen.getByLabelText("Cupo"));
+    await userEvent.type(screen.getByLabelText("Cupo"), "400.000");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await requests[0]!.json()).toEqual({
+      openingBalance: yen(-10_000),
+      terms: { creditLimit: yen(400_000) },
+    });
+  });
+});
+
 describe("edit account form (issue 169)", () => {
   it("starts from the account as stored, in the person's number format, with a way back", async () => {
     const { api } = fakeApi({});
