@@ -253,6 +253,22 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
     }
   });
 
+  it("gives up on a body that stops arriving, answering 422 ImportTimedOut, and frees its slot", async () => {
+    const ana = await registerUser("Ana");
+    const hasty = startTestApp({ uploadReadTimeoutMs: 50 });
+    const stalled = () =>
+      new ReadableStream<Uint8Array>({ pull: () => new Promise<void>(() => {}) }, { highWaterMark: 0 });
+    try {
+      const [first, second] = await Promise.all([uploadStream(ana, stalled()), uploadStream(ana, stalled())]);
+      expect(await problemOf(first)).toEqual([422, "ImportTimedOut"]);
+      expect(await problemOf(second)).toEqual([422, "ImportTimedOut"]);
+      expect((await upload(ana, backup)).status).toBe(201);
+    } finally {
+      setContainerForTests(app);
+      await hasty.pool.end();
+    }
+  });
+
   it("refuses a VIEWER with 403, and a shared space with 409 ImportRequiresPersonalSpace", async () => {
     const ana = await registerUser("Ana");
     const sofi = await registerUser("Sofi");

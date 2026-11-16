@@ -15,26 +15,40 @@ const invalid = (path: string, message: string) =>
   err(domainError("ValidationFailed", { errors: [{ path, message }] }));
 
 /**
- * Design §3.5: the body, read chunk by chunk and abandoned as soon as it passes `limit` (null then), so a body sent
- * without a length, or with a false one, is never buffered whole.
+ * Design §3.5: the body, read chunk by chunk and abandoned as soon as it passes `limit` or `timeoutMs`, so a body sent
+ * without a length, with a false one, or too slowly, is never buffered whole and never holds an upload slot for long.
  */
 const readAtMost = async (
   body: ReadableStream<Uint8Array> | null,
   limit: number,
-): Promise<Uint8Array<ArrayBuffer> | null> => {
+  timeoutMs: number,
+): Promise<Uint8Array<ArrayBuffer> | "tooLarge" | "timedOut"> => {
   if (body === null) return new Uint8Array(0);
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel();
-      return null;
+  // A body that stops arriving gives up its slot after `timeoutMs` in all: a stalled client cannot hold it.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<"timedOut">(
+    (resolve) => (timer = setTimeout(() => resolve("timedOut"), timeoutMs)),
+  );
+  try {
+    for (;;) {
+      const next = await Promise.race([reader.read(), deadline]);
+      if (next === "timedOut") {
+        void reader.cancel().catch(() => {});
+        return "timedOut";
+      }
+      if (next.done) break;
+      size += next.value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        return "tooLarge";
+      }
+      chunks.push(next.value);
     }
-    chunks.push(value);
+  } finally {
+    clearTimeout(timer);
   }
   const bytes = new Uint8Array(size);
   let at = 0;
@@ -80,8 +94,9 @@ const readAndStart = async (
   userId: string,
 ) => {
   {
-    const body = await readAtMost(request.body, MAX_BODY_BYTES);
-    if (body === null) return tooLarge();
+    const body = await readAtMost(request.body, MAX_BODY_BYTES, portability.uploadReadTimeoutMs);
+    if (body === "tooLarge") return tooLarge();
+    if (body === "timedOut") return err(domainError("ImportTimedOut"));
     let form: FormData;
     try {
       const contentType = request.headers.get("content-type") ?? "";

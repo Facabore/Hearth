@@ -492,6 +492,8 @@ export interface Container extends RouteDeps {
     readonly listImports: ListImports;
     /** Design §3.5: the 7-day snapshot cleanup; no job calls it yet. */
     readonly removeExpiredSnapshots: RemoveExpiredSnapshots;
+    /** Design §3.5: how long the upload route waits for a body before giving up (`ImportTimedOut`). */
+    readonly uploadReadTimeoutMs: number;
   };
   /** D30: the global daily exchange-rate store, read on demand and written by the in-container fetch job. */
   readonly rates: {
@@ -536,6 +538,8 @@ export interface ContainerOptions {
   readonly exportsPerMinute?: number;
   /** Test seam: how long an upload's reads may take (design §3.5); 30 seconds by default. */
   readonly importTimeoutMs?: number;
+  /** Test seam: how long an upload's body may take to arrive (design §3.5); a minute by default. */
+  readonly uploadReadTimeoutMs?: number;
 }
 
 /**
@@ -1352,6 +1356,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       undoImport: createUndoImport(importDeps),
       listImports: createListImports(importDeps),
       removeExpiredSnapshots: createRemoveExpiredSnapshots(importDeps),
+      uploadReadTimeoutMs: options.uploadReadTimeoutMs ?? 60_000,
     },
     rates: {
       repository: exchangeRates,
