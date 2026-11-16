@@ -4277,6 +4277,60 @@
                         },
                         "netWorth": {
                           "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "rateDate": {
+                          "description": "D29 (MC4): the oldest day among the stored rates the totals used; absent when none was.",
+                          "type": "string",
+                          "format": "date",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        },
+                        "stale": {
+                          "description": "D29 (MC4): true when any rate used is more than 7 days old.",
+                          "type": "boolean"
+                        },
+                        "rates": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "currency": {
+                                "type": "string"
+                              },
+                              "rate": {
+                                "type": "string",
+                                "description": "The exact decimal rate from `currency` into the space's currency."
+                              },
+                              "unit": {
+                                "description": "One unit of `currency` in the space's currency, as `Money.convert` gives it.",
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "date": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                                "description": "The day of the stored rate used (the oldest leg's for a cross rate)."
+                              },
+                              "stale": {
+                                "type": "boolean",
+                                "description": "True when that day is more than 7 days before the day asked for."
+                              }
+                            },
+                            "required": [
+                              "currency",
+                              "rate",
+                              "unit",
+                              "date",
+                              "stale"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "withoutRate": {
+                          "description": "D29 (MC4): active accounts in another currency with no rate, left out of the totals.",
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
@@ -15548,6 +15602,9 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "balance": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "convertedBalance": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "archivedAt": {

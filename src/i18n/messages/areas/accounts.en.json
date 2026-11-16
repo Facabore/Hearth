@@ -18,7 +18,9 @@
     "outsideAvailable": "outside available",
     "otherCurrencies": {
       "title": "In other currencies",
-      "note": "These accounts are in another currency, so they stay out of the available money and net worth above until we convert them."
+      "converted": "Each account shows its exact balance in its own currency. The total converts it at the day's rate and moves with it.",
+      "someWithoutRate": "Each account shows its exact balance in its own currency. The ones with no exchange rate yet stay out of the total.",
+      "noRate": "No rate: out of the total"
     },
     "card": {
       "limit": "limit {amount}",
@@ -136,6 +138,10 @@
       "hint": "{space}'s is {name} ({code}). Choose it before recording movements: after that it cannot change.",
       "sheetTitle": "Account currency",
       "spaceNote": "{space}'s"
+    },
+    "rateLine": {
+      "fresh": "{currency} at {unit} · rate of {date}",
+      "stale": "{currency} at {unit} · rate of {date}, over a week old"
     }
   }
 }

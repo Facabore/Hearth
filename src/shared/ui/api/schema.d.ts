@@ -1650,6 +1650,7 @@ export interface components {
             ownerUserId: string | null;
             openingBalance: components["schemas"]["MoneyOutput"];
             balance: components["schemas"]["MoneyOutput"];
+            convertedBalance?: components["schemas"]["MoneyOutput"];
             archivedAt: string | null;
             institution: string | null;
             lastFour: string | null;
@@ -4848,6 +4849,29 @@ export interface operations {
                         totals: {
                             available: components["schemas"]["MoneyOutput"];
                             netWorth: components["schemas"]["MoneyOutput"];
+                            /**
+                             * Format: date
+                             * @description D29 (MC4): the oldest day among the stored rates the totals used; absent when none was.
+                             */
+                            rateDate?: string;
+                            /** @description D29 (MC4): true when any rate used is more than 7 days old. */
+                            stale?: boolean;
+                            rates?: {
+                                currency: string;
+                                /** @description The exact decimal rate from `currency` into the space's currency. */
+                                rate: string;
+                                /** @description One unit of `currency` in the space's currency, as `Money.convert` gives it. */
+                                unit: components["schemas"]["MoneyOutput"];
+                                /**
+                                 * Format: date
+                                 * @description The day of the stored rate used (the oldest leg's for a cross rate).
+                                 */
+                                date: string;
+                                /** @description True when that day is more than 7 days before the day asked for. */
+                                stale: boolean;
+                            }[];
+                            /** @description D29 (MC4): active accounts in another currency with no rate, left out of the totals. */
+                            withoutRate?: string[];
                         };
                     };
                 };

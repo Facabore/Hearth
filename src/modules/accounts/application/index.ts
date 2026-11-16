@@ -35,7 +35,8 @@ export {
   type GetAccount,
   type ListAccounts,
 } from "./list-accounts";
-export type { AccountTotals } from "../domain/account-totals";
+export type { AccountTotals, ConversionRate, TotalsConversion } from "../domain/account-totals";
+export type { AccountRates } from "./rates";
 export { createUpdateAccount, type AccountChanges, type UpdateAccount } from "./update-account";
 export type { AccountTerms, TermFigures, TermsChange } from "../domain/account-terms";
 export { NO_TERMS } from "../domain/account-terms";

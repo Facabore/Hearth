@@ -18,7 +18,9 @@
     "outsideAvailable": "fuera del disponible",
     "otherCurrencies": {
       "title": "En otras monedas",
-      "note": "Estas cuentas están en otra moneda, así que no entran en el disponible ni en el patrimonio de arriba hasta que las convirtamos."
+      "converted": "Cada cuenta muestra su saldo exacto en su moneda. El total la convierte con la tasa del día y cambia con ella.",
+      "someWithoutRate": "Cada cuenta muestra su saldo exacto en su moneda. Las que aún no tienen tasa de cambio no entran en el total.",
+      "noRate": "Sin tasa: fuera del total"
     },
     "card": {
       "limit": "cupo {amount}",
@@ -136,6 +138,10 @@
       "hint": "La de {space} es {name} ({code}). Elígela antes de registrar movimientos: después ya no cambia.",
       "sheetTitle": "Moneda de la cuenta",
       "spaceNote": "la de {space}"
+    },
+    "rateLine": {
+      "fresh": "{currency} a {unit} · tasa del {date}",
+      "stale": "{currency} a {unit} · tasa del {date}, de hace más de una semana"
     }
   }
 }

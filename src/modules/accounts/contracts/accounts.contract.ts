@@ -115,6 +115,11 @@ export const AccountSchema = z.object({
   openingBalance: MoneySchema,
   /** Opening balance plus ledger movements, computed on read (HU-E2-04). */
   balance: MoneySchema,
+  /**
+   * D29, slice MC4 (board 8): in a list, an account in another currency's balance in the space's currency, as the
+   * totals counted it; absent otherwise.
+   */
+  convertedBalance: MoneySchema.optional(),
   archivedAt: z.iso.datetime().nullable(),
   institution: z.string().nullable(),
   lastFour: z.string().nullable(),
@@ -211,20 +216,68 @@ export const GetAccountQuerySchema = z.object({ asOf: z.iso.date().optional() })
 export const ListAccountsQuerySchema = GetAccountQuerySchema.extend({
   archived: z.enum(["true", "false"]).optional(),
 });
+/** D29, slice MC4 (board 8): one currency the totals converted, at which rate and from which stored day. */
+const ConversionRateSchema = z.object({
+  currency: z.string(),
+  rate: z.string().describe("The exact decimal rate from `currency` into the space's currency."),
+  unit: MoneySchema.describe("One unit of `currency` in the space's currency, as `Money.convert` gives it."),
+  date: z.iso.date().describe("The day of the stored rate used (the oldest leg's for a cross rate)."),
+  stale: z.boolean().describe("True when that day is more than 7 days before the day asked for."),
+});
+
 export const ListAccountsResponseSchema = z.object({
   items: z.array(AccountSchema),
-  /** HU-E2-07: over the space's active accounts at `asOf`, whatever `archived` lists. */
-  totals: z.object({ available: MoneySchema, netWorth: MoneySchema }),
+  /**
+   * HU-E2-07: over the space's active accounts at `asOf`, whatever `archived` lists. D29, slice MC4: an account in
+   * another currency is converted on read at the latest rate on or before `asOf` (today by default); the added fields
+   * are sent only when the space holds such an account, so a client of a one-currency space receives what it did.
+   */
+  totals: z.object({
+    available: MoneySchema,
+    netWorth: MoneySchema,
+    rateDate: z.iso
+      .date()
+      .optional()
+      .describe("D29 (MC4): the oldest day among the stored rates the totals used; absent when none was."),
+    stale: z.boolean().optional().describe("D29 (MC4): true when any rate used is more than 7 days old."),
+    rates: z.array(ConversionRateSchema).optional(),
+    withoutRate: z
+      .array(z.string())
+      .optional()
+      .describe("D29 (MC4): active accounts in another currency with no rate, left out of the totals."),
+  }),
 });
 
 /** HU-E2-07: a list answer. */
-export const accountListDto = (list: AccountList): z.infer<typeof ListAccountsResponseSchema> => ({
-  items: list.items.map(accountDto),
-  totals: {
-    available: { amount: list.totals.available.toString(), currency: list.currency },
-    netWorth: { amount: list.totals.netWorth.toString(), currency: list.currency },
-  },
-});
+export const accountListDto = (list: AccountList): z.infer<typeof ListAccountsResponseSchema> => {
+  const { converted, rates, withoutRate } = list.conversion;
+  const money = (minor: bigint) => ({ amount: minor.toString(), currency: list.currency });
+  const oldest = rates.reduce<string | null>((day, r) => (day === null || r.date < day ? r.date : day), null);
+  return {
+    items: list.items.map((view) => {
+      const minor = converted.get(view.id);
+      return minor === undefined ? accountDto(view) : { ...accountDto(view), convertedBalance: money(minor) };
+    }),
+    totals: {
+      available: money(list.totals.available),
+      netWorth: money(list.totals.netWorth),
+      ...(oldest === null
+        ? {}
+        : {
+            rateDate: oldest,
+            stale: rates.some((r) => r.stale),
+            rates: rates.map((r) => ({
+              currency: r.currency,
+              rate: r.rate.value,
+              unit: money(r.unit),
+              date: r.date,
+              stale: r.stale,
+            })),
+          }),
+      ...(withoutRate.length === 0 ? {} : { withoutRate: [...withoutRate] }),
+    },
+  };
+};
 
 /** Issue 169: the starter accounts one call created; empty when the space already held every starter name. */
 export const StarterAccountsResponseSchema = z.object({ items: z.array(AccountSchema) });

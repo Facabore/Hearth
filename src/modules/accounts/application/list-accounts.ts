@@ -1,8 +1,14 @@
 import { authorizeSpaceAction } from "@/modules/spaces/application";
 import { domainError, err, ok, type LocalDate, type Result } from "@/shared/kernel";
-import { totalsOf, type AccountTotals } from "../domain/account-totals";
+import {
+  convertedTotalsOf,
+  type AccountTotals,
+  type ConversionRate,
+  type TotalsConversion,
+} from "../domain/account-totals";
 import { todayFor, withBalances, type AccountView } from "./account-view";
 import type { AccountsDeps } from "./deps";
+import type { AccountRates } from "./rates";
 
 export type ListAccounts = (input: {
   spaceId: string;
@@ -17,6 +23,8 @@ export interface AccountList {
   /** The space currency, so an empty space still totals 0 in it. */
   readonly currency: string;
   readonly totals: AccountTotals;
+  /** D29, slice MC4: how the totals converted the accounts in other currencies, and which had no rate. */
+  readonly conversion: TotalsConversion;
 }
 
 export type GetAccount = (input: {
@@ -38,10 +46,31 @@ export const createListAccounts =
     const today = await todayFor(deps, input.userId);
     const { currency } = membership.value;
     const items = await withBalances(deps.movements, accounts, input.asOf ?? null, today);
-    // totalsOf skips archived accounts, so `includeArchived` never changes the totals.
-    // D29, slice MC3: it also leaves out accounts not in the space currency; they are listed apart in the UI.
-    return ok({ items, currency, totals: totalsOf(items, currency) });
+    // The totals skip archived accounts, so `includeArchived` never changes them. D29, slice MC4: an active account in
+    // another currency converts at the latest rate on or before the day asked for (`asOf`, else today); one with no
+    // rate is left out and flagged, never counted at 1:1.
+    const rates = await ratesInto(deps.rates, items, currency, input.asOf ?? today);
+    return ok({ items, currency, ...convertedTotalsOf(items, currency, rates) });
   };
+
+/** The dated rate from each foreign currency of the active accounts into `currency`, on or before `on`. */
+const ratesInto = async (
+  rates: AccountRates | undefined,
+  items: readonly AccountView[],
+  currency: string,
+  on: LocalDate,
+): Promise<ReadonlyMap<string, ConversionRate>> => {
+  const resolved = new Map<string, ConversionRate>();
+  if (rates === undefined) return resolved;
+  const foreign = new Set(
+    items.filter((a) => a.archivedAt === null && a.currency !== currency).map((a) => a.currency),
+  );
+  for (const base of foreign) {
+    const rate = await rates.datedRateOn(base, currency, on);
+    if (rate.ok) resolved.set(base, rate.value);
+  }
+  return resolved;
+};
 
 export const createGetAccount =
   (deps: AccountsDeps): GetAccount =>
