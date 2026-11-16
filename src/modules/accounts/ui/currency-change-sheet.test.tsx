@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { accountDto, cop, spaceDto } from "../../../../tests/support/ui/dto";
-import { fakeApi, jsonResponse } from "../../../../tests/support/ui/fake-api";
+import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { enableSheetHistory, sheetDepth } from "@/shared/ui/navigation/sheet-gate";
@@ -128,5 +128,19 @@ describe("changing an account's currency (P336)", () => {
     await waitFor(() => expect(sheetDepth()).toBe(1));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.getByRole("dialog", { name: "Nueva moneda: Peso colombiano (COP)" })).toBeInTheDocument();
+  });
+
+  it("says at once when the server refuses the rate typed", async () => {
+    const { api } = fakeApi({
+      [PREVIEW]: (request) =>
+        new URL(request.url).searchParams.get("rate") === null
+          ? jsonResponse(previewAt("4000", "2026-11-15"))
+          : problemResponse(422, "ConvertedAmountTooSmall"),
+    });
+    renderSheet(api);
+    const field = await screen.findByLabelText("Tasa");
+    await userEvent.clear(field);
+    await userEvent.type(field, "0,0000001");
+    expect(await screen.findByText(/algún movimiento de la cuenta quedaría en cero/)).toBeInTheDocument();
   });
 });

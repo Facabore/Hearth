@@ -102,10 +102,13 @@ export function CurrencyChangeSheet({
         .GET("/api/v1/spaces/{spaceId}/accounts/{accountId}/currency", {
           params: { path, query: { currency: to, rate: typed } },
         })
-        .then(({ data }) => {
-          if (live && data) setPreview(data);
+        .then(({ data, error, response }) => {
+          if (!live) return;
+          // A rate the server refuses (one that turns a movement into nothing) says why at once, not only on confirm.
+          setProblem(data ? null : problemFrom(error, response));
+          if (data) setPreview(data);
         })
-        .catch(() => undefined);
+        .catch((error: unknown) => live && setProblem(problemFrom(error, undefined)));
     }, SETTLE_MS);
     return () => {
       live = false;
