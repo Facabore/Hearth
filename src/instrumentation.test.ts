@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startRecurrenceJob } from "@/composition/recurrence-job";
+import { startExchangeRateJob } from "@/composition/exchange-rate-job";
 import { register } from "./instrumentation";
 
 const logger = vi.hoisted(() => ({ info: vi.fn(), error: vi.fn() }));
@@ -9,9 +10,14 @@ vi.mock("@/composition/recurrence-job", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/composition/recurrence-job")>()),
   startRecurrenceJob: vi.fn(),
 }));
+vi.mock("@/composition/exchange-rate-job", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/composition/exchange-rate-job")>()),
+  startExchangeRateJob: vi.fn(),
+}));
 vi.mock("@/composition/container", () => ({
   getContainer: () => ({
     ledger: { materializeDueOccurrences: "materialize" },
+    rates: { repository: "rate-repository" },
     logger,
   }),
 }));
@@ -24,6 +30,7 @@ const VALID = {
 
 beforeEach(() => {
   vi.mocked(startRecurrenceJob).mockReset();
+  vi.mocked(startExchangeRateJob).mockReset();
   logger.info.mockClear();
   logger.error.mockClear();
 });
@@ -81,6 +88,23 @@ describe("register", () => {
     stubEnv({ ...VALID, NEXT_RUNTIME: "nodejs" });
     await register();
     expect(vi.mocked(startRecurrenceJob).mock.calls.map(([, intervalMs]) => intervalMs)).toEqual([300_000]);
+  });
+
+  it("starts the exchange-rate job every EXCHANGE_RATE_JOB_INTERVAL_SECONDS, a day by default, and not at all with 0 (D30)", async () => {
+    stubEnv({ ...VALID, NEXT_RUNTIME: "nodejs" });
+    await register();
+    expect(vi.mocked(startExchangeRateJob)).toHaveBeenCalledWith(
+      expect.objectContaining({ repository: "rate-repository", sources: expect.any(Array) }),
+      86_400_000,
+    );
+    vi.mocked(startExchangeRateJob).mockClear();
+    stubEnv({ EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "3600" });
+    await register();
+    expect(vi.mocked(startExchangeRateJob)).toHaveBeenCalledWith(expect.anything(), 3_600_000);
+    vi.mocked(startExchangeRateJob).mockClear();
+    stubEnv({ EXCHANGE_RATE_JOB_INTERVAL_SECONDS: "0" });
+    await register();
+    expect(vi.mocked(startExchangeRateJob)).not.toHaveBeenCalled();
   });
 
   it("never starts the job during `next build` (NEXT_PHASE phase-production-build)", async () => {

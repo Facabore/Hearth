@@ -1,5 +1,29 @@
 import type { ExchangeRate, LocalDate, Result } from "@/shared/kernel";
 
+/** One quote a source gives against its base currency, as an exact decimal string. */
+export interface SourceRate {
+  readonly quote: string;
+  readonly rate: string;
+}
+
+/** A day's rates from one source, all against its single base currency (EUR for ECB, USD for TRM). */
+export interface SourceRates {
+  readonly source: string;
+  readonly base: string;
+  readonly date: LocalDate;
+  readonly rates: readonly SourceRate[];
+}
+
+/**
+ * D30: an outbound source of daily rates. `fetch` reads the source's latest publication and parses it; a network or
+ * parse failure is a `Result` error (`ExchangeRateSourceUnavailable`), never a throw, so the daily job keeps the other
+ * sources.
+ */
+export interface ExchangeRateSource {
+  readonly key: string;
+  fetch(): Promise<Result<SourceRates>>;
+}
+
 /** One exchange rate to store: the day it is for, the pair, the exact decimal, and which source gave it. */
 export interface StoredRate {
   readonly date: LocalDate;

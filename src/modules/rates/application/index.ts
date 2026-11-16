@@ -1,1 +1,7 @@
-export type { ExchangeRateRepository, StoredRate } from "./ports";
+export type {
+  ExchangeRateRepository,
+  ExchangeRateSource,
+  SourceRate,
+  SourceRates,
+  StoredRate,
+} from "./ports";

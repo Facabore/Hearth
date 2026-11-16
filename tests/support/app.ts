@@ -25,8 +25,9 @@ export const startTestApp = (options: ContainerOptions = {}, env: Partial<Env> =
       BETTER_AUTH_URL: "http://localhost:3000",
       APP_TIMEZONE: "America/Bogota",
       LOG_LEVEL: "error",
-      // Only fills the required Env field: buildContainer never starts the job (register() does).
+      // Only fills the required Env field: buildContainer never starts the jobs (register() does).
       RECURRENCE_JOB_INTERVAL_SECONDS: 0,
+      EXCHANGE_RATE_JOB_INTERVAL_SECONDS: 0,
       HEARTH_SIGN_UP: "open",
       ...env,
     },
