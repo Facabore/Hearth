@@ -61,7 +61,7 @@ module.exports = {
       name: "ui-talks-only-to-the-api",
       severity: "error",
       comment:
-        "Ruling P119: the single-page app, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts, style.ts and line-state.ts (ruling P244: the record form applies the API's own line levels).",
+        "Ruling P119: the single-page app, i18n and every ui folder reach the backend only over /api/v1 through the generated client: never a module's domain, application, infrastructure or contracts, the composition root, the API routes, the HTTP or infrastructure layers or server-only packages; of the kernel only time-zone.ts, local-date.ts, style.ts, line-state.ts (ruling P244: the record form applies the API's own line levels) and minor-units.ts (D29: amounts are written with the kernel's ISO 4217 exponents).",
       from: {
         path: ["^src/spa/", "^src/i18n/", "^src/shared/ui/", "^src/modules/[^/]+/ui/"],
       },
@@ -71,7 +71,7 @@ module.exports = {
           "^src/composition/",
           "^src/app/api/",
           "^src/shared/(http|infrastructure)/",
-          "^src/shared/kernel/(?!(time-zone|local-date|style|line-state)\\.ts$)",
+          "^src/shared/kernel/(?!(time-zone|local-date|style|line-state|minor-units)\\.ts$)",
           "node_modules/(drizzle-orm|pg|better-auth|@better-auth|zod-openapi|zod)/",
         ],
       },

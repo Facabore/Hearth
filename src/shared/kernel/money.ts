@@ -1,8 +1,19 @@
 import { currencyOf, type Currency } from "./currency";
 import { domainError } from "./domain-error";
+import type { ExchangeRate } from "./exchange-rate";
 import { err, flatMap, map, ok, type Result } from "./result";
 
 const MAJOR = /^(-?)(\d+)(?:\.(\d+))?$/;
+
+/** numerator / denominator (denominator > 0) to the nearest integer, ties to the even one, symmetric around zero. */
+const roundHalfEven = (numerator: bigint, denominator: bigint): bigint => {
+  const negative = numerator < 0n;
+  const magnitude = negative ? -numerator : numerator;
+  let quotient = magnitude / denominator;
+  const twice = (magnitude % denominator) * 2n;
+  if (twice > denominator || (twice === denominator && quotient % 2n === 1n)) quotient += 1n;
+  return negative ? -quotient : quotient;
+};
 
 export class Money {
   private constructor(
@@ -93,6 +104,23 @@ export class Money {
       leftover -= 1n;
     }
     return ok(shares.map((s) => new Money(s.base * unit + (s.index === 0 ? subUnit : 0n), this.currency)));
+  }
+
+  /**
+   * D30: this amount in the rate's quote currency, rounded half to even at that currency's minor unit, the only
+   * rounding a conversion gets. The rate's base must be this amount's currency (`CurrencyMismatch`).
+   */
+  convert(rate: ExchangeRate): Result<Money> {
+    if (rate.base !== this.currency.code) {
+      return err(domainError("CurrencyMismatch", { left: this.currency.code, right: rate.base }));
+    }
+    return map(currencyOf(rate.quote), (target) => {
+      // target minor = minor × units / 10^scale × 10^(target exponent − source exponent)
+      const shift = target.exponent - this.currency.exponent - rate.scale;
+      const numerator = this.minor * rate.units * (shift > 0 ? 10n ** BigInt(shift) : 1n);
+      const denominator = shift < 0 ? 10n ** BigInt(-shift) : 1n;
+      return new Money(roundHalfEven(numerator, denominator), target);
+    });
   }
 
   private sameCurrency(other: Money): boolean {

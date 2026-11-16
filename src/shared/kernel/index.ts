@@ -6,6 +6,7 @@ export * from "./clock";
 export * from "./scheduler";
 export * from "./currency";
 export * from "./money";
+export * from "./exchange-rate";
 export * from "./shares";
 export * from "./period-policy";
 export * from "./period-resolution";

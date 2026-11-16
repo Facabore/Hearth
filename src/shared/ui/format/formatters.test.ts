@@ -63,6 +63,12 @@ describe("formatters (HU-E9-02 outline, ruling P121): the preferences, never the
     expect(decimalOf("-922337203685477580", 2)).toBe("-9223372036854775.80");
   });
 
+  it("writes any ISO 4217 currency with its own exponent, and its code where Hearth has no symbol (D29)", () => {
+    expect(norm(formatMoney({ amount: "150000", currency: "JPY" }, BUILT_IN_FORMATS))).toBe("JPY 150.000");
+    expect(norm(formatMoney({ amount: "1500", currency: "KWD" }, BUILT_IN_FORMATS))).toBe("KWD 1,500");
+    expect(norm(formatMoney({ amount: "-1999", currency: "MXN" }, BUILT_IN_FORMATS))).toBe("−MXN 19,99");
+  });
+
   it("writes 24-hour times with two-digit hours and 12-hour times with AM and PM", () => {
     expect(formatTime({ hour: 8, minute: 10 }, BUILT_IN_FORMATS)).toBe("08:10");
     const twelve = formats("DOT_COMMA", "DMY", "H12");

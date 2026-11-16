@@ -39,7 +39,7 @@
     "routes/categories.tsx": 13,
     "routes/settings.tsx": 19,
     "routes/space-settings.tsx": 9,
-    "spaces/settings-status.tsx": 5,
+    "spaces/settings-status.tsx": 6,
     "../modules/spaces/ui/space-settings/space-lifecycle-sheet.tsx": 2,
     "routes/more.tsx": 5,
     "referrals/invite.tsx": 5,
