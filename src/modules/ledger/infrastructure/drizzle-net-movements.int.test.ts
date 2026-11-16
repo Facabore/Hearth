@@ -183,3 +183,29 @@ describe("which movements count in net movements (HU-E2-04)", () => {
     expect([...(await netMovements([w.wallet], null))]).toEqual([[w.wallet, 35_000_000n]]);
   });
 });
+
+// D29, slice MC3: an account keeps its balance in its own currency, so each side sums the account's leg amount in that
+// currency, falling back to the base amount when the leg is null. No recording use case sets legs yet, so the test
+// writes them directly (as a later slice will). The base amounts stay in COP; the leg amounts are small USD minor units.
+describe("net movements use each account's leg amount, COALESCED to the base amount (D29, slice MC3)", () => {
+  it("uses destination, source and payment leg amounts when set, and the base amount when null", async () => {
+    const w = await world();
+    // An income's destination leg: the bank's net is the 25.00 USD it received, not the 100.000.000 base.
+    await repo.add({ ...w.income("2026-10-06", 100_000_000n), destinationAmount: 25_00n });
+    expect(await w.figures()).toEqual([25_00n, 0n]);
+
+    // A transfer's two legs: the bank loses 12.50 (source leg), Nequi gains 40.000.000 (its own-currency leg).
+    const move = w.transfer("2026-10-07", 50_000_000n);
+    await repo.add({ ...move, sourceAmount: 12_50n, destinationAmount: 40_000_000n });
+    expect(await w.figures()).toEqual([25_00n - 12_50n, 40_000_000n]);
+
+    // A base-only income (null legs) still uses the base amount: the fallback COALESCE.
+    await repo.add(w.income("2026-10-08", 7_000_000n));
+    expect(await w.figures()).toEqual([25_00n - 12_50n + 7_000_000n, 40_000_000n]);
+
+    // A payment's account leg: Nequi loses the 3.00 it was charged, not the 5.000.000 base.
+    const exp = w.expense("2026-10-09", 5_000_000n, w.wallet);
+    await repo.add({ ...exp, payments: [{ ...exp.payments[0]!, accountAmount: 3_00n }] });
+    expect(await w.figures()).toEqual([25_00n - 12_50n + 7_000_000n, 40_000_000n - 3_00n]);
+  });
+});

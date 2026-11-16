@@ -26,6 +26,11 @@ export const transactionRow = (tx: Transaction): typeof transactions.$inferInser
   categoryId: tx.categoryId,
   amount: tx.amount,
   currency: tx.currency,
+  // D29, slice MC3: null when the domain field is undefined (the original/leg equals the base amount), round-tripped.
+  originalAmount: tx.originalAmount ?? null,
+  originalCurrency: tx.originalCurrency ?? null,
+  sourceAmount: tx.type === "TRANSFER" ? (tx.sourceAmount ?? null) : null,
+  destinationAmount: tx.type === "INCOME" || tx.type === "TRANSFER" ? (tx.destinationAmount ?? null) : null,
   sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
   destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
   receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
@@ -49,6 +54,7 @@ export const paymentRows = (tx: Transaction): (typeof payments.$inferInsert)[] =
         memberId: p.memberId,
         accountId: p.accountId,
         amount: p.amount,
+        accountAmount: p.accountAmount ?? null,
       }))
     : [];
 
@@ -67,6 +73,8 @@ const toPayment = (row: PaymentRow): Payment => ({
   memberId: row.memberId,
   accountId: row.accountId,
   amount: row.amount,
+  // D29, slice MC3: absent when the leg equals the base amount (null column), so the aggregate round-trips.
+  ...(row.accountAmount === null ? {} : { accountAmount: row.accountAmount }),
 });
 const toShare = (row: ShareRow): Share => ({
   memberId: row.memberId,
@@ -89,6 +97,9 @@ const toTransaction = (
     timeZone: row.timeZone,
     amount: row.amount,
     currency: row.currency,
+    // D29, slice MC3: present only when they differ from the base amount/currency (non-null columns).
+    ...(row.originalAmount === null ? {} : { originalAmount: row.originalAmount }),
+    ...(row.originalCurrency === null ? {} : { originalCurrency: row.originalCurrency }),
     createdBy: row.createdBy,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -115,6 +126,7 @@ const toTransaction = (
         categoryId: row.categoryId!,
         destinationAccountId: row.destinationAccountId!,
         receivingMemberId: row.receivingMemberId!,
+        ...(row.destinationAmount === null ? {} : { destinationAmount: row.destinationAmount }),
       };
     case "TRANSFER":
       return {
@@ -124,6 +136,8 @@ const toTransaction = (
         sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId!,
         payerMemberId: row.payerMemberId,
+        ...(row.sourceAmount === null ? {} : { sourceAmount: row.sourceAmount }),
+        ...(row.destinationAmount === null ? {} : { destinationAmount: row.destinationAmount }),
         ...linked,
       };
     case "SETTLEMENT":

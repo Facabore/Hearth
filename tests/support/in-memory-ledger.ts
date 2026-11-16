@@ -198,11 +198,15 @@ export class InMemoryTransactions
     let net = 0n;
     for (const t of this.rows) {
       if (t.deletedAt !== null) continue;
-      if (t.type !== "EXPENSE" && t.destinationAccountId === accountId) net += t.amount;
+      // D29, slice MC3: an account's side uses its leg amount in its own currency, falling back to the base amount
+      // when the leg is undefined (the leg equals the base), like DrizzleLedgerQueries.netMovements' COALESCE.
+      if (t.type !== "EXPENSE" && t.destinationAccountId === accountId)
+        net += ("destinationAmount" in t ? t.destinationAmount : undefined) ?? t.amount;
       if ((t.type === "TRANSFER" || t.type === "SETTLEMENT") && t.sourceAccountId === accountId)
-        net -= t.amount;
+        net -= ("sourceAmount" in t ? t.sourceAmount : undefined) ?? t.amount;
       if (t.type === "EXPENSE") {
-        for (const payment of t.payments) if (payment.accountId === accountId) net -= payment.amount;
+        for (const payment of t.payments)
+          if (payment.accountId === accountId) net -= payment.accountAmount ?? payment.amount;
       }
     }
     return net;

@@ -10,6 +10,8 @@ export interface Payment {
   readonly memberId: string | null;
   readonly accountId: string | null;
   readonly amount: bigint;
+  /** D29, slice MC3: the amount in the paying account's own currency, when it differs from the base amount. */
+  readonly accountAmount?: bigint;
 }
 
 export interface Share {
@@ -30,6 +32,9 @@ interface TransactionBase {
   readonly timeZone: string | null;
   readonly amount: bigint;
   readonly currency: string;
+  /** D29, slice MC3: what was charged when it differs from the base amount; its currency is `originalCurrency`. */
+  readonly originalAmount?: bigint;
+  readonly originalCurrency?: string;
   readonly createdBy: string;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -52,6 +57,8 @@ export interface Income extends TransactionBase {
   readonly categoryId: string;
   readonly destinationAccountId: string;
   readonly receivingMemberId: string;
+  /** D29, slice MC3: the amount in the destination account's own currency, when it differs from the base amount. */
+  readonly destinationAmount?: bigint;
 }
 
 /**
@@ -67,6 +74,9 @@ export interface Transfer extends TransactionBase {
   readonly payerMemberId: string | null;
   /** D26: the fund-paid expense this contribution paid for; absent on every other transfer. */
   readonly linkedTransactionId?: TransactionId;
+  /** D29, slice MC3: "Sale" and "Llega" in each account's own currency, when either differs from the base amount. */
+  readonly sourceAmount?: bigint;
+  readonly destinationAmount?: bigint;
 }
 
 /**

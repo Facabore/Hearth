@@ -40,9 +40,13 @@ import { loadTransactions } from "./transaction-rows";
 
 // SUM(bigint) is numeric in PostgreSQL: read it as text and parse it as bigint, so sums never overflow or round.
 const sumAsText = (column: AnyColumn) => sql<string>`sum(${column})::text`;
-// The same sum, negated: money leaving an account. `::` binds tighter than unary minus, so without the parentheses
-// PostgreSQL would apply `-` to text and fail.
-const negatedSumAsText = (column: AnyColumn) => sql<string>`(-sum(${column}))::text`;
+// D29, slice MC3: an account's balance is in its own currency, so its side sums the leg amount in that currency,
+// falling back to the base `amount` when the leg is null (the leg equals the base). `::` binds tighter than unary
+// minus, so the negated form needs the parentheses. Behaviour-identical while every leg is null, which it is until a
+// later slice records in another currency.
+const legSumAsText = (leg: AnyColumn, base: AnyColumn) => sql<string>`sum(coalesce(${leg}, ${base}))::text`;
+const negatedLegSumAsText = (leg: AnyColumn, base: AnyColumn) =>
+  sql<string>`(-sum(coalesce(${leg}, ${base})))::text`;
 
 // HU-E4-14, ruling P43: untimed rows sort as the earliest time of their day, so they come last in DESC order.
 // The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
@@ -215,17 +219,26 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
     // Same selection shape in every branch of the UNION ALL: the account and its signed movement as text.
     const rows = await unionAll(
       db
-        .select({ accountId: transactions.destinationAccountId, total: sumAsText(transactions.amount) })
+        .select({
+          accountId: transactions.destinationAccountId,
+          total: legSumAsText(transactions.destinationAmount, transactions.amount),
+        })
         .from(transactions)
         .where(and(live, inArray(transactions.destinationAccountId, ids)))
         .groupBy(transactions.destinationAccountId),
       db
-        .select({ accountId: transactions.sourceAccountId, total: negatedSumAsText(transactions.amount) })
+        .select({
+          accountId: transactions.sourceAccountId,
+          total: negatedLegSumAsText(transactions.sourceAmount, transactions.amount),
+        })
         .from(transactions)
         .where(and(live, inArray(transactions.sourceAccountId, ids)))
         .groupBy(transactions.sourceAccountId),
       db
-        .select({ accountId: payments.accountId, total: negatedSumAsText(payments.amount) })
+        .select({
+          accountId: payments.accountId,
+          total: negatedLegSumAsText(payments.accountAmount, payments.amount),
+        })
         .from(payments)
         .innerJoin(transactions, eq(transactions.id, payments.transactionId))
         .where(and(live, inArray(payments.accountId, ids)))
