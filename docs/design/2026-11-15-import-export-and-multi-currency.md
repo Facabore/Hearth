@@ -19,7 +19,7 @@
 | 10 | Transferencia · entre monedas | "Sale de" and "Llega a" in each account's currency |
 | 11 | Ajustes · moneda y tus datos | The display currency and the way into import and export |
 
-The import entry point is under Ajustes (board 11), since an import is the person's, and the boards follow the approved medium density (P324). They are drawn at 390 px; the 320 px, dark and English checks come with each story, as #309–#313 did.
+The way in is Más's "Importar y exportar" tile, which reads "Próximamente" today (#279, P311), and Ajustes links to it too (board 11). Slices: #322 (MC1), #323 (MC2), #324 (MC3), #325 (MC4), #326 (IE1), #327 (IE2), #328 (IE3). The boards follow the approved medium density (P324). They are drawn at 390 px; the 320 px, dark and English checks come with each story, as #309–#313 did.
 **Builds on:** HU-E8-04 (CSV import), HU-E8-05 (Splitwise import) and HU-E8-06 (multi-currency spaces) in [E8](../backlog/E8-hardening-and-later.md). This design replaces HU-E8-06's scope and gives HU-E8-04 and HU-E8-05 one shared pipeline.
 
 ## 1. What the Money Manager file holds
