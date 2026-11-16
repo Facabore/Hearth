@@ -14,7 +14,13 @@ export interface AccountView {
 
 type Moved = Pick<
   TransactionDto,
-  "type" | "amount" | "payments" | "sourceAccountId" | "destinationAccountId"
+  | "type"
+  | "amount"
+  | "payments"
+  | "sourceAccountId"
+  | "destinationAccountId"
+  | "sourceAmount"
+  | "destinationAmount"
 >;
 
 /** Ruling P327: what `accountId` moved in `tx` and which way: an expense by what it paid of it, else the whole amount. */
@@ -31,5 +37,10 @@ export const movedBy = (
       sign: "-",
     };
   }
-  return { amount: tx.amount, sign: tx.destinationAccountId === accountId ? "+" : "-" };
+  const into = tx.destinationAccountId === accountId;
+  // Design Q4: a balance adjustment moved its one account by its leg, in the account's own currency when it has one.
+  if (tx.type === "ADJUSTMENT") {
+    return { amount: (into ? tx.destinationAmount : tx.sourceAmount) ?? tx.amount, sign: into ? "+" : "-" };
+  }
+  return { amount: tx.amount, sign: into ? "+" : "-" };
 };
