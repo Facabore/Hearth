@@ -57,6 +57,14 @@
       "10": "oct",
       "11": "nov",
       "12": "dic"
+    },
+    "currencySheet": {
+      "search": "Buscar",
+      "searchPlaceholder": "Busca por nombre o código",
+      "mostUsed": "Más usadas",
+      "all": "Todas",
+      "noDecimals": "sin decimales",
+      "none": "Ninguna moneda coincide con «{query}»."
     }
   },
   "errors": {

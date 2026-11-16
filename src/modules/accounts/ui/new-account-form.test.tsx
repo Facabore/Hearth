@@ -143,7 +143,7 @@ describe("new account form (HU-E9-03)", () => {
     await userEvent.type(screen.getByLabelText("Saldo inicial"), "1,555");
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
     expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
-      "Escribe un monto como 1.500.000.",
+      "Lo que hay hoy en la cuenta, en su moneda. Escribe un monto como 1.500.000.",
     );
     expect(requests).toHaveLength(0);
   });
@@ -160,11 +160,11 @@ describe("new account form (HU-E9-03)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
     // The unreadable amount stops the save: the name has no error yet, the amount does.
     expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
-      "Escribe un monto como 1.500.000.",
+      "Lo que hay hoy en la cuenta, en su moneda. Escribe un monto como 1.500.000.",
     );
     await userEvent.type(screen.getByLabelText("Nombre"), "2");
     expect(screen.getByLabelText("Saldo inicial")).toHaveAccessibleDescription(
-      "Escribe un monto como 1.500.000.",
+      "Lo que hay hoy en la cuenta, en su moneda. Escribe un monto como 1.500.000.",
     );
     await userEvent.clear(screen.getByLabelText("Saldo inicial"));
     expect(screen.queryByText(/Escribe un monto/)).toBeNull();
@@ -386,5 +386,55 @@ describe("new account form: leaving it (ruling P307)", () => {
       }),
     );
     await expect(staying).resolves.toBe(false);
+  });
+});
+
+describe("new account form: its currency (D29, board 12)", () => {
+  it("takes the space's currency by default, says it is fixed once there are movements, and sends no currency", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto(), 201),
+    });
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    const field = screen.getByRole("button", { name: /Moneda/ });
+    expect(field).toHaveTextContent("Peso colombiano (COP)");
+    expect(field).toHaveAccessibleDescription(
+      `La de ${spaceDto().name} es peso colombiano (COP). Elígela antes de registrar movimientos: después ya no cambia.`,
+    );
+    expect(screen.getByText("Lo que hay hoy en la cuenta, en su moneda.")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
+    await userEvent.type(screen.getByLabelText("Saldo inicial"), "1.469.600");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toEqual({
+      name: "Bancolombia",
+      type: "BANK",
+      openingBalance: { amount: "146960000", currency: "COP" },
+    });
+  });
+
+  it("types the opening balance in the chosen currency's symbol and exponent, JPY with no decimals", async () => {
+    const { api, requests } = fakeApi({
+      "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto(), 201),
+    });
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={api} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    await userEvent.click(screen.getByRole("button", { name: /Moneda/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Moneda de la cuenta" });
+    await userEvent.type(within(sheet).getByLabelText("Buscar"), "jpy");
+    await userEvent.click(within(sheet).getByRole("button", { name: /Yen japonés/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Moneda de la cuenta" })).toBeNull());
+    expect(screen.getByRole("button", { name: /Moneda/ })).toHaveTextContent("Yen japonés (JPY)");
+    await userEvent.type(screen.getByLabelText("Nombre"), "Tokio");
+    const opening = screen.getByLabelText("Saldo inicial");
+    // No decimals: a comma is not taken, and the symbol shown is the code's.
+    await userEvent.type(opening, "12.500");
+    expect(opening.closest("div")).toHaveTextContent("JPY");
+    await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
+    expect(await requests[0]!.json()).toEqual({
+      name: "Tokio",
+      type: "BANK",
+      openingBalance: { amount: "12500", currency: "JPY" },
+      currency: "JPY",
+    });
   });
 });

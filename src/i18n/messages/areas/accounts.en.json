@@ -50,7 +50,9 @@
       "maturityDate": "Maturity date",
       "principal": "Loan amount",
       "termMonths": "Term in months",
-      "productType": "Product"
+      "productType": "Product",
+      "currency": "Currency",
+      "openingHint": "What the account holds today, in its currency."
     },
     "productType": {
       "none": "Not set",
@@ -74,7 +76,6 @@
       "netWorth": "Count in net worth",
       "netWorthHint": "Its balance adds to your net worth."
     },
-    "currency": "Currency: {currency}",
     "amountUnreadable": "Type an amount like {example}.",
     "numberUnreadable": "Type a number like {example}.",
     "archive": {
@@ -129,6 +130,12 @@
       "movementCount": "{count, plural, one {# movement} other {# movements}}",
       "nothingPaid": "This account paid no expenses in this period.",
       "transfersNote": "Transfers between your accounts don't count as spending."
+    },
+    "currencyField": {
+      "value": "{name} ({code})",
+      "hint": "{space}'s is {name} ({code}). Choose it before recording movements: after that it cannot change.",
+      "sheetTitle": "Account currency",
+      "spaceNote": "{space}'s"
     }
   }
 }

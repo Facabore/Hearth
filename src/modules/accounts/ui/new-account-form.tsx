@@ -24,6 +24,7 @@ import { DiscardConfirm } from "@/shared/ui/molecules/discard-confirm";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { AccountAttributeFields } from "./account-attribute-fields";
+import { AccountCurrencyField } from "./account-currency-field";
 import {
   accountBodyOf,
   OWED_TYPES,
@@ -80,6 +81,8 @@ export function NewAccountForm({
   const [type, setType] = useState<AccountType | "">(fundOnly ? "SHARED_FUND" : "");
   const [name, setName] = useState("");
   const [opening, setOpening] = useState("");
+  // D29 (board 12): the account's own currency, the space's by default; its amounts are typed in it.
+  const [accountCurrency, setAccountCurrency] = useState(space.currency);
   const [fields, setFields] = useState<Partial<Record<AccountField, string>>>({});
   const [available, setAvailable] = useState<boolean | null>(null);
   const [netWorth, setNetWorth] = useState<boolean | null>(null);
@@ -89,6 +92,7 @@ export function NewAccountForm({
     (type !== "" && !fundOnly) ||
     name !== "" ||
     opening !== "" ||
+    accountCurrency !== space.currency ||
     Object.values(fields).some(Boolean) ||
     available !== null ||
     netWorth !== null;
@@ -104,13 +108,13 @@ export function NewAccountForm({
     setLeaving(true);
   };
 
-  const currency = currencyOf(space.currency);
+  const currency = currencyOf(accountCurrency);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!type) return;
     const draft = { type, name, opening, fields, includeInAvailable: available, includeInNetWorth: netWorth };
-    const built = accountBodyOf(draft, space.currency, formats.numberFormat);
+    const built = accountBodyOf(draft, accountCurrency, formats.numberFormat);
     setProblem(null);
     if (!built.ok) {
       setUnreadable(built.field);
@@ -121,7 +125,10 @@ export function NewAccountForm({
     try {
       const { error, response } = await api.POST("/api/v1/spaces/{spaceId}/accounts", {
         params: { path: { spaceId: space.id } },
-        body: built.body as never,
+        // The API takes the space's currency when none is sent, so only another one is sent.
+        body: (accountCurrency === space.currency
+          ? built.body
+          : { ...built.body, currency: accountCurrency }) as never,
       });
       if (response.ok) {
         leaveSheet(router, safeReturnTo(returnTo) ?? screenUnder(list), () => router.refresh());
@@ -187,8 +194,18 @@ export function NewAccountForm({
                 error={errorOf("name")}
                 required
               />
+              <AccountCurrencyField
+                id="na-currency"
+                value={accountCurrency}
+                space={space}
+                onChange={(next) => {
+                  setAccountCurrency(next);
+                  clear("opening");
+                }}
+              />
               <NumberField
                 id="na-opening"
+                hint={OWED_TYPES.includes(type) ? undefined : t("field.openingHint")}
                 label={t(OWED_TYPES.includes(type) ? "field.owed" : "field.opening")}
                 kind="money"
                 numberFormat={formats.numberFormat}
@@ -205,7 +222,7 @@ export function NewAccountForm({
                 type={type}
                 idPrefix="na"
                 formats={formats}
-                currency={space.currency}
+                currency={accountCurrency}
                 values={fields}
                 onChange={(field, next) => {
                   setFields((all) => ({ ...all, [field]: next }));
@@ -227,7 +244,6 @@ export function NewAccountForm({
                 checked={netWorth ?? SWITCH_DEFAULTS[type].includeInNetWorth}
                 onCheckedChange={setNetWorth}
               />
-              <p className="text-sm text-muted">{t("currency", { currency: space.currency })}</p>
             </>
           ) : null}
           {problem && where === "form" ? <ProblemNotice problem={problem} /> : null}

@@ -50,7 +50,9 @@
       "maturityDate": "Vencimiento",
       "principal": "Monto del crédito",
       "termMonths": "Plazo en meses",
-      "productType": "Producto"
+      "productType": "Producto",
+      "currency": "Moneda",
+      "openingHint": "Lo que hay hoy en la cuenta, en su moneda."
     },
     "productType": {
       "none": "Sin indicar",
@@ -74,7 +76,6 @@
       "netWorth": "Contar en el patrimonio",
       "netWorthHint": "Su saldo se suma a tu patrimonio neto."
     },
-    "currency": "Moneda: {currency}",
     "amountUnreadable": "Escribe un monto como {example}.",
     "numberUnreadable": "Escribe un número como {example}.",
     "archive": {
@@ -129,6 +130,12 @@
       "movementCount": "{count, plural, one {# movimiento} other {# movimientos}}",
       "nothingPaid": "Esta cuenta no pagó gastos en este período.",
       "transfersNote": "Las transferencias entre tus cuentas no cuentan como gasto."
+    },
+    "currencyField": {
+      "value": "{name} ({code})",
+      "hint": "La de {space} es {name} ({code}). Elígela antes de registrar movimientos: después ya no cambia.",
+      "sheetTitle": "Moneda de la cuenta",
+      "spaceNote": "la de {space}"
     }
   }
 }
