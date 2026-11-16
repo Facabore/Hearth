@@ -9451,6 +9451,11 @@ export interface operations {
                          * @constant
                          */
                         stale?: true;
+                        /**
+                         * @description D29 (MC4): the display currency had no rate for today's money, so `currency` is the personal space's.
+                         * @constant
+                         */
+                        displayCurrencyUnavailable?: true;
                     };
                 };
             };

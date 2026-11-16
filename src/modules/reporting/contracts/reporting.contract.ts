@@ -529,6 +529,12 @@ export const CashFlowSchema = z.object({
   lowest: z.object({ date: z.string(), balance: MoneySchema }),
   otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
   ...CONVERSION_FIELDS,
+  displayCurrencyUnavailable: z
+    .literal(true)
+    .optional()
+    .describe(
+      "D29 (MC4): the display currency had no rate for today's money, so `currency` is the personal space's.",
+    ),
 });
 
 export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> => {
@@ -564,6 +570,7 @@ export const cashFlowDto = (view: CashFlowView): z.infer<typeof CashFlowSchema> 
     lowest: { date: view.lowest.date, balance: money(view.lowest.balance) },
     otherCurrencySpaces: [...view.otherCurrencySpaces],
     ...conversionDto(view),
+    ...(view.displayCurrencyUnavailable ? { displayCurrencyUnavailable: true as const } : {}),
   };
 };
 

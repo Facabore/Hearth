@@ -14598,6 +14598,11 @@
                       "description": "D29 (MC4): a rate used was more than 7 days older than its day.",
                       "type": "boolean",
                       "const": true
+                    },
+                    "displayCurrencyUnavailable": {
+                      "description": "D29 (MC4): the display currency had no rate for today's money, so `currency` is the personal space's.",
+                      "type": "boolean",
+                      "const": true
                     }
                   },
                   "required": [

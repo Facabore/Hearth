@@ -185,14 +185,26 @@ export const createGetUnifiedPersonalView =
             apart(place);
             continue;
           }
-          const to = async (minor: bigint) => (await converter.convert(minor, place.currency, day)) ?? 0n;
-          for (const row of dayRows) rows.push({ ...row, amount: await to(row.amount) });
-          paid = addPaid(paid, {
+          // Every amount of the day converts, or the whole day is left out and the space named: never a 0 in its place.
+          const to = (minor: bigint) => converter.convert(minor, place.currency, day);
+          const dayRowsIn = await Promise.all(
+            dayRows.map(async (row) => ({ ...row, amount: await to(row.amount) })),
+          );
+          const dayOutIn = {
             payments: await to(dayOut.payments),
             paymentsOutsideTheApp: await to(dayOut.paymentsOutsideTheApp),
             fundContributions: await to(dayOut.fundContributions),
             contributionsOutsideTheApp: await to(dayOut.contributionsOutsideTheApp),
-          });
+          };
+          if (
+            dayRowsIn.some((row) => row.amount === null) ||
+            Object.values(dayOutIn).some((v) => v === null)
+          ) {
+            apart(place);
+            continue;
+          }
+          for (const row of dayRowsIn) rows.push({ ...row, amount: row.amount! });
+          paid = addPaid(paid, dayOutIn as PaidOut);
         }
       }
       figures.set(place.spaceId, paid);

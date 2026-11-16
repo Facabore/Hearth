@@ -49,6 +49,11 @@ export interface CashFlowView extends Omit<CashFlowProjection, "dates"> {
   readonly converted: boolean;
   /** D29, slice MC4: true when a rate it converted with was more than a week older than its day. */
   readonly stale: boolean;
+  /**
+   * D29, slice MC4: true when the caller's display currency had no rate for today's money, so the projection is in
+   * their personal space's currency instead.
+   */
+  readonly displayCurrencyUnavailable: boolean;
   readonly from: LocalDate;
   readonly through: LocalDate;
   readonly days: CashFlowDays;
@@ -72,7 +77,7 @@ export type GetCashFlow = (input: {
  * D29, slice MC4: in the caller's display currency. Today's available money converts at today's rate, and each
  * movement in another currency at the rate of its day (today's for one still ahead, the latest known); one with no rate
  * is left out and its space named. Without a rate for the opening, the projection stays in the personal space's
- * currency. This ends ruling P240's "other currencies out".
+ * currency and says so (`displayCurrencyUnavailable`). This ends ruling P240's "other currencies out".
  */
 export const createGetCashFlow =
   (deps: CashFlowDeps): GetCashFlow =>
@@ -98,7 +103,7 @@ export const createGetCashFlow =
       listed.flat().map(async (m) => {
         if (m.currency === currency) return m;
         const value = await into.convert(m.amount, m.currency, m.date < today ? m.date : today);
-        return value === null ? m : { ...m, converted: value };
+        return value === null ? m : { ...m, convertedAmount: value };
       }),
     );
     const projection = cashFlow({ today, through, currency, opening, accounts: own.accounts, movements });
@@ -111,6 +116,7 @@ export const createGetCashFlow =
       opening,
       converted: into.converted,
       stale: into.stale,
+      displayCurrencyUnavailable: currency !== wanted,
       dates: projection.dates.map((d) => ({
         ...d,
         movements: d.movements.map((m) => ({ ...m, space: { id: m.spaceId, name: m.spaceName } })),

@@ -299,6 +299,23 @@ describe("unified personal view (HU-E7-04)", () => {
       expect([view.otherCurrencySpaces, view.converted, view.stale]).toEqual([[], true, false]);
     });
 
+    it("lists a space apart, never adding it as zero, when a rate it got cannot convert its amounts", async () => {
+      const w = withTrip();
+      // A rate for the wrong pair: Money.convert refuses it, so the trip's day cannot be converted.
+      const mismatched = {
+        datedRateOn: async (_base: string, quote: string, on: LocalDate) =>
+          ok({ rate: unwrap(ExchangeRate.of("EUR", quote, "4500")), date: on, stale: false }),
+      };
+      const view = unwrap(
+        await createGetUnifiedPersonalView({ ...w.deps, rates: mismatched })({
+          userId: "u-ana",
+          period: "2026-11",
+        }),
+      );
+      expect(view.otherCurrencySpaces).toEqual([{ spaceId: "space-trip", name: "Trip", currency: "USD" }]);
+      expect(view.bySpace.find((s) => s.space.id === "space-trip")).toBeUndefined();
+    });
+
     it("shows a person with USD as their display currency their whole view in USD", async () => {
       const w = withTrip();
       const deps = {

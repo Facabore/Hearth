@@ -20,7 +20,7 @@ export interface PlannedMovement {
    * D29, slice MC4: a movement in another currency's amount in the projection's currency, converted at its day's rate;
    * absent when it had no rate, so the movement is left out and its space named.
    */
-  readonly converted?: bigint;
+  readonly convertedAmount?: bigint;
 }
 
 /** One of the caller's own accounts; `counted` when it counts in their available money (HU-E2-07, P51). */
@@ -78,7 +78,7 @@ const order = (
  * was due earlier (a PENDING occurrence, a date the scheduler has not reached), on today. A movement is the caller's
  * when it debits or credits one of their own accounts. Its effect is +amount into a counted account, −amount out of
  * one, so 0 between two counted accounts or two uncounted ones. D29, slice MC4: a movement in another currency counts
- * its `converted` amount; one with none (no rate) is left out and its space named once. Derived on read (D7); ties keep
+ * its `convertedAmount`; one with none (no rate) is left out and its space named once. Derived on read (D7); ties keep
  * the input order.
  */
 export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
@@ -90,7 +90,7 @@ export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
     const debit = movement.debitAccountId === null ? undefined : counted.get(movement.debitAccountId);
     const credit = movement.creditAccountId === null ? undefined : counted.get(movement.creditAccountId);
     if (debit === undefined && credit === undefined) continue;
-    if (movement.currency !== input.currency && movement.converted === undefined) {
+    if (movement.currency !== input.currency && movement.convertedAmount === undefined) {
       others.set(movement.spaceId, {
         spaceId: movement.spaceId,
         name: movement.spaceName,
@@ -98,7 +98,7 @@ export const cashFlow = (input: CashFlowInput): CashFlowProjection => {
       });
       continue;
     }
-    const amount = movement.currency === input.currency ? movement.amount : movement.converted!;
+    const amount = movement.currency === input.currency ? movement.amount : movement.convertedAmount!;
     const effect = (credit ? amount : 0n) - (debit ? amount : 0n);
     placed.push({
       date: movement.date < input.today ? input.today : movement.date,

@@ -154,4 +154,25 @@ describe("GetCashFlow in the display currency (D29, slice MC4, ending ruling P24
     // $ 100.000 at 0,00025 is US$ 25,00; the US$ 10 subscription is already in USD.
     expect([view.currency, view.opening, view.totals.closing]).toEqual(["USD", 2_500n, 1_500n]);
   });
+
+  it("says the display currency is unavailable, and stays in the personal space's, when today has no rate for it", async () => {
+    const deps = {
+      ...withTrip(),
+      displayCurrencyOf: async () => "USD",
+      rates: ratesOf({ "COP>USD": "0.00025" }),
+    };
+    const view = unwrap(await createGetCashFlow(deps)({ userId: "u-ana", days: 30 }));
+    expect([view.currency, view.displayCurrencyUnavailable]).toEqual(["USD", false]);
+    const none = unwrap(
+      await createGetCashFlow({ ...withTrip(), displayCurrencyOf: async () => "GBP", rates: ratesOf({}) })({
+        userId: "u-ana",
+        days: 30,
+      }),
+    );
+    expect([none.currency, none.opening, none.displayCurrencyUnavailable]).toEqual([
+      "COP",
+      pesos(100_000),
+      true,
+    ]);
+  });
 });
