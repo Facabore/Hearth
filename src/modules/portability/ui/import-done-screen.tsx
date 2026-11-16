@@ -44,7 +44,8 @@ const NONE: ImportCountsDto = {
 
 /**
  * D28, board "6 · Importar · listo": what the import did (its movements, the accounts and categories it created or
- * restored from an undone import, the look-alikes left out, the rows the ledger refused) and the way to undo it. The names and the date range come from the
+ * restored from an undone import, the look-alikes left out, the rows the ledger refused) and the way to undo it. A balance adjustment is a movement
+ * like any other since #329: one the ledger refused is among the refused rows, and is never counted twice. The names and the date range come from the
  * draft's preview when this visit still holds it; a later visit has the counts alone. Undo asks first, as everywhere.
  */
 export function ImportDoneScreen({
@@ -178,18 +179,6 @@ export function ImportDoneScreen({
               }
               title={t("rowErrors", count(done.rowErrors))}
               note={t("rowErrorsNote")}
-            />
-          </li>
-        ) : null}
-        {done.adjustmentsNotImported > 0 ? (
-          <li>
-            <StaticRow
-              icon={
-                <RowIcon tone="warn">
-                  <Icon name="alert" size={20} />
-                </RowIcon>
-              }
-              title={t("adjustments", count(done.adjustmentsNotImported))}
             />
           </li>
         ) : null}

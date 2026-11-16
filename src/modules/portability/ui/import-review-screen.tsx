@@ -120,9 +120,6 @@ function BeforeImport({
     preview.plan.adjustmentsInOpeningBalance > 0
       ? t("opening", count(preview.plan.adjustmentsInOpeningBalance))
       : null,
-    preview.plan.adjustmentsNotImported > 0
-      ? t("adjustmentsLater", count(preview.plan.adjustmentsNotImported))
-      : null,
     preview.warnings.length > 0 ? t("dateZone", count(preview.warnings.length)) : null,
     preview.errors.length > 0 ? t("rowErrors", count(preview.errors.length)) : null,
   ].filter((line): line is string => line !== null);

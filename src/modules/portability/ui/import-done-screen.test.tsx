@@ -107,6 +107,12 @@ describe("Importación lista (D28, board 6)", () => {
     expect(screen.getAllByText("Las había archivado una importación que deshiciste")).toHaveLength(2);
   });
 
+  it("counts a refused balance adjustment once, among the rows the ledger refused (#329)", () => {
+    renderDone({ counts: { ...resultFixture().counts!, rowErrors: 1, adjustmentsNotImported: 1 } });
+    expect(screen.getByText("1 movimiento no se importó")).toBeVisible();
+    expect(screen.queryByText(/ajuste de saldo/)).toBeNull();
+  });
+
   it("offers no undo for an import already undone", () => {
     renderDone({ undoable: false });
     expect(screen.queryByRole("button", { name: "Deshacer importación" })).toBeNull();

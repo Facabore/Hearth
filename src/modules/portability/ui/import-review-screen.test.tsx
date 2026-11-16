@@ -96,6 +96,19 @@ describe("Revisar importación (D28, board 3)", () => {
     expectPinned(screen.getByRole("button", { name: "Importar 1.237 movimientos" }));
   });
 
+  it("says no later balance adjustment stays out: they import as adjustments (#329)", () => {
+    renderReview(
+      previewFixture({
+        duplicates: [],
+        leftOut: { budgets: 0, zeroAmountMovements: 0 },
+        plan: { ...previewFixture().plan, adjustmentsNotImported: 2, adjustmentsInOpeningBalance: 1 },
+      }),
+    );
+    const card = screen.getByRole("region", { name: "Antes de importar" });
+    expect(card).toHaveTextContent("1 ajuste de saldo pasa al saldo inicial de su cuenta.");
+    expect(card).not.toHaveTextContent(/aún no se importa/);
+  });
+
   it("draws no warnings card when nothing stays out, and names an earlier import of the same file", () => {
     renderReview(
       previewFixture({
