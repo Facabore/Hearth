@@ -22,6 +22,11 @@ export interface SourceRates {
 export interface ExchangeRateSource {
   readonly key: string;
   fetch(): Promise<Result<SourceRates>>;
+  /**
+   * Every day's rates the source published from `from` on, oldest first, so a past movement can be converted at its
+   * own date. A large one-off read; a failure is `ExchangeRateSourceUnavailable`, like `fetch`.
+   */
+  history(from: LocalDate): Promise<Result<readonly SourceRates[]>>;
 }
 
 /** One exchange rate to store: the day it is for, the pair, the exact decimal, and which source gave it. */
@@ -49,4 +54,6 @@ export interface ExchangeRateRepository {
    * through a pivot currency (`crossRate`). `NoExchangeRate` when the currencies are not connected by that day.
    */
   rateOn(base: string, quote: string, on: LocalDate): Promise<Result<ExchangeRate>>;
+  /** The earliest day `source` has a stored rate for, or null when it has none (whether its history is filled in). */
+  earliestDate(source: string): Promise<LocalDate | null>;
 }

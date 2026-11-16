@@ -1,22 +1,38 @@
-import { domainError, err, localDate, ok, type Result } from "@/shared/kernel";
+import { domainError, err, localDate, ok, type LocalDate, type Result } from "@/shared/kernel";
 import type { HttpGet } from "@/shared/infrastructure/http/http-get";
 import type { ExchangeRateSource, SourceRates } from "../application";
 
 /**
- * Banco de la República's TRM, the official COP rate (D30, Q1), free on datos.gov.co. The latest row first; the TRM is
+ * Banco de la República's TRM, the official COP rate (D30, Q1), free on datos.gov.co (dataset 32sa-8pi3). The TRM is
  * pesos per US dollar, so it is stored as USD->COP, for the day it takes effect (`vigenciadesde`).
  */
-const TRM_LATEST_URL =
-  "https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC";
+const TRM_DATASET = "https://www.datos.gov.co/resource/32sa-8pi3.json";
+const TRM_LATEST_URL = `${TRM_DATASET}?$limit=1&$order=vigenciadesde%20DESC`;
+/** The whole history since 1991 is under 9,000 rows, so one page holds it. */
+const historyUrl = (from: LocalDate) =>
+  `${TRM_DATASET}?$where=vigenciadesde%20%3E%3D%20'${from}'&$order=vigenciadesde%20ASC&$limit=50000`;
+const HISTORY_TIMEOUT_MS = 120_000;
 
 interface TrmRow {
   readonly valor?: string;
   readonly vigenciadesde?: string;
 }
 
+const unavailable = (reason: string) =>
+  err(domainError("ExchangeRateSourceUnavailable", { source: "trm", reason }));
+
+/** One row as a day's USD->COP rate, or null when it has no value or no readable date. */
+const dayOf = (row: TrmRow): SourceRates | null => {
+  if (!row.valor || !row.vigenciadesde) return null;
+  const date = localDate(row.vigenciadesde.slice(0, 10));
+  return date.ok
+    ? { source: "trm", base: "USD", date: date.value, rates: [{ quote: "COP", rate: row.valor }] }
+    : null;
+};
+
 /**
- * D30: reads the latest TRM and parses it to one USD->COP rate. A fetch, JSON, or shape failure is
- * `ExchangeRateSourceUnavailable`.
+ * D30: reads the TRM from datos.gov.co: the latest row for the day, or every row from a day on for the history. A
+ * fetch, JSON, or shape failure is `ExchangeRateSourceUnavailable`.
  */
 export class TrmSource implements ExchangeRateSource {
   readonly key = "trm";
@@ -27,29 +43,26 @@ export class TrmSource implements ExchangeRateSource {
   ) {}
 
   async fetch(): Promise<Result<SourceRates>> {
-    let rows: TrmRow[];
+    const rows = await this.rows(this.url);
+    if (!rows.ok) return rows;
+    const latest = rows.value[0] ? dayOf(rows.value[0]) : null;
+    return latest ? ok(latest) : unavailable("empty");
+  }
+
+  async history(from: LocalDate): Promise<Result<readonly SourceRates[]>> {
+    const rows = await this.rows(historyUrl(from), HISTORY_TIMEOUT_MS);
+    if (!rows.ok) return rows;
+    const days = rows.value.map(dayOf).filter((d): d is SourceRates => d !== null);
+    return days.length > 0 ? ok(days) : unavailable("no history");
+  }
+
+  private async rows(url: string, timeoutMs?: number): Promise<Result<readonly TrmRow[]>> {
     try {
-      const body = await this.http.getText(this.url);
-      const parsed: unknown = JSON.parse(body);
-      if (!Array.isArray(parsed)) throw new Error("not an array");
-      rows = parsed as TrmRow[];
+      const parsed: unknown = JSON.parse(await this.http.getText(url, timeoutMs));
+      if (!Array.isArray(parsed)) return unavailable("not an array");
+      return ok(parsed as TrmRow[]);
     } catch (cause) {
-      return err(domainError("ExchangeRateSourceUnavailable", { source: this.key, reason: String(cause) }));
+      return unavailable(String(cause));
     }
-
-    const latest = rows[0];
-    if (!latest?.valor || !latest.vigenciadesde) {
-      return err(domainError("ExchangeRateSourceUnavailable", { source: this.key, reason: "empty" }));
-    }
-    const date = localDate(latest.vigenciadesde.slice(0, 10));
-    if (!date.ok)
-      return err(domainError("ExchangeRateSourceUnavailable", { source: this.key, reason: "bad date" }));
-
-    return ok({
-      source: this.key,
-      base: "USD",
-      date: date.value,
-      rates: [{ quote: "COP", rate: latest.valor }],
-    });
   }
 }

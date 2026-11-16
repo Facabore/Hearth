@@ -38,7 +38,7 @@ export async function register(): Promise<void> {
 
   if (env.EXCHANGE_RATE_JOB_INTERVAL_SECONDS > 0) {
     const [
-      { logExchangeRateJobFailure, startExchangeRateJob },
+      { logExchangeRateJobFailure, RATES_HISTORY_FROM, startExchangeRateJob },
       { createHttpGet },
       { EcbSource },
       { TrmSource },
@@ -58,6 +58,7 @@ export async function register(): Promise<void> {
         scheduler: new TimerScheduler(logExchangeRateJobFailure(container.logger)),
         clock: clockFrom(env.HEARTH_E2E_FIXED_NOW),
         logger: container.logger,
+        historyFrom: RATES_HISTORY_FROM,
       },
       env.EXCHANGE_RATE_JOB_INTERVAL_SECONDS * 1000,
     );

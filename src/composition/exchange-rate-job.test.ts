@@ -26,11 +26,17 @@ const recordingRepository = () => {
       saved.push(...rates);
     },
     rateOn: async () => err(domainError("NoExchangeRate", {})),
+    // History is already there unless a test says otherwise, so a run only fetches the day.
+    earliestDate: async () => "2010-01-01" as never,
   };
   return { repository, saved };
 };
 
-const source = (key: string, fetch: ExchangeRateSource["fetch"]): ExchangeRateSource => ({ key, fetch });
+const source = (
+  key: string,
+  fetch: ExchangeRateSource["fetch"],
+  history: ExchangeRateSource["history"] = async () => ok([]),
+): ExchangeRateSource => ({ key, fetch, history });
 
 const logger: Logger = { info: vi.fn(), error: vi.fn() };
 
@@ -41,6 +47,7 @@ const depsWith = (sources: ExchangeRateSource[], repository: ExchangeRateReposit
     scheduler,
     clock: new FixedClock(new Date("2026-11-14T06:00:00Z")),
     logger,
+    historyFrom: "2015-01-01" as never,
   }) satisfies ExchangeRateJobDeps;
 
 describe("startExchangeRateJob", () => {
@@ -119,6 +126,7 @@ describe("startExchangeRateJob", () => {
         saved.push(...rates);
       },
       rateOn: async () => err(domainError("NoExchangeRate", {})),
+      earliestDate: async () => "2010-01-01" as never,
     };
     const ecb = source("ecb", async () =>
       ok({
@@ -186,6 +194,124 @@ describe("startExchangeRateJob", () => {
       date: "2026-11-13",
       count: 1,
       skipped: 2,
+    });
+  });
+
+  it("fills in a source's history from historyFrom once, before its day, when it has no rate that old", async () => {
+    const { scheduler, run } = capturingScheduler();
+    const { repository, saved } = recordingRepository();
+    const empty: ExchangeRateRepository = { ...repository, earliestDate: async () => null };
+    const asked: string[] = [];
+    const trm = source(
+      "trm",
+      async () =>
+        ok({
+          source: "trm",
+          base: "USD",
+          date: "2026-11-14" as never,
+          rates: [{ quote: "COP", rate: "3316.7" }],
+        }),
+      async (from) => {
+        asked.push(from);
+        return ok([
+          {
+            source: "trm",
+            base: "USD",
+            date: "2015-01-02" as never,
+            rates: [{ quote: "COP", rate: "2392.46" }],
+          },
+          { source: "trm", base: "USD", date: "2015-01-03" as never, rates: [{ quote: "COP", rate: "0" }] },
+        ]);
+      },
+    );
+    vi.mocked(logger.info).mockClear();
+    startExchangeRateJob(depsWith([trm], empty, scheduler), 86_400_000);
+    await run();
+
+    expect(asked).toEqual(["2015-01-01"]);
+    expect(saved.map((r) => [r.date, r.rate])).toEqual([
+      ["2015-01-02", "2392.46"],
+      ["2026-11-14", "3316.7"],
+    ]);
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith("exchange_rates_backfilled", {
+      source: "trm",
+      from: "2015-01-01",
+      days: 2,
+      count: 1,
+      skipped: 1,
+    });
+  });
+
+  it("does not read a source's history again once it starts within a week of historyFrom (holidays publish none)", async () => {
+    const { scheduler, run } = capturingScheduler();
+    const { repository } = recordingRepository();
+    const history = vi.fn(async () => ok([]));
+    const ecb = source(
+      "ecb",
+      async () =>
+        ok({
+          source: "ecb",
+          base: "EUR",
+          date: "2026-11-13" as never,
+          rates: [{ quote: "USD", rate: "1.1052" }],
+        }),
+      history,
+    );
+    startExchangeRateJob(
+      depsWith([ecb], { ...repository, earliestDate: async () => "2015-01-02" as never }, scheduler),
+      86_400_000,
+    );
+    await run();
+    expect(history).not.toHaveBeenCalled();
+  });
+
+  it("reads a source's history again when its earliest rate starts more than a week after historyFrom", async () => {
+    const { scheduler, run } = capturingScheduler();
+    const { repository } = recordingRepository();
+    const history = vi.fn(async () => ok([]));
+    const trm = source(
+      "trm",
+      async () =>
+        ok({
+          source: "trm",
+          base: "USD",
+          date: "2026-11-14" as never,
+          rates: [{ quote: "COP", rate: "3316.7" }],
+        }),
+      history,
+    );
+    startExchangeRateJob(
+      depsWith([trm], { ...repository, earliestDate: async () => "2015-01-09" as never }, scheduler),
+      86_400_000,
+    );
+    await run();
+    expect(history).toHaveBeenCalledWith("2015-01-01");
+  });
+
+  it("still stores the day when a source's history cannot be read, and tries the history again next run", async () => {
+    const { scheduler, run } = capturingScheduler();
+    const { repository, saved } = recordingRepository();
+    const ecb = source(
+      "ecb",
+      async () =>
+        ok({
+          source: "ecb",
+          base: "EUR",
+          date: "2026-11-13" as never,
+          rates: [{ quote: "USD", rate: "1.1052" }],
+        }),
+      async () => err(domainError("ExchangeRateSourceUnavailable", { source: "ecb" })),
+    );
+    vi.mocked(logger.info).mockClear();
+    startExchangeRateJob(
+      depsWith([ecb], { ...repository, earliestDate: async () => null }, scheduler),
+      86_400_000,
+    );
+    await run();
+    expect(saved.map((r) => r.date)).toEqual(["2026-11-13"]);
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith("exchange_rate_history_unavailable", {
+      source: "ecb",
+      code: "ExchangeRateSourceUnavailable",
     });
   });
 });

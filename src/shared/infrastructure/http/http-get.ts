@@ -3,14 +3,15 @@
  * test drives an adapter with a canned body and never touches the network (AGENTS.md: tests use no network).
  */
 export interface HttpGet {
-  getText(url: string): Promise<string>;
+  /** `timeoutMs` overrides the client's own timeout, for a large one-off read such as a rate history. */
+  getText(url: string, timeoutMs?: number): Promise<string>;
 }
 
 /** A `fetch`-based `HttpGet` that aborts after `timeoutMs` and rejects on a non-2xx response. */
 export const createHttpGet = (timeoutMs: number): HttpGet => ({
-  async getText(url: string): Promise<string> {
+  async getText(url: string, overrideMs?: number): Promise<string> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), overrideMs ?? timeoutMs);
     try {
       const response = await fetch(url, {
         signal: controller.signal,

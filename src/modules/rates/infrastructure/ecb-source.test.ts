@@ -46,4 +46,37 @@ describe("EcbSource", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error.code).toBe("ExchangeRateSourceUnavailable");
   });
+
+  it("reads its history from a day on, each day with its own rates, from the history feed", async () => {
+    const HIST = `<?xml version="1.0" encoding="UTF-8"?><gesmes:Envelope><Cube><Cube time="2026-11-13"><Cube currency="USD" rate="1.1052"/><Cube currency="JPY" rate="176.83"/></Cube><Cube time="2026-11-12"><Cube currency="USD" rate="1.1"/></Cube><Cube time="2014-12-31"><Cube currency="USD" rate="1.2141"/></Cube></Cube></gesmes:Envelope>`;
+    const asked: Array<[string, number | undefined]> = [];
+    const source = new EcbSource(
+      stub(async (url, timeoutMs) => {
+        asked.push([url, timeoutMs]);
+        return HIST;
+      }),
+    );
+    const r = await source.history("2015-01-01" as never);
+    expect(asked).toEqual([["https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml", 120_000]]);
+    expect(r.ok && r.value.map((d) => [d.date, d.rates.length])).toEqual([
+      ["2026-11-12", 1],
+      ["2026-11-13", 2],
+    ]);
+    expect(r.ok && r.value[0]).toEqual({
+      source: "ecb",
+      base: "EUR",
+      date: "2026-11-12",
+      rates: [{ quote: "USD", rate: "1.1" }],
+    });
+  });
+
+  it("has an unavailable history when the history feed cannot be read", async () => {
+    const source = new EcbSource(
+      stub(async () => {
+        throw new Error("timeout");
+      }),
+    );
+    const r = await source.history("2015-01-01" as never);
+    expect(!r.ok && r.error.code).toBe("ExchangeRateSourceUnavailable");
+  });
 });
