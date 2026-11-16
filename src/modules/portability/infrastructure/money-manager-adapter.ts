@@ -49,10 +49,10 @@ const trimmed = (value: unknown): string | null => {
 };
 const isSet = (value: unknown): value is string => trimmed(value) !== null && trimmed(value) !== "0";
 
-/** A row-level problem as code plus plain-string data, for the preview to word (design §3.2). */
-/** A backup is never asked for more tags per movement than a note can usefully carry. */
+/** A note carries at most this many tags per movement; more are left out with a TagsTruncated warning. */
 const MAX_TAGS_PER_MOVEMENT = 10;
 
+/** A row-level problem as code plus plain-string data, for the preview to word (design §3.2). */
 const rowIssue = (sourceKey: string, error: DomainError): SourceIssue =>
   error.details === undefined
     ? { code: error.code, sourceKey }
@@ -177,7 +177,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
       accountInfo.set(str(row.uid), { row, currency, groupUid: num(row.groupUid) });
     }
 
-    const tagsByMovement = this.tags(db);
+    const { byMovement: tagsByMovement, truncated: truncatedTags } = this.tags(db);
     const { movements, zeroAmountMovements, usedCategories, warnings, errors, balances } = this.movements(
       db,
       accountInfo,
@@ -217,7 +217,14 @@ export class MoneyManagerAdapter implements SourceAdapter {
       budgets,
       settings: { startDay: this.startDay(db), mainCurrency },
       skipped: { zeroAmountMovements, deletedCategories },
-      warnings,
+      warnings: [
+        ...warnings,
+        ...[...truncatedTags].map(([sourceKey, count]) => ({
+          code: "TagsTruncated",
+          sourceKey,
+          details: { leftOut: String(count) },
+        })),
+      ],
       errors: [...accountErrors, ...errors],
     });
   }
@@ -227,21 +234,24 @@ export class MoneyManagerAdapter implements SourceAdapter {
    * TX_TAG and TAG rows all share one uid would make a SQL join's output grow as their product. Names are kept once
    * each, at most MAX_TAGS_PER_MOVEMENT per movement.
    */
-  private tags(db: DatabaseSync): Map<string, string[]> {
+  private tags(db: DatabaseSync): { byMovement: Map<string, string[]>; truncated: Map<string, number> } {
     const names = new Map<string, string>();
     for (const row of this.all(db, "SELECT uid, NAME FROM TAG")) {
       const name = trimmed(row.NAME);
       if (name !== null && !names.has(str(row.uid))) names.set(str(row.uid), name);
     }
     const byMovement = new Map<string, Set<string>>();
+    const truncated = new Map<string, number>();
     for (const row of this.all(db, "SELECT txUid, tagUid FROM TX_TAG")) {
       const name = names.get(str(row.tagUid));
       if (name === undefined) continue;
       const key = str(row.txUid);
       const tags = byMovement.get(key) ?? byMovement.set(key, new Set()).get(key)!;
+      if (tags.has(name)) continue;
       if (tags.size < MAX_TAGS_PER_MOVEMENT) tags.add(name);
+      else truncated.set(key, (truncated.get(key) ?? 0) + 1);
     }
-    return new Map([...byMovement].map(([key, tags]) => [key, [...tags]]));
+    return { byMovement: new Map([...byMovement].map(([key, tags]) => [key, [...tags]])), truncated };
   }
 
   private note(texts: readonly unknown[], tags: readonly string[]): string | null {

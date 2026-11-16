@@ -612,6 +612,12 @@ describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
     const note = (key: string) => snapshot.movements.find((m) => m.sourceKey === key)?.note ?? "";
     expect(note("m1").match(/#repeated/g)).toHaveLength(1);
     expect(note("m2").match(/#tag\d+/g)).toHaveLength(10);
+    expect(snapshot.warnings).toContainEqual({
+      code: "TagsTruncated",
+      sourceKey: "m2",
+      details: { leftOut: "5" },
+    });
+    expect(snapshot.warnings.find((w) => w.code === "TagsTruncated" && w.sourceKey === "m1")).toBeUndefined();
   });
 
   it("reports a movement type it does not know as a row error, never as a balance adjustment", () => {
@@ -639,6 +645,21 @@ describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
     expect(snapshot.accounts.find((a) => a.sourceId === "a-odd")).toBeUndefined();
     expect(snapshot.warnings).toContainEqual({ code: "MovementWithoutAccount", sourceKey: "on-odd" });
     expect(snapshot.movements.map((m) => m.sourceKey)).toContain("m1");
+  });
+
+  it("drops a transfer to or from an account in an unknown currency with a warning, and keeps the rest", () => {
+    const snapshot = readOk(
+      buildFixture(
+        [
+          ["x-out", 3, "2025-04-01", day, "a-bank", "", 1, "1000.0", 1000, "t-odd"],
+          ["x-in", 4, "2025-04-01", day, "a-odd", "", 1, "1000.0", 1000, "t-odd"],
+        ],
+        "INSERT INTO ASSETS VALUES ('a-odd', 'Odd', 1, 99, 50, 0, 0, '', '', 0, 0);",
+      ),
+    );
+    expect(snapshot.warnings).toContainEqual({ code: "TransferWithoutAccount", sourceKey: "t-odd" });
+    expect(snapshot.movements.find((m) => m.sourceKey === "t-odd")).toBeUndefined();
+    expect(snapshot.movements.filter((m) => m.kind === "TRANSFER").map((m) => m.sourceKey)).toEqual(["t1"]);
   });
 
   it("keeps a movement whose instant is out of range, without the instant and with a warning", () => {
