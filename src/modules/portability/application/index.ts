@@ -22,3 +22,16 @@ export {
   type PreviewOptions,
 } from "../domain/import-planner";
 export type { SourceAdapter, SourceFile } from "./source-adapter";
+export {
+  createExportPersonData,
+  type Archiver,
+  type ExportDeps,
+  type ExportFile,
+  type ExportFormat,
+  type ExportPersonData,
+  type ExportPersonDataInput,
+  type ExportReader,
+  type ExportSpaceSummary,
+  type ExportThrottle,
+} from "./export-person-data";
+export type { ExportDocument } from "../domain/export-document";

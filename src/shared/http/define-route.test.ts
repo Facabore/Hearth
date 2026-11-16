@@ -365,6 +365,48 @@ describe("defineRoute", () => {
     expect(response.headers.getSetCookie()).toEqual(["a=1", "b=2"]);
   });
 
+  it("answers a JSON route exactly as before: status, every header and the body text (D28 bytes bodies)", async () => {
+    const route = defineRoute({
+      auth: "none",
+      handler: async () =>
+        ok({
+          status: 201,
+          body: { id: "x", minor: 5n, name: "Café" },
+          headers: [["content-disposition", 'attachment; filename="a.json"']],
+        }),
+    });
+    const response = await call(route, { headers: { "x-request-id": "req-1234567890" } });
+    expect(response.status).toBe(201);
+    expect([...response.headers.entries()]).toEqual([
+      ["content-disposition", 'attachment; filename="a.json"'],
+      ["content-type", "application/json"],
+      ["x-request-id", "req-1234567890"],
+    ]);
+    expect(await response.text()).toBe('{"id":"x","minor":"5","name":"Café"}');
+  });
+
+  it("sends a bytes body as it is, with its own content type and the route's headers (D28)", async () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0xff]);
+    const route = defineRoute({
+      auth: "none",
+      handler: async () =>
+        ok({
+          status: 200,
+          body: bytes,
+          contentType: "application/zip",
+          headers: [["content-disposition", 'attachment; filename="a.zip"']],
+        }),
+    });
+    const response = await call(route, { headers: { "x-request-id": "req-1234567890" } });
+    expect(response.status).toBe(200);
+    expect([...response.headers.entries()]).toEqual([
+      ["content-disposition", 'attachment; filename="a.zip"'],
+      ["content-type", "application/zip"],
+      ["x-request-id", "req-1234567890"],
+    ]);
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
+  });
+
   it("lets a before hook wrap the handler", async () => {
     const route = defineRoute({
       auth: "none",

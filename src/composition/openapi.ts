@@ -22,6 +22,7 @@ import {
   RecurrenceSchema,
   recurrencesPaths,
 } from "@/modules/ledger/contracts/recurrences.contract";
+import { ExportDocumentSchema, exportPaths } from "@/modules/portability/contracts/export.contract";
 import { referralsPaths } from "@/modules/referrals/contracts/referrals.contract";
 import { reportingPaths } from "@/modules/reporting/contracts/reporting.contract";
 import {
@@ -89,6 +90,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
           ...budgetingPaths,
           ...reportingPaths,
           ...referralsPaths,
+          ...exportPaths,
         },
         components: {
           schemas: {
@@ -111,6 +113,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
             BudgetPlan: BudgetPlanSchema,
             Recurrence: RecurrenceSchema,
             Occurrence: OccurrenceSchema,
+            HearthExport: ExportDocumentSchema,
           },
           securitySchemes: {
             cookieAuth: { type: "apiKey", in: "cookie", name: "hearth.session_token" },
