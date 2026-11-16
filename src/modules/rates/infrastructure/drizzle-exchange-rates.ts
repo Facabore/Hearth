@@ -1,8 +1,8 @@
 import { asc, desc, eq, lte, min } from "drizzle-orm";
 import { ok, type ExchangeRate, type LocalDate, type Result } from "@/shared/kernel";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
-import type { ExchangeRateRepository, StoredRate } from "../application";
-import { rateFromRows, type RateRow } from "../domain";
+import type { DatedRate, DatedRateReader, ExchangeRateRepository, StoredRate } from "../application";
+import { datedRateFromRows, rateFromRows, type RateRow } from "../domain";
 import { exchangeRates } from "./rates.schema";
 
 /** Rows per INSERT: 6,000 parameters, far below PostgreSQL's 65,535. */
@@ -14,7 +14,7 @@ const SAVE_BATCH = 1000;
  * (one row per pair, a same-day tie between sources going to the lower source key), so a lookup stays the same size
  * as history grows, and lets the domain resolve the asked pair, directly or through a pivot.
  */
-export class DrizzleExchangeRates implements ExchangeRateRepository {
+export class DrizzleExchangeRates implements ExchangeRateRepository, DatedRateReader {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async save(rates: readonly StoredRate[]): Promise<void> {
@@ -42,6 +42,15 @@ export class DrizzleExchangeRates implements ExchangeRateRepository {
   }
 
   async rateOn(base: string, quote: string, on: LocalDate): Promise<Result<ExchangeRate>> {
+    return rateFromRows(await this.latestRows(on), base, quote, on);
+  }
+
+  async datedRateOn(base: string, quote: string, on: LocalDate): Promise<Result<DatedRate>> {
+    return datedRateFromRows(await this.latestRows(on), base, quote, on);
+  }
+
+  /** Each pair's latest row on or before `on`, a same-day tie between sources going to the lower source key. */
+  private async latestRows(on: LocalDate): Promise<RateRow[]> {
     const rows = await this.tm
       .executor()
       .selectDistinctOn([exchangeRates.base, exchangeRates.quote], {
@@ -58,7 +67,7 @@ export class DrizzleExchangeRates implements ExchangeRateRepository {
         desc(exchangeRates.date),
         asc(exchangeRates.source),
       );
-    return rateFromRows(rows as RateRow[], base, quote, on);
+    return rows as RateRow[];
   }
 
   async earliestDate(source: string): Promise<LocalDate | null> {

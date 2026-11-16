@@ -61,6 +61,26 @@ export const crossRate = (
   base: string,
   quote: string,
 ): Result<ExchangeRate> => {
+  const path = crossRatePath(edges, base, quote);
+  return path.ok ? ok(path.value.rate) : path;
+};
+
+/** D30, D29 (MC4): a resolved rate and the oriented edges it was composed from, in order. */
+export interface RatePath {
+  readonly rate: ExchangeRate;
+  /** Each hop as taken: a stored rate or its inverse; a direct pair has one. */
+  readonly legs: readonly ExchangeRate[];
+}
+
+/**
+ * D29 (MC4): `crossRate`'s resolution, with the legs it went through, so a caller can tell which stored rates, and so
+ * which days, the answer rests on.
+ */
+export const crossRatePath = (
+  edges: readonly ExchangeRate[],
+  base: string,
+  quote: string,
+): Result<RatePath> => {
   if (base === quote) return err(domainError("InvalidExchangeRate", { base, quote }));
 
   // Adjacency from each currency, forward edges first so a stored direct pair wins its inverse; first orientation kept.
@@ -112,5 +132,5 @@ export const crossRate = (
     if (!composed.ok) return composed;
     accumulated = composed.value;
   }
-  return ok(accumulated);
+  return ok({ rate: accumulated, legs: chain });
 };
