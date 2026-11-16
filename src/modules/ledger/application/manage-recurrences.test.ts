@@ -50,6 +50,7 @@ const ANA_CHECKING: LedgerAccount = {
   ownerUserId: "u-ana",
   isSharedFund: false,
   archived: false,
+  currency: "COP",
 };
 const ANA_SAVINGS: LedgerAccount = { ...ANA_CHECKING, id: "acc-ana-household-savings" };
 

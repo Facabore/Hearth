@@ -6060,6 +6060,9 @@
                   "amount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "convertedAmount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "accountId": {
                     "type": "string",
                     "minLength": 1,
@@ -6415,6 +6418,9 @@
                     "maxLength": 64
                   },
                   "amount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "convertedAmount": {
                     "$ref": "#/components/schemas/Money"
                   },
                   "accountId": {
@@ -7995,6 +8001,9 @@
                       "amount": {
                         "$ref": "#/components/schemas/Money"
                       },
+                      "convertedAmount": {
+                        "$ref": "#/components/schemas/Money"
+                      },
                       "accountId": {
                         "type": "string",
                         "minLength": 1,
@@ -8225,6 +8234,9 @@
                         "maxLength": 64
                       },
                       "amount": {
+                        "$ref": "#/components/schemas/Money"
+                      },
+                      "convertedAmount": {
                         "$ref": "#/components/schemas/Money"
                       },
                       "accountId": {
@@ -16750,6 +16762,9 @@
           "amount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
+          "originalAmount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
           "categoryId": {
             "type": [
               "string",
@@ -17287,6 +17302,9 @@
             ]
           },
           "amount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "originalAmount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "categoryId": {
@@ -18395,6 +18413,9 @@
             ]
           },
           "amount": {
+            "$ref": "#/components/schemas/MoneyOutput"
+          },
+          "originalAmount": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "categoryId": {

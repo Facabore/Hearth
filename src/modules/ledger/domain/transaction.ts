@@ -150,6 +150,10 @@ const checkParts = (amount: bigint, payments: readonly Payment[], shares: readon
     return err(domainError("MixedFundPayment"));
   }
   if ([...payments, ...shares].some((part) => part.amount <= 0n)) return err(domainError("InvalidAmount"));
+  // D29, slice MC3: a present account leg is money in the account's own currency, so it is positive like the base.
+  if (payments.some((p) => p.accountAmount !== undefined && p.accountAmount <= 0n)) {
+    return err(domainError("InvalidAmount"));
+  }
   if (sum(payments.map((p) => p.amount)) !== amount || sum(shares.map((s) => s.amount)) !== amount) {
     return err(domainError("SharesDoNotMatchAmount"));
   }
@@ -168,7 +172,25 @@ interface NewTransaction {
   /** HU-E4-14: both absent for a transaction without a time. */
   readonly occurredAt?: Date | null;
   readonly timeZone?: string | null;
+  /** D29, slice MC3: what was charged, in `originalCurrency`, when it differs from the base `amount`; both or neither. */
+  readonly originalAmount?: bigint;
+  readonly originalCurrency?: string;
 }
+
+/**
+ * D29, slice MC3: the original amount and its currency come together and are positive, or neither is present (the
+ * movement is wholly in the base currency).
+ */
+const originalOf = (
+  amount: bigint | undefined,
+  currency: string | undefined,
+): Result<{ originalAmount?: bigint; originalCurrency?: string }> => {
+  if (amount === undefined && currency === undefined) return ok({});
+  if (amount === undefined || currency === undefined) return err(domainError("InvalidOriginalAmount"));
+  const positive = positiveAmount(amount);
+  if (!positive.ok) return positive;
+  return ok({ originalAmount: amount, originalCurrency: currency });
+};
 
 const baseOf = (input: NewTransaction): Result<TransactionBase> => {
   const amount = positiveAmount(input.amount);
@@ -179,6 +201,8 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
   if ((occurredAt === null) !== (timeZone === null)) return err(domainError("InvalidTransactionTime"));
   const description = descriptionOf(input.description);
   if (!description.ok) return description;
+  const original = originalOf(input.originalAmount, input.originalCurrency);
+  if (!original.ok) return original;
   return ok({
     id: input.id,
     spaceId: input.spaceId,
@@ -193,6 +217,7 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
     updatedAt: input.now,
     deletedAt: null,
     version: 1,
+    ...original.value,
   });
 };
 
@@ -221,16 +246,23 @@ export const recordIncome = (
     readonly categoryId: string;
     readonly destinationAccountId: string;
     readonly receivingMemberId: string;
+    /** D29, slice MC3: the amount in the destination account's own currency, when it differs from the base amount. */
+    readonly destinationAmount?: bigint;
   },
 ): Result<Income> => {
   const base = baseOf(input);
   if (!base.ok) return base;
+  if (input.destinationAmount !== undefined) {
+    const leg = positiveAmount(input.destinationAmount);
+    if (!leg.ok) return leg;
+  }
   return ok({
     ...base.value,
     type: "INCOME" as const,
     categoryId: input.categoryId,
     destinationAccountId: input.destinationAccountId,
     receivingMemberId: input.receivingMemberId,
+    ...(input.destinationAmount === undefined ? {} : { destinationAmount: input.destinationAmount }),
   });
 };
 

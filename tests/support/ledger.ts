@@ -21,6 +21,8 @@ export interface TransactionDto {
   occurredAt: string | null;
   timeZone: string | null;
   amount: MoneyDto;
+  /** D29, slice MC3: what was charged, in its own currency, when the movement was in another currency; absent otherwise. */
+  originalAmount?: MoneyDto;
   categoryId: string | null;
   payments: { memberId: string | null; accountId: string | null; amount: MoneyDto }[];
   shares: { memberId: string; amount: MoneyDto; splitMethod: string }[];

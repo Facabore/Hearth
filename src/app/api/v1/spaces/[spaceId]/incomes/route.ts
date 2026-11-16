@@ -20,6 +20,13 @@ export const POST = defineRoute({
     if (!amount.ok) return amount;
     const when = whenFromBody(body);
     if (!when.ok) return when;
+    // D29, slice MC3: a foreign-currency income carries the real converted amount (space currency), as the expense route does.
+    let convertedAmount;
+    if (body.convertedAmount !== undefined) {
+      const converted = moneyFromDto(body.convertedAmount);
+      if (!converted.ok) return converted;
+      convertedAmount = converted.value;
+    }
     const result = await getContainer().ledger.recordIncome({
       spaceId: params.spaceId!,
       userId: user!.id,
@@ -27,6 +34,7 @@ export const POST = defineRoute({
       ...when.value,
       categoryId: body.categoryId,
       amount: amount.value,
+      ...(convertedAmount === undefined ? {} : { convertedAmount }),
       accountId: body.accountId,
     });
     return result.ok

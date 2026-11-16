@@ -128,6 +128,49 @@ describe("record a personal expense (HU-E4-01, @critical)", () => {
   });
 });
 
+describe("recording in another currency (D29, MC3)", () => {
+  /** Whole dollars on the wire: USD has two minor digits, like COP. */
+  const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
+
+  it("stores a USD expense on a COP account at the bank's real converted amount and returns the original", async () => {
+    const ana = await ledgerUser("Ana");
+    const body = await recorded(
+      post(recordExpense, ana, "expenses", {
+        description: "Market in USD",
+        amount: usd(100),
+        convertedAmount: cop(410_000),
+        date: "2026-10-05",
+        categoryId: ana.groceries,
+        accountId: ana.bancolombia,
+      }),
+    );
+    // The stored base amount is the space's currency (what the bank charged); the original is kept in USD.
+    expect(body.amount).toEqual(cop(410_000));
+    expect(body.originalAmount).toEqual(usd(100));
+    expect(body.payments[0]).toMatchObject({ accountId: ana.bancolombia, amount: cop(410_000) });
+    // The COP account's balance moves by the base amount (its own currency), not the foreign original.
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_590_000));
+  });
+
+  it("stores a USD income at the bank's real converted amount and moves the account by the base amount", async () => {
+    const ana = await ledgerUser("Ana");
+    const body = await recorded(
+      post(recordIncome, ana, "incomes", {
+        description: "Freelance in USD",
+        amount: usd(100),
+        convertedAmount: cop(410_000),
+        date: "2026-10-25",
+        categoryId: ana.salary,
+        accountId: ana.bancolombia,
+      }),
+    );
+    expect(body.amount).toEqual(cop(410_000));
+    expect(body.originalAmount).toEqual(usd(100));
+    // Bancolombia opens at 2,000,000 COP and receives the 410,000 COP base amount.
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_410_000));
+  });
+});
+
 describe("income, transfers and computed balances (HU-E4-02, HU-E4-03, HU-E2-04)", () => {
   it("records income, an expense and a transfer and computes both balances", async () => {
     const ana = await ledgerUser("Ana");

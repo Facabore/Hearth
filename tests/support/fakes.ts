@@ -5,7 +5,11 @@ import {
   type SpaceMembership,
   type StoredPeriodSource,
 } from "@/modules/spaces/application";
+import type { LedgerRates } from "@/modules/ledger/application";
 import {
+  domainError,
+  err,
+  ExchangeRate,
   Money,
   type Id,
   type IdGenerator,
@@ -32,6 +36,19 @@ export const unwrap = <T>(result: Result<T>): T => {
 export const codeOf = (result: Result<unknown>): string => (result.ok ? "ok" : result.error.code);
 
 export const money = (minor: bigint, currency = "COP"): Money => unwrap(Money.ofMinor(minor, currency));
+
+/**
+ * D30, slice MC3: a canned daily-rate port. `rates` keys a `"BASE>QUOTE"` pair to its exact decimal; a pair with no
+ * rate answers `NoExchangeRate`, as the real repository does when the currencies are not connected that day.
+ */
+export const fakeRates = (rates: Readonly<Record<string, string>> = {}): LedgerRates => ({
+  rateOn: async (base, quote) => {
+    const value = rates[`${base}>${quote}`];
+    return value === undefined
+      ? err(domainError("NoExchangeRate", { base, quote }))
+      : ExchangeRate.of(base, quote, value);
+  },
+});
 
 type MembershipOverrides = Omit<Partial<SpaceMembership>, "spaceId" | "memberId"> & {
   spaceId?: string;

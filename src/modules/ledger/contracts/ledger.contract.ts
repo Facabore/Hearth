@@ -93,6 +93,11 @@ export const TransactionSchema = z.object({
   /** HU-E4-14: the IANA zone it was recorded in; null exactly when occurredAt is. */
   timeZone: z.string().nullable(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: what was charged, in its own currency, when the movement was entered in a currency other than the
+   * space's base currency; absent when the amount is wholly in the base currency. Additive: existing clients ignore it.
+   */
+  originalAmount: MoneySchema.optional(),
   categoryId: z.string().nullable(),
   payments: z.array(PaymentSchema),
   shares: z.array(ShareSchema),
@@ -158,6 +163,11 @@ const RecordExpenseFields = z.object({
   timeZone: TimeZoneName.optional(),
   categoryId: IdSchema.optional(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: the real amount in the space's base currency the bank charged, when `amount` is in another
+   * currency; it wins over the rate. Additive and optional; ignored when `amount` is already in the base currency.
+   */
+  convertedAmount: MoneySchema.optional(),
   accountId: IdSchema.optional(),
   payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
   split: SplitBodySchema.optional(),
@@ -219,11 +229,18 @@ export const expenseFromBody = (
   }
   const split = splitFromBody(body.split);
   if (!split.ok) return split;
+  let convertedAmount: Money | undefined;
+  if (body.convertedAmount !== undefined) {
+    const converted = moneyFromDto(body.convertedAmount);
+    if (!converted.ok) return converted;
+    convertedAmount = converted.value;
+  }
   return ok({
     description: body.description,
     ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
+    ...(convertedAmount === undefined ? {} : { convertedAmount }),
     accountId: body.accountId,
     payments,
     split: split.value,
@@ -239,6 +256,11 @@ export const RecordIncomeBodySchema = z.object({
   timeZone: TimeZoneName.optional(),
   categoryId: IdSchema.optional(),
   amount: MoneySchema,
+  /**
+   * D29, slice MC3: the real amount in the space's base currency the bank credited, when `amount` is in another
+   * currency; it wins over the rate. Additive and optional; ignored when `amount` is already in the base currency.
+   */
+  convertedAmount: MoneySchema.optional(),
   accountId: IdSchema,
 });
 export const RecordTransferBodySchema = z.object({
@@ -393,6 +415,10 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     occurredAt: tx.occurredAt?.toISOString() ?? null,
     timeZone: tx.timeZone,
     amount: money(tx.amount),
+    // D29, slice MC3: what was charged in another currency, present only when the row kept an original (its own currency).
+    ...(tx.originalAmount === undefined || tx.originalCurrency === undefined
+      ? {}
+      : { originalAmount: { amount: tx.originalAmount.toString(), currency: tx.originalCurrency } }),
     categoryId: tx.categoryId,
     payments:
       tx.type === "EXPENSE"

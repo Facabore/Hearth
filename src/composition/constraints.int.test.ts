@@ -51,8 +51,8 @@ const audit = (transactionId: string, action: string) =>
 /** An account of Ana's personal space; SHARED_FUND, the only type without an owner, goes to Household. */
 const account = (type: string) =>
   pool.query(
-    `INSERT INTO accounts (id, space_id, name, type, owner_user_id, opening_balance, created_at)
-     VALUES ($1, $2, $3, $4, $5, 0, now())`,
+    `INSERT INTO accounts (id, space_id, name, type, owner_user_id, opening_balance, currency, created_at)
+     VALUES ($1, $2, $3, $4, $5, 0, 'COP', now())`,
     type === "SHARED_FUND"
       ? [randomUUID(), w.household.spaceId, `Fund ${randomUUID()}`, type, null]
       : [randomUUID(), w.personal.spaceId, `Account ${randomUUID()}`, type, w.personal.userId],

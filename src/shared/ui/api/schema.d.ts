@@ -1850,6 +1850,7 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            originalAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
@@ -1968,6 +1969,7 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            originalAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
@@ -2172,6 +2174,7 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            originalAmount?: components["schemas"]["MoneyOutput"];
             categoryId: string | null;
             payments: {
                 memberId: string | null;
@@ -5271,6 +5274,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
@@ -5391,6 +5395,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId: string;
                 };
             };
@@ -6161,6 +6166,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
@@ -6205,6 +6211,7 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
                     accountId: string;
                     /** @constant */
                     type: "INCOME";

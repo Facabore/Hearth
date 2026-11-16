@@ -633,6 +633,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   const getAccount = createGetAccount(accountsDeps);
   const listAccounts = createListAccounts(accountsDeps);
   const budgetCategories = budgetCategoriesOf(categoryRepository);
+  // D29, D30, slice MC3: the global daily rate store, read when a foreign-currency movement is recorded and written
+  // by the in-container fetch job; the ledger reads it through its own narrow LedgerRates port.
+  const exchangeRates = new DrizzleExchangeRates(tm);
   const ledgerDeps: LedgerDeps = {
     access,
     // Issue #89: money writes hold the space row FOR SHARE; leaving, removing and archiving hold it FOR NO KEY UPDATE.
@@ -653,11 +656,14 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
               ownerUserId: account.ownerUserId,
               isSharedFund: account.type === "SHARED_FUND",
               archived: account.archivedAt !== null,
+              currency: account.currency,
             }
           : null;
       },
     },
     categories: ledgerCategoriesOf(categoryRepository),
+    // D29, D30, slice MC3: a foreign-currency movement converts at the date's rate (#89: a read within the space lock).
+    rates: exchangeRates,
     // HU-E4-06, HU-E6-07: a CLOSED plan's period takes no change; budgeting answers, the ledger never imports it.
     closedPeriods: createClosedPeriodGuard(budgetPlans),
     // HU-E6-08, spec 5.3: an expense recorded without a split follows its line's allocation in the ACTIVE plan;
@@ -1231,7 +1237,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       claim: createClaimReferrer(referralsDeps),
     },
     rates: {
-      repository: new DrizzleExchangeRates(tm),
+      repository: exchangeRates,
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.
