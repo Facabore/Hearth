@@ -27,13 +27,16 @@ const world = (
   regionDefaults: { timezone: string; locale: Locale } = { timezone: "America/Bogota", locale: "es" },
 ) => {
   const stored = new Map<string, StoredPreferences>();
+  const currencies = new Map<string, string | null>();
   const writes: [string, ProfileChange][] = [];
   const profiles: UserProfiles = {
     setTimeZone: async () => undefined,
     preferencesOf: async (userId) => stored.get(userId) ?? NO_PREFERENCES,
+    displayCurrencyOf: async (userId) => currencies.get(userId) ?? null,
     saveProfile: async (userId, fields) => {
       writes.push([userId, fields]);
       stored.set(userId, { ...(stored.get(userId) ?? NO_PREFERENCES), ...formatsIn(fields) });
+      if (fields.displayCurrency !== undefined) currencies.set(userId, fields.displayCurrency);
     },
   };
   let current = rules;
@@ -99,6 +102,7 @@ describe("formatting preferences (HU-E1-15)", () => {
       effective: RULES,
       defaults: { ...RULES, timezone: "America/Bogota", locale: "es" },
       locked: [],
+      displayCurrency: null,
     });
   });
 
@@ -157,6 +161,20 @@ describe("formatting preferences (HU-E1-15)", () => {
     expect(writes).toEqual([]);
     const { locked, effective } = await preferencesOf();
     expect([locked, effective.dateFormat]).toEqual([["dateFormat", "timezone"], "DMY"]);
+  });
+
+  it("stores and clears the display currency, and refuses an unknown code (D29, slice MC4)", async () => {
+    const { update, preferencesOf } = world();
+    // Null by default: the person follows their personal space's currency.
+    expect((await preferencesOf()).displayCurrency).toBe(null);
+    unwrap(await update({ user: ana, displayCurrency: "USD" }));
+    expect((await preferencesOf()).displayCurrency).toBe("USD");
+    // An unknown code is refused and nothing changes.
+    expect(codeOf(await update({ user: ana, displayCurrency: "XYZ" }))).toBe("UnknownCurrency");
+    expect((await preferencesOf()).displayCurrency).toBe("USD");
+    // Null clears it back to the personal space's currency.
+    unwrap(await update({ user: ana, displayCurrency: null }));
+    expect((await preferencesOf()).displayCurrency).toBe(null);
   });
 
   it("keep the stored value under a lock and bring it back when the lock is lifted", async () => {

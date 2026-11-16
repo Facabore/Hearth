@@ -296,6 +296,13 @@
                               "locale"
                             ]
                           }
+                        },
+                        "displayCurrency": {
+                          "description": "D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [
@@ -413,6 +420,18 @@
                           "MONDAY",
                           "SUNDAY"
                         ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "displayCurrency": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 3
                       },
                       {
                         "type": "null"
@@ -635,6 +654,13 @@
                               "locale"
                             ]
                           }
+                        },
+                        "displayCurrency": {
+                          "description": "D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
                         }
                       },
                       "required": [

@@ -2554,6 +2554,8 @@ export interface operations {
                                 locale: "es" | "en";
                             };
                             locked: ("numberFormat" | "timeFormat" | "dateFormat" | "weekStart" | "timezone" | "locale")[];
+                            /** @description D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency. */
+                            displayCurrency?: string | null;
                         };
                     };
                 };
@@ -2586,6 +2588,7 @@ export interface operations {
                     timeFormat?: ("H24" | "H12") | null;
                     dateFormat?: ("DMY" | "MDY" | "YMD") | null;
                     weekStart?: ("MONDAY" | "SUNDAY") | null;
+                    displayCurrency?: string | null;
                 };
             };
         };
@@ -2640,6 +2643,8 @@ export interface operations {
                                 locale: "es" | "en";
                             };
                             locked: ("numberFormat" | "timeFormat" | "dateFormat" | "weekStart" | "timezone" | "locale")[];
+                            /** @description D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency. */
+                            displayCurrency?: string | null;
                         };
                     };
                 };

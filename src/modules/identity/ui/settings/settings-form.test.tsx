@@ -142,6 +142,69 @@ describe("settings: formats (HU-E9-13)", () => {
   });
 });
 
+describe("settings: the currency of your totals (D29, slice MC4, board 11)", () => {
+  const personal = { name: "Personal", currency: "COP" };
+  const withCurrency = (currency: string | null) =>
+    meDto({
+      preferences: { ...meDto().preferences, ...(currency === null ? {} : { displayCurrency: currency }) },
+    });
+
+  it("follows the personal space's currency by default, and stores another one chosen in the sheet", async () => {
+    const bodies: unknown[] = [];
+    const { api } = fakeApi({
+      "PATCH /api/v1/me": async (request) => {
+        const body = (await request.json()) as { displayCurrency: string | null };
+        bodies.push(body);
+        return jsonResponse(withCurrency(body.displayCurrency));
+      },
+    });
+    const { container } = renderWithIntl(
+      <SettingsForm backHref="/spaces/sp-personal" me={meDto()} personalSpace={personal} api={api} />,
+    );
+    const row = () => screen.getByRole("button", { name: /Moneda de tus totales/ });
+    expect(normalized(row().textContent)).toContain("Peso colombiano (COP) · como tu espacio Personal");
+    expect(row()).toHaveAccessibleDescription(
+      "Tus cuentas y movimientos siguen en su moneda. Con esta sumamos todo en Inicio y en tu vista personal.",
+    );
+    expect(await axeViolations(container)).toEqual([]);
+    await userEvent.click(row());
+    const sheet = await screen.findByRole("dialog", { name: "Moneda de tus totales" });
+    expect(within(sheet).getByRole("button", { name: /Peso colombiano/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: /Dólar estadounidense/ }));
+    await waitFor(() => expect(normalized(row().textContent)).toContain("Dólar estadounidense (USD)"));
+    expect(normalized(row().textContent)).not.toContain("como tu espacio");
+    expect(bodies).toEqual([{ displayCurrency: "USD" }]);
+  });
+
+  it("goes back to following the personal space when its currency is chosen again", async () => {
+    const bodies: unknown[] = [];
+    const { api } = fakeApi({
+      "PATCH /api/v1/me": async (request) => {
+        const body = (await request.json()) as { displayCurrency: string | null };
+        bodies.push(body);
+        return jsonResponse(withCurrency(body.displayCurrency));
+      },
+    });
+    renderWithIntl(
+      <SettingsForm
+        backHref="/spaces/sp-personal"
+        me={withCurrency("EUR")}
+        personalSpace={personal}
+        api={api}
+      />,
+    );
+    const row = () => screen.getByRole("button", { name: /Moneda de tus totales/ });
+    await userEvent.click(row());
+    const sheet = await screen.findByRole("dialog", { name: "Moneda de tus totales" });
+    await userEvent.click(within(sheet).getByRole("button", { name: /Peso colombiano/ }));
+    await waitFor(() => expect(normalized(row().textContent)).toContain("como tu espacio Personal"));
+    expect(bodies).toEqual([{ displayCurrency: null }]);
+  });
+});
+
 describe("settings: the way back (S1)", () => {
   it("has a Volver link to the given space home, next to the title", () => {
     renderWithIntl(<SettingsForm me={meDto()} backHref="/spaces/sp-household" api={fakeApi({}).api} />);

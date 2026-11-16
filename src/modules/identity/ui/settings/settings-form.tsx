@@ -12,6 +12,7 @@ import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { Icon, ScreenHeader, Sheet } from "@/shared/ui";
 import { AppearanceSection, appLocaleOf, useDeviceTheme } from "./appearance-section";
+import { CurrencySection } from "./currency-section";
 import { formatSample } from "./format-preview";
 import { RegionSection } from "./region-section";
 import { SummaryRow } from "./summary-row";
@@ -23,7 +24,7 @@ import { chooseRegion, regionState, type FormatField, type RegionField } from ".
 const FormatsFields = dynamic(() => import("./formats-fields").then((module) => module.FormatsFields), {
   ssr: false,
 });
-type Field = FormatField | RegionField;
+type Field = FormatField | RegionField | "displayCurrency";
 type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content"]["application/json"];
 
 /** Rulings P149 and P152: the stored language changes only here; the visitor cookie follows it. */
@@ -45,9 +46,12 @@ const trustFromSpaceHref = (backHref: string): string => `/trust?from=${backHref
 export function SettingsForm({
   me,
   backHref,
+  personalSpace,
   api: injected,
 }: {
   readonly me: MeDto;
+  /** D29 (MC4, board 11): the person's personal space, whose currency their totals follow until they choose one. */
+  readonly personalSpace?: { readonly name: string; readonly currency: string };
   /** The home of the space the person came from. */
   readonly backHref: string;
   readonly api?: Api;
@@ -96,6 +100,11 @@ export function SettingsForm({
     const { next, patch } = chooseRegion(current, field, value);
     void send(field, next, patch as MePatch);
   };
+  // D29 (MC4): the display currency rides on the same optimistic path; null follows the personal space's currency.
+  const sendCurrency = (currency: string | null) => {
+    const next: MeDto = { ...current, preferences: { ...current.preferences, displayCurrency: currency } };
+    void send("displayCurrency", next, { displayCurrency: currency } as MePatch);
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -123,6 +132,15 @@ export function SettingsForm({
         problem={problems.timezone ?? null}
         saved={saved === "timezone"}
       />
+      {personalSpace ? (
+        <CurrencySection
+          displayCurrency={preferences.displayCurrency ?? null}
+          personalSpace={personalSpace}
+          onChoose={sendCurrency}
+          problem={problems.displayCurrency ?? null}
+          saved={saved === "displayCurrency"}
+        />
+      ) : null}
       {/* Ruling P290: drawn as a summary row, a link to a page instead of a sheet. */}
       <Link
         href={trustFromSpaceHref(backHref)}
