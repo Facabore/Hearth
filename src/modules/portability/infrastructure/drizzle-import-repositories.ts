@@ -25,7 +25,15 @@ const batchOf = (row: BatchRow): ImportBatch => ({
   status: row.status,
   snapshot: row.snapshot === null ? null : decodeSnapshot(row.snapshot as StoredSnapshot),
   mappings: row.mappings as ImportMappings,
-  counts: row.counts as ImportCounts | null,
+  // Counts stored before restores were counted lack those two fields: such a confirm restored nothing.
+  counts:
+    row.counts === null
+      ? null
+      : ({
+          accountsRestored: 0,
+          categoriesRestored: 0,
+          ...(row.counts as Partial<ImportCounts>),
+        } as ImportCounts),
   rowErrors: row.rowErrors as SourceIssue[],
   created: row.created as CreatedEntities,
   createdAt: row.createdAt,

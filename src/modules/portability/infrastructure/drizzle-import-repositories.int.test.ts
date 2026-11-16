@@ -168,6 +168,24 @@ describe("DrizzleImportBatches (D28, design §3.5)", () => {
     );
   });
 
+  it("reads counts stored before restores were counted as having restored nothing", async () => {
+    const ana = await personalSpaceFixture(db, pool, "Ana");
+    const batch = batchFor(ana, {
+      status: "CONFIRMED",
+      createdAt: new Date("2026-11-10T00:00:00Z"),
+      confirmedAt: new Date("2026-11-10T00:01:00Z"),
+    });
+    await batches.add(batch);
+    // The counts as a confirm stored them before accountsRestored and categoriesRestored existed.
+    await pool.query(
+      `UPDATE import_batches SET counts = '{"accountsCreated":1,"categoriesCreated":2,"movementsRecorded":3}'::jsonb WHERE id = $1`,
+      [batch.id],
+    );
+    const [read] = (await batches.listBySpace(ana.spaceId)).filter((b) => b.id === batch.id);
+    expect(read?.counts).toMatchObject({ accountsCreated: 1, accountsRestored: 0, categoriesRestored: 0 });
+    expect((await batches.find(ana.spaceId, batch.id))?.counts).toMatchObject({ accountsRestored: 0 });
+  });
+
   it("names the last confirm of a file by its hash, never the batch asking or an undone one", async () => {
     const ana = await personalSpaceFixture(db, pool, "Ana");
     const hash = "b".repeat(64);
