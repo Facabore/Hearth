@@ -78,7 +78,7 @@ The same container also fetches daily exchange rates itself (D30): a timer runs 
 - `exchange_rate_source_unavailable` (`source`, `code`): a source could not be read this run; the previous rate carries over.
 - `exchange_rates_backfilled` (`source`, `from`, `days`, `count`, `skipped`): a source's history was filled in.
 - `exchange_rate_history_unavailable` (`source`, `code`): a source's history could not be read this run; the next run tries again.
-- `exchange_rate_history_failed` (`source`, `name`): storing a source's history failed, for example on a timeout; nothing of it was kept, the day's rate is still stored, and the next run tries again.
+- `exchange_rate_history_failed` (`source`, `name`): checking or storing a source's history failed, for example on a timeout or with the database unreachable (then `exchange_rate_source_failed` follows for the day's rate too); nothing of the history was kept, and the next run tries again.
 - `exchange_rate_source_failed` (`source`, `name`): storing one source's rates failed, for example because the database was unreachable; the other sources still ran.
 - `exchange_rate_job_failed` (`name`): a whole run failed, for example because the database was unreachable; the next tick runs again.
 
