@@ -678,12 +678,14 @@ describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
     const db = new DatabaseSync(":memory:");
     for (const table of MONEY_MANAGER_TABLES) db.exec(table);
     db.exec(`
-      INSERT INTO CURRENCY (uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY, IS_DEL) VALUES ('1', 'COP', 'COP', 1, 0);
-      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ) VALUES ('a-bank', 'Banco', 1, '1', 0);
+      INSERT INTO CURRENCY (uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY, IS_DEL) VALUES ('COP_COP', 'COP', 'COP', 1, 0);
+      INSERT INTO CURRENCY (uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY, IS_DEL) VALUES ('COP_USD', 'USD', 'COP', 0, 0);
+      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ) VALUES ('a-bank', 'Banco', 1, 'COP_COP', 0);
+      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ) VALUES ('a-usd', 'Dólares', 1, 'COP_USD', 1);
       INSERT INTO ZCATEGORY (uid, NAME, TYPE, pUid, STATUS, C_IS_DEL, ORDERSEQ) VALUES ('c-food', 'Comida', 1, '', 0, 0, 0);
       INSERT INTO INOUTCOME (uid, DO_TYPE, WDATE, ZDATE, UTIME, assetUid, ctgUid, ZMONEY, currencyUid, IN_ZMONEY,
         AMOUNT_ACCOUNT, txUidTrans, ZCONTENT, IS_DEL)
-        VALUES ('m1', 1, '2025-01-10', ${Date.UTC(2025, 0, 10, 5)}, 0, 'a-bank', 'c-food', '50000.0', '1', '50000.0',
+        VALUES ('m1', 1, '2025-01-10', ${Date.UTC(2025, 0, 10, 5)}, 0, 'a-bank', 'c-food', '50000.0', 'COP_COP', '50000.0',
           50000, '', 'Almuerzo', 0);
       INSERT INTO TAG (uid, name) VALUES ('t1', 'comida');
       INSERT INTO TX_TAG (txUid, tagUid) VALUES ('m1', 't1');
@@ -699,7 +701,20 @@ describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
     const result = new MoneyManagerAdapter().read({ bytes: realBackup() });
     expect(isErr(result) ? result.error : null).toBeNull();
     const snapshot = (result as { value: SourceSnapshot }).value;
-    expect(snapshot.accounts.map((account) => account.name)).toEqual(["Banco"]);
+    expect(snapshot.accounts.map((account) => account.name)).toEqual(["Banco", "Dólares"]);
     expect(snapshot.movements).toHaveLength(1);
+  });
+
+  it("keeps each account's own currency: Money Manager's currency ids are text such as COP_COP and COP_USD", () => {
+    // Owner's import of 2026-11-16: read as numbers, both ids collapsed into one, every account came out in USD and
+    // every movement then waited on a USD to COP rate, so none was imported.
+    const snapshot = (new MoneyManagerAdapter().read({ bytes: realBackup() }) as { value: SourceSnapshot })
+      .value;
+    expect(snapshot.accounts.map((account) => [account.name, account.currency])).toEqual([
+      ["Banco", "COP"],
+      ["Dólares", "USD"],
+    ]);
+    expect(snapshot.movements.map((movement) => movement.amount.currency.code)).toEqual(["COP"]);
+    expect(snapshot.settings.mainCurrency).toBe("COP");
   });
 });

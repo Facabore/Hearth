@@ -141,11 +141,12 @@ export class MoneyManagerAdapter implements SourceAdapter {
   }
 
   private build(rows: TableRows): Result<SourceSnapshot> {
-    const currencyByUid = new Map<number, string>();
+    // Money Manager's currency ids are text (`COP_COP`, `COP_USD`): read as numbers they would all collapse into one.
+    const currencyByUid = new Map<string, string>();
     let mainCurrency: string | null = null;
     for (const row of rows.currency) {
       const iso = str(row.ISO);
-      currencyByUid.set(num(row.uid), iso);
+      currencyByUid.set(str(row.uid).trim(), iso);
       if (num(row.IS_MAIN_CURRENCY) !== 0) mainCurrency = iso;
       if (mainCurrency === null && trimmed(row.MAIN_ISO)) mainCurrency = str(row.MAIN_ISO);
     }
@@ -156,7 +157,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     const accountInfo = new Map<string, { row: Row; currency: string; groupUid: number }>();
     const accountErrors: SourceIssue[] = [];
     for (const row of rows.assets) {
-      const currency = currencyByUid.get(num(row.currencyUid));
+      const currency = currencyByUid.get(str(row.currencyUid).trim());
       if (currency === undefined || isErr(currencyOf(currency))) {
         accountErrors.push(
           rowIssue(
@@ -259,7 +260,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     rows: TableRows,
     accountInfo: Map<string, { currency: string }>,
     tagsByMovement: Map<string, string[]>,
-    currencyByUid: Map<number, string>,
+    currencyByUid: Map<string, string>,
   ): {
     movements: SourceMovement[];
     zeroAmountMovements: number;
@@ -296,7 +297,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     // The amount in an account's own currency: the entered decimal when the currencies match (exact), else the
     // account-currency float the app pre-computed (AMOUNT_ACCOUNT), rounded with the kernel only (design §2.3).
     const accountAmount = (row: Row, accountCurrency: string): Result<Money> => {
-      const entered = currencyByUid.get(num(row.currencyUid));
+      const entered = currencyByUid.get(str(row.currencyUid).trim());
       return entered === accountCurrency
         ? moneyFromDecimal(str(row.IN_ZMONEY), accountCurrency)
         : moneyFromFloat(floatField(row.AMOUNT_ACCOUNT), accountCurrency);
@@ -340,7 +341,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
         continue;
       }
 
-      const entered = currencyByUid.get(num(row.currencyUid));
+      const entered = currencyByUid.get(str(row.currencyUid).trim());
       let originalAmount: Money | null = null;
       if (entered !== undefined && entered !== account.currency) {
         const original = moneyFromDecimal(str(row.IN_ZMONEY), entered);
