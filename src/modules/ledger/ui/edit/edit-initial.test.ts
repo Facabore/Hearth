@@ -70,6 +70,7 @@ describe("initialOf (ruling P192)", () => {
     expect(initialOf(tx, { ...base, zone: "Europe/Madrid" })).toEqual({
       kind: "EXPENSE",
       amount: "85.000",
+      currency: "COP",
       description: "Market",
       category: { categoryId: "c-groceries", subcategoryId: "c-veg" },
       accountId: "a-bank",
@@ -246,6 +247,58 @@ describe("draftOf", () => {
       toAccountId: null,
       when: initial.when,
       timeZone: "America/Bogota",
+    });
+  });
+});
+
+describe("initialOf in another currency (D29, boards 9 and 10)", () => {
+  const usd = (dollars: number) => ({ amount: String(dollars * 100), currency: "USD" });
+  const accounts = [accountDto({ id: "a-usd", balance: usd(0) }), accountDto({ id: "a-bank" })];
+
+  it("types an expense on a USD account in USD: what was entered, else the account's leg", () => {
+    const entered = transactionDto({
+      type: "EXPENSE",
+      amount: cop(400_000),
+      originalAmount: usd(100),
+      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(400_000), accountAmount: usd(100) }],
+    });
+    expect(initialOf(entered, { ...base, accounts })).toMatchObject({ amount: "100", currency: "USD" });
+    const converted = transactionDto({
+      type: "EXPENSE",
+      amount: cop(500_000),
+      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(500_000), accountAmount: usd(125) }],
+    });
+    expect(initialOf(converted, { ...base, accounts })).toMatchObject({ amount: "125", currency: "USD" });
+  });
+
+  it("types an income by its destination leg and a transfer by its Sale", () => {
+    const income = transactionDto({
+      type: "INCOME",
+      amount: cop(400_000),
+      destinationAccountId: "a-usd",
+      destinationAmount: usd(100),
+    });
+    expect(initialOf(income, { ...base, accounts })).toMatchObject({ amount: "100", currency: "USD" });
+    const transfer = transactionDto({
+      type: "TRANSFER",
+      amount: cop(400_000),
+      sourceAccountId: "a-usd",
+      destinationAccountId: "a-bank",
+      sourceAmount: usd(100),
+    });
+    expect(initialOf(transfer, { ...base, accounts })).toMatchObject({ amount: "100", currency: "USD" });
+  });
+
+  it("keeps a shared expense in the space's base currency", () => {
+    const tx = transactionDto({
+      type: "EXPENSE",
+      amount: cop(400_000),
+      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(400_000), accountAmount: usd(100) }],
+      shares: [{ memberId: "m-ana", amount: cop(400_000), splitMethod: "EQUAL" }],
+    });
+    expect(initialOf(tx, { ...base, accounts, shared })).toMatchObject({
+      amount: "400.000",
+      currency: "COP",
     });
   });
 });

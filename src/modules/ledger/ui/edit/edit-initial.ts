@@ -1,5 +1,5 @@
 import { findCategory, type CategoryChoice } from "@/modules/categories/ui";
-import type { CategoryGroupDto, TransactionDto } from "@/shared/ui/api/dto";
+import type { AccountDto, CategoryGroupDto, MoneyDto, TransactionDto } from "@/shared/ui/api/dto";
 import { currencyOf } from "@/shared/ui/format/currencies";
 import { decimalOf, formatNumber, type Formats } from "@/shared/ui/format/formatters";
 import { nowIn } from "@/shared/ui/time/when";
@@ -12,6 +12,8 @@ import type { Payer, SplitDraft } from "../split/split-request";
 export interface RecordInitial {
   readonly kind: RecordKind;
   readonly amount: string;
+  /** D29: the currency `amount` is typed in, as the record form picks it (the account's own, or the space's). */
+  readonly currency: string;
   readonly description: string;
   readonly category: CategoryChoice;
   readonly accountId: string | null;
@@ -83,9 +85,26 @@ const contributionSplitOf = (tx: TransactionDto, shared: SharedExpenseContext): 
   };
 };
 
+/**
+ * D29, boards 9 and 10: the movement's amount in `currency`: the base amount, what was entered (the original), or the
+ * account's own leg; the base when none is in it.
+ */
+const amountIn = (tx: TransactionDto, currency: string): MoneyDto => {
+  const candidates = [
+    tx.amount,
+    tx.originalAmount,
+    tx.type === "EXPENSE" && tx.payments.length === 1 ? tx.payments[0]!.accountAmount : undefined,
+    tx.type === "TRANSFER" ? tx.sourceAmount : undefined,
+    tx.type === "INCOME" ? tx.destinationAmount : undefined,
+  ];
+  return candidates.find((amount) => amount?.currency === currency) ?? tx.amount;
+};
+
 export const initialOf = (
   tx: TransactionDto,
   input: {
+    /** D29: the person's accounts, whose own currency the amount is typed in when one account alone pays it. */
+    readonly accounts?: readonly AccountDto[];
     readonly groups: readonly CategoryGroupDto[];
     readonly formats: Formats;
     /** The zone an untimed record is read and written in: the editor's. A timed one keeps its own (P192). */
@@ -106,17 +125,23 @@ export const initialOf = (
       : nowIn(input.now, input.zone).wall;
   const kind = tx.type as RecordKind;
   const sharedExpense = kind === "EXPENSE" && input.shared !== undefined;
+  const accountId =
+    kind === "INCOME"
+      ? tx.destinationAccountId
+      : kind === "TRANSFER"
+        ? tx.sourceAccountId
+        : (tx.payments[0]?.accountId ?? null);
+  // D29, boards 9 and 10: as the record form types it, in the (source) account's own currency when that one account
+  // alone takes part (outside a shared space), else in the space's base currency.
+  const account = input.shared === undefined ? input.accounts?.find((a) => a.id === accountId) : undefined;
+  const amount = amountIn(tx, account?.balance.currency ?? tx.amount.currency);
   return {
     kind,
-    amount: typed(tx.amount.amount, tx.amount.currency, input.formats),
+    amount: typed(amount.amount, amount.currency, input.formats),
+    currency: amount.currency,
     description: tx.description,
     category: kind === "TRANSFER" ? null : category,
-    accountId:
-      kind === "INCOME"
-        ? tx.destinationAccountId
-        : kind === "TRANSFER"
-          ? tx.sourceAccountId
-          : (tx.payments[0]?.accountId ?? null),
+    accountId,
     toAccountId: kind === "TRANSFER" ? tx.destinationAccountId : null,
     when: { date: tx.date, wall },
     split: sharedExpense

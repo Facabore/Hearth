@@ -356,6 +356,10 @@ export const conversionFromBody = (
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
+  // D29, slice MC3: the bank's converted amount of an income, and what arrives on a transfer, as when recording them.
+  const extra = body.type === "INCOME" ? body.convertedAmount : body.destinationAmount;
+  const extraMoney = extra === undefined ? ok(undefined) : moneyFromDto(extra);
+  if (!extraMoney.ok) return extraMoney;
   return ok(
     body.type === "INCOME"
       ? {
@@ -365,6 +369,7 @@ export const conversionFromBody = (
           categoryId: body.categoryId,
           amount: amount.value,
           accountId: body.accountId,
+          ...(extraMoney.value === undefined ? {} : { convertedAmount: extraMoney.value }),
         }
       : {
           type: body.type,
@@ -373,6 +378,7 @@ export const conversionFromBody = (
           amount: amount.value,
           sourceAccountId: body.sourceAccountId,
           destinationAccountId: body.destinationAccountId,
+          ...(extraMoney.value === undefined ? {} : { destinationAmount: extraMoney.value }),
         },
   );
 };
@@ -628,7 +634,15 @@ export const EditTransactionBodySchema = z
     occurredAt: Instant.nullable().optional(),
     timeZone: TimeZoneName.optional(),
     categoryId: IdSchema.optional(),
+    /**
+     * D29, slice MC3: read as recording the movement's type reads it: an expense's or income's in any currency (the
+     * original is kept), an own transfer's ("Sale") in the source account's, the others' in the space's.
+     */
     amount: MoneySchema.optional(),
+    /** D29, slice MC3: with an amount in another currency, the real base amount the bank charged; wins over the rate. */
+    convertedAmount: MoneySchema.optional(),
+    /** D29, slice MC3: with an own transfer's amount, what arrived at a destination in another currency ("Llega"). */
+    destinationAmount: MoneySchema.optional(),
     accountId: IdSchema.optional(),
     payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
     sourceAccountId: IdSchema.optional(),
@@ -645,6 +659,11 @@ export const EditTransactionBodySchema = z
 export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySchema>): Result<EditChanges> => {
   const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
   if (!amount.ok) return amount;
+  const converted = body.convertedAmount === undefined ? ok(undefined) : moneyFromDto(body.convertedAmount);
+  if (!converted.ok) return converted;
+  const arriving =
+    body.destinationAmount === undefined ? ok(undefined) : moneyFromDto(body.destinationAmount);
+  if (!arriving.ok) return arriving;
   // Ruling P66: an explicit null `occurredAt` reaches the use case, which answers TimeRequired.
   const when = whenFromBody(body);
   if (!when.ok) return when;
@@ -664,6 +683,8 @@ export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySche
     ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
+    ...(converted.value === undefined ? {} : { convertedAmount: converted.value }),
+    ...(arriving.value === undefined ? {} : { destinationAmount: arriving.value }),
     accountId: body.accountId,
     payments,
     sourceAccountId: body.sourceAccountId,
@@ -1234,7 +1255,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
             "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts",
         }),
       },
     },

@@ -40,6 +40,7 @@ const accounts = [
 const initial: RecordInitial = {
   kind: "EXPENSE",
   amount: "85.000",
+  currency: "COP",
   description: "Market",
   category: { categoryId: "c-groceries", subcategoryId: "c-veg" },
   accountId: "a-bank",

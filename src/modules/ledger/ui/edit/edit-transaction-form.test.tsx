@@ -16,7 +16,7 @@ import {
 import { fakeApi, jsonResponse, problemResponse } from "../../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
-import type { SpaceDto, TransactionDto } from "@/shared/ui/api/dto";
+import type { AccountDto, MoneyDto, SpaceDto, TransactionDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { ToastProvider } from "@/shared/ui/molecules/toast-provider";
 import type { SharedExpenseContext } from "../split/shared-context";
@@ -66,6 +66,7 @@ const renderForm = (
     profileZone?: string;
     shared?: SharedExpenseContext;
     space?: SpaceDto;
+    accounts?: readonly AccountDto[];
   } = {},
 ) =>
   renderWithIntl(
@@ -73,7 +74,7 @@ const renderForm = (
       <EditTransactionForm
         space={extra.space ?? spaceDto({ id: "s-1" })}
         tx={extra.tx ?? tx}
-        accounts={accounts}
+        accounts={extra.accounts ?? accounts}
         groups={groups}
         formats={BUILT_IN_FORMATS}
         profileZone={extra.profileZone ?? "America/Bogota"}
@@ -94,6 +95,43 @@ const goToYesterday = async () => {
   await userEvent.click(within(sheet).getByRole("radio", { name: /Ayer/ }));
   await userEvent.click(within(sheet).getByRole("button", { name: /^Usar/ }));
 };
+
+describe("edit a movement on an account in another currency (D29, MC3)", () => {
+  const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
+  const withUsd = [...accounts, accountDto({ id: "a-usd", name: "Wallet", balance: usd(0) })];
+  /** US$100.00 from the USD wallet, stored as 400.000 COP with its original and its leg. */
+  const usdMarket = transactionDto({
+    ...tx,
+    amount: cop(400_000),
+    originalAmount: usd(100),
+    payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(400_000), accountAmount: usd(100) }],
+    shares: [{ memberId: "m-ana", amount: cop(400_000), splitMethod: "EQUAL" }],
+  });
+
+  it("shows the amount in the account's currency", () => {
+    renderForm(fakeApi({}).api, LIST, { tx: usdMarket, accounts: withUsd });
+    expect(screen.getByLabelText("Monto")).toHaveValue("100");
+  });
+
+  it("sends only the description when only the description changes", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...usdMarket, version: 3 }) });
+    renderForm(api, LIST, { tx: usdMarket, accounts: withUsd });
+    await userEvent.clear(screen.getByLabelText("Descripción"));
+    await userEvent.type(screen.getByLabelText("Descripción"), "Groceries");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ description: "Groceries" });
+  });
+
+  it("sends a new amount in the account's currency", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...usdMarket, version: 3 }) });
+    renderForm(api, LIST, { tx: usdMarket, accounts: withUsd });
+    await retype("150");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ amount: usd(150) });
+  });
+});
 
 describe("edit a transaction (rulings P191, P193)", () => {
   it("sends only the new amount with If-Match, returns to its sheet and says Cambios guardados", async () => {

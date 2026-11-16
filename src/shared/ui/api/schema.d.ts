@@ -5917,6 +5917,8 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount?: components["schemas"]["Money"];
+                    convertedAmount?: components["schemas"]["Money"];
+                    destinationAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
@@ -6011,7 +6013,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts */
             422: {
                 headers: {
                     [name: string]: unknown;

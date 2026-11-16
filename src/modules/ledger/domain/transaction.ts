@@ -687,11 +687,17 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
   // HU-E4-14: the instant as ISO UTC and its zone, so an edit records the time before and after.
   values.set("occurredAt", tx.occurredAt?.toISOString() ?? null);
   values.set("timeZone", tx.timeZone);
+  // D29, slice MC3: what was entered and what each account moved in its own currency ("minor CODE"), so an edit of
+  // them is kept too; absent (null) for a movement wholly in the base currency, which keeps its audit as it was.
+  values.set("originalAmount", inCurrency(tx.originalAmount, tx.originalCurrency));
   if (tx.type === "EXPENSE") {
     const payments = tx.payments.map((p) => ({
       memberId: p.memberId,
       accountId: p.accountId,
       amount: p.amount.toString(),
+      ...(p.accountAmount === undefined
+        ? {}
+        : { accountAmount: inCurrency(p.accountAmount, p.accountCurrency) }),
     }));
     const shares = tx.shares.map((s) => ({
       memberId: s.memberId,
@@ -705,9 +711,14 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
   if (tx.type !== "EXPENSE") {
     values.set("sourceAccountId", tx.type === "INCOME" ? null : tx.sourceAccountId);
     values.set("destinationAccountId", tx.destinationAccountId);
+    values.set("sourceAmount", tx.type === "INCOME" ? null : inCurrency(tx.sourceAmount, tx.sourceCurrency));
+    values.set("destinationAmount", inCurrency(tx.destinationAmount, tx.destinationCurrency));
   }
   return values;
 };
+
+const inCurrency = (minor: bigint | undefined, currency: string | undefined): string | null =>
+  minor === undefined ? null : `${minor} ${currency ?? ""}`.trim();
 
 export const changesBetween = (before: Transaction, after: Transaction): ChangeSet => {
   const revised = auditedValues(after);

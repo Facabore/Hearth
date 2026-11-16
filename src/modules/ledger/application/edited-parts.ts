@@ -14,7 +14,15 @@ export interface EditChanges {
   readonly occurredAt?: Date | null;
   readonly timeZone?: string;
   readonly categoryId?: string;
+  /**
+   * D29: a new amount, read as recording its type reads it: an expense's or income's in any currency, an own
+   * transfer's ("Sale") in the source account's, the others' in the space's base currency.
+   */
   readonly amount?: Money;
+  /** D29: with a new amount in another currency, the real base amount the bank charged; it wins over the rate. */
+  readonly convertedAmount?: Money;
+  /** D29: with a new amount on a cross-currency own transfer, what arrived ("Llega"); it wins over the rate. */
+  readonly destinationAmount?: Money;
   /**
    * Ruling P186: on an expense, the requester pays all of it from this account of theirs (HU-E4-01's shorthand);
    * on an income, the receiving account. Not with `payments`.

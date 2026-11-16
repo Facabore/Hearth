@@ -168,13 +168,16 @@ describe("EditTransaction (HU-E4-06)", () => {
     expect(await idsIn("2026-10")).toEqual([]);
   });
 
-  it("rejects archived categories and other currencies", async () => {
+  it("rejects archived categories, and another currency with no rate for the date (D29)", async () => {
     const { edit, market } = setup();
     const base = { ...asAna, transactionId: market.id, expectedVersion: null };
     expect(codeOf(await edit({ ...base, changes: { categoryId: CATEGORIES.archived.id } }))).toBe(
       "CategoryArchived",
     );
-    expect(codeOf(await edit({ ...base, changes: { amount: money(100n, "USD") } }))).toBe("CurrencyMismatch");
+    // D29: an expense's new amount may be in another currency, as when recording; with no rate it is refused.
+    expect(codeOf(await edit({ ...base, changes: { amount: money(100n, "USD") } }))).toBe(
+      "ExchangeRateRequired",
+    );
   });
 
   it("writes nothing for an edit that changes nothing", async () => {

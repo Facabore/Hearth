@@ -1,3 +1,4 @@
+import type { SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, ok, type DomainError, type Err, type Result } from "@/shared/kernel";
 import {
   canModify,
@@ -6,10 +7,13 @@ import {
   linkedHalfOf,
   reviseTransaction,
   type Transaction,
+  type TransactionChanges,
 } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { editedParts, type EditChanges } from "./edited-parts";
+import { editedAmountOf, type EditedAmount } from "./edited-amount";
+import { editedParts, type EditChanges, type PartChanges } from "./edited-parts";
+import { knownAmountsOf, withAccountLegs } from "./foreign-amount";
 import { editedTime } from "./when";
 
 export type { EditChanges } from "./edited-parts";
@@ -42,6 +46,40 @@ const ownedDebits = async (
   return ok(undefined);
 };
 
+/**
+ * HU-E4-06, D29: the revised transaction with every account leg recomputed by the rules of recording whenever its amount
+ * or an account changes, from what the edit gives in an account's currency, else from what the row was entered in. An
+ * edit of nothing else keeps them as they are. A foreign amount stays on one payment from one account (section 4.3).
+ */
+const revisedWithLegs = async (
+  deps: LedgerDeps,
+  space: SpaceMembership,
+  current: Transaction,
+  priced: EditedAmount | null,
+  parts: PartChanges,
+  changes: TransactionChanges,
+  now: Date,
+): Promise<Result<Transaction>> => {
+  const revised = reviseTransaction(current, changes, now);
+  if (!revised.ok) return revised;
+  const tx = revised.value;
+  const moved =
+    priced !== null ||
+    parts.payments !== undefined ||
+    parts.sourceAccountId !== undefined ||
+    parts.destinationAccountId !== undefined;
+  if (!moved) return revised;
+  if (tx.type === "EXPENSE" && tx.originalAmount !== undefined) {
+    const [only, ...others] = tx.payments;
+    if (others.length > 0 || only?.memberId === null) {
+      return err(
+        domainError("MultiCurrencyUnsupported", { reason: others.length > 0 ? "multiPayer" : "paidForFund" }),
+      );
+    }
+  }
+  return withAccountLegs(deps, space, tx, priced?.known ?? knownAmountsOf(current));
+};
+
 export const createEditTransaction =
   (deps: LedgerDeps): EditTransaction =>
   (input) =>
@@ -59,7 +97,7 @@ export const createEditTransaction =
         return err(domainError("PreconditionFailed"));
       }
       // Ruling P186: the part fields (accounts, payers) are resolved by `editedParts` below.
-      const { description, categoryId, amount, date, occurredAt, timeZone } = input.changes;
+      const { description, categoryId, date, occurredAt, timeZone } = input.changes;
       // Ruling P322, D26: either half of a gift or of an expense paid for the fund keeps the amount and the date of the
       // other, and the fund stays the payer of the expense; delete and record again.
       if (linkedHalfOf(current) !== null) {
@@ -67,11 +105,6 @@ export const createEditTransaction =
           (field) => input.changes[field] !== undefined,
         );
         if (moved) return err(domainError("FieldNotEditable", { field: moved }));
-      }
-      if (amount && amount.currency.code !== current.currency) {
-        return err(
-          domainError("CurrencyMismatch", { expected: current.currency, actual: amount.currency.code }),
-        );
       }
       // Issue #246: a closed period refuses a real change, and an edit that changes nothing answers the movement as it
       // is, as in an open period. The check keeps its place, so a failing change still answers PeriodClosed first.
@@ -83,10 +116,24 @@ export const createEditTransaction =
       if (!time.ok) return refused(time);
       // Only the three time fields, so no other field of the answer can override the fields passed below.
       const { date: newDate, occurredAt: newOccurredAt, timeZone: newTimeZone } = time.value;
-      const parts = await editedParts(deps, membership.value, current, input.changes, input.userId);
-      if (!parts.ok) return refused(parts);
-      const revised = reviseTransaction(
+      // D29: a new amount is read as recording reads it, at the edited date's rate (a read inside the held lock, #89).
+      const priced = await editedAmountOf(deps, membership.value, current, input.changes, newDate);
+      if (!priced.ok) return refused(priced);
+      const base = priced.value?.base;
+      const parts = await editedParts(
+        deps,
+        membership.value,
         current,
+        { ...input.changes, amount: base },
+        input.userId,
+      );
+      if (!parts.ok) return refused(parts);
+      const revised = await revisedWithLegs(
+        deps,
+        membership.value,
+        current,
+        priced.value,
+        parts.value,
         {
           description,
           categoryId,
@@ -94,7 +141,8 @@ export const createEditTransaction =
           date: newDate,
           occurredAt: newOccurredAt,
           timeZone: newTimeZone,
-          amount: amount?.minor,
+          amount: base?.minor,
+          ...(priced.value === null ? {} : { original: priced.value.original }),
         },
         now,
       );

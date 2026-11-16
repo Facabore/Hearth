@@ -89,14 +89,15 @@ export function EditTransactionForm({
   const zone = tx.timeZone ?? profileZone;
   const [now] = useState(() => initialNow ?? new Date().toISOString());
   const [initial] = useState(() =>
-    initialOf(tx, { groups, formats, zone, now: new Date(now), ...(shared ? { shared } : {}) }),
+    initialOf(tx, { accounts, groups, formats, zone, now: new Date(now), ...(shared ? { shared } : {}) }),
   );
   // What the untouched form would send: the diff is against this, never against the transaction (P192).
   const [baseline] = useState(() => {
     const memberIds = shared?.members.map((member) => member.id) ?? [];
+    // D29: in the currency the form types the amount in, so an untouched amount is never a change.
     const built = requestOf(
       draftOf(initial, zone),
-      space.currency,
+      initial.currency,
       formats.numberFormat,
       initial.split ? { split: initial.split, memberIds } : undefined,
     );

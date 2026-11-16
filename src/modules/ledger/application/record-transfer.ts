@@ -111,7 +111,7 @@ export const createRecordTransfer =
 export const resolveAmounts = async (
   deps: Pick<LedgerDeps, "rates">,
   base: string,
-  input: RecordTransferInput,
+  input: Pick<RecordTransferInput, "amount" | "destinationAmount">,
   sourceCurrency: string,
   destinationCurrency: string,
   date: LocalDate,

@@ -178,3 +178,31 @@ describe("editBodyOf: only what changed travels (ruling P192)", () => {
 
   it("names the version as the strong ETag the API sends", () => expect(ifMatchOf(4)).toBe('"4"'));
 });
+
+describe("editBodyOf in another currency (D29, boards 9 and 10)", () => {
+  const usd = { amount: "10000", currency: "USD" };
+  const foreign = { ...personal, amount: usd };
+
+  it("sends a typed converted amount with the amount it converts, even when the amount is unchanged", () => {
+    const current = { ...foreign, convertedAmount: money(410_000) };
+    expect(editBodyOf({ tx: single, baseline: foreign, current, whenChanged: false })).toEqual({
+      amount: usd,
+      convertedAmount: money(410_000),
+    });
+  });
+
+  it("sends a typed arriving amount with the transfer's amount", () => {
+    const transfer = transactionDto({ type: "TRANSFER" });
+    const baseline = {
+      ...time,
+      amount: money(400_000),
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-usd",
+    };
+    const current = { ...baseline, destinationAmount: usd };
+    expect(editBodyOf({ tx: transfer, baseline, current, whenChanged: false })).toEqual({
+      amount: money(400_000),
+      destinationAmount: usd,
+    });
+  });
+});

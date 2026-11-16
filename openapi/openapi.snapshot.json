@@ -7334,6 +7334,12 @@
                   "amount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "convertedAmount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "destinationAmount": {
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "accountId": {
                     "type": "string",
                     "minLength": 1,
@@ -7596,7 +7602,7 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts",
             "content": {
               "application/problem+json": {
                 "schema": {
