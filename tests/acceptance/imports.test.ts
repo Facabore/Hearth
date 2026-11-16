@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { POST as recordTransfer } from "@/app/api/v1/spaces/[spaceId]/transfers/route";
 import { PATCH as adjustImport } from "@/app/api/v1/spaces/[spaceId]/imports/[importId]/route";
 import { POST as confirmImport } from "@/app/api/v1/spaces/[spaceId]/imports/[importId]/confirm/route";
 import { POST as undoImport } from "@/app/api/v1/spaces/[spaceId]/imports/[importId]/undo/route";
@@ -335,6 +336,48 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
 
     const result = await confirmed(ana, preview.id);
     expect(result.counts).toMatchObject({ movementsImported: 5, duplicatesSkipped: 0 });
+  });
+
+  it("finds a likely duplicate transfer by what reached an account already in Hearth", async () => {
+    const ana = await registerUser("Ana");
+    const cash = await starterAccount(ana, "Efectivo");
+    const typed = await post(recordTransfer, ana, "transfers", {
+      date: "2025-01-25",
+      amount: cop(20_000),
+      sourceAccountId: await starterAccount(ana, "Cuenta bancaria"),
+      destinationAccountId: cash,
+    });
+    expect(typed.status).toBe(201);
+    const leg = {
+      wdate: "2025-01-25",
+      zdate: Date.UTC(2025, 0, 25, 15),
+      currency: 1 as const,
+      txUidTrans: "t2",
+    };
+    const withTransfer = moneyManagerBackup([
+      {
+        ...leg,
+        uid: "m20",
+        doType: 3,
+        asset: "a-bank",
+        toAsset: "a-cash",
+        entered: "20000.0",
+        inAccount: 20000,
+      },
+      {
+        ...leg,
+        uid: "m21",
+        doType: 4,
+        asset: "a-cash",
+        toAsset: "a-bank",
+        entered: "20000.0",
+        inAccount: 20000,
+      },
+    ]);
+
+    const response = await upload(ana, withTransfer);
+
+    expect(((await response.json()) as Preview).duplicates).toEqual(["t2"]);
   });
 
   it("refuses a second confirm of the same draft with 409 ImportNotDraft", async () => {

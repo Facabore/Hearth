@@ -61,6 +61,7 @@ export const knownFor = async (
       date: movement.date,
       amountMinor: movement.amountMinor,
       kind: movement.kind,
+      ...(movement.incoming === true ? { incoming: true as const } : {}),
     })),
   );
   const preview = previewImport(snapshot, { timeZone: mappings.timeZone, existing });

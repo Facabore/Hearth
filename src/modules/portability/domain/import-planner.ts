@@ -14,6 +14,8 @@ export interface ExistingMovement {
   readonly date: LocalDate;
   readonly amountMinor: bigint;
   readonly kind: SourceMovementKind;
+  /** A transfer that reached the account (its destination side), as opposed to one that left it. */
+  readonly incoming?: true;
 }
 
 export interface PreviewOptions {
@@ -73,8 +75,20 @@ const fingerprint = (
   accountSourceId: string,
   date: LocalDate,
   amountMinor: bigint,
-  kind: SourceMovementKind,
+  kind: SourceMovementKind | "TRANSFER_IN",
 ): string => `${accountSourceId}|${date}|${amountMinor}|${kind}`;
+
+/**
+ * Design §3.1: what a source movement looks like on each account it touches. A transfer shows on both: leaving its
+ * source account with its amount, and reaching its destination with what arrived, so a Hearth transfer into one of the
+ * mapped accounts (its source account new or someone else's) is caught too.
+ */
+const fingerprintsOf = (m: SourceMovement): string[] => [
+  fingerprint(m.accountSourceId, m.date, m.amount.minor, m.kind),
+  ...(m.kind === "TRANSFER" && m.toAccountSourceId !== null && m.toAmount !== null
+    ? [fingerprint(m.toAccountSourceId, m.date, m.toAmount.minor, "TRANSFER_IN")]
+    : []),
+];
 
 /** The signed minor-unit change each movement makes to each account's own balance (design §3.1). */
 const applyToBalances = (balances: Map<string, bigint>, movement: SourceMovement): void => {
@@ -168,10 +182,12 @@ export const previewImport = (snapshot: SourceSnapshot, options: PreviewOptions)
   }));
 
   const existing = new Set(
-    (options.existing ?? []).map((m) => fingerprint(m.accountSourceId, m.date, m.amountMinor, m.kind)),
+    (options.existing ?? []).map((m) =>
+      fingerprint(m.accountSourceId, m.date, m.amountMinor, m.incoming === true ? "TRANSFER_IN" : m.kind),
+    ),
   );
   const duplicates = snapshot.movements
-    .filter((m) => existing.has(fingerprint(m.accountSourceId, m.date, m.amount.minor, m.kind)))
+    .filter((m) => fingerprintsOf(m).some((print) => existing.has(print)))
     .map((m) => ({ sourceKey: m.sourceKey }));
 
   return ok({
