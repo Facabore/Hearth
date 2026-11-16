@@ -51,7 +51,8 @@
       "file": "Money Manager backup",
       "reading": "Reading {name}…",
       "readingNote": "A large backup can take up to half a minute.",
-      "progress": "Reading the file"
+      "progress": "Reading the file",
+      "retry": "Try again"
     },
     "review": {
       "title": "Review import",
@@ -95,7 +96,6 @@
       "use": "Use {name}",
       "yours": "Your account · {type}",
       "new": "New account: {type}",
-      "card": "{currency} · cut-off on the {cutOff}, payment on the {payment}",
       "balance": "Closing balance in Money Manager: {balance}",
       "more": "{n, plural, one {and {count} more account} other {and {count} more accounts}}",
       "done": "Done",
@@ -114,7 +114,11 @@
         "INVESTMENT": "Investment",
         "LOAN": "Loan or debt",
         "OTHER": "Other"
-      }
+      },
+      "terms": "cut-off on the {cutOff}, payment on the {payment}",
+      "missing": "The chosen account is gone",
+      "missingNote": "Tap to choose another or create a new one",
+      "restored": "Your archived account · {type} · brought back"
     },
     "categories": {
       "title": "Categories to import",
@@ -130,7 +134,12 @@
       "createNew": "Create a new category",
       "createSub": "Create a new subcategory in {parent}",
       "group": "Group",
-      "save": "Save"
+      "save": "Save",
+      "missing": "The chosen category is gone: choose another",
+      "restored": "Archived: brought back",
+      "restoredPath": "{path} · brought back",
+      "importGroup": "The import's group",
+      "newInAs": "New in {group}, as “{name}”"
     },
     "done": {
       "title": "Import done",
@@ -147,7 +156,10 @@
       "adjustments": "{n, plural, one {{count} balance adjustment isn't imported yet} other {{count} balance adjustments aren't imported yet}}",
       "undoNote": "Something went wrong? You can undo this import from Import and export: it deletes what it brought and leaves everything as it was.",
       "movements": "See movements",
-      "undo": "Undo import"
+      "undo": "Undo import",
+      "accountsRestored": "{n, plural, one {{count} account brought back} other {{count} accounts brought back}}",
+      "categoriesRestored": "{n, plural, one {{count} category brought back} other {{count} categories brought back}}",
+      "restoredNote": "An import you undid had archived them"
     },
     "export": {
       "title": "Download my data",
@@ -169,7 +181,13 @@
     },
     "busy": "Too many imports are running right now. Try again in a moment.",
     "reason": {
-      "currencyMismatch": "Choose an account in the same currency it has in Money Manager."
+      "currencyMismatch": "Choose an account in the same currency it has in Money Manager.",
+      "about": "It's about “{name}”.",
+      "accountNotFound": "That account is gone. Choose another or create a new one.",
+      "categoryNotFound": "That category is gone. Choose another or create a new one.",
+      "groupNotFound": "That group is gone. Choose another.",
+      "mappingRequired": "Choose where it goes.",
+      "unknownSource": "The file doesn't have that. Upload the file again."
     }
   }
 }

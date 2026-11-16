@@ -13,6 +13,7 @@ import {
   LinkRow,
   Pinned,
   RefusalNotice,
+  sourceNamesOf,
   RowIcon,
   useCall,
   useDateLabel,
@@ -306,8 +307,12 @@ export function ImportReviewScreen({
           void adjusting.adjust({ includeDuplicates: include ? [...preview.duplicates] : [] })
         }
       />
-      {adjusting.refusal ? <RefusalNotice refusal={adjusting.refusal} tooMany={busy} /> : null}
-      {confirming.refusal ? <RefusalNotice refusal={confirming.refusal} tooMany={busy} /> : null}
+      {adjusting.refusal ? (
+        <RefusalNotice refusal={adjusting.refusal} tooMany={busy} sourceNames={sourceNamesOf(preview)} />
+      ) : null}
+      {confirming.refusal ? (
+        <RefusalNotice refusal={confirming.refusal} tooMany={busy} sourceNames={sourceNamesOf(preview)} />
+      ) : null}
       <ZoneSheet
         open={zoneOpen}
         onOpenChange={setZoneOpen}

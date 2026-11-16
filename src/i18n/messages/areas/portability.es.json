@@ -51,7 +51,8 @@
       "file": "Copia de Money Manager",
       "reading": "Leyendo {name}…",
       "readingNote": "Una copia grande puede tardar hasta medio minuto.",
-      "progress": "Leyendo el archivo"
+      "progress": "Leyendo el archivo",
+      "retry": "Intentar de nuevo"
     },
     "review": {
       "title": "Revisar importación",
@@ -95,7 +96,6 @@
       "use": "Usar {name}",
       "yours": "Tu cuenta · {type}",
       "new": "Nueva cuenta: {type}",
-      "card": "{currency} · corte el {cutOff}, pago el {payment}",
       "balance": "Saldo al final en Money Manager: {balance}",
       "more": "{n, plural, one {y {count} cuenta más} other {y {count} cuentas más}}",
       "done": "Listo",
@@ -114,7 +114,11 @@
         "INVESTMENT": "Inversión",
         "LOAN": "Préstamo o deuda",
         "OTHER": "Otra"
-      }
+      },
+      "terms": "corte el {cutOff}, pago el {payment}",
+      "missing": "La cuenta elegida ya no está",
+      "missingNote": "Toca para elegir otra o crear una nueva",
+      "restored": "Tu cuenta archivada · {type} · se recupera"
     },
     "categories": {
       "title": "Categorías a importar",
@@ -130,7 +134,12 @@
       "createNew": "Crear una categoría nueva",
       "createSub": "Crear una subcategoría nueva en {parent}",
       "group": "Grupo",
-      "save": "Guardar"
+      "save": "Guardar",
+      "missing": "La categoría elegida ya no está: elige otra",
+      "restored": "Archivada: se recupera",
+      "restoredPath": "{path} · se recupera",
+      "importGroup": "Grupo de la importación",
+      "newInAs": "Nueva en {group}, como «{name}»"
     },
     "done": {
       "title": "Importación lista",
@@ -147,7 +156,10 @@
       "adjustments": "{n, plural, one {{count} ajuste de saldo aún no se importa} other {{count} ajustes de saldo aún no se importan}}",
       "undoNote": "¿Algo salió mal? Puedes deshacer esta importación desde Importar y exportar: borra lo que trajo y deja todo como estaba.",
       "movements": "Ver movimientos",
-      "undo": "Deshacer importación"
+      "undo": "Deshacer importación",
+      "accountsRestored": "{n, plural, one {{count} cuenta recuperada} other {{count} cuentas recuperadas}}",
+      "categoriesRestored": "{n, plural, one {{count} categoría recuperada} other {{count} categorías recuperadas}}",
+      "restoredNote": "Las había archivado una importación que deshiciste"
     },
     "export": {
       "title": "Descargar mis datos",
@@ -169,7 +181,13 @@
     },
     "busy": "Hay muchas importaciones en curso. Intenta de nuevo en un momento.",
     "reason": {
-      "currencyMismatch": "Elige una cuenta en la misma moneda que tiene en Money Manager."
+      "currencyMismatch": "Elige una cuenta en la misma moneda que tiene en Money Manager.",
+      "about": "Es sobre «{name}».",
+      "accountNotFound": "Esa cuenta ya no está. Elige otra o crea una nueva.",
+      "categoryNotFound": "Esa categoría ya no está. Elige otra o crea una nueva.",
+      "groupNotFound": "Ese grupo ya no está. Elige otro.",
+      "mappingRequired": "Falta elegir a dónde va.",
+      "unknownSource": "El archivo no tiene eso. Sube el archivo de nuevo."
     }
   }
 }

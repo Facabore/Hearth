@@ -10,18 +10,23 @@ import { Column, Pinned, RefusalNotice, RowIcon, StaticRow, useCall } from "./pa
 /** Design §3.5: the API refuses a file over 20 MB; saying so before sending it saves the person the upload. */
 export const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
 
+/** Refusals that may pass a moment later: the same file can simply go up again. */
+const RETRYABLE = new Set(["TooManyRequests", "ImportTimedOut"]);
+
 /** A refusal the screen gives itself, in the API's own words (`errors.ImportFileTooLarge`). */
 const TOO_LARGE = {
   problem: { code: "ImportFileTooLarge", status: 422, requestId: null, errors: [], field: null },
   reason: null,
+  sourceId: null,
 } as const;
 
 /**
  * D28, board "2 · Importar · Money Manager · elegir archivo": how to get the backup, the space it goes into (the
  * person's personal space, the only one an import goes to, design §3.2), and that the file is read and not kept. The
  * file goes up as it is; the generated client sends it with `fetch`, which reports no upload progress, so the screen
- * shows that the file is being read until the preview answers. A refusal shows its code's message; a 429 asks to try
- * again in a moment.
+ * shows that the file is being read until the preview answers. A refusal shows its code's message, and only the
+ * latest one shows: the screen's own "too large" and the API's never stand side by side. A 429 (too many uploads at
+ * once) and an ImportTimedOut (a read or an upload that stalled) offer to send the same file again.
  */
 export function MoneyManagerScreen({
   backHref,
@@ -38,12 +43,15 @@ export function MoneyManagerScreen({
   const busy = useTranslations("portability")("busy");
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const input = useRef<HTMLInputElement>(null);
-  const { pending, refusal, run } = useCall();
+  const { pending, refusal, run, clear } = useCall();
   const [tooLarge, setTooLarge] = useState(false);
   const [reading, setReading] = useState<string | null>(null);
+  const [last, setLast] = useState<File | null>(null);
   const upload = async (file: File) => {
+    clear();
     setTooLarge(file.size > MAX_IMPORT_BYTES);
     if (file.size > MAX_IMPORT_BYTES) return;
+    setLast(file);
     setReading(file.name);
     const form = new FormData();
     form.append("file", file);
@@ -105,6 +113,11 @@ export function MoneyManagerScreen({
       ) : null}
       {tooLarge ? <RefusalNotice refusal={TOO_LARGE} /> : null}
       {refusal ? <RefusalNotice refusal={refusal} tooMany={busy} /> : null}
+      {refusal && last && RETRYABLE.has(refusal.problem.code) ? (
+        <Button variant="secondary" size="md" disabled={pending} onClick={() => void upload(last)}>
+          {t("retry")}
+        </Button>
+      ) : null}
       <input
         ref={input}
         type="file"

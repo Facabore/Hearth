@@ -2,8 +2,9 @@ import { File as NodeFile } from "node:buffer";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { es } from "@/i18n/messages/full";
 import { cop, householdSpace, meDto, normalized, spaceDto } from "../../tests/support/ui/dto";
-import { jsonResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
+import { jsonResponse, problemResponse, type FakeHandler } from "../../tests/support/ui/fake-api";
 import { loadedAreas, renderSpa } from "../../tests/support/ui/spa";
 import { previewFixture, resultFixture, summaryFixture } from "../modules/portability/ui/preview-fixture";
 
@@ -149,5 +150,152 @@ describe("Importar y exportar in the app (D28, #326)", () => {
     expect(
       await screen.findByRole("link", { name: /Cuentas.*3 · 0 nuevas, 3 ya las tienes/ }, WAIT),
     ).toBeVisible();
+  });
+});
+
+describe("Importar y exportar's refusals, later visits and undo (D28, #326)", () => {
+  const MM = `${HOUSEHOLD}/data/money-manager`;
+  const REVIEW = `${HOUSEHOLD}/data/imports/imp-1`;
+  const UNDO = "POST /api/v1/spaces/{spaceId}/imports/{importId}/undo";
+  const undone = () =>
+    jsonResponse({
+      id: "imp-1",
+      status: "UNDONE",
+      movementsDeleted: 1237,
+      accountsArchived: 2,
+      categoriesArchived: 2,
+    });
+
+  it("keeps an upload the API refuses on its screen, with the refusal's message", async () => {
+    const { routes } = server({
+      "POST /api/v1/spaces/{spaceId}/imports": () => problemResponse(422, "UnreadableBackup"),
+    });
+    const spa = renderSpa(MM, routes);
+    await userEvent.upload(
+      await screen.findByLabelText("Copia de Money Manager", undefined, WAIT),
+      new NodeFile(["not sqlite"], "money.mmbak") as unknown as File,
+    );
+    expect(await screen.findByText(es.errors.UnreadableBackup, undefined, WAIT)).toBeVisible();
+    expect(spa.location()).toBe(MM);
+  });
+
+  it("keeps a confirm the API refuses on the review, naming the source it is about", async () => {
+    const { routes } = server({
+      "POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm": () =>
+        problemResponse(409, "ImportTargetRefused", { sourceId: "a-2", reason: "AccountNameTaken" }),
+    });
+    const spa = renderSpa(REVIEW, routes);
+    await userEvent.click(await screen.findByRole("button", { name: "Importar 1.237 movimientos" }, WAIT));
+    expect(await screen.findByText("Es sobre «Visa Oro».", undefined, WAIT)).toBeVisible();
+    expect(spa.location()).toBe(REVIEW);
+  });
+
+  it("answers a draft that is not the person's as not found", async () => {
+    const { routes } = server({
+      "PATCH /api/v1/spaces/{spaceId}/imports/{importId}": () => problemResponse(404, "ImportNotFound"),
+    });
+    renderSpa(`${HOUSEHOLD}/data/imports/imp-someone`, routes);
+    expect(await screen.findByRole("heading", { name: es.notFound.title }, WAIT)).toBeVisible();
+  });
+
+  it("opens what a draft confirmed elsewhere did, from the history's counts alone", async () => {
+    const { routes } = server({
+      "GET /api/v1/spaces/{spaceId}/imports": () => jsonResponse({ items: [summaryFixture()] }),
+      "PATCH /api/v1/spaces/{spaceId}/imports/{importId}": () => problemResponse(409, "ImportNotDraft"),
+    });
+    const spa = renderSpa(REVIEW, routes);
+    expect(await screen.findByRole("heading", { level: 1, name: "Importación lista" }, WAIT)).toBeVisible();
+    expect(spa.location()).toBe(`${REVIEW}/done`);
+    expect(screen.getByRole("heading", { level: 2, name: "Importamos 1.237 movimientos" })).toBeVisible();
+    // A later visit has no preview: the counts, never the names or the dates.
+    expect(screen.getByText("En Personal.")).toBeVisible();
+    expect(screen.getByRole("link", { name: /^2 cuentas nuevas$/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Deshacer importación" })).toBeVisible();
+  });
+
+  it("undoes an import from the hub, says so and reads the history again", async () => {
+    let isUndone = false;
+    let historyReads = 0;
+    const { routes } = server({
+      "GET /api/v1/spaces/{spaceId}/imports": () => {
+        historyReads += 1;
+        return jsonResponse({
+          items: [summaryFixture(isUndone ? { status: "UNDONE", undoneAt: "2026-11-16T10:00:00.000Z" } : {})],
+        });
+      },
+      [UNDO]: () => ((isUndone = true), undone()),
+    });
+    renderSpa(`${HOUSEHOLD}/data`, routes);
+    await userEvent.click(await screen.findByRole("button", { name: /^Deshacer: / }, WAIT));
+    const sheet = await screen.findByRole("dialog", { name: "¿Deshacer esta importación?" }, WAIT);
+    const before = historyReads;
+    await userEvent.click(within(sheet).getByRole("button", { name: "Deshacer importación" }));
+    await waitFor(
+      () => expect(screen.getByRole("status")).toHaveTextContent("Deshicimos la importación."),
+      WAIT,
+    );
+    await waitFor(() => expect(historyReads).toBeGreaterThan(before));
+    expect(await screen.findByText("Deshecha", undefined, WAIT)).toBeVisible();
+    expect(screen.queryByRole("button", { name: /^Deshacer: / })).toBeNull();
+  });
+
+  it("undoes an import from its done screen and goes back to the hub", async () => {
+    let isUndone = false;
+    const { routes } = server({
+      "GET /api/v1/spaces/{spaceId}/imports": () =>
+        jsonResponse({ items: [summaryFixture(isUndone ? { status: "UNDONE" } : {})] }),
+      [UNDO]: () => ((isUndone = true), undone()),
+    });
+    const spa = renderSpa(`${REVIEW}/done`, routes);
+    await userEvent.click(await screen.findByRole("button", { name: "Deshacer importación" }, WAIT));
+    const sheet = await screen.findByRole("dialog", { name: "¿Deshacer esta importación?" }, WAIT);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Deshacer importación" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Importar y exportar" }, WAIT)).toBeVisible();
+    expect(spa.location()).toBe(`${HOUSEHOLD}/data`);
+    await waitFor(
+      () => expect(screen.getByRole("status")).toHaveTextContent("Deshicimos la importación."),
+      WAIT,
+    );
+    expect(await screen.findByText("Deshecha", undefined, WAIT)).toBeVisible();
+  });
+
+  it("maps a category from its screen and shows the review with the new preview", async () => {
+    const otros = { id: "grp-otros", name: "Otros", key: "other", archivedAt: null, color: "SAGE" as const };
+    const icon = { kind: "SYMBOL" as const, name: "dots" };
+    const toImportGroup = previewFixture({
+      categories: previewFixture().categories.map((c) =>
+        c.sourceId === "c-misc"
+          ? { ...c, mapping: { kind: "new" as const, groupId: null, name: "Varios" } }
+          : c,
+      ),
+    });
+    const bodies: unknown[] = [];
+    const { routes } = server({
+      "GET /api/v1/spaces/{spaceId}/categories": () =>
+        jsonResponse({ items: [{ ...otros, icon, categories: [] }] }),
+      "PATCH /api/v1/spaces/{spaceId}/imports/{importId}": async (request) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        bodies.push(body);
+        return jsonResponse(body.categories ? toImportGroup : previewFixture());
+      },
+    });
+    renderSpa(REVIEW, routes);
+    await userEvent.click(await screen.findByRole("link", { name: /Categorías.*Revisar/ }, WAIT));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Categorías a importar" }, WAIT),
+    ).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: /^Varios/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Varios" }, WAIT);
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Grupo de la importación" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Guardar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("button", { name: /^Varios/ })).toHaveTextContent(
+      "Nueva en Grupo de la importación",
+    );
+    expect(bodies.at(-1)).toEqual({
+      categories: { "c-misc": { kind: "new", groupId: null, name: "Varios" } },
+    });
+    await userEvent.click(screen.getByRole("link", { name: "Listo" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Revisar importación" }, WAIT)).toBeVisible();
   });
 });

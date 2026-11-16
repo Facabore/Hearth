@@ -31,7 +31,7 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       cutOffDay: 15,
       paymentDay: 30,
       sourceClosingBalance: { amount: "-50000000", currency: "COP" },
-      mapping: { kind: "new", type: "CREDIT_CARD", currency: "COP" },
+      mapping: { kind: "new", type: "CREDIT_CARD", currency: "COP", name: "Visa Oro" },
     },
     {
       sourceId: "a-3",
@@ -41,7 +41,8 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       cutOffDay: null,
       paymentDay: null,
       sourceClosingBalance: { amount: "51240", currency: "USD" },
-      mapping: { kind: "new", type: "BANK", currency: "USD" },
+      // The person already has an account of this name: the confirm will use a free one.
+      mapping: { kind: "new", type: "BANK", currency: "USD", name: "Cuenta en dólares (Money Manager)" },
     },
   ],
   categories: [
@@ -63,7 +64,7 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       parentSourceId: "c-food",
       archived: false,
       catalogKey: null,
-      mapping: { kind: "new", groupId: null },
+      mapping: { kind: "new", groupId: null, name: "Domicilio" },
     },
     {
       sourceId: "c-misc",
@@ -73,7 +74,7 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       parentSourceId: null,
       archived: false,
       catalogKey: null,
-      mapping: { kind: "new", groupId: "grp-otros" },
+      mapping: { kind: "new", groupId: "grp-otros", name: "Varios" },
     },
     {
       sourceId: "c-salary",
@@ -106,7 +107,9 @@ export const resultFixture = (overrides: Partial<ImportResultDto> = {}): ImportR
   status: "CONFIRMED",
   counts: {
     accountsCreated: 2,
+    accountsRestored: 0,
     categoriesCreated: 2,
+    categoriesRestored: 0,
     movementsImported: 1237,
     alreadyImported: 0,
     duplicatesSkipped: 3,

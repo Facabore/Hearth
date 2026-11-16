@@ -14,18 +14,21 @@ export interface ScreenFormats {
   readonly dateFormat: DateFormat;
 }
 
-/** A refusal and, when the API says why (`details.reason`, D28's InvalidImportMapping), its reason. */
+/**
+ * A refusal and, when the API says why, its public members (D28): `reason` and the `sourceId` it is about on
+ * InvalidImportMapping and ImportTargetRefused (whose reason is the refused record's own code).
+ */
 export interface Refusal {
   readonly problem: Problem;
   readonly reason: string | null;
+  readonly sourceId: string | null;
 }
 
-const reasonOf = (error: unknown): string | null => {
+/** A problem's public extension member, when it is a non-empty string. */
+const memberOf = (error: unknown, name: "reason" | "sourceId"): string | null => {
   if (typeof error !== "object" || error === null) return null;
-  const details = (error as { details?: unknown }).details;
-  if (typeof details !== "object" || details === null) return null;
-  const reason = (details as { reason?: unknown }).reason;
-  return typeof reason === "string" && reason !== "" ? reason : null;
+  const value = (error as Record<string, unknown>)[name];
+  return typeof value === "string" && value !== "" ? value : null;
 };
 
 /**
@@ -43,9 +46,13 @@ export const useCall = () => {
     try {
       const { data, error, response } = await send();
       if (response.ok) return (data ?? null) as T | null;
-      setRefusal({ problem: problemFrom(error, response), reason: reasonOf(error) });
+      setRefusal({
+        problem: problemFrom(error, response),
+        reason: memberOf(error, "reason"),
+        sourceId: memberOf(error, "sourceId"),
+      });
     } catch (error) {
-      setRefusal({ problem: problemFrom(error, undefined), reason: null });
+      setRefusal({ problem: problemFrom(error, undefined), reason: null, sourceId: null });
     } finally {
       setPending(false);
     }
@@ -54,18 +61,34 @@ export const useCall = () => {
   return { pending, refusal, run, clear: () => setRefusal(null) };
 };
 
+/** The name of a draft's source account or category by its id, for a refusal that names one. */
+export type SourceNames = (sourceId: string) => string | undefined;
+
+/** A preview's source names: its accounts' and its categories'. */
+export const sourceNamesOf =
+  (preview: {
+    readonly accounts: readonly { sourceId: string; name: string }[];
+    readonly categories: readonly { sourceId: string; name: string }[];
+  }): SourceNames =>
+  (sourceId) =>
+    [...preview.accounts, ...preview.categories].find((source) => source.sourceId === sourceId)?.name;
+
 /**
- * A refusal in the person's language (P118): its code's message, the reason's own line when the catalog has one, and
- * `tooMany` instead of the sign-in's wording when the API asks to wait (429).
+ * A refusal in the person's language (P118): its code's message, then what it is about (the source it names) and why
+ * (the reason's own copy, or the refused record's own code's message), and `tooMany` instead of the sign-in's wording
+ * when the API asks to wait (429).
  */
 export function RefusalNotice({
   refusal,
   tooMany,
+  sourceNames,
 }: {
   readonly refusal: Refusal;
   readonly tooMany?: string;
+  readonly sourceNames?: SourceNames;
 }) {
   const t = useTranslations("portability.reason");
+  const errors = useTranslations("errors");
   if (refusal.problem.code === "TooManyRequests" && tooMany) {
     return (
       <div role="alert" className="flex gap-2 rounded-xl border border-danger p-3 text-sm text-danger">
@@ -74,11 +97,29 @@ export function RefusalNotice({
       </div>
     );
   }
-  const known = refusal.reason !== null && t.has(refusal.reason as "currencyMismatch");
+  const { reason, sourceId } = refusal;
+  const source = sourceId !== null ? sourceNames?.(sourceId) : undefined;
+  const why =
+    reason === null
+      ? null
+      : t.has(reason as "currencyMismatch")
+        ? t(reason as "currencyMismatch")
+        : reason !== refusal.problem.code && errors.has(reason as "Unknown")
+          ? errors(reason as "Unknown")
+          : null;
+  const lines = [source ? t("about", { name: source }) : null, why].filter((line) => line !== null);
   return (
     <ProblemNotice
       problem={refusal.problem}
-      detail={known ? t(refusal.reason as "currencyMismatch") : undefined}
+      detail={
+        lines.length === 0
+          ? undefined
+          : lines.map((line) => (
+              <span key={line} className="block">
+                {line}
+              </span>
+            ))
+      }
     />
   );
 }

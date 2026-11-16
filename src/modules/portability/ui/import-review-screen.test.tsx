@@ -165,14 +165,24 @@ describe("Revisar importación (D28, board 3)", () => {
   it("shows a mapping refusal with its reason", async () => {
     renderReview(previewFixture(), {
       [ADJUST]: () =>
-        problemResponse(422, "InvalidImportMapping", {
-          details: { reason: "currencyMismatch", sourceId: "a-3" },
-        }),
+        problemResponse(422, "InvalidImportMapping", { reason: "currencyMismatch", sourceId: "a-3" }),
     });
     await userEvent.click(screen.getByRole("button", { name: "Incluirlos" }));
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(es.errors.InvalidImportMapping);
     expect(alert).toHaveTextContent("Elige una cuenta en la misma moneda que tiene en Money Manager.");
+  });
+
+  it("names the source and the refused record's reason when a confirm cannot create it", async () => {
+    renderReview(previewFixture(), {
+      [CONFIRM]: () =>
+        problemResponse(409, "ImportTargetRefused", { sourceId: "a-3", reason: "AccountNameTaken" }),
+    });
+    await userEvent.click(screen.getByRole("button", { name: /^Importar/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(es.errors.ImportTargetRefused);
+    expect(alert).toHaveTextContent("Es sobre «Cuenta en dólares».");
+    expect(alert).toHaveTextContent(es.errors.AccountNameTaken);
   });
 
   it("asks to wait when too many imports are running", async () => {

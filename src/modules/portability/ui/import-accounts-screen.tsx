@@ -7,7 +7,7 @@ import { AmountText, Button, ChoiceGroup, Icon, ScreenHeader, Sheet } from "@/sh
 import type { AccountDto } from "@/shared/ui/api/dto";
 import { formatCount } from "@/shared/ui/format/count";
 import { formatMoney } from "@/shared/ui/format/formatters";
-import type { AccountMappingDto, ImportAccountDto, ImportPreviewDto } from "./dto";
+import type { AccountMappingDto, AccountMappingInputDto, ImportAccountDto, ImportPreviewDto } from "./dto";
 import { Column, Pinned, RefusalNotice, type ScreenFormats } from "./parts";
 import { useAdjust, type DraftPlace } from "./use-adjust";
 
@@ -27,13 +27,31 @@ const TYPES: readonly AccountType[] = [
 /** Until the person widens the list, the board shows this many accounts and "y N cuentas más". */
 const FIRST = 4;
 
-/** An account of the person's that a source account can go to: live, and in the source account's currency. */
+/**
+ * The accounts of the person's a source account can go to (design §3.2): live ones in its currency, and the archived
+ * one it is mapped to already, which an undone import of this file created and a confirm restores.
+ */
 const candidatesFor = (source: ImportAccountDto, accounts: readonly AccountDto[]) =>
   accounts.filter(
-    (a) => a.archivedAt === null && a.type !== "SHARED_FUND" && a.balance.currency === source.currency,
+    (a) =>
+      a.type !== "SHARED_FUND" &&
+      a.balance.currency === source.currency &&
+      (a.archivedAt === null || (source.mapping.kind === "existing" && source.mapping.accountId === a.id)),
   );
 
-/** What a source account goes to, as its card names it. */
+/** The terms a new card carries over from the file: "corte el 15, pago el 30". */
+const useTerms = () => {
+  const t = useTranslations("portability.accounts");
+  return (source: ImportAccountDto, type: AccountType) =>
+    type === "CREDIT_CARD" && source.cutOffDay !== null && source.paymentDay !== null
+      ? t("terms", { cutOff: source.cutOffDay, payment: source.paymentDay })
+      : null;
+};
+
+/**
+ * What a source account goes to, as its card names it: an account of the person's (one an undone import archived is
+ * restored), one that is no longer there, or a new one under the name the confirm will give it.
+ */
 function MappingText({
   source,
   accounts,
@@ -42,30 +60,38 @@ function MappingText({
   readonly accounts: readonly AccountDto[];
 }) {
   const t = useTranslations("portability.accounts");
+  const terms = useTerms();
   const { mapping } = source;
   if (mapping.kind === "existing") {
     const target = accounts.find((a) => a.id === mapping.accountId);
+    if (!target) {
+      return (
+        <>
+          <span className="text-[15px] font-medium text-danger">{t("missing")}</span>
+          <span className="text-[13px] text-muted">{t("missingNote")}</span>
+        </>
+      );
+    }
     return (
       <>
-        <span className="text-[15px] font-medium text-ink">
-          {t("use", { name: target?.name ?? source.name })}
-        </span>
-        {target && target.type !== "SHARED_FUND" ? (
-          <span className="text-[13px] text-muted">{t("yours", { type: t(`types.${target.type}`) })}</span>
+        <span className="text-[15px] font-medium text-ink">{t("use", { name: target.name })}</span>
+        {target.type !== "SHARED_FUND" ? (
+          <span className="text-[13px] text-muted">
+            {target.archivedAt === null
+              ? t("yours", { type: t(`types.${target.type}`) })
+              : t("restored", { type: t(`types.${target.type}`) })}
+          </span>
         ) : null}
       </>
     );
   }
-  const card =
-    mapping.type === "CREDIT_CARD" && source.cutOffDay !== null && source.paymentDay !== null
-      ? t("card", { currency: source.currency, cutOff: source.cutOffDay, payment: source.paymentDay })
-      : source.currency;
+  const note = [mapping.name, source.currency, terms(source, mapping.type)].filter((part) => part !== null);
   return (
     <>
       <span className="text-[15px] font-medium text-ink">
         {t("new", { type: t(`types.${mapping.type}`) })}
       </span>
-      <span className="text-[13px] text-muted">{card}</span>
+      <span className="text-[13px] text-muted">{note.join(" · ")}</span>
     </>
   );
 }
@@ -91,9 +117,16 @@ function AccountSheet({
   );
   const { adjust, pending, refusal } = useAdjust(draft);
   const save = async () => {
-    const mapping: AccountMappingDto =
+    // A new account keeps the name the preview settled on (one no account of the person's holds); one that was not
+    // new yet leaves it to the API, which gives it the file's name or a free variant of it.
+    const mapping: AccountMappingInputDto =
       choice === "new"
-        ? { kind: "new", type, currency: source.currency }
+        ? {
+            kind: "new",
+            type,
+            currency: source.currency,
+            ...(source.mapping.kind === "new" ? { name: source.mapping.name } : {}),
+          }
         : { kind: "existing", accountId: choice };
     if (await adjust({ accounts: { [source.sourceId]: mapping } })) onClose();
   };
@@ -120,7 +153,10 @@ function AccountSheet({
             ...candidates.map((a) => ({
               value: a.id,
               label: t("use", { name: a.name }),
-              description: a.type === "SHARED_FUND" ? undefined : t("yours", { type: t(`types.${a.type}`) }),
+              description:
+                a.type === "SHARED_FUND"
+                  ? undefined
+                  : t(a.archivedAt === null ? "yours" : "restored", { type: t(`types.${a.type}`) }),
             })),
           ]}
           onValueChange={setChoice}
@@ -168,7 +204,7 @@ export function ImportAccountsScreen({
 }) {
   const t = useTranslations("portability.accounts");
   const [editing, setEditing] = useState<string | null>(null);
-  const [all, setAll] = useState(preview.accounts.length <= FIRST + 1);
+  const [all, setAll] = useState(preview.accounts.length <= FIRST);
   const shown = all ? preview.accounts : preview.accounts.slice(0, FIRST);
   const rest = preview.accounts.length - shown.length;
   const source = preview.accounts.find((a) => a.sourceId === editing);

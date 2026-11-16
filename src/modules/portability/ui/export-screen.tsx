@@ -14,7 +14,13 @@ type Format = "json" | "csv";
 export const fileNameOf = (disposition: string | null, format: Format): string =>
   /filename="([^"]+)"/.exec(disposition ?? "")?.[1] ?? `hearth-export.${format === "csv" ? "zip" : "json"}`;
 
-/** The browser saves a file the page holds: an object URL on a temporary link, clicked once and let go. */
+/**
+ * How long the object URL outlives its click. Revoking it at once can cancel the download in Safari and older Firefox,
+ * which read the URL after the click returns; a minute is ample, and the page lets it go then.
+ */
+export const REVOKE_AFTER_MS = 60_000;
+
+/** The browser saves a file the page holds: an object URL on a temporary link, clicked once and let go later. */
 export const saveFile = (blob: Blob, name: string): void => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -24,7 +30,7 @@ export const saveFile = (blob: Blob, name: string): void => {
   document.body.append(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 };
 
 /**

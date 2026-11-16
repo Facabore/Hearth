@@ -476,7 +476,7 @@ const importReviewRoute = createRoute({
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),
-      (await portability()).loadImportReview({ ...context, cause }, params.importId),
+      (await portability()).loadImportReview({ ...context, cause }, params),
     ),
   pendingComponent: dataPending,
   errorComponent: ScreenError,
@@ -491,7 +491,7 @@ const importAccountsRoute = createRoute({
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),
-      (await portability()).loadImportAccounts({ ...context, cause }, params.importId),
+      (await portability()).loadImportAccounts({ ...context, cause }, params),
     ),
   pendingComponent: dataPending,
   errorComponent: ScreenError,
@@ -506,7 +506,7 @@ const importCategoriesRoute = createRoute({
   loader: async ({ context, params, cause, route }) =>
     withAreas(
       loadAreas(context, route),
-      (await portability()).loadImportCategories({ ...context, cause }, params.importId),
+      (await portability()).loadImportCategories({ ...context, cause }, params),
     ),
   pendingComponent: dataPending,
   errorComponent: ScreenError,

@@ -112,6 +112,46 @@ describe("Importar desde Money Manager (D28, board 2)", () => {
     );
   });
 
+  it("offers to send the same file again after a stalled upload", async () => {
+    const sent: number[] = [];
+    let stall = true;
+    const { onUploaded } = renderScreen({
+      [UPLOAD]: () => {
+        sent.push(sent.length + 1);
+        if (stall) return ((stall = false), problemResponse(422, "ImportTimedOut"));
+        return jsonResponse(previewFixture(), 201);
+      },
+    });
+    await userEvent.upload(screen.getByLabelText("Copia de Money Manager"), backup());
+    expect(await screen.findByRole("alert")).toHaveTextContent(es.errors.ImportTimedOut);
+    await userEvent.click(screen.getByRole("button", { name: "Intentar de nuevo" }));
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith(previewFixture()));
+    expect(sent).toEqual([1, 2]);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("offers no retry for a refusal the same file would get again", async () => {
+    renderScreen({ [UPLOAD]: () => problemResponse(422, "ImportFileNotRecognized") });
+    await userEvent.upload(screen.getByLabelText("Copia de Money Manager"), backup());
+    expect(await screen.findByRole("alert")).toHaveTextContent(es.errors.ImportFileNotRecognized);
+    expect(screen.queryByRole("button", { name: "Intentar de nuevo" })).toBeNull();
+  });
+
+  it("shows only the latest refusal: the API's or the screen's own too-large", async () => {
+    renderScreen({ [UPLOAD]: () => problemResponse(422, "UnreadableBackup") });
+    const input = screen.getByLabelText("Copia de Money Manager");
+    await userEvent.upload(input, backup());
+    expect(await screen.findByRole("alert")).toHaveTextContent(es.errors.UnreadableBackup);
+    const large = backup();
+    Object.defineProperty(large, "size", { value: MAX_IMPORT_BYTES + 1 });
+    await userEvent.upload(input, large);
+    await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(1));
+    expect(screen.getByRole("alert")).toHaveTextContent(es.errors.ImportFileTooLarge);
+    await userEvent.upload(input, backup());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(es.errors.UnreadableBackup));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
   it("words the screen in English", () => {
     renderScreen({}, "en");
     expect(screen.getByRole("heading", { level: 1, name: "From Money Manager" })).toBeVisible();

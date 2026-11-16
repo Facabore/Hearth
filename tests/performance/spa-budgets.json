@@ -47,7 +47,7 @@
     "routes/referrals.tsx": 8,
     "referrals/loaders.ts": 2,
     "routes/data.tsx": 15,
-    "routes/import.tsx": 21,
+    "routes/import.tsx": 22,
     "portability/loaders.ts": 3,
     "routes/new-space.tsx": 15,
     "accounts/writes.ts": 2,
@@ -97,6 +97,6 @@
     "../i18n/messages/areas/trust.es.json": 1,
     "../i18n/messages/areas/trust.en.json": 1,
     "../i18n/messages/areas/portability.es.json": 4,
-    "../i18n/messages/areas/portability.en.json": 3
+    "../i18n/messages/areas/portability.en.json": 4
   }
 }

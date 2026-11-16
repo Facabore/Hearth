@@ -26,6 +26,7 @@ const renderAccounts = (
   preview: ImportPreviewDto = previewFixture(),
   routes: Record<string, FakeHandler> = {},
   locale: "es" | "en" = "es",
+  accounts = MINE,
 ) => {
   const { api } = fakeApi(routes);
   const onAdjusted = vi.fn();
@@ -33,7 +34,7 @@ const renderAccounts = (
     <ImportAccountsScreen
       backHref={REVIEW}
       preview={preview}
-      accounts={MINE}
+      accounts={accounts}
       formats={{ numberFormat: "DOT_COMMA", dateFormat: "DMY" }}
       draft={{ spaceId: "sp-personal", importId: "imp-1", onAdjusted, api }}
     />,
@@ -58,9 +59,12 @@ describe("Cuentas a importar (D28, board 4)", () => {
       "Usar BancolombiaTu cuenta · Ahorro o CDT",
     );
     expect(normalized(card("Visa Oro").textContent)).toBe(
-      "Nueva cuenta: Tarjeta de créditoCOP · corte el 15, pago el 30",
+      "Nueva cuenta: Tarjeta de créditoVisa Oro · COP · corte el 15, pago el 30",
     );
-    expect(normalized(card("Cuenta en dólares").textContent)).toBe("Nueva cuenta: BancoUSD");
+    // The name the confirm will use: the file's is taken, so the preview settled on a free one.
+    expect(normalized(card("Cuenta en dólares").textContent)).toBe(
+      "Nueva cuenta: BancoCuenta en dólares (Money Manager) · USD",
+    );
     expect(normalized(screen.getByText(/1.469.600/).closest("p")!.textContent)).toBe(
       "Saldo al final en Money Manager: $ 1.469.600",
     );
@@ -82,6 +86,37 @@ describe("Cuentas a importar (D28, board 4)", () => {
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(4);
     await userEvent.click(screen.getByRole("button", { name: "y 2 cuentas más" }));
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(6);
+  });
+
+  it("shows four of five accounts too, with the one left behind the button", async () => {
+    const base = previewFixture().accounts[2]!;
+    const five = Array.from({ length: 5 }, (_, i) => ({
+      ...base,
+      sourceId: `x-${i}`,
+      name: `Cuenta ${i + 1}`,
+    }));
+    renderAccounts(previewFixture({ accounts: five }));
+    expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "y 1 cuenta más" })).toBeVisible();
+  });
+
+  it("names an account that is no longer there as missing, never as the file's", () => {
+    renderAccounts(previewFixture(), {}, "es", [MINE[1]!]);
+    expect(normalized(card("Ahorros Bancolombia").textContent)).toBe(
+      "La cuenta elegida ya no estáToca para elegir otra o crear una nueva",
+    );
+  });
+
+  it("names an archived account an undone import created as brought back, and offers it", async () => {
+    const archived = { ...MINE[0]!, archivedAt: "2026-11-15T16:00:00.000Z" };
+    renderAccounts(previewFixture(), {}, "es", [archived, MINE[1]!]);
+    expect(normalized(card("Ahorros Bancolombia").textContent)).toBe(
+      "Usar BancolombiaTu cuenta archivada · Ahorro o CDT · se recupera",
+    );
+    // Another source in pesos is not offered the archived account: only the one mapped to it already.
+    await userEvent.click(card("Visa Oro"));
+    const sheet = await screen.findByRole("dialog", { name: "Visa Oro" });
+    expect(within(sheet).queryByRole("radio", { name: /Usar Bancolombia/ })).toBeNull();
   });
 
   it("makes a new account of another type, in the file's currency", async () => {
@@ -107,7 +142,10 @@ describe("Cuentas a importar (D28, board 4)", () => {
     await userEvent.click(within(sheet).getByRole("radio", { name: "Efectivo" }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Guardar" }));
     await waitFor(() => expect(onAdjusted).toHaveBeenCalledWith(adjusted));
-    expect(bodies).toEqual([{ accounts: { "a-2": { kind: "new", type: "CASH", currency: "COP" } } }]);
+    // The new account keeps the name the preview settled on.
+    expect(bodies).toEqual([
+      { accounts: { "a-2": { kind: "new", type: "CASH", currency: "COP", name: "Visa Oro" } } },
+    ]);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
@@ -136,9 +174,7 @@ describe("Cuentas a importar (D28, board 4)", () => {
   it("keeps the sheet open with the refusal and its reason", async () => {
     const { onAdjusted } = renderAccounts(previewFixture(), {
       [ADJUST]: () =>
-        problemResponse(422, "InvalidImportMapping", {
-          details: { reason: "currencyMismatch", sourceId: "a-2" },
-        }),
+        problemResponse(422, "InvalidImportMapping", { reason: "currencyMismatch", sourceId: "a-2" }),
     });
     await userEvent.click(card("Visa Oro"));
     const sheet = await screen.findByRole("dialog", { name: "Visa Oro" });

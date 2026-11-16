@@ -124,6 +124,22 @@ describe("Importar y exportar (D28, board 1)", () => {
     expect(onUndone).not.toHaveBeenCalled();
   });
 
+  it("forgets a refused undo once the sheet is cancelled, so the next one opens clean", async () => {
+    renderHub([summaryFixture(), summaryFixture({ id: "imp-2" })], {
+      "POST /api/v1/spaces/{spaceId}/imports/{importId}/undo": () => problemResponse(409, "PeriodClosed"),
+    });
+    const [first, second] = screen.getAllByRole("button", { name: /^Deshacer: / });
+    await userEvent.click(first!);
+    const sheet = await screen.findByRole("dialog");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Deshacer importación" }));
+    expect(await within(sheet).findByRole("alert")).toBeVisible();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.click(second!);
+    const next = await screen.findByRole("dialog");
+    expect(within(next).queryByRole("alert")).toBeNull();
+  });
+
   it("words the hub in English", () => {
     renderHub([summaryFixture()], {}, "en");
     expect(screen.getByRole("heading", { level: 1, name: "Import and export" })).toBeVisible();

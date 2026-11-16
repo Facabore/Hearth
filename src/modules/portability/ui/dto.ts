@@ -20,3 +20,6 @@ export type ImportSummaryDto = ImportHistoryDto["items"][number];
 export type ImportChangesDto = NonNullable<
   paths["/api/v1/spaces/{spaceId}/imports/{importId}"]["patch"]["requestBody"]
 >["content"]["application/json"];
+/** A mapping as the person sends it: a new record's name is optional, the file's (or a free variant) by default. */
+export type AccountMappingInputDto = NonNullable<ImportChangesDto["accounts"]>[string];
+export type CategoryMappingInputDto = NonNullable<ImportChangesDto["categories"]>[string];

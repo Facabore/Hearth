@@ -31,7 +31,9 @@ export interface DonePlace {
 
 const NONE: ImportCountsDto = {
   accountsCreated: 0,
+  accountsRestored: 0,
   categoriesCreated: 0,
+  categoriesRestored: 0,
   movementsImported: 0,
   alreadyImported: 0,
   duplicatesSkipped: 0,
@@ -41,8 +43,8 @@ const NONE: ImportCountsDto = {
 };
 
 /**
- * D28, board "6 · Importar · listo": what the import did (its movements, the accounts and categories it created, the
- * look-alikes left out, the rows the ledger refused) and the way to undo it. The names and the date range come from the
+ * D28, board "6 · Importar · listo": what the import did (its movements, the accounts and categories it created or
+ * restored from an undone import, the look-alikes left out, the rows the ledger refused) and the way to undo it. The names and the date range come from the
  * draft's preview when this visit still holds it; a later visit has the counts alone. Undo asks first, as everywhere.
  */
 export function ImportDoneScreen({
@@ -72,8 +74,8 @@ export function ImportDoneScreen({
   const done = counts ?? NONE;
   const count = (n: number) => ({ n, count: formatCount(n, formats) });
   const createdAccounts = (preview?.accounts ?? [])
-    .filter((a) => a.mapping.kind === "new")
-    .map((a) => a.name);
+    // The names the confirm gave them, which differ from the file's when those were taken.
+    .flatMap((a) => (a.mapping.kind === "new" ? [a.mapping.name] : []));
   const range = preview?.dateRange;
   return (
     <Column>
@@ -122,6 +124,34 @@ export function ImportDoneScreen({
               }
               title={t("categories", count(done.categoriesCreated))}
               note={t("categoriesNote")}
+            />
+          </li>
+        ) : null}
+        {done.accountsRestored > 0 ? (
+          <li>
+            <LinkRow
+              href={place.accountsHref}
+              icon={
+                <RowIcon>
+                  <SymbolIcon name="wallet" size={20} />
+                </RowIcon>
+              }
+              title={t("accountsRestored", count(done.accountsRestored))}
+              note={t("restoredNote")}
+            />
+          </li>
+        ) : null}
+        {done.categoriesRestored > 0 ? (
+          <li>
+            <LinkRow
+              href={place.categoriesHref}
+              icon={
+                <RowIcon>
+                  <SymbolIcon name="tag" size={20} />
+                </RowIcon>
+              }
+              title={t("categoriesRestored", count(done.categoriesRestored))}
+              note={t("restoredNote")}
             />
           </li>
         ) : null}

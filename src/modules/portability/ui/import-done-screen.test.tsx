@@ -59,7 +59,8 @@ describe("Importación lista (D28, board 6)", () => {
       "Del 6 may 2025 al 13 nov, en Personal.",
     );
     expect(
-      screen.getByRole("link", { name: /2 cuentas nuevas.*Visa Oro y Cuenta en dólares/ }),
+      // The new accounts under the names the confirm gave them.
+      screen.getByRole("link", { name: /2 cuentas nuevas.*Visa Oro y Cuenta en dólares \(Money Manager\)/ }),
     ).toHaveAttribute("href", PLACE.accountsHref);
     expect(screen.getByRole("link", { name: /2 categorías nuevas/ })).toHaveAttribute(
       "href",
@@ -80,6 +81,19 @@ describe("Importación lista (D28, board 6)", () => {
     expect(screen.getByText("2 movimientos no se importaron")).toBeVisible();
     expect(screen.queryByText(/parecidos/)).toBeNull();
     expect(screen.getByRole("link", { name: /^2 cuentas nuevas$/ })).toBeVisible();
+  });
+
+  it("names the accounts and categories brought back from an undone import", () => {
+    renderDone({ counts: { ...resultFixture().counts!, accountsRestored: 1, categoriesRestored: 3 } });
+    expect(screen.getByRole("link", { name: /^1 cuenta recuperada/ })).toHaveAttribute(
+      "href",
+      PLACE.accountsHref,
+    );
+    expect(screen.getByRole("link", { name: /^3 categorías recuperadas/ })).toHaveAttribute(
+      "href",
+      PLACE.categoriesHref,
+    );
+    expect(screen.getAllByText("Las había archivado una importación que deshiciste")).toHaveLength(2);
   });
 
   it("offers no undo for an import already undone", () => {

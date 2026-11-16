@@ -13,7 +13,7 @@ import { personalSpaceOf } from "@/modules/spaces/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
-import { importHistoryQuery, importKeys, importPreviewQuery } from "../portability/queries";
+import { importHistoryQuery, importKeys, importPreviewQuery, isDraftQuery } from "../portability/queries";
 import { accountsQuery, categoriesQuery } from "../reads";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
@@ -92,7 +92,9 @@ export function ImportReviewRoute() {
         queryClient.setQueryData(importKeys.result(personal.id, importId), result);
         // The import touched accounts, categories, movements and balances, so every other read is read again when it
         // shows; this draft's own preview is left as it is, since asking for it again would be refused now.
-        void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[2] !== importId });
+        void queryClient.invalidateQueries({
+          predicate: (query) => !isDraftQuery(query.queryKey, personal.id, importId),
+        });
         void router.navigate({ href: `${reviewHref}/done`, replace: true });
       }}
     />
@@ -106,7 +108,7 @@ export function ImportAccountsRoute() {
   const { api } = useApis();
   const { personal, reviewHref, formats } = useImportPlace(spaceId, importId);
   const preview = useSuspenseQuery(importPreviewQuery(api, personal.id, importId)).data;
-  const list = useSuspenseQuery(accountsQuery(api, personal.id, "active")).data;
+  const list = useSuspenseQuery(accountsQuery(api, personal.id, "all")).data;
   const draft = useDraft(personal.id, importId);
   return (
     <ImportAccountsScreen
@@ -126,7 +128,7 @@ export function ImportCategoriesRoute() {
   const { api } = useApis();
   const { personal, reviewHref, formats } = useImportPlace(spaceId, importId);
   const preview = useSuspenseQuery(importPreviewQuery(api, personal.id, importId)).data;
-  const groups = useSuspenseQuery(categoriesQuery(api, personal.id, "active")).data;
+  const groups = useSuspenseQuery(categoriesQuery(api, personal.id, "all")).data;
   const draft = useDraft(personal.id, importId);
   return (
     <ImportCategoriesScreen

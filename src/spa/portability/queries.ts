@@ -6,12 +6,18 @@ import { LOADER_OWNED } from "../reads";
 
 /** D28: the personal space's imports, keyed under the space so a refresh of everything reaches them too. */
 export const importKeys = {
-  all: (spaceId: string) => ["imports", spaceId] as const,
   history: (spaceId: string) => ["imports", spaceId, "history"] as const,
-  preview: (spaceId: string, importId: string) => ["imports", spaceId, importId, "preview"] as const,
+  /** Everything kept of one draft: its preview and its confirm's answer. */
+  draft: (spaceId: string, importId: string) => ["imports", spaceId, importId] as const,
+  preview: (spaceId: string, importId: string) =>
+    [...importKeys.draft(spaceId, importId), "preview"] as const,
   /** What this visit's confirm answered, for the done screen; only the confirm writes it. */
-  result: (spaceId: string, importId: string) => ["imports", spaceId, importId, "result"] as const,
+  result: (spaceId: string, importId: string) => [...importKeys.draft(spaceId, importId), "result"] as const,
 };
+
+/** Whether a query is one of a draft's own (`importKeys.draft`), by its key's prefix. */
+export const isDraftQuery = (queryKey: readonly unknown[], spaceId: string, importId: string): boolean =>
+  importKeys.draft(spaceId, importId).every((part, index) => queryKey[index] === part);
 
 /** Past imports, newest first, with their counts and undo state. */
 export const importHistoryQuery = (api: Api, spaceId: string) =>

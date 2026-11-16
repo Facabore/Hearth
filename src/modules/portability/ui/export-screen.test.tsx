@@ -6,7 +6,7 @@ import { axeViolations } from "../../../../tests/support/ui/axe";
 import { householdSpace, spaceDto } from "../../../../tests/support/ui/dto";
 import { fakeApi, problemResponse, type FakeHandler } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
-import { ExportScreen, fileNameOf } from "./export-screen";
+import { ExportScreen, fileNameOf, REVOKE_AFTER_MS, saveFile } from "./export-screen";
 
 const EXPORT = "GET /api/v1/me/export";
 const SPACES = [spaceDto(), householdSpace({ name: "Hogar" })];
@@ -80,7 +80,8 @@ describe("Descargar mis datos (D28, board 7)", () => {
       expect(saved).toEqual([{ name: "hearth-export-2026-11-16.json", href: "blob:export" }]),
     );
     expect(asked).toEqual(["?format=json"]);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:export");
+    // Revoking at once can cancel the download in Safari and older Firefox: the URL outlives the click.
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
     expect(document.querySelector("a[download]")).toBeNull();
   });
 
@@ -111,6 +112,20 @@ describe("Descargar mis datos (D28, board 7)", () => {
       ).closest("[role=alert]"),
     ).not.toBeNull();
     expect(saved).toEqual([]);
+  });
+
+  it("lets the object URL go a minute after the click, not before", () => {
+    vi.useFakeTimers();
+    try {
+      saveFile(new Blob(["{}"]), "hearth-export.json");
+      expect(saved).toEqual([{ name: "hearth-export.json", href: "blob:export" }]);
+      vi.advanceTimersByTime(REVOKE_AFTER_MS - 1);
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:export");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("names the file itself when the answer names none", () => {

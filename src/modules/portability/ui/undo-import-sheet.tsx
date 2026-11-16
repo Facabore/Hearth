@@ -28,6 +28,11 @@ export function UndoImportSheet({
   const t = useTranslations("portability.undo");
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const { pending, refusal, run, clear } = useCall();
+  // Every way out forgets a refusal, so the next import's sheet opens clean.
+  const close = () => {
+    clear();
+    onOpenChange(false);
+  };
   const undo = async () => {
     const undone = await run(() =>
       api.POST("/api/v1/spaces/{spaceId}/imports/{importId}/undo", {
@@ -35,24 +40,21 @@ export function UndoImportSheet({
       }),
     );
     if (undone) {
-      onOpenChange(false);
+      close();
       onUndone();
     }
   };
   return (
     <Sheet
       open={open}
-      onOpenChange={(next) => {
-        if (!next) clear();
-        onOpenChange(next);
-      }}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       title={t("title")}
       footer={
         <div className="flex flex-col gap-2">
           <Button variant="danger" size="lg" disabled={pending} onClick={() => void undo()}>
             {t("confirm")}
           </Button>
-          <Button variant="ghost" size="lg" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" size="lg" onClick={close}>
             {t("cancel")}
           </Button>
         </div>
