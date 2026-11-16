@@ -128,6 +128,20 @@ export const createRecordExpense =
           }),
         );
       }
+      // D29, spec 5.2: a foreign expense's single payment, when given, is what was entered, as the base path's payments
+      // must be in its currency (CurrencyMismatch) and add up to its amount (SharesDoNotMatchAmount).
+      const sole = foreign ? input.payments?.[0] : undefined;
+      if (sole !== undefined && sole.amount.currency.code !== input.amount.currency.code) {
+        return err(
+          domainError("CurrencyMismatch", {
+            expected: input.amount.currency.code,
+            actual: sole.amount.currency.code,
+          }),
+        );
+      }
+      if (sole !== undefined && sole.amount.minor !== input.amount.minor) {
+        return err(domainError("SharesDoNotMatchAmount"));
+      }
       // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
       const when = await whenOf(deps, input);
       if (!when.ok) return when;

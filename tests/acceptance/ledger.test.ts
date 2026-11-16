@@ -22,6 +22,7 @@ import {
   household,
   inSpace,
   joinHousehold,
+  memberIdOf,
   newAccount,
   paysEqually,
   post,
@@ -202,6 +203,20 @@ describe("recording in another currency (D29, MC3)", () => {
       accountId: ana.bancolombia,
     });
     expect([response.status, (await response.json()).code]).toEqual([422, "ExchangeRateRequired"]);
+  });
+
+  it("refuses a USD expense whose single payment is not the entered amount (D29)", async () => {
+    const ana = await ledgerUser("Ana");
+    const response = await post(recordExpense, ana, "expenses", {
+      amount: usd(100),
+      convertedAmount: cop(410_000),
+      date: "2026-10-05",
+      categoryId: ana.groceries,
+      payments: [
+        { memberId: await memberIdOf(ana, ana.spaceId, "Ana"), accountId: ana.bancolombia, amount: usd(50) },
+      ],
+    });
+    expect([response.status, (await response.json()).code]).toEqual([409, "SharesDoNotMatchAmount"]);
   });
 
   /** 2035-03-14, far past every other test's dates, so the rate it stores converts only these movements. */

@@ -109,6 +109,21 @@ describe("RecordExpense in a foreign currency (D29, section 4.2)", () => {
     expect(expense).toMatchObject({ amount: 39_500_000n, originalAmount: 100_00n, originalCurrency: "USD" });
   });
 
+  it("refuses a single payment that is not the entered amount, as the base path does", async () => {
+    const { deps, store } = ledgerFixture({ rates: fakeRates(RATES) });
+    const paying = (amount: ReturnType<typeof usd>) =>
+      createRecordExpense(deps)({
+        ...market,
+        accountId: undefined,
+        payments: [{ memberId: "member-ana", accountId: ACCOUNTS.bancolombia.id, amount }],
+      });
+    expect(codeOf(await paying(usd(50_00n)))).toBe("SharesDoNotMatchAmount");
+    expect(codeOf(await paying(money(100_00n)))).toBe("CurrencyMismatch");
+    expect(store.rows).toHaveLength(0);
+    // The entered amount itself is the whole payment.
+    expect(codeOf(await paying(usd(100_00n)))).toBe("ok");
+  });
+
   it("refuses a foreign amount split across more than one payment", async () => {
     const { deps } = ledgerFixture({ rates: fakeRates(RATES) });
     const result = await createRecordExpense(deps)({
