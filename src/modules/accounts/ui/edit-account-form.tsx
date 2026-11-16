@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
@@ -26,11 +27,18 @@ import { useLeaveQuestion, type HoldNavigation } from "@/shared/ui/navigation/ho
 import { leaveSheet, screenUnder } from "@/shared/ui/navigation/leave-sheet";
 import { ArchiveAccountButton } from "./account-actions";
 import { AccountAttributeFields } from "./account-attribute-fields";
+import { AccountCurrencyField } from "./account-currency-field";
 import { editBodyOf, editOf, OWED_TYPES, type AccountEdit } from "./account-fields";
 import { ACCOUNT_ICON_CHOICES } from "./account-look";
 import { useAccountErrors } from "./use-account-errors";
 
 type Style = "icon" | "includeInAvailable" | "includeInNetWorth";
+
+/** Ruling P336: loaded when a new currency is chosen, so the rate sheet stays out of the accounts route (ADR 0004). */
+const CurrencyChangeSheet = dynamic(
+  () => import("./currency-change-sheet").then((module) => module.CurrencyChangeSheet),
+  { ssr: false },
+);
 
 /**
  * Issue 169 with #120 (P253): "Predeterminado" while the value is stored as null, else "Restablecer", which stores null
@@ -92,6 +100,9 @@ export function EditAccountForm({
   const accountCurrency = account.openingBalance.currency;
   const currency = currencyOf(accountCurrency);
   const style = (key: Style, value: AccountEdit[Style]) => setEdit((all) => ({ ...all, [key]: value }));
+  // Ruling P336 (board "Cambiar moneda · tasa · hoja"): another currency opens the rate sheet; confirming it converts the
+  // account and its movements at once, then goes back to Cuentas as saving does.
+  const [newCurrency, setNewCurrency] = useState<string | null>(null);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -166,6 +177,15 @@ export function EditAccountForm({
           }}
           error={errorOf("name")}
           required
+        />
+        <AccountCurrencyField
+          id="ea-currency"
+          value={accountCurrency}
+          space={space}
+          hintKey="editHint"
+          onChange={(next) => {
+            if (next !== accountCurrency) setNewCurrency(next);
+          }}
         />
         <NumberField
           id="ea-opening"
@@ -245,6 +265,23 @@ export function EditAccountForm({
           </Button>
         </div>
       </form>
+      {newCurrency ? (
+        <CurrencyChangeSheet
+          open
+          onOpenChange={(open) => {
+            if (!open) setNewCurrency(null);
+          }}
+          spaceId={space.id}
+          account={account}
+          to={newCurrency}
+          formats={formats}
+          api={api}
+          onChanged={() => {
+            setPending(true);
+            leaveSheet(router, screenUnder(back), () => router.refresh());
+          }}
+        />
+      ) : null}
       {answer ? (
         <DiscardConfirm
           title={t("discard.edit")}

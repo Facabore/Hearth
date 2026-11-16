@@ -390,7 +390,7 @@ describe("new account form: leaving it (ruling P307)", () => {
 });
 
 describe("new account form: its currency (D29, board 12)", () => {
-  it("takes the space's currency by default, says it is fixed once there are movements, and sends no currency", async () => {
+  it("takes the space's currency by default, says changing it later converts its movements (P336), and sends no currency", async () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto(), 201),
     });
@@ -399,7 +399,7 @@ describe("new account form: its currency (D29, board 12)", () => {
     const field = screen.getByRole("button", { name: /Moneda/ });
     expect(field).toHaveTextContent("Peso colombiano (COP)");
     expect(field).toHaveAccessibleDescription(
-      `La de ${spaceDto().name} es peso colombiano (COP). Elígela antes de registrar movimientos: después ya no cambia.`,
+      `La de ${spaceDto().name} es peso colombiano (COP). Puedes cambiarla después: sus movimientos se convierten.`,
     );
     expect(screen.getByText("Lo que hay hoy en la cuenta, en su moneda.")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Nombre"), "Bancolombia");
@@ -478,7 +478,7 @@ describe("new account form: its currency in English (D29, board 12)", () => {
     });
     await userEvent.click(screen.getByRole("radio", { name: "Bank" }));
     expect(screen.getByRole("button", { name: /Currency/ })).toHaveAccessibleDescription(
-      "Personal's currency is Colombian Peso (COP). Choose it before recording movements: after that it cannot change.",
+      "Personal's currency is Colombian Peso (COP). You can change it later: its movements convert.",
     );
     await userEvent.click(screen.getByRole("button", { name: /Currency/ }));
     const sheet = await screen.findByRole("dialog", { name: "Account currency" });

@@ -135,13 +135,28 @@
     },
     "currencyField": {
       "value": "{name} ({code})",
-      "hint": "La de {space} es {name} ({code}). Elígela antes de registrar movimientos: después ya no cambia.",
+      "hint": "La de {space} es {name} ({code}). Puedes cambiarla después: sus movimientos se convierten.",
       "sheetTitle": "Moneda de la cuenta",
-      "spaceNote": "la de {space}"
+      "spaceNote": "la de {space}",
+      "editHint": "La de {space} es {name} ({code}). Si la cambias, sus movimientos pasan a la nueva moneda."
     },
     "rateLine": {
       "fresh": "{currency} a {unit} · tasa del {date}",
       "stale": "{currency} a {unit} · tasa del {date}, de hace más de una semana"
+    },
+    "currencyChange": {
+      "title": "Nueva moneda: {name} ({code})",
+      "subtitle": "{account} · hoy en {code}",
+      "rate": "Tasa",
+      "rateFrom": "1 {symbol} =",
+      "hintStored": "La tasa del {date}. Puedes cambiarla; escribe 1 si solo quieres cambiar la moneda, sin convertir.",
+      "hintNone": "No tenemos una tasa entre estas monedas: escríbela. Escribe 1 si solo quieres cambiar la moneda, sin convertir.",
+      "balance": "Saldo hoy: {before} → {after}",
+      "movements": "{count, plural, =0 {Su saldo inicial se convierte con esta tasa.} one {Su movimiento y el saldo inicial se convierten con esta tasa.} other {Sus # movimientos y el saldo inicial se convierten con esta tasa.}}",
+      "needRate": "Escribe la tasa para ver el saldo en {code}.",
+      "confirm": "Cambiar a {code}",
+      "cancel": "Cancelar",
+      "unreadable": "Escribe la tasa como un número, por ejemplo {example}."
     }
   }
 }

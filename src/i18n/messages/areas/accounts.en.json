@@ -135,13 +135,28 @@
     },
     "currencyField": {
       "value": "{name} ({code})",
-      "hint": "{space}'s currency is {name} ({code}). Choose it before recording movements: after that it cannot change.",
+      "hint": "{space}'s currency is {name} ({code}). You can change it later: its movements convert.",
       "sheetTitle": "Account currency",
-      "spaceNote": "{space}'s currency"
+      "spaceNote": "{space}'s currency",
+      "editHint": "{space}'s currency is {name} ({code}). If you change it, its movements move to the new currency."
     },
     "rateLine": {
       "fresh": "{currency} at {unit} · rate of {date}",
       "stale": "{currency} at {unit} · rate of {date}, over a week old"
+    },
+    "currencyChange": {
+      "title": "New currency: {name} ({code})",
+      "subtitle": "{account} · in {code} today",
+      "rate": "Rate",
+      "rateFrom": "1 {symbol} =",
+      "hintStored": "The rate of {date}. You can change it; type 1 to only change the currency, without converting.",
+      "hintNone": "We have no rate between these currencies: type it. Type 1 to only change the currency, without converting.",
+      "balance": "Balance today: {before} → {after}",
+      "movements": "{count, plural, =0 {Its opening balance converts at this rate.} one {Its movement and opening balance convert at this rate.} other {Its # movements and opening balance convert at this rate.}}",
+      "needRate": "Type the rate to see the balance in {code}.",
+      "confirm": "Switch to {code}",
+      "cancel": "Cancel",
+      "unreadable": "Type the rate as a number, for example {example}."
     }
   }
 }

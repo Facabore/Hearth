@@ -14,19 +14,22 @@ const CurrencySheet = dynamic(
 
 /**
  * D29 (board 12): a new account's "Moneda", the space's by default, drawn as a select that opens the currency sheet
- * (board 13, "Moneda de la cuenta"). Its hint says the space's currency and that the choice is fixed once the account
- * has movements.
+ * (board 13, "Moneda de la cuenta"). Its hint says the space's currency, and (P336) that changing it later converts the
+ * account's movements.
  */
 export function AccountCurrencyField({
   id,
   value,
   space,
   onChange,
+  hintKey = "hint",
 }: {
   readonly id: string;
   readonly value: string;
   readonly space: { readonly name: string; readonly currency: string };
   readonly onChange: (currency: string) => void;
+  /** Ruling P336: Editar cuenta says the movements convert ("editHint"); a new account, that it can change later. */
+  readonly hintKey?: "hint" | "editHint";
 }) {
   const t = useTranslations("accounts");
   const locale = useLocale();
@@ -51,7 +54,7 @@ export function AccountCurrencyField({
         <Icon name="chevronDown" size={20} className="shrink-0" />
       </button>
       <p id={`${id}-hint`} className="text-sm text-muted">
-        {t("currencyField.hint", {
+        {t(`currencyField.${hintKey}`, {
           space: space.name,
           name: currencyName(space.currency, locale),
           code: space.currency,
