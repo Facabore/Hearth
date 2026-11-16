@@ -438,3 +438,20 @@ describe("new account form: its currency (D29, board 12)", () => {
     });
   });
 });
+
+describe("new account form: its currency in English (D29, board 12)", () => {
+  it("names the space's currency in a sentence that reads", async () => {
+    renderWithIntl(<NewAccountForm space={spaceDto()} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />, {
+      locale: "en",
+    });
+    await userEvent.click(screen.getByRole("radio", { name: "Bank" }));
+    expect(screen.getByRole("button", { name: /Currency/ })).toHaveAccessibleDescription(
+      "Personal's currency is Colombian Peso (COP). Choose it before recording movements: after that it cannot change.",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Currency/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Account currency" });
+    expect(within(sheet).getByRole("button", { name: /Colombian Peso/ })).toHaveTextContent(
+      "COP · Personal's currency",
+    );
+  });
+});
