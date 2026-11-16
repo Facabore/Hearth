@@ -4349,6 +4349,11 @@
                   "openingBalance": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "currency": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 3
+                  },
                   "institution": {
                     "type": "string",
                     "minLength": 1,

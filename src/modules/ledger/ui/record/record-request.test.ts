@@ -74,6 +74,37 @@ describe("requestOf (HU-E9-03, ruling P118)", () => {
     });
   });
 
+  it("records an expense in another currency with the bank's converted amount (D29, board 9)", () => {
+    const built = requestOf(draft({ amount: "50" }), "USD", "DOT_COMMA", undefined, {
+      convertedAmount: { amount: "20500000", currency: "COP" },
+    });
+    expect(built.ok && built.body.amount).toEqual({ amount: "5000", currency: "USD" });
+    expect(built.ok && built.body.convertedAmount).toEqual({ amount: "20500000", currency: "COP" });
+  });
+
+  it("omits the converted amount when it is not given", () => {
+    const built = requestOf(draft({ amount: "50" }), "USD", "DOT_COMMA");
+    expect(built.ok && "convertedAmount" in built.body).toBe(false);
+  });
+
+  it("records a transfer across currencies with what arrives at the destination (D29, board 10)", () => {
+    const built = requestOf(
+      draft({
+        kind: "TRANSFER",
+        amount: "100",
+        description: "",
+        accountId: "a-chase",
+        toAccountId: "a-bank",
+      }),
+      "USD",
+      "DOT_COMMA",
+      undefined,
+      { destinationAmount: { amount: "40000000", currency: "COP" } },
+    );
+    expect(built.ok && built.body.amount).toEqual({ amount: "10000", currency: "USD" });
+    expect(built.ok && built.body.destinationAmount).toEqual({ amount: "40000000", currency: "COP" });
+  });
+
   it("refuses to build what it cannot send, and leaves the rest to the API", () => {
     expect(requestOf(draft({ amount: "ochenta" }), "COP", "DOT_COMMA")).toEqual({
       ok: false,
@@ -99,6 +130,7 @@ describe("requestOf (HU-E9-03, ruling P118)", () => {
       field: null,
     });
     expect(recordFieldOf(p("InvalidAmount"))).toBe("amount");
+    expect(recordFieldOf(p("ExchangeRateRequired"))).toBe("converted");
     expect(recordFieldOf(p("CategoryArchived"))).toBe("category");
     expect(recordFieldOf(p("AccountArchived"))).toBe("account");
     expect(recordFieldOf(p("SameAccountTransfer"))).toBe("toAccount");

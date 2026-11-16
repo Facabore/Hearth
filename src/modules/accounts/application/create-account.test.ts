@@ -76,6 +76,54 @@ describe("CreateAccount (HU-E2-01)", () => {
     expect(accounts.rows[0]!.currency).toBe("USD");
   });
 
+  it("opens an account in another currency when one is given (D29, slice MC3)", async () => {
+    const { accounts, create } = setup();
+    const view = unwrap(
+      await create({
+        ...asAna,
+        name: "Chase",
+        type: "BANK",
+        currency: "USD",
+        openingBalance: money(1_000_00n, "USD"),
+      }),
+    );
+    expect(view.currency).toBe("USD");
+    expect(view.openingBalance).toBe(1_000_00n);
+    expect(accounts.rows[0]!.currency).toBe("USD");
+  });
+
+  it("defaults to the space currency when none is given (D29, slice MC3)", async () => {
+    const { create } = setup();
+    const view = unwrap(
+      await create({ ...asAna, name: "Bancolombia", type: "BANK", openingBalance: money(0n) }),
+    );
+    expect(view.currency).toBe("COP");
+  });
+
+  it("refuses a currency the kernel does not know (D29)", async () => {
+    const { create } = setup();
+    const result = await create({
+      ...asAna,
+      name: "Zeta",
+      type: "BANK",
+      currency: "ZZZ",
+      openingBalance: money(0n),
+    });
+    expect(codeOf(result)).toBe("UnknownCurrency");
+  });
+
+  it("refuses an opening balance that is not in the account's own currency (D29)", async () => {
+    const { create } = setup();
+    const result = await create({
+      ...asAna,
+      name: "Chase",
+      type: "BANK",
+      currency: "USD",
+      openingBalance: money(1_000n, "COP"),
+    });
+    expect(codeOf(result)).toBe("CurrencyMismatch");
+  });
+
   it("keeps the common attributes it is given (HU-E2-05)", async () => {
     const { accounts, create } = setup();
     const view = unwrap(

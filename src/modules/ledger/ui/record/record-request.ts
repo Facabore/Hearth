@@ -36,7 +36,13 @@ export interface RecordDraft {
 }
 
 export type RecordField =
-  "amount" | "description" | "category" | "account" | "toAccount" | "when" | "payer" | "split";
+  "amount" | "converted" | "description" | "category" | "account" | "toAccount" | "when" | "payer" | "split";
+
+/** A money value already in minor units, as the contract takes it. */
+interface MoneyBody {
+  readonly amount: string;
+  readonly currency: string;
+}
 
 /**
  * Ruling P118: the form checks only what it needs to build a request (an amount it can read, the accounts); the API
@@ -49,8 +55,17 @@ export const requestOf = (
   currency: string,
   numberFormat: NumberFormat,
   shared?: { readonly split: SplitDraft; readonly memberIds: readonly string[] },
-  /** P333: someone else paid a personal expense with their own money, so it names no account of the recorder's. */
-  options: { readonly accountless?: boolean } = {},
+  options: {
+    /** P333: someone else paid a personal expense with their own money, so it names no account of the recorder's. */
+    readonly accountless?: boolean;
+    /**
+     * D29, board 9: when `currency` is not the space's base, the real amount the bank charged in the base currency; it
+     * wins over the rate. Sent on an expense or income only when the person typed it.
+     */
+    readonly convertedAmount?: MoneyBody | null;
+    /** D29, board 10: what arrives at a transfer's destination, in its own currency, when it differs from the source's. */
+    readonly destinationAmount?: MoneyBody | null;
+  } = {},
 ):
   | { ok: true; kind: RecordKind; body: Record<string, unknown> }
   | { ok: false; field: "amount" | "account" | "toAccount" | "payer" | "split" } => {
@@ -73,6 +88,8 @@ export const requestOf = (
   if (draft.kind === "TRANSFER") {
     body.sourceAccountId = draft.accountId;
     body.destinationAccountId = draft.toAccountId;
+    // D29, board 10: what arrives at the destination, in its own currency, when the two accounts differ.
+    if (options.destinationAmount) body.destinationAmount = options.destinationAmount;
   } else if (sharedExpense) {
     const parts = sharedPartsOf(shared.split, {
       amount: minor,
@@ -85,11 +102,15 @@ export const requestOf = (
     if (parts.paidForFund) body.paidForFund = parts.paidForFund;
     if (parts.split) body.split = parts.split;
   } else if (!accountless) body.accountId = draft.accountId;
+  // D29, board 9: the bank's real amount in the base currency, when the amount is in another currency and it was typed.
+  if (draft.kind !== "TRANSFER" && options.convertedAmount) body.convertedAmount = options.convertedAmount;
   return { ok: true, kind: draft.kind, body };
 };
 
 const BY_CODE: Readonly<Record<string, RecordField>> = {
   InvalidAmount: "amount",
+  // D29, board 9: no rate for the date, so the bank's converted amount is required (HU-E8-06).
+  ExchangeRateRequired: "converted",
   CurrencyMismatch: "amount",
   UnknownCurrency: "amount",
   CategoryRequired: "category",
@@ -117,6 +138,7 @@ const BY_CODE: Readonly<Record<string, RecordField>> = {
 };
 const BY_PATH: Readonly<Record<string, RecordField>> = {
   amount: "amount",
+  convertedAmount: "converted",
   description: "description",
   categoryId: "category",
   accountId: "account",

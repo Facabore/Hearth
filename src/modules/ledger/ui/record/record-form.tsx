@@ -58,7 +58,7 @@ import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
 import { FormChip, SummaryRow } from "./form-chip";
-import { DescriptionField, RowError } from "./form-rows";
+import { DescriptionField, MoneyField, RowError } from "./form-rows";
 import { Keypad } from "./keypad";
 import { RecordSheet } from "./record-sheet";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
@@ -364,6 +364,10 @@ export function RecordForm({
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
+  // D29, boards 9 and 10: the bank's converted base amount of a foreign movement, and what arrives at a cross-currency
+  // transfer's destination; each in its own currency and sent only when typed.
+  const [converted, setConverted] = useState("");
+  const [destAmount, setDestAmount] = useState("");
   // P331, P333: whom a personal expense was for; the recorder alone until they tick someone else.
   const [forWhom, setForWhom] = useState(initialForWhom);
   const [whoOpened, setWhoOpened] = useState(false);
@@ -394,8 +398,24 @@ export function RecordForm({
       : undefined;
   // P334: to or from someone, only the recorder's account takes part, as an income's does.
   const toSomeone = !edit && space.kind === "PERSONAL" && kind === "TRANSFER" && transfer.mode !== "OWN";
-  // P334: only the places in the account's currency (D6: amounts are in the space's currency).
+  // P334: only the places in the account's currency.
   const accountCurrency = accounts.find((a) => a.id === accountId)?.balance.currency ?? space.currency;
+  const toAccountCurrency = accounts.find((a) => a.id === toAccountId)?.balance.currency ?? space.currency;
+  // D29, boards 9 and 10: the amount is typed in the (source) account's own currency in the sole-own-account cases; a
+  // shared expense, a split with someone and an expense someone else paid stay in the space's base currency.
+  const soleAccount =
+    accountId !== null &&
+    shared === undefined &&
+    (kind === "INCOME" ||
+      (kind === "TRANSFER" && !toSomeone) ||
+      (kind === "EXPENSE" && forWhom.payer === ME && forWhom.draft.selected.length === 1));
+  const amountCurrency = soleAccount ? accountCurrency : space.currency;
+  // D29, board 9: an expense or income in a currency other than the base asks for the bank's converted base amount.
+  const foreignMovement =
+    soleAccount && amountCurrency !== space.currency && (kind === "EXPENSE" || kind === "INCOME");
+  // D29, board 10: a transfer whose destination account is in another currency asks what arrives ("Llega").
+  const crossTransfer =
+    kind === "TRANSFER" && !toSomeone && toAccountId !== null && amountCurrency !== toAccountCurrency;
   const transferPeople = toSomeone
     ? (people ?? []).map((p) => ({
         ...p,
@@ -408,15 +428,32 @@ export function RecordForm({
     api,
     transferPerson ? (transferPerson.places[transfer.placeIndex] ?? transferPerson.places[0] ?? null) : null,
   );
+  // D29, board 9: the base-currency amount the bank actually charged, when the person typed it; it wins over the rate.
+  const convertedTyped = parseDecimal(converted, formats.numberFormat);
+  const convertedMinor =
+    convertedTyped === null ? null : minorOf(convertedTyped, currencyOf(space.currency).exponent);
+  const convertedBody =
+    foreignMovement && convertedMinor !== null && BigInt(convertedMinor) > 0n
+      ? { amount: convertedMinor, currency: space.currency }
+      : null;
+  // D29, board 10: what arrives at a cross-currency transfer's destination, in its own currency.
+  const destTyped = parseDecimal(destAmount, formats.numberFormat);
+  const destMinor = destTyped === null ? null : minorOf(destTyped, currencyOf(toAccountCurrency).exponent);
+  const destinationBody =
+    crossTransfer && destMinor !== null && BigInt(destMinor) > 0n
+      ? { amount: destMinor, currency: toAccountCurrency }
+      : null;
   const built = toSomeone
-    ? requestOf({ ...draft, kind: "INCOME", category: null }, space.currency, formats.numberFormat)
-    : requestOf(draft, space.currency, formats.numberFormat, sharedExpense, {
+    ? requestOf({ ...draft, kind: "INCOME", category: null }, amountCurrency, formats.numberFormat)
+    : requestOf(draft, amountCurrency, formats.numberFormat, sharedExpense, {
         // P333: someone else paid a personal expense, so no account of the recorder's is asked for.
         accountless: !edit && space.kind === "PERSONAL" && forWhom.payer !== ME,
+        ...(convertedBody ? { convertedAmount: convertedBody } : {}),
+        ...(destinationBody ? { destinationAmount: destinationBody } : {}),
       });
   // The typed amount in minor units while it is above zero (the default split refuses 0), whatever else is unbuilt.
   const typed = parseDecimal(amount, formats.numberFormat);
-  const minor = typed === null ? null : minorOf(typed, currencyOf(space.currency).exponent);
+  const minor = typed === null ? null : minorOf(typed, currencyOf(amountCurrency).exponent);
   const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
   // P331, P333: a new personal expense says who paid and whom it was for in one row, so its account row gives way.
   const personalWho = !edit && kind === "EXPENSE" && space.kind === "PERSONAL";
@@ -425,7 +462,7 @@ export function RecordForm({
     ? personalRequestOf(forWhom, {
         people: known,
         amount: positiveMinor,
-        currency: space.currency,
+        currency: amountCurrency,
         numberFormat: formats.numberFormat,
       })
     : null;
@@ -447,8 +484,10 @@ export function RecordForm({
     [...accounts, ...(shared?.myAccounts ?? [])].find((a) => a.id === id)?.name ?? null;
   // #142 (P235, P236): only an expense of the form's own space, never a split with someone nor an edit.
   const chosenCategory = category ? (category.subcategoryId ?? category.categoryId) : null;
+  // D29, board 9: a foreign-currency expense's base amount is only known once the server converts it, so the plan-line
+  // warning (which reads base-currency lines) waits for MC4; it still applies to every base-currency expense.
   const warning =
-    kind === "EXPENSE" && !splitting && !edit
+    kind === "EXPENSE" && !splitting && !edit && !foreignMovement
       ? lineWarningOf(lineWatch, {
           categoryId: chosenCategory,
           parentId: category?.subcategoryId ? category.categoryId : null,
@@ -466,7 +505,7 @@ export function RecordForm({
   const sharedTitle = [
     description.trim() ||
       (category ? categoryPath(groups, category.subcategoryId ?? category.categoryId) : null),
-    positiveMinor ? formatMoney({ amount: positiveMinor, currency: space.currency }, formats) : null,
+    positiveMinor ? formatMoney({ amount: positiveMinor, currency: amountCurrency }, formats) : null,
     space.name,
   ]
     .filter(Boolean)
@@ -709,7 +748,10 @@ export function RecordForm({
   });
   const backHref = edit?.backHref ?? safeReturnTo(returnTo) ?? `/spaces/${space.id}`;
   const offeredGroups = kind === "TRANSFER" ? [] : groupsForKind(live, kind);
-  const currency = currencyOf(space.currency);
+  // D29, boards 9 and 10: the amount field and keypad take the account's own currency in the sole-own-account cases.
+  const currency = currencyOf(amountCurrency);
+  // D29, board 9: the space's base currency, which the converted amount is typed in.
+  const base = currencyOf(space.currency);
 
   const content = (
     <form
@@ -777,6 +819,24 @@ export function RecordForm({
             selectOnOpen={edit !== undefined}
             onWholeSelected={setReplacing}
           />
+          {/* D29, board 9: a movement in a currency other than the base asks, optionally, for the bank's real charge in
+              the base currency; typed, it wins over the rate. ExchangeRateRequired shows here when no rate covers the date. */}
+          {foreignMovement ? (
+            <MoneyField
+              id="record-converted"
+              numberFormat={formats.numberFormat}
+              exponent={base.exponent}
+              symbol={base.symbol}
+              label={t("form.convertedAmount", { currency: space.currency })}
+              hint={t("form.convertedHint")}
+              value={converted}
+              onChange={(next) => {
+                setConverted(next);
+                clear("converted");
+              }}
+              error={errorOf("converted")}
+            />
+          ) : null}
           <DescriptionField
             value={description}
             onChange={(next) => {
@@ -905,6 +965,25 @@ export function RecordForm({
                 last
               />
             </div>
+            {/* D29, board 10: a transfer whose destination is in another currency asks what arrives there ("Llega"),
+                in the destination's own currency; the amount above is what leaves the source ("Sale"). */}
+            {crossTransfer ? (
+              <div className="mt-3">
+                <MoneyField
+                  id="record-arrives"
+                  numberFormat={formats.numberFormat}
+                  exponent={currencyOf(toAccountCurrency).exponent}
+                  symbol={currencyOf(toAccountCurrency).symbol}
+                  label={t("form.arrives")}
+                  hint={t("form.arrivesHint")}
+                  value={destAmount}
+                  onChange={(next) => {
+                    setDestAmount(next);
+                    clear("toAccount");
+                  }}
+                />
+              </div>
+            ) : null}
             {chipErrors.map(({ field, error }) => (
               <RowError key={field} id={`record-${field}-error`}>
                 {error}
@@ -991,7 +1070,7 @@ export function RecordForm({
           meId={ME}
           memberIds={forWhomOrder(known, forWhom.guests)}
           amount={positiveMinor}
-          currency={space.currency}
+          currency={amountCurrency}
           formats={formats}
         />
       ) : null}

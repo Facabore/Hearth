@@ -16,6 +16,10 @@
     },
     "archived": "Hidden",
     "outsideAvailable": "outside available",
+    "otherCurrencies": {
+      "title": "In other currencies",
+      "note": "These accounts are in another currency, so they stay out of the available money and net worth above until we convert them."
+    },
     "card": {
       "limit": "limit {amount}",
       "payBy": "pay by {date}"

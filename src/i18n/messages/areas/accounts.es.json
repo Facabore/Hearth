@@ -16,6 +16,10 @@
     },
     "archived": "Ocultas",
     "outsideAvailable": "fuera del disponible",
+    "otherCurrencies": {
+      "title": "En otras monedas",
+      "note": "Estas cuentas están en otra moneda, así que no entran en el disponible ni en el patrimonio de arriba hasta que las convirtamos."
+    },
     "card": {
       "limit": "cupo {amount}",
       "payBy": "paga antes del {date}"

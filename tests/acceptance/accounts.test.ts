@@ -72,6 +72,38 @@ describe("personal accounts (HU-E2-01)", () => {
     });
   });
 
+  it("opens an account in another currency and rejects a mismatched or unknown one (D29, slice MC3)", async () => {
+    const ana = await registerUser("Ana");
+    const usd = (dollars: number) => ({ amount: String(dollars * 100), currency: "USD" });
+    const chase = await create(ana, {
+      name: "Chase",
+      type: "BANK",
+      currency: "USD",
+      openingBalance: usd(1_000),
+    });
+    expect(chase.status).toBe(201);
+    expect(await chase.json()).toMatchObject({
+      name: "Chase",
+      openingBalance: usd(1_000),
+      balance: usd(1_000),
+    });
+    // The opening balance must be in the account's own currency, and the currency must be a known ISO 4217 code.
+    const mismatch = await create(ana, {
+      name: "Mismatch",
+      type: "BANK",
+      currency: "USD",
+      openingBalance: cop(10),
+    });
+    expect([mismatch.status, (await mismatch.json()).code]).toEqual([422, "CurrencyMismatch"]);
+    const unknown = await create(ana, {
+      name: "Zeta",
+      type: "BANK",
+      currency: "ZZZ",
+      openingBalance: cop(0),
+    });
+    expect([unknown.status, (await unknown.json()).code]).toEqual([422, "UnknownCurrency"]);
+  });
+
   it("allows a credit card to start negative and answers rule violations with stable codes", async () => {
     const ana = await registerUser("Ana");
     const visa = await create(ana, { name: "Visa", type: "CREDIT_CARD", openingBalance: cop(-350_000) });

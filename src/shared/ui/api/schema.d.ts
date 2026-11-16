@@ -4671,6 +4671,7 @@ export interface operations {
                     /** @enum {string} */
                     type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER" | "SHARED_FUND";
                     openingBalance: components["schemas"]["Money"];
+                    currency?: string;
                     institution?: string;
                     lastFour?: string;
                     /** @enum {string} */

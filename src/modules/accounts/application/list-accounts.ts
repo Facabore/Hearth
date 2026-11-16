@@ -39,7 +39,8 @@ export const createListAccounts =
     const { currency } = membership.value;
     const items = await withBalances(deps.movements, accounts, input.asOf ?? null, today);
     // totalsOf skips archived accounts, so `includeArchived` never changes the totals.
-    return ok({ items, currency, totals: totalsOf(items) });
+    // D29, slice MC3: it also leaves out accounts not in the space currency; they are listed apart in the UI.
+    return ok({ items, currency, totals: totalsOf(items, currency) });
   };
 
 export const createGetAccount =

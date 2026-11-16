@@ -260,6 +260,44 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(terms()).not.toContain("Cuenta");
   });
 
+  it("shows what was charged in its own currency on an expense in another currency (board 9, D29)", () => {
+    open(
+      detailOf(
+        transactionDto({
+          id: "t-usd",
+          type: "EXPENSE",
+          description: "Figma",
+          amount: cop(205_000),
+          originalAmount: { amount: "5000", currency: "USD" },
+          categoryId: "c-veg",
+          payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(205_000) }],
+        }),
+      ),
+    );
+    // The description is the base-currency amount; the detail adds what was charged in its own currency.
+    expect(described()).toBe("−$ 205.000");
+    expect(definition("En su moneda")).toBe("US$ 50");
+  });
+
+  it("shows each leg in its own currency on a transfer across currencies (board 10, D29)", () => {
+    open(
+      detailOf(
+        transactionDto({
+          id: "t-xfer",
+          type: "TRANSFER",
+          description: "To Chase",
+          amount: cop(400_000),
+          sourceAccountId: "a-bank",
+          destinationAccountId: "a-visa",
+          sourceAmount: cop(400_000),
+          destinationAmount: { amount: "10000", currency: "USD" },
+        }),
+      ),
+    );
+    expect(definition("Desde")).toBe("Bancolombia · $ 400.000");
+    expect(definition("Hacia")).toBe("Visa · US$ 100");
+  });
+
   it("shows a settlement's two members and why it is not edited", () => {
     const settlement = transactionDto({
       id: "t-5",

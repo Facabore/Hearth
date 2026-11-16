@@ -35,7 +35,9 @@ export function AccountsScreen({
   readonly returnTo?: string | null;
 }) {
   const t = useTranslations("accounts");
-  const { active, archived } = sectionsOf(list.items);
+  // D29, slice MC3: the space totals are in its base currency; accounts in another currency are listed apart.
+  const baseCurrency = list.totals.available.currency;
+  const { active, foreign, archived } = sectionsOf(list.items, baseCurrency);
   const newHref = withReturnTo(
     `/spaces/${spaceId}/accounts/new`,
     safeReturnTo(returnTo) ?? `/spaces/${spaceId}/accounts`,
@@ -144,6 +146,45 @@ export function AccountsScreen({
           </section>
         );
       })}
+      {foreign.length > 0 ? (
+        <section aria-labelledby="accounts-other-currencies" className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 id="accounts-other-currencies" className="text-sm font-semibold text-muted">
+              {t("otherCurrencies.title")}
+            </h2>
+            {/* D29, slice MC3: say the totals above leave these out until they are converted (MC4). */}
+            <p className="text-xs text-muted">{t("otherCurrencies.note")}</p>
+          </div>
+          {foreign.map((group) => {
+            const total = totalOf(group.accounts);
+            return (
+              <section key={group.currency} aria-labelledby={`accounts-currency-${group.currency}`}>
+                <div className="mb-1 flex items-baseline justify-between gap-2 text-sm font-semibold">
+                  <h3 id={`accounts-currency-${group.currency}`} className="text-muted">
+                    {group.currency}
+                  </h3>
+                  <Amount
+                    data-testid="currency-total"
+                    className={total.amount.startsWith("-") ? "text-owe" : "text-ink"}
+                  >
+                    {formatMoney(total, formats)}
+                  </Amount>
+                </div>
+                <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
+                  {group.accounts.map((account) => (
+                    <AccountRow
+                      key={account.id}
+                      account={account}
+                      formats={formats}
+                      href={hrefOf(account.id)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </section>
+      ) : null}
       {archived.length > 0 ? (
         <section aria-labelledby="accounts-archived">
           <h2 id="accounts-archived" className="mb-1 text-sm font-semibold text-muted">

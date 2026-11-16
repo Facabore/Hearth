@@ -161,6 +161,11 @@ export const CreateAccountBodySchema = z.object({
   name: z.string().max(200),
   type: AccountTypeSchema,
   openingBalance: MoneySchema,
+  /**
+   * D29, slice MC3: the account's own ISO 4217 currency, the space's when absent; the opening balance must be in it
+   * (UnknownCurrency or CurrencyMismatch otherwise). Additive and optional; fixing it later is a later slice.
+   */
+  currency: z.string().length(3).optional(),
   institution: Institution.optional(),
   lastFour: LastFour.optional(),
   productType: ProductType.optional(),
