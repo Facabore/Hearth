@@ -90,7 +90,12 @@ export const ShareSchema = z.object({
 });
 export const TransactionSchema = z.object({
   id: z.string(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]),
+  /**
+   * Design Q4 (#329): ADJUSTMENT is a balance adjustment of one account (`destinationAccountId` for money in,
+   * `sourceAccountId` for money out); never spending or income. Breaking: a client that switches over the type must
+   * handle it.
+   */
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"]),
   description: z.string(),
   date: z.iso.date(),
   /** HU-E4-14: when it happened, in UTC; null only for occurrences and rows older than M3-D. */
@@ -293,6 +298,19 @@ export const RecordTransferBodySchema = z.object({
 });
 
 /**
+ * Design Q4 (#329): a balance adjustment of one account; `amount` is signed, in the account's own currency: positive
+ * for money in, negative for money out.
+ */
+export const RecordAdjustmentBodySchema = z.object({
+  description: Description,
+  date: z.iso.date().optional(),
+  occurredAt: Instant.nullable().optional(),
+  timeZone: TimeZoneName.optional(),
+  amount: MoneySchema,
+  accountId: IdSchema,
+});
+
+/**
  * HU-E4-09: `memberId` defaults to the requester; `sourceAccountId` is the contributor's own account,
  * omitted (or null) only for a guest, who contributes outside the app.
  */
@@ -484,7 +502,10 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
             splitMethod: s.splitMethod,
           }))
         : [],
-    sourceAccountId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.sourceAccountId : null,
+    sourceAccountId:
+      tx.type === "TRANSFER" || tx.type === "SETTLEMENT" || tx.type === "ADJUSTMENT"
+        ? tx.sourceAccountId
+        : null,
     destinationAccountId: tx.type === "EXPENSE" ? null : tx.destinationAccountId,
     receivingMemberId: tx.type === "INCOME" || tx.type === "SETTLEMENT" ? tx.receivingMemberId : null,
     payerMemberId: tx.type === "TRANSFER" || tx.type === "SETTLEMENT" ? tx.payerMemberId : null,
@@ -562,7 +583,7 @@ export const ListTransactionsQuerySchema = PaginationQuerySchema.extend({
     .optional(),
   payerMemberId: z.uuid().optional(),
   participantMemberId: z.uuid().optional(),
-  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT"]).optional(),
+  type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"]).optional(),
   /** Ruling P277: only what this account paid, received or moved. */
   accountId: z.uuid().optional(),
   /** Ruling P277: a case-insensitive piece of the description, taken literally; blank means no search. */
@@ -1183,6 +1204,16 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, InvalidTransferAmounts`,
     },
   ),
+  "/api/v1/spaces/{spaceId}/adjustments": recording(
+    "recordAdjustment",
+    "Adjust one account's balance (Ajuste de saldo): a signed amount in the account's own currency, never spending or income",
+    RecordAdjustmentBodySchema,
+    {
+      "404": "SpaceNotFound, AccountNotFound",
+      "409": "AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict",
+      "422": `${invalidMoney}, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired`,
+    },
+  ),
   "/api/v1/spaces/{spaceId}/fund-contributions": recording(
     "recordFundContribution",
     "Contribute to the space's shared fund from a member's own account (a guest from outside the app)",
@@ -1252,7 +1283,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
           "403": "InsufficientRole",
           "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound",
           "409":
-            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
+            "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AdjustmentHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
           "412": "PreconditionFailed",
           "422":
             "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts",

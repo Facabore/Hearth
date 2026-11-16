@@ -125,5 +125,16 @@ export const editedParts = async (
       }
       return ok(parts);
     }
+    // Design Q4: an adjustment keeps its one account; delete it and record it again on another.
+    case "ADJUSTMENT": {
+      const wrong = sent(changes, [
+        "accountId",
+        "payments",
+        "split",
+        "sourceAccountId",
+        "destinationAccountId",
+      ]);
+      return wrong ? notEditable(wrong) : ok({});
+    }
   }
 };

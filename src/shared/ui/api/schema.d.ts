@@ -749,6 +749,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/spaces/{spaceId}/adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Adjust one account's balance (Ajuste de saldo): a signed amount in the account's own currency, never spending or income */
+        post: operations["recordAdjustment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/fund-contributions": {
         parameters: {
             query?: never;
@@ -1945,7 +1962,7 @@ export interface components {
         ConvertedTransaction: {
             id: string;
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
             description: string;
             /** Format: date */
             date: string;
@@ -2363,7 +2380,7 @@ export interface components {
         RecordedExpense: {
             id: string;
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
             description: string;
             /** Format: date */
             date: string;
@@ -2571,7 +2588,7 @@ export interface components {
         Transaction: {
             id: string;
             /** @enum {string} */
-            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
             description: string;
             /** Format: date */
             date: string;
@@ -5516,7 +5533,7 @@ export interface operations {
                 /** @description Ruling P319: only this space, one of the caller's current spaces; another answers 404. */
                 spaceId?: string;
                 categoryIds?: string;
-                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
                 accountId?: string;
                 search?: string;
             };
@@ -5976,6 +5993,87 @@ export interface operations {
             };
         };
     };
+    recordAdjustment: {
+        parameters: {
+            query?: never;
+            header?: {
+                "idempotency-key"?: string;
+            };
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    description?: string;
+                    /** Format: date */
+                    date?: string;
+                    occurredAt?: string | null;
+                    timeZone?: string;
+                    amount: components["schemas"]["Money"];
+                    accountId: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The recorded transaction; ETag carries its version */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Transaction"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, AccountNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description AccountArchived, PeriodClosed, SpaceArchived, IdempotencyKeyConflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, InvalidIdempotencyKey, AccountNotOwned, AccountNotInSpace, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     recordFundContribution: {
         parameters: {
             query?: never;
@@ -6156,7 +6254,7 @@ export interface operations {
                 categoryIds?: string;
                 payerMemberId?: string;
                 participantMemberId?: string;
-                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT";
+                type?: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
                 accountId?: string;
                 search?: string;
             };
@@ -6421,7 +6519,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable */
+            /** @description SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AdjustmentHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable */
             409: {
                 headers: {
                     [name: string]: unknown;
