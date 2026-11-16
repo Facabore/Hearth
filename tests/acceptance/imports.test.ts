@@ -434,6 +434,28 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
     expect(again.plan.movements).toBe(EVERY_ROW.length);
   });
 
+  it("counts only the movements it deleted, never one the person had deleted already", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const { rows } = await app.pool.query(
+      "SELECT id FROM transactions WHERE space_id = $1 AND description = 'Almuerzo'",
+      [ana.spaceId],
+    );
+    await app.ledger.deleteTransaction({
+      spaceId: ana.spaceId,
+      userId: ana.userId,
+      transactionId: rows[0].id,
+    });
+
+    const response = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+
+    expect(await response.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 4 });
+    expect(await liveMovements(ana.spaceId)).toBe(0);
+  });
+
   it("refuses to undo a draft with 409 ImportNotConfirmed", async () => {
     const ana = await registerUser("Ana");
     const preview = await uploaded(ana);
