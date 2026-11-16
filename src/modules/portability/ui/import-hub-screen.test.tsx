@@ -67,6 +67,8 @@ describe("Importar y exportar (D28, board 1)", () => {
       "1.237 movimientos · en Personal",
     );
     expect(history.getByRole("button", { name: /^Deshacer: Money Manager · 15.nov$/ })).toBeVisible();
+    // AGENTS.md: a target is at least 44 × 44 px; jsdom has no layout, so the rule is pinned by its classes.
+    expect(history.getByRole("button", { name: /^Deshacer: / })).toHaveClass("min-h-11", "min-w-11");
     expect(await axeViolations(container)).toEqual([]);
   });
 

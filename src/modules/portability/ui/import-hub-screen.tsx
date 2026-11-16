@@ -92,7 +92,7 @@ function HistoryRow({
           type="button"
           onClick={onUndo}
           aria-label={`${t("hub.undo")}: ${title}`}
-          className="min-h-11 shrink-0 rounded-[10px] px-3 text-sm font-semibold text-accent"
+          className="min-h-11 min-w-11 shrink-0 rounded-[10px] px-3 text-sm font-semibold text-accent"
         >
           {t("hub.undo")}
         </button>

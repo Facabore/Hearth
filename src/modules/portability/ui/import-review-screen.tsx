@@ -9,6 +9,7 @@ import { localDateIn } from "@/shared/kernel/time-zone";
 import type { ImportPreviewDto, ImportResultDto } from "./dto";
 import {
   ButtonRow,
+  CAUTION,
   Column,
   LinkRow,
   Pinned,
@@ -127,10 +128,7 @@ function BeforeImport({
   ].filter((line): line is string => line !== null);
   if (duplicates === 0 && lines.length === 0) return null;
   return (
-    <section
-      aria-labelledby="review-before"
-      className="flex flex-col gap-2 rounded-2xl bg-owe-soft p-4 text-owe-ink"
-    >
+    <section aria-labelledby="review-before" className={`flex flex-col gap-2 rounded-2xl p-4 ${CAUTION}`}>
       <h2 id="review-before" className="flex items-center gap-2 text-[15px] font-semibold">
         <Icon name="alert" size={18} />
         {t("before")}

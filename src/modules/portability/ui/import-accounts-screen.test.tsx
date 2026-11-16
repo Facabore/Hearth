@@ -15,6 +15,12 @@ import type { ImportPreviewDto } from "./dto";
 import { ImportAccountsScreen } from "./import-accounts-screen";
 import { previewFixture } from "./preview-fixture";
 
+/** The block that pins a screen's main action (#281): sticky at the bottom, the gutter's 16 px above its buttons. */
+const expectPinned = (action: HTMLElement) => {
+  const block = action.closest(".sticky");
+  expect(block).toHaveClass("sticky", "bottom-0", "pt-4", "bg-bg");
+};
+
 const ADJUST = "PATCH /api/v1/spaces/{spaceId}/imports/{importId}";
 const REVIEW = "/spaces/sp-personal/data/imports/imp-1";
 const MINE = [
@@ -72,6 +78,7 @@ describe("Cuentas a importar (D28, board 4)", () => {
       "Saldo al final en Money Manager: US$ 512,40",
     );
     expect(screen.getByRole("link", { name: "Listo" })).toHaveAttribute("href", REVIEW);
+    expectPinned(screen.getByRole("link", { name: "Listo" }));
     expect(await axeViolations(container)).toEqual([]);
   });
 

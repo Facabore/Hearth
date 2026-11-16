@@ -72,6 +72,17 @@ describe("Importación lista (D28, board 6)", () => {
       PLACE.transactionsHref,
     );
     expect(screen.getByRole("button", { name: "Deshacer importación" })).toBeVisible();
+    // The visual pass at 320 px: the gutter's 16 px between the rows scrolling behind and the buttons.
+    expect(screen.getByRole("link", { name: "Ver movimientos" }).closest(".sticky")).toHaveClass(
+      "bottom-0",
+      "pt-4",
+    );
+    // A row that warns leads with the caution tone, as the review's card.
+    const warn = screen
+      .getByText("3 parecidos que dejaste fuera")
+      .closest("div")!
+      .querySelector<HTMLElement>("[aria-hidden=true]");
+    expect(warn).toHaveClass("bg-[var(--pal-mustard-tint)]", "text-[var(--pal-mustard-ink)]");
     expect(await axeViolations(container)).toEqual([]);
   });
 

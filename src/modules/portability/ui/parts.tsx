@@ -142,6 +142,13 @@ export const useNameList = () => {
   };
 };
 
+/**
+ * The caution tone of board 3's "Antes de importar" and the rows that warn: the palette's mustard tint and ink
+ * (P135), whose dark pair mixes the ink toward the page's text so it keeps its contrast on the dark tint. Named as
+ * classes, not through `paletteVars`, so the screens that use it carry no style object for one fixed tone.
+ */
+export const CAUTION = "bg-[var(--pal-mustard-tint)] text-[var(--pal-mustard-ink)]";
+
 /** The round icon a row of these boards leads with. */
 export function RowIcon({
   children,
@@ -153,7 +160,7 @@ export function RowIcon({
   return (
     <span
       aria-hidden="true"
-      className={`flex size-10 shrink-0 items-center justify-center rounded-full ${tone === "warn" ? "bg-owe-soft text-owe-ink" : "bg-accent-soft text-accent"}`}
+      className={`flex size-10 shrink-0 items-center justify-center rounded-full ${tone === "warn" ? CAUTION : "bg-accent-soft text-accent"}`}
     >
       {children}
     </span>
@@ -267,10 +274,14 @@ export function SectionTitle({ id, children }: { readonly id?: string; readonly 
   );
 }
 
-/** The screen's main action, pinned at the bottom while the content scrolls above it (#281). */
+/**
+ * The screen's main action, pinned at the bottom while the content scrolls above it (#281), as the account form pins
+ * Guardar. Its top padding is the gutter's 16 px, so whatever scrolls behind it stops that far above the button instead
+ * of touching it (the visual pass at 320 px).
+ */
 export function Pinned({ children }: { readonly children: ReactNode }) {
   return (
-    <div className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 bg-bg pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+    <div className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 bg-bg pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       {children}
     </div>
   );
