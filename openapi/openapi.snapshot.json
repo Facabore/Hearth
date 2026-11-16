@@ -14427,7 +14427,7 @@
                       ]
                     },
                     "opening": {
-                      "description": "Today's available money of the caller's personal space.",
+                      "description": "Today's available money of the caller's personal space, in `currency` at today's rate (D29, MC4).",
                       "$ref": "#/components/schemas/MoneyOutput"
                     },
                     "dates": {

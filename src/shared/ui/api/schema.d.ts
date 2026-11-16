@@ -9401,7 +9401,7 @@ export interface operations {
                         from: string;
                         through: string;
                         days: 30 | 60;
-                        /** @description Today's available money of the caller's personal space. */
+                        /** @description Today's available money of the caller's personal space, in `currency` at today's rate (D29, MC4). */
                         opening: components["schemas"]["MoneyOutput"];
                         dates: {
                             date: string;

@@ -374,7 +374,7 @@ const OriginSpacesSchema = z
 
 /** HU-E7-04: the caller's consumption and cash out in their personal period (spec 5.4, D11, ruling P37). */
 export const UnifiedViewSchema = z.object({
-  /** The personal space's currency, every amount's (D6). */
+  /** D29, slice MC4: the caller's display currency, every amount's; their personal space's until they choose one. */
   currency: z.string(),
   /** The caller's personal-space period; shared transactions are placed in it by date. */
   period: PeriodSchema,
@@ -519,7 +519,9 @@ export const CashFlowSchema = z.object({
   from: z.string(),
   through: z.string(),
   days: z.union([z.literal(30), z.literal(60)]),
-  opening: MoneySchema.describe("Today's available money of the caller's personal space."),
+  opening: MoneySchema.describe(
+    "Today's available money of the caller's personal space, in `currency` at today's rate (D29, MC4).",
+  ),
   dates: z.array(
     z.object({ date: z.string(), movements: z.array(CashFlowMovementSchema), balanceAfter: MoneySchema }),
   ),
