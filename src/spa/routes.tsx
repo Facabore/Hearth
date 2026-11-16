@@ -110,6 +110,9 @@ const recurring = () => import("./recurring/loaders");
 /** D27's loader, likewise. */
 const referrals = () => import("./referrals/loaders");
 
+/** D28's loaders, likewise. */
+const portability = () => import("./portability/loaders");
+
 /** A Plan tab view's query string (ruling P200): the period, the trend's window and the calendar's days. */
 const planSearch = (search: Record<string, unknown>) => ({
   period: textParam(search.period),
@@ -423,6 +426,103 @@ const referralsRoute = createRoute({
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ReferralsPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/referrals"), "ReferralsRoute"),
+});
+
+/**
+ * D28 (#326, #327, #279): Importar y exportar, from Más, stacked with Volver to it. The imports are the personal
+ * space's whatever space Más was opened in (design §3.2), so the flow's addresses stay under the URL's space, its way
+ * back, and the API calls name the personal space. Its screens share their skeleton.
+ */
+const dataPending = lazyRouteComponent(() => import("./routes/pending"), "ImportFlowPending");
+
+const importHubRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: async ({ context, cause, route }) =>
+    withAreas(loadAreas(context, route), (await portability()).loadImportHub({ ...context, cause })),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "ImportHubPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/data"), "ImportHubRoute"),
+});
+
+/** D28: Descargar mis datos, JSON or CSV, of every space or one. */
+const exportRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data/export",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: ({ context, route }) => loadAreas(context, route),
+  pendingComponent: dataPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/data"), "ExportRoute"),
+});
+
+/** D28: a Money Manager backup to upload. */
+const moneyManagerRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data/money-manager",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: ({ context, route }) => loadAreas(context, route),
+  pendingComponent: dataPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/import"), "MoneyManagerRoute"),
+});
+
+/** D28: a draft's review before it is imported; one that is not the person's is not found. */
+const importReviewRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data/imports/$importId",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await portability()).loadImportReview({ ...context, cause }, params.importId),
+    ),
+  pendingComponent: dataPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/import"), "ImportReviewRoute"),
+});
+
+/** D28: where a draft's accounts go. */
+const importAccountsRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data/imports/$importId/accounts",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await portability()).loadImportAccounts({ ...context, cause }, params.importId),
+    ),
+  pendingComponent: dataPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/import"), "ImportAccountsRoute"),
+});
+
+/** D28: where a draft's categories go. */
+const importCategoriesRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data/imports/$importId/categories",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await portability()).loadImportCategories({ ...context, cause }, params.importId),
+    ),
+  pendingComponent: dataPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/import"), "ImportCategoriesRoute"),
+});
+
+/** D28: what a confirmed import did, and its undo. */
+const importDoneRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "data/imports/$importId/done",
+  staticData: { ...stackedScreen, areas: ["portability"] },
+  loader: async ({ context, cause, route }) =>
+    withAreas(loadAreas(context, route), (await portability()).loadImportHub({ ...context, cause })),
+  pendingComponent: dataPending,
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/import"), "ImportDoneRoute"),
 });
 
 /** HU-E9-05: the members of a shared or direct space; `?invite=1` opens the invite sheet (N10). */
@@ -744,6 +844,13 @@ export const routeTree = rootRoute.addChildren([
     spaceSettingsRoute,
     moreRoute,
     referralsRoute,
+    importHubRoute,
+    exportRoute,
+    moneyManagerRoute,
+    importReviewRoute,
+    importAccountsRoute,
+    importCategoriesRoute,
+    importDoneRoute,
     membersRoute,
     historyRoute,
     balancesRoute,

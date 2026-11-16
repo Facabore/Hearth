@@ -1,6 +1,6 @@
 {
   "scriptKb": {
-    "shell": 121,
+    "shell": 122,
     "routes/public-layout.tsx": 3,
     "routes/sign-in.tsx": 9,
     "routes/sign-up.tsx": 9,
@@ -45,6 +45,9 @@
     "referrals/invite.tsx": 5,
     "routes/referrals.tsx": 8,
     "referrals/loaders.ts": 2,
+    "routes/data.tsx": 15,
+    "routes/import.tsx": 21,
+    "portability/loaders.ts": 3,
     "routes/new-space.tsx": 15,
     "accounts/writes.ts": 2,
     "categories/writes.ts": 2,
@@ -73,7 +76,7 @@
     "../modules/reporting/ui/fund/member-fund-sheet.tsx": 5,
     "../modules/reporting/ui/charts/trend-chart.tsx": 123,
     "../i18n/messages/es.json": 12,
-    "../i18n/messages/en.json": 11,
+    "../i18n/messages/en.json": 12,
     "../i18n/messages/areas/plan.es.json": 6,
     "../i18n/messages/areas/plan.en.json": 6,
     "../i18n/messages/areas/recurrences.es.json": 2,
