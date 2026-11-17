@@ -143,6 +143,9 @@ const invalidateMovement = (queryClient: QueryClient, spaceId: string): void => 
   // From a shared space, the person's own accounts may pay, and My spending counts their share (D11).
   if (personal && personal.id !== spaceId)
     keys.push(moduleKeys.accounts(personal.id), moduleKeys.reports(personal.id));
+  // Ruling P338: a movement moves the person's standing in its space, Amigos' nets and newest movements included
+  // (`myBalancesQuery`, `myFriendsQuery`), so they are read again on their next visit.
+  keys.push(["balances", "mine"]);
   for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
   queryClient.setQueryData<number>(ledgerKeys.writes(spaceId), (written = 0) => written + 1);
 };

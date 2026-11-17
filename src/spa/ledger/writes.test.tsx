@@ -125,6 +125,8 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     await screen.findByRole("dialog", { name: "Dinner" });
     const reads = unrelatedReads(spa.requests);
     const pages = count(spa.requests, "GET", /\/transactions$/);
+    // Ruling P338: Amigos' nets and newest movements, cached from an earlier visit.
+    spa.queryClient.setQueryData(["balances", "mine", "friends"], []);
 
     await userEvent.click(screen.getByRole("button", { name: es.ledger.detail.delete }));
     await waitFor(() => expect(listRow(/Dinner/)).toBeNull());
@@ -137,6 +139,8 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     await waitFor(() => expect(count(spa.requests, "GET", /\/transactions$/)).toBeGreaterThan(pages));
     expect(unrelatedReads(spa.requests)).toEqual(reads);
     expect(listRow(/Dinner/)).toBeNull();
+    // A movement moves someone's balance with the person, so Amigos reads its list again on its next visit.
+    expect(spa.queryClient.getQueryState(["balances", "mine", "friends"])?.isInvalidated).toBe(true);
   });
 
   it("puts the row back when the API refuses the delete, and says why in the sheet", async () => {
