@@ -1,10 +1,10 @@
+import { lazy } from "react";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { getRouteApi, useRouter } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import type { ImportPreviewDto, ImportResultDto } from "@/modules/portability/ui";
 import {
   ImportAccountsScreen,
-  ImportCategoriesScreen,
   ImportDoneScreen,
   ImportReviewScreen,
   MoneyManagerScreen,
@@ -17,6 +17,16 @@ import { importHistoryQuery, importKeys, importPreviewQuery, isDraftQuery } from
 import { accountsQuery } from "../reads";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
+
+/**
+ * P337 (board 4): the categories step loads when it opens, so its switch ("Archivar las de Hearth que no uses") stays out
+ * of the import route (ADR 0004).
+ */
+const ImportCategoriesScreen = lazy(() =>
+  import("@/modules/portability/ui/import-categories-screen").then((module) => ({
+    default: module.ImportCategoriesScreen,
+  })),
+);
 
 const moneyManager = getRouteApi("/spaces/$spaceId/data/money-manager");
 const review = getRouteApi("/spaces/$spaceId/data/imports/$importId");
