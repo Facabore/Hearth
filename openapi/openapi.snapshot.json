@@ -11243,6 +11243,308 @@
         }
       }
     },
+    "/api/v1/me/friends": {
+      "get": {
+        "operationId": "listMyFriends",
+        "summary": "Amigos: each person the signed-in person shares a direct space with, her net and the last movement",
+        "description": "One entry per active direct space, newest last movement first, then by name. Computed on read, as each space's balances are. The nickname is the viewer's own and nobody else sees it.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per active direct space",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "me": {
+                            "type": "object",
+                            "properties": {
+                              "memberId": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "memberId"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "other": {
+                            "type": "object",
+                            "properties": {
+                              "memberId": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "USER",
+                                  "GUEST"
+                                ]
+                              },
+                              "displayName": {
+                                "type": "string",
+                                "description": "The name the space knows them by"
+                              },
+                              "nickname": {
+                                "description": "The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "memberId",
+                              "kind",
+                              "displayName",
+                              "nickname"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "What the viewer calls them: nickname ?? displayName"
+                          },
+                          "net": {
+                            "description": "The viewer's net in the space: positive when the other one owes her, negative when she owes them",
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "lastMovement": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "transactionId": {
+                                    "type": "string"
+                                  },
+                                  "date": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "enum": [
+                                      "EXPENSE",
+                                      "INCOME",
+                                      "TRANSFER",
+                                      "SETTLEMENT",
+                                      "ADJUSTMENT"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "transactionId",
+                                  "date",
+                                  "description",
+                                  "type"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The newest live movement of the space; null when none is left"
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "me",
+                          "other",
+                          "name",
+                          "net",
+                          "lastMovement"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/friends/{spaceId}": {
+      "patch": {
+        "operationId": "setFriendNickname",
+        "summary": "Give the other member of a direct space an apodo",
+        "description": "For a registered person the apodo is the caller's own and nobody else sees it; null clears it. For a guest it renames the guest in the space, so null is refused and the name must be free in the space.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "spaceId",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nickname": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "nickname"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The other member by the new name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "spaceId": {
+                      "type": "string"
+                    },
+                    "other": {
+                      "type": "object",
+                      "properties": {
+                        "memberId": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "USER",
+                            "GUEST"
+                          ]
+                        },
+                        "displayName": {
+                          "type": "string",
+                          "description": "The name the space knows them by"
+                        },
+                        "nickname": {
+                          "description": "The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "memberId",
+                        "kind",
+                        "displayName",
+                        "nickname"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "What the viewer calls them: nickname ?? displayName"
+                    }
+                  },
+                  "required": [
+                    "spaceId",
+                    "other",
+                    "name"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SpaceNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "NotADirectSpace, MemberNameTaken, NotAGuest, SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, InvalidNickname",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/balances": {
       "get": {
         "operationId": "getSpaceBalances",

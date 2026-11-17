@@ -38,6 +38,8 @@ export type {
   TransactionRepository,
   TransactionsAcrossFilter,
   TransactionsAcrossQuery,
+  LastMovementQuery,
+  SpaceLastMovement,
 } from "./ports";
 export {
   createRecordExpense,

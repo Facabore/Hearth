@@ -1165,6 +1165,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/friends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Amigos: each person the signed-in person shares a direct space with, her net and the last movement
+         * @description One entry per active direct space, newest last movement first, then by name. Computed on read, as each space's balances are. The nickname is the viewer's own and nobody else sees it.
+         */
+        get: operations["listMyFriends"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/friends/{spaceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Give the other member of a direct space an apodo
+         * @description For a registered person the apodo is the caller's own and nobody else sees it; null clears it. For a guest it renames the guest in the space, so null is refused and the name must be free in the space.
+         */
+        patch: operations["setFriendNickname"];
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/balances": {
         parameters: {
             query?: never;
@@ -8227,6 +8267,141 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listMyFriends: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per active direct space */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            spaceId: string;
+                            me: {
+                                memberId: string;
+                            };
+                            other: {
+                                memberId: string;
+                                /** @enum {string} */
+                                kind: "USER" | "GUEST";
+                                /** @description The name the space knows them by */
+                                displayName: string;
+                                /** @description The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName */
+                                nickname: string | null;
+                            };
+                            /** @description What the viewer calls them: nickname ?? displayName */
+                            name: string;
+                            /** @description The viewer's net in the space: positive when the other one owes her, negative when she owes them */
+                            net: components["schemas"]["MoneyOutput"];
+                            /** @description The newest live movement of the space; null when none is left */
+                            lastMovement: {
+                                transactionId: string;
+                                /** Format: date */
+                                date: string;
+                                description: string;
+                                /** @enum {string} */
+                                type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
+                            } | null;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    setFriendNickname: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    nickname: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description The other member by the new name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        spaceId: string;
+                        other: {
+                            memberId: string;
+                            /** @enum {string} */
+                            kind: "USER" | "GUEST";
+                            /** @description The name the space knows them by */
+                            displayName: string;
+                            /** @description The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName */
+                            nickname: string | null;
+                        };
+                        /** @description What the viewer calls them: nickname ?? displayName */
+                        name: string;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description NotADirectSpace, MemberNameTaken, NotAGuest, SpaceArchived */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidNickname */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

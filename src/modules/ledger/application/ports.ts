@@ -178,6 +178,21 @@ export interface TransactionsAcrossQuery {
   ): Promise<{ share: bigint; income: bigint }>;
 }
 
+/** Ruling P338: the newest live transaction of one space, in the list order (P43). */
+export interface SpaceLastMovement {
+  readonly spaceId: string;
+  readonly transactionId: string;
+  readonly date: LocalDate;
+  readonly description: string;
+  readonly type: TransactionType;
+}
+
+/** Ruling P338: what Amigos shows as each person's last movement. */
+export interface LastMovementQuery {
+  /** The newest live transaction of each of `spaceIds` that has one; `[]` without valid ids. */
+  lastMovementsIn(spaceIds: readonly string[]): Promise<SpaceLastMovement[]>;
+}
+
 /**
  * HU-E5-01 (E5 balance rule): per-member sums of one space's live, member-paid expenses and its
  * settlements. Fund-paid expenses and every transfer, fund contributions included, create no debt (D5).

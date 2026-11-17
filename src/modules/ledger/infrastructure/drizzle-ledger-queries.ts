@@ -25,9 +25,11 @@ import type {
   BalanceMovement,
   HistoryRange,
   Involving,
+  LastMovementQuery,
   MemberBalanceHistory,
   MemberMoneyTotals,
   SpaceDebtMovements,
+  SpaceLastMovement,
   TransactionFilter,
   TransactionPosition,
   TransactionQuery,
@@ -83,7 +85,7 @@ const rangeRows = (ranges: readonly DateRange[]) =>
 const literalLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
-export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcrossQuery {
+export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcrossQuery, LastMovementQuery {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
   async list(
@@ -185,6 +187,26 @@ export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcros
       .orderBy(...listOrder)
       .limit(limit);
     return loadTransactions(db, rows);
+  }
+
+  /** Ruling P338: one row per space with a live transaction, its newest in `list`'s order (DISTINCT ON keeps the first). */
+  async lastMovementsIn(spaceIds: readonly string[]): Promise<SpaceLastMovement[]> {
+    const ids = spaceIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .selectDistinctOn([transactions.spaceId], {
+        spaceId: transactions.spaceId,
+        transactionId: transactions.id,
+        date: transactions.date,
+        description: transactions.description,
+        type: transactions.type,
+      })
+      .from(transactions)
+      .where(and(inArray(transactions.spaceId, ids), isNull(transactions.deletedAt)))
+      .orderBy(transactions.spaceId, ...listOrder);
+    // A date column read in string mode is an ISO calendar date.
+    return rows.map((row) => ({ ...row, date: row.date as LocalDate }));
   }
 
   async totals(filter: TransactionFilter): Promise<{ expenses: bigint; income: bigint }> {

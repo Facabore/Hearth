@@ -36,8 +36,10 @@ import {
   createGetSpaceBalances,
   createGetMemberBalanceHistory,
   createGetMyBalances,
+  createListMyFriends,
   type GetMemberBalanceHistory,
   type GetMyBalances,
+  type ListMyFriends,
   type GetSettlementSuggestions,
   type GetSpaceBalances,
 } from "@/modules/balances/application";
@@ -288,6 +290,7 @@ import {
   createInvitationAdmitsSignUp,
   createCreateGuestClaim,
   createLeaveSpace,
+  createSetFriendNickname,
   createPreviewClaim,
   createPreviewInvitation,
   type AcceptInvitation,
@@ -322,6 +325,7 @@ import {
   type SplitWithPerson,
   type RemoveGuestMember,
   type LeaveSpace,
+  type SetFriendNickname,
   type LifecycleDeps,
 } from "@/modules/spaces/application";
 import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
@@ -392,6 +396,8 @@ export interface Container extends RouteDeps {
     readonly createGuestClaim: CreateGuestClaim;
     readonly claimGuestPlace: ClaimGuestPlace;
     readonly leaveSpace: LeaveSpace;
+    /** P338: the viewer's apodo for the other member of a direct space (a guest's name). */
+    readonly setFriendNickname: SetFriendNickname;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -458,6 +464,8 @@ export interface Container extends RouteDeps {
     readonly getSettlementSuggestions: GetSettlementSuggestions;
     readonly getMemberBalanceHistory: GetMemberBalanceHistory;
     readonly getMyBalances: GetMyBalances;
+    /** P338: Amigos, the other member of each direct space with the viewer's net and the last movement. */
+    readonly listMyFriends: ListMyFriends;
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
@@ -1215,6 +1223,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       createGuestClaim: createCreateGuestClaim(claimsDeps),
       claimGuestPlace: createClaimGuestPlace(claimsDeps),
       leaveSpace: createLeaveSpace(lifecycleDeps),
+      setFriendNickname: createSetFriendNickname({
+        access,
+        spaceLocks: spaceRepository,
+        members: spaceRepository,
+        tm,
+      }),
     },
     categories: {
       listCategories: createListCategories({ ...categoriesDeps, counts: categoryUsageCountsOf(tm) }),
@@ -1318,6 +1332,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         spaces: spaceRepository,
         source: ledgerQueries,
+      }),
+      // P338: Amigos reads the same balances (D7), the viewer's apodos and each direct space's newest movement.
+      listMyFriends: createListMyFriends({
+        access,
+        members: spaceRepository,
+        spaces: spaceRepository,
+        aliases: spaceRepository,
+        source: ledgerQueries,
+        movements: ledgerQueries,
       }),
     },
     budgeting: {

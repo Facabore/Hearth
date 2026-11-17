@@ -1,0 +1,1 @@
+ALTER TABLE "space_members" ADD COLUMN "peer_alias" text;

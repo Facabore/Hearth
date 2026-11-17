@@ -61,6 +61,8 @@ export const spaceMembers = pgTable(
     joinedAt: tz("joined_at").notNull(),
     leftAt: tz("left_at"),
     claimedAt: tz("claimed_at"),
+    // Ruling P338: the apodo this member gives the other member of a direct space; only this member reads it.
+    peerAlias: text("peer_alias"),
   },
   (t) => [
     // HU-E1-07: one row per user among current members; a former member who joins again takes their own row back (issue #90).

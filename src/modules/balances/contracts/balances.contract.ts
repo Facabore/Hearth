@@ -1,7 +1,9 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
 import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
+import type { FriendNameView } from "@/modules/spaces/application";
 import type {
+  Friend,
   MemberBalanceHistoryView,
   MyBalance,
   SettlementSuggestions,
@@ -86,6 +88,66 @@ export const myBalancesDto = (balances: readonly MyBalance[]): z.infer<typeof My
       payments: b.payments.map((p) => ({ receivingMemberId: p.receivingMemberId, amount: money(p.amount) })),
     };
   }),
+});
+
+/** Ruling P338: the other member of a direct space, by the name its viewer gives them. */
+const FriendNameFields = {
+  other: z.object({
+    memberId: z.string(),
+    kind: z.enum(["USER", "GUEST"]),
+    displayName: z.string().meta({ description: "The name the space knows them by" }),
+    nickname: z.string().nullable().meta({
+      description:
+        "The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName",
+    }),
+  }),
+  name: z.string().meta({ description: "What the viewer calls them: nickname ?? displayName" }),
+};
+
+/** Ruling P338: Amigos, one entry per active direct space of the viewer. */
+export const MyFriendsSchema = z.object({
+  items: z.array(
+    z.object({
+      spaceId: z.string(),
+      me: z.object({ memberId: z.string() }),
+      ...FriendNameFields,
+      net: MoneySchema.meta({
+        description:
+          "The viewer's net in the space: positive when the other one owes her, negative when she owes them",
+      }),
+      lastMovement: z
+        .object({
+          transactionId: z.string(),
+          date: z.iso.date(),
+          description: z.string(),
+          type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"]),
+        })
+        .nullable()
+        .meta({ description: "The newest live movement of the space; null when none is left" }),
+    }),
+  ),
+});
+
+export const myFriendsDto = (friends: readonly Friend[]): z.infer<typeof MyFriendsSchema> => ({
+  items: friends.map((f) => ({
+    spaceId: f.spaceId,
+    me: { memberId: f.me.memberId },
+    other: { ...f.other },
+    name: f.name,
+    net: { amount: f.net.toString(), currency: f.currency },
+    lastMovement: f.lastMovement === null ? null : { ...f.lastMovement },
+  })),
+});
+
+/** Ruling P338: trimmed and 1–40 characters (InvalidNickname otherwise); null clears a registered person's apodo. */
+export const FriendNicknameBodySchema = z.object({ nickname: z.string().nullable() });
+
+export const FriendNameSchema = z.object({ spaceId: z.string(), ...FriendNameFields });
+
+export const friendNameDto = (view: FriendNameView): z.infer<typeof FriendNameSchema> => ({
+  spaceId: view.spaceId,
+  other: { ...view.other },
+  name: view.name,
 });
 
 /** HU-E5-04: an optional span of dates; `from` must not be after `to`. */
@@ -180,6 +242,40 @@ export const balancesPaths: ZodOpenApiPathsObject = {
           content: jsonContent(MyBalancesSchema),
         },
         ...problems({ "401": "Unauthenticated" }),
+      },
+    },
+  },
+  "/api/v1/me/friends": {
+    get: {
+      operationId: "listMyFriends",
+      summary:
+        "Amigos: each person the signed-in person shares a direct space with, her net and the last movement",
+      description:
+        "One entry per active direct space, newest last movement first, then by name. Computed on read, as each space's balances are. The nickname is the viewer's own and nobody else sees it.",
+      ...securedByUser,
+      responses: {
+        "200": { description: "One entry per active direct space", content: jsonContent(MyFriendsSchema) },
+        ...problems({ "401": "Unauthenticated" }),
+      },
+    },
+  },
+  "/api/v1/me/friends/{spaceId}": {
+    patch: {
+      operationId: "setFriendNickname",
+      summary: "Give the other member of a direct space an apodo",
+      description:
+        "For a registered person the apodo is the caller's own and nobody else sees it; null clears it. For a guest it renames the guest in the space, so null is refused and the name must be free in the space.",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      requestBody: { content: jsonContent(FriendNicknameBodySchema) },
+      responses: {
+        "200": { description: "The other member by the new name", content: jsonContent(FriendNameSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "409": "NotADirectSpace, MemberNameTaken, NotAGuest, SpaceArchived",
+          "422": "ValidationFailed, InvalidNickname",
+        }),
       },
     },
   },

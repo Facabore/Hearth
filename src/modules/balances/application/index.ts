@@ -41,3 +41,12 @@ export {
   type MyBalance,
   type MyBalancesDeps,
 } from "./get-my-balances";
+export {
+  createListMyFriends,
+  friendOrder,
+  type Friend,
+  type LastMovement,
+  type LastMovementSource,
+  type ListMyFriends,
+  type ListMyFriendsDeps,
+} from "./list-my-friends";

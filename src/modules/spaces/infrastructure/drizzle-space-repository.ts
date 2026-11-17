@@ -3,6 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid } from "@/shared/kernel";
 import type { DirectSpaceRepository, MemberInSpace } from "../application/direct-space-repository";
+import type { FriendNameRepository, RenameGuestOutcome } from "../application/friend-names";
 import type {
   AddMemberOutcome,
   ClaimOutcome,
@@ -65,7 +66,8 @@ export class DrizzleSpaceRepository
     GuestClaimRepository,
     DirectSpaceRepository,
     MemberPlaceRepository,
-    SpaceLocks
+    SpaceLocks,
+    FriendNameRepository
 {
   constructor(private readonly tm: DrizzleTransactionManager) {}
 
@@ -334,6 +336,59 @@ export class DrizzleSpaceRepository
       .update(spaceMembers)
       .set({ role })
       .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.id, memberId)));
+  }
+
+  async peerAliasesOf(userId: string): Promise<{ spaceId: string; alias: string }[]> {
+    const rows = await this.tm
+      .executor()
+      .select({ spaceId: spaceMembers.spaceId, alias: spaceMembers.peerAlias })
+      .from(spaceMembers)
+      .where(
+        and(eq(spaceMembers.userId, userId), isNull(spaceMembers.leftAt), isNotNull(spaceMembers.peerAlias)),
+      );
+    return rows.flatMap((row) => (row.alias === null ? [] : [{ spaceId: row.spaceId, alias: row.alias }]));
+  }
+
+  async setPeerAlias(spaceId: SpaceId, viewerMemberId: SpaceMemberId, alias: string | null): Promise<void> {
+    // Callers pass the ids of a membership they resolved; anything else is a broken invariant, not an answer.
+    if (!isUuid(spaceId) || !isUuid(viewerMemberId)) {
+      throw new Error(`member ${viewerMemberId} of space ${spaceId} is not named by uuids`);
+    }
+    await this.tm
+      .executor()
+      .update(spaceMembers)
+      .set({ peerAlias: alias })
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.id, viewerMemberId)));
+  }
+
+  /**
+   * One conditional UPDATE in a savepoint: space_members_current_name_uq can refuse it when a concurrent change took
+   * the name, and a refused statement would otherwise abort the whole transaction.
+   */
+  async renameGuest(spaceId: SpaceId, memberId: SpaceMemberId, name: string): Promise<RenameGuestOutcome> {
+    if (!isUuid(spaceId) || !isUuid(memberId)) return "notAGuest";
+    try {
+      const renamed = await this.tm.executor().transaction((savepoint) =>
+        savepoint
+          .update(spaceMembers)
+          .set({ displayName: name })
+          .where(
+            and(
+              eq(spaceMembers.spaceId, spaceId),
+              eq(spaceMembers.id, memberId),
+              // Still a current guest: not removed and not claimed meanwhile.
+              eq(spaceMembers.kind, "GUEST"),
+              isNull(spaceMembers.leftAt),
+            ),
+          )
+          .returning({ id: spaceMembers.id }),
+      );
+      return renamed.length > 0 ? "renamed" : "notAGuest";
+    } catch (error) {
+      const { code } = ((error as Error).cause ?? error) as { code?: unknown };
+      if (code !== "23505") throw error;
+      return "nameTaken";
+    }
   }
 
   async markLeft(

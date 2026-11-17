@@ -288,6 +288,13 @@
       "when": 1794846646519,
       "tag": "0040_adjustment_type",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794880121999,
+      "tag": "0041_friend_peer_alias",
+      "breakpoints": true
     }
   ]
 }

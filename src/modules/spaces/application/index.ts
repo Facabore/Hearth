@@ -115,3 +115,11 @@ export {
 } from "./archive-space";
 
 export type { MemberPlace, MemberPlaceRepository } from "./member-places";
+export { directPeer, friendName, type FriendName } from "../domain/friend";
+export type { FriendNameRepository, RenameGuestOutcome } from "./friend-names";
+export {
+  createSetFriendNickname,
+  type FriendNameView,
+  type SetFriendNickname,
+  type SetFriendNicknameDeps,
+} from "./set-friend-nickname";
