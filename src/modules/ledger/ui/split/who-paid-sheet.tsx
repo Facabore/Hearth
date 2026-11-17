@@ -38,6 +38,8 @@ export interface WhoPaidSheetProps {
   readonly accounts: readonly AccountDto[] | null;
   readonly accountId: string | null;
   readonly onAccount: (accountId: string) => void;
+  /** Ruling P337: under "Desde", why it holds the account it does ("Bancolombia: con la que sueles pagar Gas."). */
+  readonly fromHint?: string | null | undefined;
   /** "Para quién fue", in the order shown: the recorder first. */
   readonly people: readonly WhoPaidPerson[];
   readonly meId: string;
@@ -77,6 +79,8 @@ const wrapped = (text: string) => <span className="block max-w-full break-words 
  */
 export function WhoPaidSheet(props: WhoPaidSheetProps) {
   const { draft, onDraft, people, meId, paidById, memberIds, amount, currency, formats, planShares } = props;
+  // Ruling P337: only the person's active money accounts, in the order given (the most used first).
+  const accounts = props.accounts?.filter((account) => account.archivedAt === null) ?? null;
   const t = useTranslations("ledger.who");
   const ts = useTranslations("ledger.split");
   const common = useTranslations("common");
@@ -234,26 +238,27 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               </button>
             ) : null}
           </div>
-          {props.accounts && props.accounts.length > 0 ? (
+          {accounts && accounts.length > 0 ? (
             <>
               <h3 aria-hidden="true" className="text-sm font-semibold text-ink">
                 {t("from")}
               </h3>
+              {props.fromHint ? <p className="-mt-1 text-sm text-muted">{props.fromHint}</p> : null}
               <ChoiceGroup
                 layout="chips"
                 label={t("from")}
                 value={props.accountId ?? ""}
                 onValueChange={props.onAccount}
-                options={props.accounts.map((account) => ({
+                options={accounts.map((account) => ({
                   value: account.id,
                   label: wrapped(account.name),
                 }))}
               />
             </>
           ) : null}
-          {props.accounts && props.newAccount ? (
+          {accounts && props.newAccount ? (
             <>
-              {props.accounts.length === 0 ? (
+              {accounts.length === 0 ? (
                 <p className="rounded-2xl bg-track p-3 text-sm text-ink">{props.newAccount.empty}</p>
               ) : null}
               <Link

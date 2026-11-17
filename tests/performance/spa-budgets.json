@@ -22,7 +22,7 @@
     "../modules/ledger/ui/record/date-time-sheet.tsx": 40,
     "../modules/ledger/ui/record/category-sheet.tsx": 21,
     "../modules/ledger/ui/record/new-category-form.tsx": 7,
-    "../modules/ledger/ui/record/space-sheet.tsx": 38,
+    "../modules/ledger/ui/record/space-sheet.tsx": 39,
     "../modules/identity/ui/settings/formats-fields.tsx": 20,
     "../modules/spaces/ui/space-name-section.tsx": 20,
     "../modules/spaces/ui/space-color-field.tsx": 4,

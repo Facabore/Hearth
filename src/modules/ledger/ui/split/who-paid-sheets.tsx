@@ -29,6 +29,8 @@ export interface SharedWhoPaidSheetProps {
   readonly defaultSplit: DefaultSplitState;
   /** D26, P328: "Pagó" also offers "Pagaste por <fund>": the recorder pays from their account for the fund. */
   readonly forFund?: boolean;
+  /** Ruling P337: why "Desde" holds the account it does, or null. */
+  readonly fromHint?: string | null;
 }
 
 /** The chip value of who paid. */
@@ -149,6 +151,7 @@ export function SharedWhoPaidSheet(props: SharedWhoPaidSheetProps) {
         payerNote={payerNote}
         accounts={payer.kind === "ME" || payer.kind === "FOR_FUND" ? context.myAccounts : null}
         accountId={payer.kind === "ME" || payer.kind === "FOR_FUND" ? payer.accountId : null}
+        fromHint={props.fromHint}
         onAccount={(accountId) => {
           if (payer.kind === "ME" || payer.kind === "FOR_FUND")
             onChange({ ...draft, payerChosen: true, payer: { ...payer, accountId } });
@@ -199,6 +202,8 @@ export interface PersonalWhoPaidSheetProps {
   readonly formats: Formats;
   /** N7: where "Nueva cuenta" goes, with a way back to this form. */
   readonly newAccountHref?: string | undefined;
+  /** Ruling P337: why "Desde" holds the account it does, or null. */
+  readonly fromHint?: string | null;
 }
 
 /**
@@ -238,6 +243,7 @@ export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
       payerNote={paying ? t("otherPaid", { name: paying.first }) : null}
       accounts={paying ? null : props.accounts}
       accountId={props.accountId}
+      fromHint={props.fromHint}
       onAccount={props.onAccount}
       people={[{ id: meId, name: t("you") }, ...everyone]}
       meId={meId}

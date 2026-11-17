@@ -55,7 +55,7 @@ function RecordFormScreen({
 }) {
   const spaceId = viewer.space.id;
   const { api } = useApis();
-  const { accounts, groups, shared, people, lineWatch } = useRecord(viewer);
+  const { accounts, groups, shared, people, lineWatch, accountUsage } = useRecord(viewer);
   const [now] = useState(() => new Date().toISOString());
   const holdNavigation = useHoldNavigation();
   // Ruling P300: the screen it was opened from, dimmed under the scrim, in a render after the sheet's first.
@@ -94,6 +94,7 @@ function RecordFormScreen({
         {...(shared ? { shared } : {})}
         {...(people ? { people } : {})}
         lineWatch={lineWatch}
+        accountUsage={accountUsage}
         returnTo={returnTo ?? null}
         holdNavigation={holdNavigation}
         api={api}

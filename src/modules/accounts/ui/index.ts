@@ -1,4 +1,5 @@
 export { AccountPicker } from "./account-picker";
+export { byUse } from "./account-order";
 export { NewAccountForm } from "./new-account-form";
 export { AccountsScreen } from "./accounts-screen";
 export { canManageAccounts } from "./account-access";

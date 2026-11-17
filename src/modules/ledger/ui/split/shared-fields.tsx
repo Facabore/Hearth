@@ -44,6 +44,8 @@ export interface SharedFieldsProps {
    * the line its category consumes starts as "pagaste por el fondo" from their account, in a space with a fund.
    */
   readonly forFund?: boolean;
+  /** Ruling P337: why "Desde" holds the account it does ("Bancolombia: con la que sueles pagar Gas."), or null. */
+  readonly fromHint?: string | null;
 }
 
 /**
@@ -67,6 +69,7 @@ export function SharedFields({
   payerError,
   defaultSplit: offerPlan = true,
   forFund = false,
+  fromHint = null,
 }: SharedFieldsProps) {
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
@@ -191,6 +194,7 @@ export function SharedFields({
           formats={formats}
           defaultSplit={defaultSplit}
           forFund={forFund}
+          fromHint={fromHint}
         />
       ) : null}
     </>
