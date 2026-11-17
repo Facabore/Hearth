@@ -180,6 +180,7 @@ import type {
 import {
   createArchiveCategory,
   createArchiveCategoryGroup,
+  createRestoreCategoryGroup,
   createCreateCategory,
   createCreateCategoryGroup,
   createDeleteCategory,
@@ -191,6 +192,7 @@ import {
   createUpdateCategory,
   type ArchiveCategory,
   type ArchiveCategoryGroup,
+  type RestoreCategoryGroup,
   type CategoriesDeps,
   type CategoryRepository,
   type CategoryUsage,
@@ -405,6 +407,7 @@ export interface Container extends RouteDeps {
     readonly archiveCategory: ArchiveCategory;
     readonly restoreCategory: RestoreCategory;
     readonly archiveCategoryGroup: ArchiveCategoryGroup;
+    readonly restoreCategoryGroup: RestoreCategoryGroup;
   };
   readonly accounts: {
     readonly createAccount: CreateAccount;
@@ -1234,6 +1237,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       archiveCategory: createArchiveCategory(categoriesDeps),
       restoreCategory: createRestoreCategory(categoriesDeps),
       archiveCategoryGroup: createArchiveCategoryGroup(categoriesDeps),
+      restoreCategoryGroup: createRestoreCategoryGroup(categoriesDeps),
     },
     accounts: {
       createAccount: createCreateAccount(accountsDeps),

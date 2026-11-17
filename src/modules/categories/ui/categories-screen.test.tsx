@@ -514,6 +514,25 @@ describe("categories screen (HU-E9-04)", () => {
     expect(within(group("Archivadas")).getByText("Groceries")).toBeInTheDocument();
   });
 
+  it("lists a whole archived group in the archived section and restores it with its categories (P337)", async () => {
+    const archivedAt = "2026-11-16T15:00:00.000Z";
+    const [food, income] = household({ archivedAt });
+    const { requests } = renderTree([{ ...food!, archivedAt }, income!], {
+      routes: {
+        "POST /api/v1/spaces/{spaceId}/category-groups/{groupId}/restore": () =>
+          jsonResponse({ ...groupDto({ id: "g-food", name: "Food" }), categories: undefined }),
+      },
+    });
+    expect(screen.queryByRole("region", { name: "Food" })).toBeNull();
+    const archived = group("Archivadas");
+    expect(within(archived).getByText("Grupo con sus categorías")).toBeInTheDocument();
+    await userEvent.click(within(archived).getByRole("button", { name: "Restaurar Food" }));
+    await waitFor(() => expect(router.refresh).toHaveBeenCalledTimes(1));
+    expect(requests.map((r) => r.url)).toContainEqual(
+      expect.stringMatching(/category-groups\/g-food\/restore$/),
+    );
+  });
+
   it("sends one restore for a double tap, and waits while it is in flight", async () => {
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));

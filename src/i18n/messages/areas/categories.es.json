@@ -16,7 +16,8 @@
     "archived": {
       "title": "Archivadas",
       "restore": "Restaurar {name}",
-      "restoreShort": "Restaurar"
+      "restoreShort": "Restaurar",
+      "wholeGroup": "Grupo con sus categorías"
     },
     "sheet": {
       "editTitle": "Editar categoría",

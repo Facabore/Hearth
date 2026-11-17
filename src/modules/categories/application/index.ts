@@ -29,5 +29,6 @@ export { createUpdateCategory, type UpdateCategory } from "./update-category";
 
 export { createArchiveCategory, type ArchiveCategory } from "./archive-category";
 export { createArchiveCategoryGroup, type ArchiveCategoryGroup } from "./archive-category-group";
+export { createRestoreCategoryGroup, type RestoreCategoryGroup } from "./restore-category-group";
 export { createDeleteCategory, type CategoryUsage, type DeleteCategory } from "./delete-category";
 export { createRestoreCategory, type RestoreCategory } from "./restore-category";

@@ -99,6 +99,8 @@ export function CategoryTree({
   const live = activeTree(tree);
   const shown = groupsForKind(live, kind);
   const archived = archivedOf(groupsForKind(tree, kind).filter((group) => group.archivedAt === null));
+  // P337: a whole group archived (by the person, or by an import's "Archivar las de Hearth que no uses").
+  const archivedGroups = groupsForKind(tree, kind).filter((group) => group.archivedAt !== null);
 
   const target = ((): CategorySheetTarget | null => {
     if (!open) return null;
@@ -159,6 +161,27 @@ export function CategoryTree({
     setRestoring((current) => {
       const next = new Set(current);
       next.delete(category.id);
+      return next;
+    });
+  };
+
+  /** P337: the group comes back with the categories archiving it took; the tree is read again to show them. */
+  const restoreGroup = async (group: CategoryGroupDto) => {
+    setProblem(null);
+    setRestoring((current) => new Set(current).add(group.id));
+    try {
+      const { data, error, response } = await api.POST(
+        "/api/v1/spaces/{spaceId}/category-groups/{groupId}/restore",
+        { params: { path: { spaceId: space.id, groupId: group.id } } },
+      );
+      if (data) router.refresh();
+      else setProblem(problemFrom(error, response));
+    } catch (error) {
+      setProblem(problemFrom(error, undefined));
+    }
+    setRestoring((current) => {
+      const next = new Set(current);
+      next.delete(group.id);
       return next;
     });
   };
@@ -252,13 +275,32 @@ export function CategoryTree({
           </ul>
         </section>
       ))}
-      {archived.length > 0 ? (
+      {archived.length > 0 || archivedGroups.length > 0 ? (
         <section aria-labelledby="archived-categories" className="flex flex-col gap-1.5">
           <h2 id="archived-categories" className="text-sm font-semibold text-muted">
             {t("archived.title")}
           </h2>
           {problem ? <ProblemNotice problem={problem} /> : null}
           <ul className="divide-y divide-line rounded-2xl bg-surface px-3">
+            {archivedGroups.map((group) => (
+              <li key={group.id} className="flex min-h-14 items-center gap-3">
+                <CategoryIcon icon={group.icon} color={group.color} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-ink [overflow-wrap:anywhere]">{group.name}</span>
+                  <span className="text-sm text-muted">{t("archived.wholeGroup")}</span>
+                </span>
+                {manage ? (
+                  <Button
+                    variant="secondary"
+                    aria-label={t("archived.restore", { name: group.name })}
+                    disabled={restoring.has(group.id)}
+                    onClick={() => void restoreGroup(group)}
+                  >
+                    {t("archived.restoreShort")}
+                  </Button>
+                ) : null}
+              </li>
+            ))}
             {archived.map((category) => {
               const name = categoryPath(tree, category.id) ?? category.name;
               return (
