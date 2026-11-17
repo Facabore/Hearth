@@ -5,15 +5,7 @@ import {
   suggestDisposition,
   type AccountDisposition,
 } from "./account-dispositions";
-import { matchCatalog } from "./category-match";
-import {
-  createsAccount,
-  IMPORT_GROUP_NAME,
-  targetAccountOf,
-  type AccountMapping,
-  type CategoryMapping,
-  type ImportMappings,
-} from "./import-batch";
+import { createsAccount, targetAccountOf, type AccountMapping, type ImportMappings } from "./import-batch";
 import { closingBalancesOf, movementCountsOf } from "./import-planner";
 import type { SourceSnapshot } from "./source-snapshot";
 
@@ -59,9 +51,23 @@ export interface PriorLinks {
   readonly categories: ReadonlyMap<string, string>;
   readonly undoneAccounts: ReadonlyMap<string, string>;
   readonly undoneCategories: ReadonlyMap<string, string>;
+  /** P337: each top-level source category's group, by imports that stand and by undone ones. */
+  readonly groups: ReadonlyMap<string, string>;
+  readonly undoneGroups: ReadonlyMap<string, string>;
 }
 
-/** The longest account or category name Hearth takes (the accounts and categories domains). */
+/**
+ * P337: the links `planCategoryGroups` follows, a standing import's over an undone one's (whose archived records the
+ * confirm restores).
+ */
+export const categoryLinksOf = (
+  links: PriorLinks,
+): { readonly groups: ReadonlyMap<string, string>; readonly categories: ReadonlyMap<string, string> } => ({
+  groups: new Map([...links.undoneGroups, ...links.groups]),
+  categories: new Map([...links.undoneCategories, ...links.categories]),
+});
+
+/** The longest account name Hearth takes (the accounts domain). */
 const MAX_NAME = 60;
 const SUFFIX = " (Money Manager)";
 
@@ -82,16 +88,6 @@ export const freeName = (desired: string, taken: ReadonlySet<string>): string =>
   }
 };
 
-/** The group a new top-level category goes to by default: Otros (design §2.2), else the first live group, else null. */
-export const defaultGroupId = (groups: readonly HearthCategoryGroup[]): string | null => {
-  const live = groups.filter((g) => !g.archived);
-  return (live.find((g) => g.key === "other") ?? live[0])?.id ?? null;
-};
-
-/** The live group `IMPORT_GROUP_NAME` names, which a confirm reuses before creating it. */
-export const importGroupOf = (groups: readonly HearthCategoryGroup[]): HearthCategoryGroup | undefined =>
-  groups.find((g) => !g.archived && key(g.name) === key(IMPORT_GROUP_NAME));
-
 /**
  * What a link points at, when it can be used as is: a live record of the right kind, or an archived one an undone
  * import of this source created (the confirm restores it).
@@ -107,11 +103,8 @@ const linkedTarget = <T extends { readonly id: string; readonly archived: boolea
 };
 
 /**
- * Settles every new account's and category's name in the order of the snapshot (design §3.3): each one gets a name no
- * record of its scope holds, archived ones included, so a confirm never collides on a name. An account's scope is
- * the space; a top-level category's, its group's top-level categories; a subcategory's, the children of what its
- * parent maps to. A subcategory whose parent maps to a subcategory merges into it (D20 has three levels) and needs
- * no name.
+ * Settles every new account's name in the order of the snapshot (design §3.3): each one gets a name no account of
+ * the space holds, archived ones included, so a confirm never collides on a name; a Persona gets its default name.
  */
 const withFreeNames = (
   snapshot: SourceSnapshot,
@@ -135,54 +128,7 @@ const withFreeNames = (
     } else accounts[account.sourceId] = mapping;
   }
 
-  const scopes = new Map<string, Set<string>>();
-  const scope = (id: string, initial: () => readonly string[]) =>
-    scopes.get(id) ?? scopes.set(id, new Set(initial().map(key))).get(id)!;
-  const importGroup = importGroupOf(targets.groups);
-  const childrenOf = (groupId: string | null, parentId: string | null) =>
-    targets.categories
-      .filter((c) => c.parentCategoryId === parentId && (parentId !== null || c.groupId === groupId))
-      .map((c) => c.name);
-  const categories: Record<string, CategoryMapping> = {};
-  const ordered = [
-    ...snapshot.categories.filter((c) => c.parentSourceId === null),
-    ...snapshot.categories.filter((c) => c.parentSourceId !== null),
-  ];
-  for (const category of ordered) {
-    const mapping = mappings.categories[category.sourceId];
-    if (mapping === undefined) continue;
-    if (mapping.kind === "existing") {
-      categories[category.sourceId] = mapping;
-      continue;
-    }
-    let taken: Set<string>;
-    if (category.parentSourceId === null) {
-      const groupId = mapping.groupId ?? importGroup?.id ?? null;
-      taken = scope(`group:${groupId ?? "import"}`, () =>
-        groupId === null ? [] : childrenOf(groupId, null),
-      );
-    } else {
-      const parent = categories[category.parentSourceId];
-      const parentTarget =
-        parent?.kind === "existing" ? targets.categories.find((c) => c.id === parent.categoryId) : undefined;
-      if (parentTarget?.parentCategoryId != null) {
-        categories[category.sourceId] = { kind: "new", groupId: null };
-        continue;
-      }
-      taken =
-        parentTarget === undefined
-          ? scope(`new:${category.parentSourceId}`, () => [])
-          : scope(`parent:${parentTarget.id}`, () => childrenOf(null, parentTarget.id));
-    }
-    const name = freeName(mapping.name ?? category.name, taken);
-    taken.add(key(name));
-    categories[category.sourceId] = {
-      kind: "new",
-      groupId: category.parentSourceId === null ? mapping.groupId : null,
-      name,
-    };
-  }
-  return { ...mappings, accounts, categories };
+  return { ...mappings, accounts };
 };
 
 /** P337, board 1: a source account's three ready mappings, and the one Hearth preselects. */
@@ -262,11 +208,8 @@ export const accountOptionsOf = (
  *
  * - An account takes the disposition Hearth preselects (P337, `accountOptionsOf`): a Cuenta, a Persona or Archivar,
  *   a new account's name being one no account of the space holds.
- * - A top-level category goes to its linked category (the same way), else the catalog category its name matches (when
- *   the space has it live), else a live top-level category of the same name, else a new one in Otros (or in the
- *   import's own group when the space has no live group).
- * - A subcategory goes to its linked category, else a live subcategory of the same name under what its parent maps to
- *   (design §2.2's merge), else a new subcategory there.
+ * - Categories are not mapped one by one (P337): they come as the person had them (`planCategoryGroups`), and the
+ *   seeded ones no movement uses are archived unless the person says not to.
  */
 export const proposeMappings = (
   snapshot: SourceSnapshot,
@@ -275,45 +218,16 @@ export const proposeMappings = (
   timeZone: string,
   spaceCurrency: string,
 ): ImportMappings => {
-  const liveCategories = targets.categories.filter((c) => !c.archived);
-  const sameName = (a: string, b: string) => key(a) === key(b);
-
   const accounts: Record<string, AccountMapping> = {};
   for (const [sourceId, proposal] of accountOptionsOf(snapshot, targets, links, spaceCurrency)) {
     accounts[sourceId] = proposal.options[OPTION_OF[proposal.suggested]];
   }
 
-  const categories: Record<string, CategoryMapping> = {};
-  const otros = defaultGroupId(targets.groups);
-  const linkedCategory = (sourceId: string) =>
-    linkedTarget(
-      targets.categories,
-      links.categories.get(sourceId),
-      links.undoneCategories.get(sourceId),
-      () => true,
-    );
-  for (const category of snapshot.categories.filter((c) => c.parentSourceId === null)) {
-    const match = matchCatalog(category.name, category.kind);
-    const target =
-      linkedCategory(category.sourceId) ??
-      (match.kind === "catalog" ? liveCategories.find((c) => c.key === match.catalogKey) : undefined) ??
-      liveCategories.find((c) => c.parentCategoryId === null && sameName(c.name, category.name));
-    categories[category.sourceId] =
-      target === undefined ? { kind: "new", groupId: otros } : { kind: "existing", categoryId: target.id };
-  }
-  for (const category of snapshot.categories.filter((c) => c.parentSourceId !== null)) {
-    const parent = categories[category.parentSourceId!];
-    const parentId = parent?.kind === "existing" ? parent.categoryId : undefined;
-    const target =
-      linkedCategory(category.sourceId) ??
-      (parentId === undefined
-        ? undefined
-        : liveCategories.find((c) => c.parentCategoryId === parentId && sameName(c.name, category.name)));
-    categories[category.sourceId] =
-      target === undefined ? { kind: "new", groupId: null } : { kind: "existing", categoryId: target.id };
-  }
-
-  return withFreeNames(snapshot, { timeZone, accounts, categories, includeDuplicates: [] }, targets);
+  return withFreeNames(
+    snapshot,
+    { timeZone, accounts, archiveUnusedCategories: true, includeDuplicates: [] },
+    targets,
+  );
 };
 
 const invalidMapping = (reason: string, sourceId: string) =>
@@ -321,19 +235,16 @@ const invalidMapping = (reason: string, sourceId: string) =>
 
 /**
  * The mappings a confirm may use (design §3.2), checked against the snapshot and what Hearth holds now, with every new
- * account's and category's name settled (`withFreeNames`): `InvalidImportMapping` with a `reason` and the `sourceId`
+ * account's name settled (`withFreeNames`): `InvalidImportMapping` with a `reason` and the `sourceId`
  * it is about, or `InvalidTimeZone`.
  *
- * - Every key names a source account, category or movement (`unknownSource`), and every source account and category
- *   has a mapping (`mappingRequired`): nothing reaches the ledger without a target.
+ * - Every key names a source account or movement (`unknownSource`), and every source account has a mapping
+ *   (`mappingRequired`): nothing reaches the ledger without a target.
  * - An existing account is one of the person's live accounts, or an archived one an undone import of this source
  *   created (`accountNotFound`), in the source account's currency, and so is a new one (`currencyMismatch`): the
  *   file's amounts are in that currency (D29). An Archivar's account is checked the same way, and may also be an
  *   archived one an import of this source that still stands created (P337). A Persona's source account is in the
  *   space's currency (`currencyMismatch`): its movements become settlements, which are kept in it.
- * - An existing category is a live category of the space, or an archived one an undone import of this source created
- *   (`categoryNotFound`); a new top-level category names a live group, or none for the import's own group
- *   (`groupNotFound`); a new subcategory goes under its parent's target, so its group is dropped.
  */
 export const checkMappings = (
   snapshot: SourceSnapshot,
@@ -365,28 +276,6 @@ export const checkMappings = (
       if (target.currency !== source.currency) return invalidMapping("currencyMismatch", source.sourceId);
     } else if (mapping.kind !== "existing" && mapping.currency !== source.currency) {
       return invalidMapping("currencyMismatch", source.sourceId);
-    }
-  }
-  const categorySources = new Map(snapshot.categories.map((c) => [c.sourceId, c]));
-  for (const sourceId of Object.keys(mappings.categories)) {
-    if (!categorySources.has(sourceId)) return invalidMapping("unknownSource", sourceId);
-  }
-  for (const source of snapshot.categories) {
-    const mapping = mappings.categories[source.sourceId];
-    if (mapping === undefined) return invalidMapping("mappingRequired", source.sourceId);
-    if (mapping.kind === "existing") {
-      const usable = targets.categories.some(
-        (c) =>
-          c.id === mapping.categoryId &&
-          (!c.archived || links.undoneCategories.get(source.sourceId) === c.id),
-      );
-      if (!usable) return invalidMapping("categoryNotFound", source.sourceId);
-    } else if (
-      source.parentSourceId === null &&
-      mapping.groupId !== null &&
-      !targets.groups.some((g) => g.id === mapping.groupId && !g.archived)
-    ) {
-      return invalidMapping("groupNotFound", source.sourceId);
     }
   }
   const movementKeys = new Set(snapshot.movements.map((m) => m.sourceKey));

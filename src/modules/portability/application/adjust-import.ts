@@ -1,5 +1,5 @@
 import type { Result } from "@/shared/kernel";
-import { draftSnapshot, type AccountMapping, type CategoryMapping } from "../domain/import-batch";
+import { draftSnapshot, type AccountMapping } from "../domain/import-batch";
 import { checkMappings } from "../domain/mapping-proposals";
 import { authorizeImporter, ownBatch, priorLinksFor } from "./import-access";
 import type { ImportDeps } from "./import-ports";
@@ -9,7 +9,8 @@ import { viewOf, type ImportView } from "./import-view";
 export interface ImportChanges {
   readonly timeZone?: string;
   readonly accounts?: Readonly<Record<string, AccountMapping>>;
-  readonly categories?: Readonly<Record<string, CategoryMapping>>;
+  /** P337: whether the confirm archives the seeded groups and categories no movement uses. */
+  readonly archiveUnusedCategories?: boolean;
   /** Replaces the whole list of likely duplicates to import anyway. */
   readonly includeDuplicates?: readonly string[];
 }
@@ -43,7 +44,7 @@ export const createAdjustImport =
         {
           timeZone: changes.timeZone ?? current.timeZone,
           accounts: { ...current.accounts, ...changes.accounts },
-          categories: { ...current.categories, ...changes.categories },
+          archiveUnusedCategories: changes.archiveUnusedCategories ?? current.archiveUnusedCategories,
           includeDuplicates: changes.includeDuplicates ?? current.includeDuplicates,
         },
         targets.value,

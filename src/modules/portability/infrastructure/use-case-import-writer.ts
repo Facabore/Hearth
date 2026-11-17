@@ -6,11 +6,13 @@ import type {
 } from "@/modules/accounts/application";
 import type {
   ArchiveCategory,
+  ArchiveCategoryGroup,
   CategoryRepository,
   CategoryUsageCounts,
   CreateCategory,
   CreateCategoryGroup,
   RestoreCategory,
+  RestoreCategoryGroup,
 } from "@/modules/categories/application";
 import {
   positionOf,
@@ -78,6 +80,8 @@ export interface UseCaseImportWriterSources {
   readonly archiveAccount: ArchiveAccount;
   readonly restoreAccount: RestoreAccount;
   readonly createCategoryGroup: CreateCategoryGroup;
+  readonly archiveCategoryGroup: ArchiveCategoryGroup;
+  readonly restoreCategoryGroup: RestoreCategoryGroup;
   readonly createCategory: CreateCategory;
   readonly archiveCategory: ArchiveCategory;
   readonly restoreCategory: RestoreCategory;
@@ -152,7 +156,23 @@ export const createUseCaseImportWriter = (sources: UseCaseImportWriterSources): 
           ...(input.type === "CREDIT_CARD" ? { terms: { cutOffDay, paymentDay } } : {}),
         }),
       ),
-    createCategoryGroup: async (input) => idOf(await sources.createCategoryGroup(input)),
+    createCategoryGroup: async ({ emoji, ...input }) => {
+      const created = await sources.createCategoryGroup({
+        ...input,
+        ...(emoji === null ? {} : { icon: { kind: "EMOJI" as const, value: emoji } }),
+      });
+      // D22 allows one emoji: one it refuses as an icon only costs the icon, never the group.
+      if (!created.ok && emoji !== null && created.error.code === "InvalidCategoryIcon") {
+        return idOf(await sources.createCategoryGroup(input));
+      }
+      return idOf(created);
+    },
+    archiveCategoryGroup: async (input) => done(await sources.archiveCategoryGroup(input)),
+    restoreCategoryGroup: async (input) => done(await sources.restoreCategoryGroup(input)),
+    usedCategoryIds: async (spaceId) =>
+      new Set(
+        [...(await sources.usageCounts.usageCountsOf(spaceId))].filter(([, n]) => n > 0).map(([id]) => id),
+      ),
     createCategory: async ({ emoji, ...input }) => {
       const created = await sources.createCategory({
         ...input,

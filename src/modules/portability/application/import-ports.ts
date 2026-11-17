@@ -34,8 +34,11 @@ export interface ImportBatchRepository {
   removeSnapshotsSettledBefore(before: Date): Promise<number>;
 }
 
-/** What a link points at; a PERSON link (P337) points a Persona's source account at its direct space. */
-export type ImportEntityType = "ACCOUNT" | "CATEGORY" | "MOVEMENT" | "PERSON";
+/**
+ * What a link points at; a PERSON link (P337) points a Persona's source account at its direct space, and a
+ * CATEGORY_GROUP link a top-level source category at the group it became.
+ */
+export type ImportEntityType = "ACCOUNT" | "CATEGORY" | "CATEGORY_GROUP" | "MOVEMENT" | "PERSON";
 
 export interface ImportLink {
   readonly spaceId: string;
@@ -147,8 +150,20 @@ export interface ImportWriter {
   archiveAccount(input: { spaceId: string; userId: string; accountId: string }): Promise<Result<void>>;
   restoreAccount(input: { spaceId: string; userId: string; accountId: string }): Promise<Result<void>>;
   restoreCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
-  createCategoryGroup(input: { spaceId: string; userId: string; name: string }): Promise<Result<string>>;
+  /** P337: a group named as the source category, its emoji as the icon (dropped when the module refuses it). */
+  createCategoryGroup(input: {
+    spaceId: string;
+    userId: string;
+    name: string;
+    emoji: string | null;
+  }): Promise<Result<string>>;
   archiveCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
+  /** P337: archives a group with its categories. */
+  archiveCategoryGroup(input: { spaceId: string; userId: string; groupId: string }): Promise<Result<void>>;
+  /** P337: brings an archived group back with the categories archiving it took. */
+  restoreCategoryGroup(input: { spaceId: string; userId: string; groupId: string }): Promise<Result<void>>;
+  /** P337: the categories a live movement of the space names (D8: deleted movements do not count), in one read. */
+  usedCategoryIds(spaceId: string): Promise<ReadonlySet<string>>;
   /**
    * P337, P338: a DIRECT space between the importer and a new guest named `guestName`, created as a split creates one
    * (HU-E1-13, its categories seeded in `locale`). Answers the space's id.

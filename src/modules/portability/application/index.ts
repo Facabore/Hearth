@@ -11,12 +11,10 @@ export type {
   SourceSnapshot,
 } from "../domain/source-snapshot";
 export { accountTypeForGroup } from "../domain/account-type-map";
-export { matchCatalog, splitLeadingEmoji, type CatalogMatch } from "../domain/category-match";
+export { splitLeadingEmoji } from "../domain/leading-emoji";
 export {
   previewImport,
   type AccountProposal,
-  type CategoryProposal,
-  type CategoryProposalTarget,
   type ExistingMovement,
   type ImportPreview,
   type PreviewOptions,
@@ -37,7 +35,6 @@ export {
 export type { ExportDocument } from "../domain/export-document";
 export type {
   AccountMapping,
-  CategoryMapping,
   CreatedEntities,
   ImportBatch,
   ImportCounts,
@@ -63,7 +60,13 @@ export type {
   MovementTime,
   SnapshotReader,
 } from "./import-ports";
-export type { ImportAccountView, ImportCategoryView, ImportView } from "./import-view";
+export type {
+  ImportAccountView,
+  ImportCategoriesView,
+  ImportCategoryGroupView,
+  ImportCategoryView,
+  ImportView,
+} from "./import-view";
 export {
   createAuthorizeImport,
   createStartImport,

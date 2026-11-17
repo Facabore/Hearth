@@ -1117,6 +1117,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       archiveAccount: createArchiveAccount(accountsDeps),
       restoreAccount: createRestoreAccount(accountsDeps),
       createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
+      archiveCategoryGroup: createArchiveCategoryGroup(categoriesDeps),
+      restoreCategoryGroup: createRestoreCategoryGroup(categoriesDeps),
       createCategory: createCreateCategory(categoriesDeps),
       archiveCategory: createArchiveCategory(categoriesDeps),
       restoreCategory: createRestoreCategory(categoriesDeps),

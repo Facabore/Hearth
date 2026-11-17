@@ -12,7 +12,7 @@ import {
 import { MAX_IMPORT_BYTES, type SourceAdapter, type SourceFile } from "../application/source-adapter";
 import { moneyFromDecimal, moneyFromFloat } from "../domain/amounts";
 import { accountTypeForGroup, LOAN_GROUP_TYPE } from "../domain/account-type-map";
-import { splitLeadingEmoji } from "../domain/category-match";
+import { splitLeadingEmoji } from "../domain/leading-emoji";
 import type {
   SourceAccount,
   SourceBudget,

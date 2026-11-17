@@ -14,7 +14,7 @@ import { useToast } from "@/shared/ui/molecules/toast";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { importHistoryQuery, importKeys, importPreviewQuery, isDraftQuery } from "../portability/queries";
-import { accountsQuery, categoriesQuery } from "../reads";
+import { accountsQuery } from "../reads";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
 
@@ -121,24 +121,15 @@ export function ImportAccountsRoute() {
   );
 }
 
-/** D28, board 5: where each of the file's categories goes. */
+/** D28, P337, board 4: the file's categories as they come, and whether the unused seeded ones are archived. */
 export function ImportCategoriesRoute() {
   useTitle(useTranslations("portability.categories")("title"));
   const { spaceId, importId } = categories.useParams();
   const { api } = useApis();
   const { personal, reviewHref, formats } = useImportPlace(spaceId, importId);
   const preview = useSuspenseQuery(importPreviewQuery(api, personal.id, importId)).data;
-  const groups = useSuspenseQuery(categoriesQuery(api, personal.id, "all")).data;
   const draft = useDraft(personal.id, importId);
-  return (
-    <ImportCategoriesScreen
-      backHref={reviewHref}
-      preview={preview}
-      groups={groups}
-      formats={formats}
-      draft={draft}
-    />
-  );
+  return <ImportCategoriesScreen backHref={reviewHref} preview={preview} formats={formats} draft={draft} />;
 }
 
 /**

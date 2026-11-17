@@ -16391,6 +16391,12 @@
                                     "minimum": -9007199254740991,
                                     "maximum": 9007199254740991,
                                     "description": "P337: accounts created or restored for Archivar and archived once their movements were in."
+                                  },
+                                  "hearthCategoriesArchived": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991,
+                                    "description": "P337: seeded groups and categories no movement used, archived (\"Archivar las de Hearth que no uses\")."
                                   }
                                 },
                                 "required": [
@@ -16405,7 +16411,8 @@
                                   "adjustmentsNotImported",
                                   "rowErrors",
                                   "peopleCreated",
-                                  "accountsArchived"
+                                  "accountsArchived",
+                                  "hearthCategoriesArchived"
                                 ],
                                 "additionalProperties": false
                               },
@@ -16483,7 +16490,7 @@
       "patch": {
         "operationId": "adjustImport",
         "summary": "Change a draft's mappings, time zone or included duplicates, and get its new preview",
-        "description": "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).",
+        "description": "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). Categories are not mapped one by one (P337): they come as the file has them; archiveUnusedCategories says whether the confirm archives the seeded ones no movement uses.",
         "security": [
           {
             "cookieAuth": []
@@ -16658,67 +16665,9 @@
                       "type": "object"
                     }
                   },
-                  "categories": {
-                    "type": "object",
-                    "propertyNames": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 200
-                    },
-                    "additionalProperties": {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "existing"
-                            },
-                            "categoryId": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 64
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "categoryId"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "kind": {
-                              "type": "string",
-                              "const": "new"
-                            },
-                            "groupId": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 64
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ],
-                              "description": "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to."
-                            },
-                            "name": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 60
-                            }
-                          },
-                          "required": [
-                            "kind",
-                            "groupId"
-                          ]
-                        }
-                      ],
-                      "type": "object"
-                    }
+                  "archiveUnusedCategories": {
+                    "description": "P337, \"Archivar las de Hearth que no uses\": whether the confirm archives the seeded groups and categories no movement uses (on by default).",
+                    "type": "boolean"
                   },
                   "includeDuplicates": {
                     "description": "Every likely duplicate to import anyway; replaces the list the draft has.",
@@ -16804,7 +16753,7 @@
       "post": {
         "operationId": "confirmImport",
         "summary": "Import a draft into the ledger, in one transaction",
-        "description": "Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
+        "description": "Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. Each top-level category becomes a group (one of the same name is reused, restored if archived) with its subcategories as categories, in the file's order; with archiveUnusedCategories, the seeded groups and categories no movement uses are archived. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
         "security": [
           {
             "cookieAuth": []
@@ -16926,6 +16875,12 @@
                               "minimum": -9007199254740991,
                               "maximum": 9007199254740991,
                               "description": "P337: accounts created or restored for Archivar and archived once their movements were in."
+                            },
+                            "hearthCategoriesArchived": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "P337: seeded groups and categories no movement used, archived (\"Archivar las de Hearth que no uses\")."
                             }
                           },
                           "required": [
@@ -16940,7 +16895,8 @@
                             "adjustmentsNotImported",
                             "rowErrors",
                             "peopleCreated",
-                            "accountsArchived"
+                            "accountsArchived",
+                            "hearthCategoriesArchived"
                           ],
                           "additionalProperties": false
                         },
@@ -17047,7 +17003,7 @@
       "post": {
         "operationId": "undoImport",
         "summary": "Undo a confirmed import",
-        "description": "Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests) and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
+        "description": "Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests), restores the seeded groups and categories it archived, and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
         "security": [
           {
             "cookieAuth": []
@@ -17103,6 +17059,18 @@
                       "type": "integer",
                       "minimum": -9007199254740991,
                       "maximum": 9007199254740991
+                    },
+                    "categoryGroupsArchived": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "P337: groups the import created or restored, left with no live category, archived again."
+                    },
+                    "hearthCategoriesRestored": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "P337: seeded groups and categories the import had archived, restored."
                     }
                   },
                   "required": [
@@ -17110,7 +17078,9 @@
                     "status",
                     "movementsDeleted",
                     "accountsArchived",
-                    "categoriesArchived"
+                    "categoriesArchived",
+                    "categoryGroupsArchived",
+                    "hearthCategoriesRestored"
                   ],
                   "additionalProperties": false
                 }
@@ -20537,112 +20507,134 @@
             }
           },
           "categories": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "sourceId": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "icon": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "INCOME",
-                    "EXPENSE"
-                  ]
-                },
-                "parentSourceId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "archived": {
-                  "type": "boolean"
-                },
-                "catalogKey": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
-                },
-                "mapping": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "existing"
-                        },
-                        "categoryId": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 64
-                        }
-                      },
-                      "required": [
-                        "kind",
-                        "categoryId"
-                      ],
-                      "additionalProperties": false
+            "type": "object",
+            "properties": {
+              "groups": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
                     },
-                    {
+                    "icon": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "target": {
+                      "type": "string",
+                      "enum": [
+                        "new",
+                        "existing"
+                      ],
+                      "description": "existing: a group of the same name (or one an earlier import made), restored when archived."
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "sourceId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "icon": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "target": {
+                            "type": "string",
+                            "enum": [
+                              "new",
+                              "existing"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "sourceId",
+                          "name",
+                          "icon",
+                          "target"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "icon",
+                    "target",
+                    "categories"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "archiveUnusedCategories": {
+                "type": "boolean"
+              },
+              "unusedSeeded": {
+                "type": "object",
+                "properties": {
+                  "groups": {
+                    "type": "array",
+                    "items": {
                       "type": "object",
                       "properties": {
-                        "kind": {
-                          "type": "string",
-                          "const": "new"
-                        },
-                        "groupId": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 64
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "description": "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to."
+                        "id": {
+                          "type": "string"
                         },
                         "name": {
-                          "description": "Absent only for a subcategory that merges into what its parent maps to.",
                           "type": "string"
                         }
                       },
                       "required": [
-                        "kind",
-                        "groupId"
+                        "id",
+                        "name"
                       ],
                       "additionalProperties": false
                     }
-                  ],
-                  "type": "object"
-                }
-              },
-              "required": [
-                "sourceId",
-                "name",
-                "icon",
-                "kind",
-                "parentSourceId",
-                "archived",
-                "catalogKey",
-                "mapping"
-              ],
-              "additionalProperties": false
-            }
+                  },
+                  "categories": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "groups",
+                  "categories"
+                ],
+                "additionalProperties": false,
+                "description": "The seeded groups and categories no movement uses: what archiveUnusedCategories archives."
+              }
+            },
+            "required": [
+              "groups",
+              "archiveUnusedCategories",
+              "unusedSeeded"
+            ],
+            "additionalProperties": false,
+            "description": "P337: each top-level Money Manager category as a group, in the file's order, with its subcategories as its categories (or one category of its own name)."
           },
           "duplicates": {
             "type": "array",

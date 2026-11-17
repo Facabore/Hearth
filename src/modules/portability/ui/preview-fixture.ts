@@ -72,48 +72,42 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       mapping: { kind: "new", type: "BANK", currency: "USD", name: "Cuenta en dólares (Money Manager)" },
     },
   ],
-  categories: [
-    {
-      sourceId: "c-food",
-      name: "Food",
-      icon: "🍜",
-      kind: "EXPENSE",
-      parentSourceId: null,
-      archived: false,
-      catalogKey: "groceries",
-      mapping: { kind: "existing", categoryId: "cat-mercado" },
+  // P337, board 4: each top-level category a group, its subcategories its categories; Salary lands on a group the
+  // person has, and nothing of Hearth's is used but Mercado.
+  categories: {
+    groups: [
+      {
+        name: "Food",
+        icon: "🍜",
+        target: "new",
+        categories: [
+          { sourceId: "c-lunch", name: "Lunch", icon: "🍜", target: "new" },
+          { sourceId: "c-delivery", name: "Domicilio", icon: "🍜", target: "new" },
+        ],
+      },
+      {
+        name: "Pets",
+        icon: "🐶",
+        target: "new",
+        categories: [{ sourceId: "c-pets", name: "Pets", icon: "🐶", target: "new" }],
+      },
+      {
+        name: "Salary",
+        icon: "💰",
+        target: "existing",
+        categories: [{ sourceId: "c-salary", name: "Salary", icon: "💰", target: "existing" }],
+      },
+    ],
+    archiveUnusedCategories: true,
+    unusedSeeded: {
+      groups: [
+        { id: "grp-vivienda", name: "Vivienda" },
+        { id: "grp-alimentacion", name: "Alimentación" },
+        { id: "grp-salud", name: "Salud" },
+      ],
+      categories: [],
     },
-    {
-      sourceId: "c-delivery",
-      name: "Domicilio",
-      icon: null,
-      kind: "EXPENSE",
-      parentSourceId: "c-food",
-      archived: false,
-      catalogKey: null,
-      mapping: { kind: "new", groupId: null, name: "Domicilio" },
-    },
-    {
-      sourceId: "c-misc",
-      name: "Varios",
-      icon: "🧺",
-      kind: "EXPENSE",
-      parentSourceId: null,
-      archived: false,
-      catalogKey: null,
-      mapping: { kind: "new", groupId: "grp-otros", name: "Varios" },
-    },
-    {
-      sourceId: "c-salary",
-      name: "Salary",
-      icon: "💰",
-      kind: "INCOME",
-      parentSourceId: null,
-      archived: false,
-      catalogKey: "salary",
-      mapping: { kind: "existing", categoryId: "cat-salario" },
-    },
-  ],
+  },
   duplicates: ["m-7", "m-8", "m-9"],
   includeDuplicates: [],
   plan: {
@@ -228,6 +222,7 @@ export const resultFixture = (overrides: Partial<ImportResultDto> = {}): ImportR
     rowErrors: 0,
     peopleCreated: 0,
     accountsArchived: 0,
+    hearthCategoriesArchived: 0,
   },
   rowErrors: [],
   ...overrides,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { localDate, Money, type LocalDate } from "@/shared/kernel";
 import {
   accountOptionsOf,
+  categoryLinksOf,
   checkMappings,
   freeName,
   proposeMappings,
@@ -147,6 +148,8 @@ const noLinks: PriorLinks = {
   categories: new Map(),
   undoneAccounts: new Map(),
   undoneCategories: new Map(),
+  groups: new Map(),
+  undoneGroups: new Map(),
 };
 
 describe("proposeMappings (design §2.1, §2.2, §3.3)", () => {
@@ -167,17 +170,11 @@ describe("proposeMappings (design §2.1, §2.2, §3.3)", () => {
     });
   });
 
-  it("maps a built-in category to its catalog category, merges a subcategory of the same name, and puts the rest in Otros", () => {
-    expect(mappings.categories).toEqual({
-      "c-food": { kind: "existing", categoryId: "h-groceries" },
-      "c-sub": { kind: "existing", categoryId: "h-super" },
-      "c-guitar": { kind: "new", groupId: "g-other", name: "Guitarra" },
-    });
-  });
-
   it("starts in the given zone with no duplicate included", () => {
     expect(mappings.timeZone).toBe("America/Bogota");
     expect(mappings.includeDuplicates).toEqual([]);
+    // P337: categories are not mapped one by one; archiving the seeded ones no movement uses starts on.
+    expect(mappings.archiveUnusedCategories).toBe(true);
   });
 });
 
@@ -222,18 +219,6 @@ describe("proposals a confirm can use as they are (design §3.3)", () => {
       name: "Efectivo (Money Manager)",
     });
   });
-
-  it("puts new categories in the import's own group (groupId null) when the space has no live group", () => {
-    const mappings = proposeMappings(
-      snapshot,
-      { accounts: [], groups: [], categories: [] },
-      noLinks,
-      "UTC",
-      "COP",
-    );
-    expect(mappings.categories["c-guitar"]).toEqual({ kind: "new", groupId: null, name: "Guitarra" });
-    expect(mappings.categories["c-sub"]).toEqual({ kind: "new", groupId: null, name: "Supermercado" });
-  });
 });
 
 describe("freeName", () => {
@@ -259,11 +244,6 @@ describe("checkMappings (design §3.2)", () => {
     ...proposed,
     accounts: { ...proposed.accounts, [sourceId]: mapping },
   });
-  const withCategory = (sourceId: string, mapping: (typeof proposed.categories)[string]) => ({
-    ...proposed,
-    categories: { ...proposed.categories, [sourceId]: mapping },
-  });
-
   it("takes the proposals as they are", () => {
     expect(reasonOf(proposed)).toBe("ok");
   });
@@ -276,14 +256,6 @@ describe("checkMappings (design §3.2)", () => {
       "InvalidImportMapping",
       "mappingRequired",
       "a-cash",
-    ]);
-    const withoutSub = Object.fromEntries(
-      Object.entries(proposed.categories).filter(([id]) => id !== "c-sub"),
-    );
-    expect(reasonOf({ ...proposed, categories: withoutSub })).toEqual([
-      "InvalidImportMapping",
-      "mappingRequired",
-      "c-sub",
     ]);
     expect(reasonOf(withAccount("nope", proposed.accounts["a-cash"]!))).toEqual([
       "InvalidImportMapping",
@@ -304,16 +276,6 @@ describe("checkMappings (design §3.2)", () => {
       "InvalidImportMapping",
       "currencyMismatch",
       "a-usd",
-    ]);
-    expect(reasonOf(withCategory("c-food", { kind: "existing", categoryId: "gone" }))).toEqual([
-      "InvalidImportMapping",
-      "categoryNotFound",
-      "c-food",
-    ]);
-    expect(reasonOf(withCategory("c-guitar", { kind: "new", groupId: "gone" }))).toEqual([
-      "InvalidImportMapping",
-      "groupNotFound",
-      "c-guitar",
     ]);
     expect(reasonOf({ ...proposed, includeDuplicates: ["m-nope"] })).toEqual([
       "InvalidImportMapping",
@@ -471,5 +433,26 @@ describe("what each account is (P337, board 1)", () => {
     expect(usd.ok ? null : usd.error.details?.reason).toBe("currencyMismatch");
     const taken = into({ kind: "archive", accountId: null, type: "BANK", currency: "COP", name: "Efectivo" });
     expect(taken.ok && taken.value.accounts["a-old"]).toMatchObject({ name: "Efectivo (Money Manager)" });
+  });
+});
+
+describe("categoryLinksOf (P337)", () => {
+  it("follows a standing import's link over an undone one's, for groups and categories", () => {
+    const links = categoryLinksOf({
+      ...noLinks,
+      groups: new Map([["c-food", "g-live"]]),
+      undoneGroups: new Map([
+        ["c-food", "g-undone"],
+        ["c-pets", "g-pets"],
+      ]),
+      undoneCategories: new Map([["c-lunch", "h-lunch"]]),
+    });
+    expect(links.groups).toEqual(
+      new Map([
+        ["c-food", "g-live"],
+        ["c-pets", "g-pets"],
+      ]),
+    );
+    expect(links.categories).toEqual(new Map([["c-lunch", "h-lunch"]]));
   });
 });

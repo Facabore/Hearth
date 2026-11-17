@@ -12,7 +12,7 @@ import type {
   AccountMapping,
   ImportAccountView,
   SourceIssue,
-  ImportCategoryView,
+  ImportCategoriesView,
   ImportResult,
   ImportSummary,
   ImportView,
@@ -34,11 +34,6 @@ const CURRENCY = z.string().regex(/^[A-Z]{3}$/, { error: "Currency must be an IS
 const NAME = z.string().trim().min(1).max(60);
 
 const ExistingAccountSchema = z.object({ kind: z.literal("existing"), accountId: IdSchema });
-const ExistingCategorySchema = z.object({ kind: z.literal("existing"), categoryId: IdSchema });
-const GROUP_ID = IdSchema.nullable().describe(
-  "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to.",
-);
-
 const ARCHIVE_INTO = IdSchema.nullable().describe(
   "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it.",
 );
@@ -68,11 +63,6 @@ const AccountMappingInputSchema = z.discriminatedUnion("kind", [
       "P337, Persona: someone who owes the caller or whom they owe, a guest in the pair's direct space; never an account.",
     ),
 ]);
-const CategoryMappingInputSchema = z.discriminatedUnion("kind", [
-  ExistingCategorySchema,
-  z.object({ kind: z.literal("new"), groupId: GROUP_ID, name: NAME.optional() }),
-]);
-
 /**
  * A mapping as the preview answers it: a new record's `name` is the one the confirm will use, which no record of its
  * scope holds (archived ones included); it differs from the source's name when that one is taken.
@@ -104,18 +94,6 @@ const AccountOptionSchema = z.discriminatedUnion("kind", [
 ]);
 
 const DISPOSITIONS = ["ACCOUNT", "PERSON", "ARCHIVE"] as const;
-const CategoryMappingSchema = z.discriminatedUnion("kind", [
-  ExistingCategorySchema,
-  z.object({
-    kind: z.literal("new"),
-    groupId: GROUP_ID,
-    name: z
-      .string()
-      .optional()
-      .describe("Absent only for a subcategory that merges into what its parent maps to."),
-  }),
-]);
-
 const SourceKeySchema = z.string().min(1).max(200);
 
 /** Design §3.2: the person's changes to a draft; each one left out keeps what the draft has. */
@@ -123,7 +101,12 @@ export const AdjustImportBodySchema = z
   .object({
     timeZone: z.string().min(1).max(64).optional(),
     accounts: z.record(SourceKeySchema, AccountMappingInputSchema).optional(),
-    categories: z.record(SourceKeySchema, CategoryMappingInputSchema).optional(),
+    archiveUnusedCategories: z
+      .boolean()
+      .optional()
+      .describe(
+        'P337, "Archivar las de Hearth que no uses": whether the confirm archives the seeded groups and categories no movement uses (on by default).',
+      ),
     includeDuplicates: z
       .array(SourceKeySchema)
       .max(100_000)
@@ -165,7 +148,16 @@ const CountsSchema = z.object({
     .number()
     .int()
     .describe("P337: accounts created or restored for Archivar and archived once their movements were in."),
+  hearthCategoriesArchived: z
+    .number()
+    .int()
+    .describe(
+      'P337: seeded groups and categories no movement used, archived ("Archivar las de Hearth que no uses").',
+    ),
 });
+
+const TARGET = z.enum(["new", "existing"]);
+const NAMED = z.object({ id: z.string(), name: z.string() });
 
 const STATUS = z.enum(["DRAFT", "CONFIRMED", "UNDONE"]);
 
@@ -219,18 +211,35 @@ export const ImportPreviewSchema = z
         mapping: AccountMappingSchema,
       }),
     ),
-    categories: z.array(
-      z.object({
-        sourceId: z.string(),
-        name: z.string(),
-        icon: z.string().nullable(),
-        kind: z.enum(["INCOME", "EXPENSE"]),
-        parentSourceId: z.string().nullable(),
-        archived: z.boolean(),
-        catalogKey: z.string().nullable(),
-        mapping: CategoryMappingSchema,
-      }),
-    ),
+    categories: z
+      .object({
+        groups: z.array(
+          z.object({
+            name: z.string(),
+            icon: z.string().nullable(),
+            target: TARGET.describe(
+              "existing: a group of the same name (or one an earlier import made), restored when archived.",
+            ),
+            categories: z.array(
+              z.object({
+                sourceId: z.string(),
+                name: z.string(),
+                icon: z.string().nullable(),
+                target: TARGET,
+              }),
+            ),
+          }),
+        ),
+        archiveUnusedCategories: z.boolean(),
+        unusedSeeded: z
+          .object({ groups: z.array(NAMED), categories: z.array(NAMED) })
+          .describe(
+            "The seeded groups and categories no movement uses: what archiveUnusedCategories archives.",
+          ),
+      })
+      .describe(
+        "P337: each top-level Money Manager category as a group, in the file's order, with its subcategories as its categories (or one category of its own name).",
+      ),
     duplicates: z
       .array(z.string())
       .describe("Source keys of likely duplicates of movements already in Hearth."),
@@ -261,6 +270,14 @@ export const UndoneImportSchema = z.object({
   movementsDeleted: z.number().int(),
   accountsArchived: z.number().int(),
   categoriesArchived: z.number().int(),
+  categoryGroupsArchived: z
+    .number()
+    .int()
+    .describe("P337: groups the import created or restored, left with no live category, archived again."),
+  hearthCategoriesRestored: z
+    .number()
+    .int()
+    .describe("P337: seeded groups and categories the import had archived, restored."),
 });
 
 export const ImportHistorySchema = z.object({
@@ -327,15 +344,18 @@ const accountDto = (a: ImportAccountView): PreviewDto["accounts"][number] => ({
   mapping: accountMappingDto(a.mapping, a.name),
 });
 
-const categoryDto = (c: ImportCategoryView): PreviewDto["categories"][number] => ({
-  sourceId: c.sourceId,
-  name: c.name,
-  icon: c.icon,
-  kind: c.kind,
-  parentSourceId: c.parentSourceId,
-  archived: c.archived,
-  catalogKey: c.catalogKey,
-  mapping: c.mapping,
+const categoriesDto = (c: ImportCategoriesView): PreviewDto["categories"] => ({
+  groups: c.groups.map((g) => ({
+    name: g.name,
+    icon: g.icon,
+    target: g.target,
+    categories: g.categories.map((category) => ({ ...category })),
+  })),
+  archiveUnusedCategories: c.archiveUnusedCategories,
+  unusedSeeded: {
+    groups: c.unusedSeeded.groups.map((g) => ({ ...g })),
+    categories: c.unusedSeeded.categories.map((category) => ({ ...category })),
+  },
 });
 
 const issueDto = (issue: SourceIssue) => ({
@@ -354,7 +374,7 @@ export const importPreviewDto = (view: ImportView): PreviewDto => ({
   counts: { ...view.counts },
   dateRange: view.dateRange === null ? null : { first: view.dateRange.first, last: view.dateRange.last },
   accounts: view.accounts.map(accountDto),
-  categories: view.categories.map(categoryDto),
+  categories: categoriesDto(view.categories),
   duplicates: [...view.duplicates],
   includeDuplicates: [...view.includeDuplicates],
   plan: { ...view.plan, alreadyImported: [...view.plan.alreadyImported] },
@@ -440,7 +460,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "adjustImport",
       summary: "Change a draft's mappings, time zone or included duplicates, and get its new preview",
       description:
-        "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).",
+        "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). Categories are not mapped one by one (P337): they come as the file has them; archiveUnusedCategories says whether the confirm archives the seeded ones no movement uses.",
       ...securedByUser,
       requestParams: { path: ImportPath },
       requestBody: { content: jsonContent(AdjustImportBodySchema) },
@@ -460,7 +480,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "confirmImport",
       summary: "Import a draft into the ledger, in one transaction",
       description:
-        "Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
+        "Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. Each top-level category becomes a group (one of the same name is reused, restored if archived) with its subcategories as categories, in the file's order; with archiveUnusedCategories, the seeded groups and categories no movement uses are archived. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
       ...securedByUser,
       requestParams: { path: ImportPath, header: IdempotencyHeader },
       responses: {
@@ -480,7 +500,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "undoImport",
       summary: "Undo a confirmed import",
       description:
-        "Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests) and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
+        "Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests), restores the seeded groups and categories it archived, and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
       ...securedByUser,
       requestParams: { path: ImportPath },
       responses: {

@@ -4,7 +4,6 @@ import { personNameOf } from "../domain/account-dispositions";
 import {
   confirmBatch,
   draftSnapshot,
-  IMPORT_GROUP_NAME,
   targetAccountOf,
   type CreatedEntities,
   type ImportBatch,
@@ -12,8 +11,14 @@ import {
   type ImportMappings,
 } from "../domain/import-batch";
 import { openingKeyOf, planImport } from "../domain/import-plan";
-import { checkMappings, importGroupOf, type HearthTargets } from "../domain/mapping-proposals";
-import type { SourceAccount, SourceIssue, SourceMovement, SourceSnapshot } from "../domain/source-snapshot";
+import {
+  planCategoryGroups,
+  unusedSeeded,
+  type PlannedCategory,
+  type PlannedGroup,
+} from "../domain/category-groups";
+import { categoryLinksOf, checkMappings, type HearthTargets } from "../domain/mapping-proposals";
+import type { SourceAccount, SourceIssue, SourceMovement } from "../domain/source-snapshot";
 import { authorizeImporter, ownBatch, priorLinksFor } from "./import-access";
 import type { ImportDeps, ImportLink, ImportWriter, MovementTime } from "./import-ports";
 import { knownFor } from "./import-view";
@@ -244,67 +249,113 @@ const touchedBy = (movements: readonly SourceMovement[]): Set<string> =>
     ]),
   );
 
+/** P337: where each source category landed, and every group and category of the space the plan landed on. */
+interface ResolvedCategories {
+  readonly categories: Map<string, string>;
+  /** Each top-level source category's group. */
+  readonly groups: Map<string, string>;
+  readonly landed: { readonly groups: Set<string>; readonly categories: Set<string> };
+}
+
 /**
- * The categories the import creates (under their settled names), restores and maps to (design §2.2), parents first;
- * all or nothing. A new top-level category with no group goes in the import's own group, found or created once. A
- * subcategory whose parent maps to a subcategory merges into that one, since Hearth has three levels (D20).
+ * P337: the person's Money Manager categories as they had them (`planCategoryGroups`), in the plan's order: each group
+ * created (with its top-level category's emoji) or reused, restored when archived, then its categories created or
+ * reused the same way; two sources planned on one new category share it. All or nothing: a refusal names the source.
  */
-const resolveCategories = async (
+const resolveCategoryGroups = async (
   deps: Pick<ImportDeps, "writer">,
   input: { spaceId: string; userId: string },
-  snapshot: SourceSnapshot,
-  mappings: ImportMappings,
-  targets: HearthTargets,
-  brought: Brought,
-): Promise<Result<Resolved["categories"]>> => {
-  const categories = new Map<string, string>();
-  const isSubcategory = new Map(targets.categories.map((c) => [c.id, c.parentCategoryId !== null]));
-  let importGroup = importGroupOf(targets.groups)?.id;
-  const ordered = [
-    ...snapshot.categories.filter((c) => c.parentSourceId === null),
-    ...snapshot.categories.filter((c) => c.parentSourceId !== null),
-  ];
-  for (const category of ordered) {
-    const mapping = mappings.categories[category.sourceId]!;
-    if (mapping.kind === "existing") {
-      const target = targets.categories.find((c) => c.id === mapping.categoryId)!;
-      if (target.archived) {
-        const restored = await deps.writer.restoreCategory({ ...input, categoryId: target.id });
-        if (!restored.ok) return about(category.sourceId, restored.error);
-        brought.restored.push(target.id);
+  plan: readonly PlannedGroup[],
+  brought: { readonly groups: Brought; readonly categories: Brought },
+): Promise<Result<ResolvedCategories>> => {
+  const resolved: ResolvedCategories = {
+    categories: new Map(),
+    groups: new Map(),
+    landed: { groups: new Set(), categories: new Set() },
+  };
+  for (const group of plan) {
+    const about0 = (error: DomainError) => about(group.sourceIds[0]!, error);
+    let groupId: string;
+    if (group.target.kind === "existing") {
+      groupId = group.target.groupId;
+      if (group.target.archived) {
+        const restored = await deps.writer.restoreCategoryGroup({ ...input, groupId });
+        if (!restored.ok) return about0(restored.error);
+        brought.groups.restored.push(groupId);
       }
-      categories.set(category.sourceId, target.id);
-      continue;
-    }
-    let placement: { groupId: string } | { parentCategoryId: string };
-    if (category.parentSourceId === null) {
-      if (mapping.groupId === null && importGroup === undefined) {
-        const group = await deps.writer.createCategoryGroup({ ...input, name: IMPORT_GROUP_NAME });
-        if (!group.ok) return about(category.sourceId, group.error);
-        importGroup = group.value;
-      }
-      placement = { groupId: mapping.groupId ?? importGroup! };
     } else {
-      const parentId = categories.get(category.parentSourceId);
-      if (parentId === undefined) return about(category.sourceId, domainError("CategoryNotFound"));
-      if (isSubcategory.get(parentId) === true) {
-        categories.set(category.sourceId, parentId);
-        continue;
-      }
-      placement = { parentCategoryId: parentId };
+      const created = await deps.writer.createCategoryGroup({
+        ...input,
+        name: group.target.name,
+        emoji: group.icon,
+      });
+      if (!created.ok) return about0(created.error);
+      groupId = created.value;
+      brought.groups.created.push(groupId);
     }
-    const id = await deps.writer.createCategory({
-      ...input,
-      ...placement,
-      name: mapping.name ?? category.name,
-      emoji: "groupId" in placement ? category.icon : null,
-    });
-    if (!id.ok) return about(category.sourceId, id.error);
-    brought.created.push(id.value);
-    isSubcategory.set(id.value, "parentCategoryId" in placement);
-    categories.set(category.sourceId, id.value);
+    resolved.landed.groups.add(groupId);
+    for (const sourceId of group.sourceIds) resolved.groups.set(sourceId, groupId);
+
+    const made = new Map<PlannedCategory["target"], string>();
+    for (const category of group.categories) {
+      const { target } = category;
+      let categoryId = made.get(target);
+      if (categoryId === undefined && target.kind === "existing") {
+        categoryId = target.categoryId;
+        // Restoring is idempotent: one the group's restore brought back already stays as it is.
+        if (target.archived) {
+          const restored = await deps.writer.restoreCategory({ ...input, categoryId });
+          if (!restored.ok) return about(category.sourceId, restored.error);
+          brought.categories.restored.push(categoryId);
+        }
+      } else if (categoryId === undefined && target.kind === "new") {
+        const created = await deps.writer.createCategory({
+          ...input,
+          groupId,
+          name: target.name,
+          emoji: category.icon,
+        });
+        if (!created.ok) return about(category.sourceId, created.error);
+        categoryId = created.value;
+        brought.categories.created.push(categoryId);
+      }
+      made.set(target, categoryId!);
+      resolved.landed.categories.add(categoryId!);
+      resolved.categories.set(category.sourceId, categoryId!);
+    }
   }
-  return ok(categories);
+  return ok(resolved);
+};
+
+/**
+ * P337, "Archivar las de Hearth que no uses": once every movement is in, the seeded groups and categories no live
+ * movement uses and the plan did not land on are archived, groups whole. Answers what it archived, a category's
+ * subcategories after it, so an undo restores them in that order.
+ */
+const archiveUnusedSeeded = async (
+  deps: Pick<ImportDeps, "writer">,
+  input: { spaceId: string; userId: string },
+  landed: ResolvedCategories["landed"],
+): Promise<Result<{ groups: string[]; categories: string[]; count: number }>> => {
+  const tree = await deps.writer.targetsOf(input.spaceId, input.userId);
+  if (!tree.ok) return tree;
+  const unused = unusedSeeded(tree.value, await deps.writer.usedCategoryIds(input.spaceId), landed);
+  for (const groupId of unused.groups) {
+    const archived = await deps.writer.archiveCategoryGroup({ ...input, groupId });
+    if (!archived.ok) return archived;
+  }
+  const categories: string[] = [];
+  for (const categoryId of unused.categories) {
+    const archived = await deps.writer.archiveCategory({ ...input, categoryId });
+    if (!archived.ok) return archived;
+    categories.push(
+      categoryId,
+      ...tree.value.categories
+        .filter((c) => c.parentCategoryId === categoryId && !c.archived)
+        .map((c) => c.id),
+    );
+  }
+  return ok({ groups: unused.groups, categories, count: unused.groups.length + unused.categories.length });
 };
 
 /** One movement through the ledger's own use case; its refusal is that row's error, never the batch's. */
@@ -381,11 +432,12 @@ export const createConfirmImport =
       if (!snapshot.ok) return snapshot;
       const targets = await deps.writer.targetsOf(space.spaceId, input.userId);
       if (!targets.ok) return targets;
+      const priorLinks = await priorLinksFor(deps, space.spaceId, snapshot.value.sourceApp);
       const mappings = checkMappings(
         snapshot.value,
         batch.value.mappings,
         targets.value,
-        await priorLinksFor(deps, space.spaceId, snapshot.value.sourceApp),
+        priorLinks,
         space.currency,
       );
       if (!mappings.ok) return mappings;
@@ -396,6 +448,7 @@ export const createConfirmImport =
       const who = { spaceId: space.spaceId, userId: input.userId };
       const accountsBrought: Brought = { created: [], restored: [] };
       const categoriesBrought: Brought = { created: [], restored: [] };
+      const groupsBrought: Brought = { created: [], restored: [] };
       const toArchive: { sourceId: string; accountId: string }[] = [];
       const opened: string[] = [];
       const movements: string[] = [];
@@ -427,18 +480,16 @@ export const createConfirmImport =
         opened,
       );
       if (!people.ok) return people;
-      const categories = await resolveCategories(
+      const categories = await resolveCategoryGroups(
         deps,
         who,
-        snapshot.value,
-        mappings.value,
-        targets.value,
-        categoriesBrought,
+        planCategoryGroups(snapshot.value, targets.value, categoryLinksOf(priorLinks)),
+        { groups: groupsBrought, categories: categoriesBrought },
       );
       if (!categories.ok) return categories;
       const resolved: Resolved = {
         accounts: accounts.value,
-        categories: categories.value,
+        categories: categories.value.categories,
         people: people.value,
       };
 
@@ -458,6 +509,7 @@ export const createConfirmImport =
       const links: ImportLink[] = [
         ...[...resolved.accounts].map(([sourceId, a]) => link(sourceId, "ACCOUNT", a.id)),
         ...[...resolved.categories].map(([sourceId, id]) => link(sourceId, "CATEGORY", id)),
+        ...[...categories.value.groups].map(([sourceId, id]) => link(sourceId, "CATEGORY_GROUP", id)),
         ...[...resolved.people].map(([sourceId, spaceId]) => link(sourceId, "PERSON", spaceId)),
         ...plan.folded.map((m) =>
           link(openingKeyOf(m.sourceKey), "ACCOUNT", resolved.accounts.get(m.accountSourceId)!.id),
@@ -501,6 +553,11 @@ export const createConfirmImport =
         const archived = await deps.writer.archiveCategory({ ...who, categoryId: id });
         if (!archived.ok) return about(category.sourceId, archived.error);
       }
+      // P337: the seeded groups and categories no movement uses, once every movement is in, unless the person said no.
+      const archivedSeeded = mappings.value.archiveUnusedCategories
+        ? await archiveUnusedSeeded(deps, who, categories.value.landed)
+        : ok({ groups: [], categories: [], count: 0 });
+      if (!archivedSeeded.ok) return archivedSeeded;
       await deps.links.upsert(links);
 
       const counts: ImportCounts = {
@@ -517,6 +574,7 @@ export const createConfirmImport =
         rowErrors: rowErrors.length,
         peopleCreated: opened.length,
         accountsArchived: toArchive.length,
+        hearthCategoriesArchived: archivedSeeded.value.count,
       };
       // What the undo reverts: every movement it recorded, and every account and category it created or restored.
       const created: CreatedEntities = {
@@ -525,6 +583,8 @@ export const createConfirmImport =
         movements,
         settlements,
         people: opened,
+        groups: [...groupsBrought.created, ...groupsBrought.restored],
+        archivedSeeded: { groups: archivedSeeded.value.groups, categories: archivedSeeded.value.categories },
       };
       const outcome = { counts, rowErrors, created };
       const confirmed = confirmBatch(batch.value, outcome, deps.clock.now());

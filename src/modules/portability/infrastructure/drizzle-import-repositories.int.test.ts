@@ -92,6 +92,9 @@ const countingWriter = (): ImportWriter & {
     archiveCategory: async () => ok(undefined),
     restoreCategory: async () => ok(undefined),
     createCategoryGroup: id,
+    archiveCategoryGroup: async () => ok(undefined),
+    restoreCategoryGroup: async () => ok(undefined),
+    usedCategoryIds: async () => new Set<string>(),
     accountInUse: async () => false,
     categoryInUse: async () => false,
   };
@@ -130,7 +133,12 @@ const batchFor = (space: SpaceFixture, overrides: Partial<ImportBatch>): ImportB
   fileSha256: "a".repeat(64),
   status: "DRAFT",
   snapshot: null,
-  mappings: { timeZone: "America/Bogota", accounts: {}, categories: {}, includeDuplicates: [] },
+  mappings: {
+    timeZone: "America/Bogota",
+    accounts: {},
+    archiveUnusedCategories: true,
+    includeDuplicates: [],
+  },
   counts: null,
   rowErrors: [],
   created: NOTHING_CREATED,

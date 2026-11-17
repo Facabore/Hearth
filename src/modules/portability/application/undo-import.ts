@@ -10,6 +10,10 @@ export interface UndoneImport {
   readonly movementsDeleted: number;
   readonly accountsArchived: number;
   readonly categoriesArchived: number;
+  /** P337: groups the import created or restored that are left with no live category, archived again. */
+  readonly categoryGroupsArchived: number;
+  /** P337: seeded groups and categories "Archivar las de Hearth que no uses" archived, restored. */
+  readonly hearthCategoriesRestored: number;
 }
 
 export type UndoImport = (input: {
@@ -23,7 +27,9 @@ export type UndoImport = (input: {
  * (D8, through the ledger's delete, which keeps the audit), then archives the categories and accounts it created that
  * no live movement uses any more; the batch becomes UNDONE and its links stop counting (design §3.3), so importing the
  * same file again brings everything back. A refusal (a movement in a closed period) undoes nothing. P337: a Persona's
- * settlements are deleted in their direct spaces too; the spaces and their guests stay.
+ * settlements are deleted in their direct spaces too; the spaces and their guests stay. The seeded groups and
+ * categories the import archived come back (groups first, with the categories archiving them took), and the groups it
+ * created or restored that no live category is left in are archived.
  */
 export const createUndoImport =
   (deps: ImportDeps): UndoImport =>
@@ -73,6 +79,36 @@ export const createUndoImport =
         if (!archived.ok) return archived;
         accountsArchived += 1;
       }
+      // P337: what "Archivar las de Hearth que no uses" archived comes back, groups first; one live already stays.
+      let hearthCategoriesRestored = 0;
+      const archivedGroups = new Set(targets.value.groups.filter((g) => g.archived).map((g) => g.id));
+      for (const groupId of created.archivedSeeded.groups) {
+        if (!archivedGroups.has(groupId)) continue;
+        const restored = await deps.writer.restoreCategoryGroup({ ...who, groupId });
+        if (!restored.ok) return restored;
+        hearthCategoriesRestored += 1;
+      }
+      const afterGroups = await deps.writer.targetsOf(who.spaceId, who.userId);
+      if (!afterGroups.ok) return afterGroups;
+      const stillArchived = new Set(afterGroups.value.categories.filter((c) => c.archived).map((c) => c.id));
+      for (const categoryId of created.archivedSeeded.categories) {
+        if (!stillArchived.has(categoryId)) continue;
+        const restored = await deps.writer.restoreCategory({ ...who, categoryId });
+        if (!restored.ok) return restored;
+        hearthCategoriesRestored += 1;
+      }
+      // P337: a group the import created or restored with no live category left goes back to the archive.
+      let categoryGroupsArchived = 0;
+      const tree = await deps.writer.targetsOf(who.spaceId, who.userId);
+      if (!tree.ok) return tree;
+      for (const groupId of created.groups) {
+        const group = tree.value.groups.find((g) => g.id === groupId);
+        if (group === undefined || group.archived) continue;
+        if (tree.value.categories.some((c) => c.groupId === groupId && !c.archived)) continue;
+        const archived = await deps.writer.archiveCategoryGroup({ ...who, groupId });
+        if (!archived.ok) return archived;
+        categoryGroupsArchived += 1;
+      }
       await deps.batches.save(undone.value);
       return ok({
         id: undone.value.id,
@@ -80,5 +116,7 @@ export const createUndoImport =
         movementsDeleted,
         accountsArchived,
         categoriesArchived,
+        categoryGroupsArchived,
+        hearthCategoriesRestored,
       });
     });

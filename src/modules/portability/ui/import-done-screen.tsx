@@ -42,6 +42,7 @@ const NONE: ImportCountsDto = {
   rowErrors: 0,
   peopleCreated: 0,
   accountsArchived: 0,
+  hearthCategoriesArchived: 0,
 };
 
 /**

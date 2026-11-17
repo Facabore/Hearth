@@ -71,7 +71,7 @@ describe("Revisar importación (D28, board 3)", () => {
       screen.getByRole("link", { name: /Cuentas.*3 · 2 nuevas, 1 ya las tienes.*Revisar/ }),
     ).toHaveAttribute("href", `${BASE}/accounts`);
     expect(
-      screen.getByRole("link", { name: /Categorías.*4 · 2 con la tuya, 2 nuevas.*Revisar/ }),
+      screen.getByRole("link", { name: /Categorías.*4 · 1 con la tuya, 3 nuevas.*Revisar/ }),
     ).toHaveAttribute("href", `${BASE}/categories`);
     expect(
       screen.getByRole("button", { name: /Zona horaria.*Bogota \(GMT-5\) · de tu perfil/ }),

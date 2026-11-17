@@ -11,7 +11,7 @@
 | 2 | Importar · Money Manager · elegir archivo | How to get the backup, the destination space, that the file is not kept |
 | 3 | Importar · revisar antes de importar | The dry run: counts, accounts and categories to review, time zone, duplicates and what is left out |
 | 4 | Importar · cuentas | Each source account to an existing or a new account, with both closing balances |
-| 5 | Importar · categorías | Proposed catalog matches, new categories and subcategories, emoji as icon |
+| 5 | Importar · categorías | Superseded by P337 board 4 "Tus categorías": each category a group with its subcategories, read-only, and "Archivar las de Hearth que no uses" |
 | 6 | Importar · listo | The result and the way to undo it |
 | 7 | Exportar mis datos | JSON or CSV, all spaces or one, what is included and what never is |
 | 8 | Cuentas · varias monedas | Each balance in its own currency, the total converted at today's rate |
@@ -109,28 +109,12 @@ and kept in Money Manager's order.
 
 ### 2.2 Categories
 
-Money Manager has two levels (category → subcategory) with a kind; Hearth has three (group → category → subcategory, D20) and no kind on categories (one category serves expenses and incomes). So a top-level Money Manager category becomes a Hearth **category**, and its subcategories become **subcategories** under it. A leading emoji becomes the category's icon (D22 allows one emoji) and leaves the name.
+Money Manager has two levels (category → subcategory) with a kind; Hearth has three (group → category → subcategory, D20) and no kind on categories (one category serves expenses and incomes). P337: the categories come as the person had them, so the person finds what they already know.
 
-The preview proposes a catalog category (P330) for each built-in Money Manager category, matched by name in English or Spanish once the emoji is removed; the person may change any line, and everything else is created new in a group the person picks (Otros by default):
-
-| Money Manager | Hearth (catalog key) |
-|---|---|
-| Food | Alimentación › Mercado (`groceries`) |
-| Social Life | Ocio › Salidas y bares (`going_out`) |
-| Pets | Mascotas › Comida y cuidado (`pet_care`) |
-| Transport | Transporte › Transporte público (`public_transport`) |
-| Culture | Ocio › Entretenimiento (`entertainment`) |
-| Household | Vivienda › Hogar y muebles (`home_goods`) |
-| Apparel | Cuidado personal › Ropa y calzado (`clothing`) |
-| Beauty | Cuidado personal › Peluquería y belleza (`beauty`) |
-| Health | Salud › Médico (`medical`) |
-| Education | Educación › Cursos y matrículas (`tuition`) |
-| Gift | Regalos y donaciones › Regalos (`gifts_given`) |
-| Other (expense) | new "Otros gastos" in Otros |
-| Salary, Bonus | Ingresos › Salario (`salary`) |
-| Allowance, Petty cash, Other (income) | Ingresos › Otros ingresos (`other_income`) |
-
-A subcategory of a category mapped onto a catalog category is created under that catalog category, or merged into a subcategory of the same name. A deleted Money Manager category is imported only when a movement still uses it, and then archived.
+- Each top-level Money Manager category becomes a Hearth **group**, named as in Money Manager, expense ones first and then income ones, each in Money Manager's order (new groups go last in the space's list, so they keep it). Its subcategories become that group's **categories**, in order. A top-level category without subcategories becomes a group with one category of the same name, picked in one tap; one with subcategories that a movement still uses directly also gets a category of its own name, first. A leading emoji becomes the group's and its categories' icon (D22 allows one emoji; one the categories module refuses only costs the icon) and leaves the name.
+- A group goes to what an earlier import of this source linked it to (a `CATEGORY_GROUP` link per top-level source category), else to a group of the space with the same name ignoring case, archived ones included (restored); a category, likewise, to its linked category, else to a category of the same name in that group. Two top-level categories of one name (an income and an expense "Others") share one group, and two categories of one name in it share one category.
+- **"Archivar las de Hearth que no uses"**, on by default (`archiveUnusedCategories`), archives once every movement is in the seeded groups (D11) no live movement uses, whole, and in a group that stays the seeded categories no movement uses; never a group or category the import lands on, and never one someone created. They can be restored (`RestoreCategoryGroup`, `RestoreCategory`); an undo restores them itself, groups first, and archives again the groups it created or restored that are left with no live category.
+- Categories are not remapped one by one any more: the catalog matching of the first Money Manager import (Food → Mercado) is gone. A deleted Money Manager category is imported only when a movement still uses it, and then archived.
 
 ### 2.3 Movements
 
@@ -201,7 +185,7 @@ The preview is the dry run: counts by kind, the date range, every account with i
 As built (#326, the write side):
 
 - An import goes into the importer's **personal space only**; any other space answers 409 `ImportRequiresPersonalSpace` (a Money Manager file is one person's money, section 2.3, and a shared space would split each expense among its members). A batch is its uploader's: anyone else's id answers 404 `ImportNotFound`.
-- The upload proposes each account's mapping, confirmable as proposed: the account an earlier import of this source linked it to in the same currency (live, or archived by an undo, which the confirm restores), else a live account of the person's with the same name and currency, else a new one. A mapped account, new or existing, must be in the source account's own currency (422 `InvalidImportMapping`, reason `currencyMismatch`), since the file's amounts are in it. Categories go to their linked category (the same way), else the catalog category their name matches when the space has it, else a live category of the same name, else a new one in Otros, or in a group "Importado de Money Manager" the confirm finds or creates when the space has no live group (`groupId: null`); a subcategory merges into a same-named subcategory of its parent's target. Every source account and category needs a mapping (`mappingRequired`).
+- The upload proposes each account's mapping, confirmable as proposed: the account an earlier import of this source linked it to in the same currency (live, or archived by an undo, which the confirm restores), else a live account of the person's with the same name and currency, else a new one. A mapped account, new or existing, must be in the source account's own currency (422 `InvalidImportMapping`, reason `currencyMismatch`), since the file's amounts are in it. Categories are not mapped one by one (P337, §2.2): they come as groups, and the draft only says whether the confirm archives the seeded ones no movement uses (`archiveUnusedCategories`, on by default). Every source account needs a mapping (`mappingRequired`).
 - A new account or category never collides on a name: when a record of its scope holds the name (archived ones included, any currency, ignoring case), the proposal and every check of the mappings name it "<name> (Money Manager)", then "… 2", and the preview shows that name in the mapping. The scope is the space for an account, the group for a top-level category, and the parent for a subcategory. A refusal that still stops the whole confirm is 409 `ImportTargetRefused`, naming the source record (`sourceId`) and the module's code (`reason`).
 - Confirm runs in one transaction under the space lock and locks the batch row, so a second confirm of the same draft waits and then answers 409 `ImportNotDraft`. A refused account or category stops the whole confirm; a refused movement (`ExchangeRateRequired` when the base amount needs a rate the date lacks, a closed period, no category) is a row error in `rowErrors` and the rest imports. A movement keeps its date, and its instant and the chosen zone when the instant falls on that date there; otherwise it is recorded with the date alone.
 - Gap G1: an adjustment on or before its account's first movement becomes that account's opening balance, only for an account the import creates (and stays there when an undone import folded it into the account it now maps to, which the confirm restores with that balance). Every other adjustment, on an existing account included, is recorded as an `ADJUSTMENT` movement (Q4, #329) through the ledger's own use case, linked by its own key, checked for duplicates and undone like any other movement. `adjustmentsNotImported` stays in the counts and is 0 in the preview; after a confirm it counts the adjustments the ledger refused, which are row errors too.

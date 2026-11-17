@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isErr, isOk, Money } from "@/shared/kernel";
 import type { LocalDate } from "@/shared/kernel";
 import { previewImport } from "./import-planner";
-import type { SourceAccount, SourceCategory, SourceMovement, SourceSnapshot } from "./source-snapshot";
+import type { SourceAccount, SourceMovement, SourceSnapshot } from "./source-snapshot";
 
 const cop = (minor: bigint): Money => {
   const money = Money.ofMinor(minor, "COP");
@@ -19,16 +19,6 @@ const account = (over: Partial<SourceAccount> & Pick<SourceAccount, "sourceId" |
   memo: null,
   hidden: false,
   excludedFromTotals: false,
-  ...over,
-});
-
-const category = (
-  over: Partial<SourceCategory> & Pick<SourceCategory, "sourceId" | "name" | "kind">,
-): SourceCategory => ({
-  icon: null,
-  parentSourceId: null,
-  deleted: false,
-  order: 0,
   ...over,
 });
 
@@ -126,26 +116,6 @@ describe("previewImport (design §3.1, §3.2)", () => {
     expect(card.cutOffDay).toBe(15);
     expect(card.paymentDay).toBe(5);
     expect(card.sourceClosingBalance.minor).toBe(-20000n);
-  });
-
-  it("proposes catalog, new and subcategory targets, and archives a used deleted category", () => {
-    const snap = snapshot({
-      categories: [
-        category({ sourceId: "food", name: "Food", kind: "EXPENSE", icon: "🍔" }),
-        category({ sourceId: "food-sub", name: "Supermercado", kind: "EXPENSE", parentSourceId: "food" }),
-        category({ sourceId: "guitar", name: "Guitarra", kind: "EXPENSE", icon: "🎸" }),
-        category({ sourceId: "old", name: "Vieja", kind: "EXPENSE", deleted: true }),
-      ],
-    });
-
-    const preview = previewImport(snap, { timeZone: "America/Bogota" });
-    if (isErr(preview)) throw new Error(preview.error.code);
-    const byId = new Map(preview.value.categories.map((c) => [c.sourceId, c]));
-    expect(byId.get("food")!.proposal).toEqual({ kind: "catalog", catalogKey: "groceries" });
-    expect(byId.get("food")!.icon).toBe("🍔");
-    expect(byId.get("food-sub")!.proposal).toEqual({ kind: "subcategory", parentSourceId: "food" });
-    expect(byId.get("guitar")!.proposal).toEqual({ kind: "new", groupKey: "other" });
-    expect(byId.get("old")!.archived).toBe(true);
   });
 
   it("lists how many budgets were left out", () => {

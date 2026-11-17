@@ -56,7 +56,7 @@ const mappings = (bank: "new" | "existing"): ImportMappings => ({
         ? { kind: "new", type: "BANK", currency: "COP" }
         : { kind: "existing", accountId: "acc-1" },
   },
-  categories: {},
+  archiveUnusedCategories: true,
   includeDuplicates: [],
 });
 

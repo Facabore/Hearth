@@ -42,24 +42,16 @@ export const createsAccount = (mapping: AccountMapping): boolean =>
 export const targetAccountOf = (mapping: AccountMapping): string | null =>
   mapping.kind === "existing" || mapping.kind === "archive" ? mapping.accountId : null;
 
-/**
- * Where a source category's movements go (design §2.2): an existing category (an archived one only when an undone
- * import of this source created it, which the confirm restores), or a new one named `name`. A new top-level category
- * goes in `groupId`, or, when it is null, in the group `IMPORT_GROUP_NAME` the confirm finds or creates; a new
- * subcategory goes under whatever its parent maps to, so its `groupId` is null.
- */
-export type CategoryMapping =
-  | { readonly kind: "existing"; readonly categoryId: string }
-  | { readonly kind: "new"; readonly groupId: string | null; readonly name?: string };
-
-/** Design §2.2: the group new categories go in when the space has no live group to offer. */
-export const IMPORT_GROUP_NAME = "Importado de Money Manager";
-
 export interface ImportMappings {
   /** The zone the instants are read in (design §2.3); the person's own by default. */
   readonly timeZone: string;
   readonly accounts: Readonly<Record<string, AccountMapping>>;
-  readonly categories: Readonly<Record<string, CategoryMapping>>;
+  /**
+   * P337: categories come as the person had them (`planCategoryGroups`), never remapped one by one; this says whether
+   * the confirm also archives the seeded groups and categories no movement uses ("Archivar las de Hearth que no
+   * uses"), on by default.
+   */
+  readonly archiveUnusedCategories: boolean;
   /** Source keys of likely duplicates the person chose to import anyway; every other duplicate is skipped. */
   readonly includeDuplicates: readonly string[];
 }
@@ -84,6 +76,8 @@ export interface ImportCounts {
   readonly peopleCreated: number;
   /** P337: accounts it created or restored for Archivar and archived at its end; 0 before P337. */
   readonly accountsArchived: number;
+  /** P337: seeded groups and categories no movement used, archived by "Archivar las de Hearth que no uses". */
+  readonly hearthCategoriesArchived: number;
 }
 
 /** The ids a confirm created, which its undo reverts (design §3.2). */
@@ -95,6 +89,10 @@ export interface CreatedEntities {
   readonly settlements: readonly { readonly spaceId: string; readonly movementId: string }[];
   /** P337: the direct spaces it opened for a Persona; an undo leaves them and their guests (no hard deletes). */
   readonly people: readonly string[];
+  /** P337: the category groups it created or restored, in that order. */
+  readonly groups: readonly string[];
+  /** P337: the seeded groups and categories (subcategories after their parent) it archived; an undo restores them. */
+  readonly archivedSeeded: { readonly groups: readonly string[]; readonly categories: readonly string[] };
 }
 
 export interface ImportBatch {
@@ -126,6 +124,8 @@ export const NOTHING_CREATED: CreatedEntities = {
   movements: [],
   settlements: [],
   people: [],
+  groups: [],
+  archivedSeeded: { groups: [], categories: [] },
 };
 
 /** A batch that still takes mapping changes and a confirm: a draft whose snapshot is still kept. */

@@ -1,9 +1,9 @@
 import { isErr, ok, type Money, type Result } from "@/shared/kernel";
 import type { AccountDisposition } from "../domain/account-dispositions";
+import { existingTargetsOf, planCategoryGroups, unusedSeeded } from "../domain/category-groups";
 import {
   targetAccountOf,
   type AccountMapping,
-  type CategoryMapping,
   type ImportBatch,
   type ImportMappings,
   type ImportStatus,
@@ -12,6 +12,7 @@ import { planImport } from "../domain/import-plan";
 import { previewImport, type ExistingMovement, type ImportPreview } from "../domain/import-planner";
 import {
   accountOptionsOf,
+  categoryLinksOf,
   type AccountOptions,
   type HearthTargets,
   type PriorLinks,
@@ -109,17 +110,33 @@ export interface ImportAccountView {
   readonly mapping: AccountMapping;
 }
 
+/** P337: a source category as the confirm will land it, in a group of its own name or one the space holds. */
 export interface ImportCategoryView {
   readonly sourceId: string;
   readonly name: string;
   readonly icon: string | null;
-  readonly kind: "INCOME" | "EXPENSE";
-  readonly parentSourceId: string | null;
-  /** A deleted source category still used by a movement: imported, then archived (design §2.2). */
-  readonly archived: boolean;
-  /** The catalog category (P330) its name matched, whether or not the space has it; null otherwise. */
-  readonly catalogKey: string | null;
-  readonly mapping: CategoryMapping;
+  /** "existing" when it lands on a category the space holds (restored when archived). */
+  readonly target: "new" | "existing";
+}
+
+/** P337: a top-level Money Manager category as the group it becomes, with its categories in the source's order. */
+export interface ImportCategoryGroupView {
+  readonly name: string;
+  readonly icon: string | null;
+  /** "existing" when a group of the same name (or one an earlier import made) takes it, restored when archived. */
+  readonly target: "new" | "existing";
+  readonly categories: readonly ImportCategoryView[];
+}
+
+/** P337, board 4 "Tus categorías": the person's categories as they had them, and what "Archivar…" would archive. */
+export interface ImportCategoriesView {
+  readonly groups: readonly ImportCategoryGroupView[];
+  readonly archiveUnusedCategories: boolean;
+  /** The seeded groups and categories no movement uses, the import's included: what the switch archives. */
+  readonly unusedSeeded: {
+    readonly groups: readonly { readonly id: string; readonly name: string }[];
+    readonly categories: readonly { readonly id: string; readonly name: string }[];
+  };
 }
 
 /** An upload's preview, the dry run of design §3.2, with the mappings a confirm would use. */
@@ -135,7 +152,7 @@ export interface ImportView {
   readonly dateRange: ImportPreview["dateRange"];
   /** In the source's own order (P337). */
   readonly accounts: readonly ImportAccountView[];
-  readonly categories: readonly ImportCategoryView[];
+  readonly categories: ImportCategoriesView;
   /** Likely duplicates of movements already in Hearth; skipped unless listed in `includeDuplicates`. */
   readonly duplicates: readonly string[];
   readonly includeDuplicates: readonly string[];
@@ -174,6 +191,17 @@ export const viewOf = async (
   const options = accountOptionsOf(snapshot, context.targets, context.links, context.spaceCurrency);
   // A snapshot stored before P337 has no order: the source's own list order stands in for it.
   const rank = (sourceId: string) => byId.get(sourceId)?.order ?? byId.get(sourceId)?.index ?? 0;
+  const { targets } = context;
+  const groups = planCategoryGroups(snapshot, targets, categoryLinksOf(context.links));
+  const unused = unusedSeeded(
+    targets,
+    await deps.writer.usedCategoryIds(batch.spaceId),
+    existingTargetsOf(groups),
+  );
+  const nameOf = (records: readonly { readonly id: string; readonly name: string }[]) => (id: string) => ({
+    id,
+    name: records.find((r) => r.id === id)?.name ?? "",
+  });
   return ok({
     id: batch.id,
     status: batch.status,
@@ -206,16 +234,24 @@ export const viewOf = async (
           mapping: batch.mappings.accounts[account.sourceId] ?? account.mapping,
         };
       }),
-    categories: preview.categories.map((category) => ({
-      sourceId: category.sourceId,
-      name: category.name,
-      icon: category.icon,
-      kind: category.kind,
-      parentSourceId: category.parentSourceId,
-      archived: category.archived,
-      catalogKey: category.proposal.kind === "catalog" ? category.proposal.catalogKey : null,
-      mapping: batch.mappings.categories[category.sourceId] ?? { kind: "new", groupId: null },
-    })),
+    categories: {
+      groups: groups.map((group) => ({
+        name: group.name,
+        icon: group.icon,
+        target: group.target.kind,
+        categories: group.categories.map((category) => ({
+          sourceId: category.sourceId,
+          name: category.name,
+          icon: category.icon,
+          target: category.target.kind,
+        })),
+      })),
+      archiveUnusedCategories: batch.mappings.archiveUnusedCategories,
+      unusedSeeded: {
+        groups: unused.groups.map(nameOf(targets.groups)),
+        categories: unused.categories.map(nameOf(targets.categories)),
+      },
+    },
     duplicates: [...known.value.duplicateKeys],
     includeDuplicates: batch.mappings.includeDuplicates,
     plan: {

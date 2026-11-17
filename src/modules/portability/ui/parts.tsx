@@ -64,14 +64,18 @@ export const useCall = () => {
 /** The name of a draft's source account or category by its id, for a refusal that names one. */
 export type SourceNames = (sourceId: string) => string | undefined;
 
-/** A preview's source names: its accounts' and its categories'. */
+/** A preview's source names: its accounts' and its categories' (P337: in their groups). */
 export const sourceNamesOf =
   (preview: {
     readonly accounts: readonly { sourceId: string; name: string }[];
-    readonly categories: readonly { sourceId: string; name: string }[];
+    readonly categories: {
+      readonly groups: readonly { readonly categories: readonly { sourceId: string; name: string }[] }[];
+    };
   }): SourceNames =>
   (sourceId) =>
-    [...preview.accounts, ...preview.categories].find((source) => source.sourceId === sourceId)?.name;
+    [...preview.accounts, ...preview.categories.groups.flatMap((g) => g.categories)].find(
+      (source) => source.sourceId === sourceId,
+    )?.name;
 
 /**
  * A refusal in the person's language (P118): its code's message, then what it is about (the source it names) and why

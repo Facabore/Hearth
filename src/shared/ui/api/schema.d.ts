@@ -1726,7 +1726,7 @@ export interface paths {
         head?: never;
         /**
          * Change a draft's mappings, time zone or included duplicates, and get its new preview
-         * @description An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).
+         * @description An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). Categories are not mapped one by one (P337): they come as the file has them; archiveUnusedCategories says whether the confirm archives the seeded ones no movement uses.
          */
         patch: operations["adjustImport"];
         trace?: never;
@@ -1742,7 +1742,7 @@ export interface paths {
         put?: never;
         /**
          * Import a draft into the ledger, in one transaction
-         * @description Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.
+         * @description Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. Each top-level category becomes a group (one of the same name is reused, restored if archived) with its subcategories as categories, in the file's order; with archiveUnusedCategories, the seeded groups and categories no movement uses are archived. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.
          */
         post: operations["confirmImport"];
         delete?: never;
@@ -1762,7 +1762,7 @@ export interface paths {
         put?: never;
         /**
          * Undo a confirmed import
-         * @description Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests) and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.
+         * @description Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests), restores the seeded groups and categories it archived, and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.
          */
         post: operations["undoImport"];
         delete?: never;
@@ -2386,28 +2386,37 @@ export interface components {
                     name: string;
                 };
             }[];
+            /** @description P337: each top-level Money Manager category as a group, in the file's order, with its subcategories as its categories (or one category of its own name). */
             categories: {
-                sourceId: string;
-                name: string;
-                icon: string | null;
-                /** @enum {string} */
-                kind: "INCOME" | "EXPENSE";
-                parentSourceId: string | null;
-                archived: boolean;
-                catalogKey: string | null;
-                mapping: {
-                    /** @constant */
-                    kind: "existing";
-                    categoryId: string;
-                } | {
-                    /** @constant */
-                    kind: "new";
-                    /** @description The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to. */
-                    groupId: string | null;
-                    /** @description Absent only for a subcategory that merges into what its parent maps to. */
-                    name?: string;
+                groups: {
+                    name: string;
+                    icon: string | null;
+                    /**
+                     * @description existing: a group of the same name (or one an earlier import made), restored when archived.
+                     * @enum {string}
+                     */
+                    target: "new" | "existing";
+                    categories: {
+                        sourceId: string;
+                        name: string;
+                        icon: string | null;
+                        /** @enum {string} */
+                        target: "new" | "existing";
+                    }[];
+                }[];
+                archiveUnusedCategories: boolean;
+                /** @description The seeded groups and categories no movement uses: what archiveUnusedCategories archives. */
+                unusedSeeded: {
+                    groups: {
+                        id: string;
+                        name: string;
+                    }[];
+                    categories: {
+                        id: string;
+                        name: string;
+                    }[];
                 };
-            }[];
+            };
             /** @description Source keys of likely duplicates of movements already in Hearth. */
             duplicates: string[];
             includeDuplicates: string[];
@@ -10586,6 +10595,8 @@ export interface operations {
                                 peopleCreated: number;
                                 /** @description P337: accounts created or restored for Archivar and archived once their movements were in. */
                                 accountsArchived: number;
+                                /** @description P337: seeded groups and categories no movement used, archived ("Archivar las de Hearth que no uses"). */
+                                hearthCategoriesArchived: number;
                             } | null;
                         }[];
                     };
@@ -10763,19 +10774,8 @@ export interface operations {
                             name?: string;
                         };
                     };
-                    categories?: {
-                        [key: string]: {
-                            /** @constant */
-                            kind: "existing";
-                            categoryId: string;
-                        } | {
-                            /** @constant */
-                            kind: "new";
-                            /** @description The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to. */
-                            groupId: string | null;
-                            name?: string;
-                        };
-                    };
+                    /** @description P337, "Archivar las de Hearth que no uses": whether the confirm archives the seeded groups and categories no movement uses (on by default). */
+                    archiveUnusedCategories?: boolean;
                     /** @description Every likely duplicate to import anyway; replaces the list the draft has. */
                     includeDuplicates?: string[];
                 };
@@ -10879,6 +10879,8 @@ export interface operations {
                             peopleCreated: number;
                             /** @description P337: accounts created or restored for Archivar and archived once their movements were in. */
                             accountsArchived: number;
+                            /** @description P337: seeded groups and categories no movement used, archived ("Archivar las de Hearth que no uses"). */
+                            hearthCategoriesArchived: number;
                         } | null;
                         /** @description Rows the ledger refused, with its code; the rest was imported. */
                         rowErrors: {
@@ -10963,6 +10965,10 @@ export interface operations {
                         movementsDeleted: number;
                         accountsArchived: number;
                         categoriesArchived: number;
+                        /** @description P337: groups the import created or restored, left with no live category, archived again. */
+                        categoryGroupsArchived: number;
+                        /** @description P337: seeded groups and categories the import had archived, restored. */
+                        hearthCategoriesRestored: number;
                     };
                 };
             };

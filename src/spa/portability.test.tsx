@@ -266,43 +266,31 @@ describe("Importar y exportar's refusals, later visits and undo (D28, #326)", ()
     expect(await screen.findByText("Deshecha", undefined, WAIT)).toBeVisible();
   });
 
-  it("maps a category from its screen and shows the review with the new preview", async () => {
-    const otros = { id: "grp-otros", name: "Otros", key: "other", archivedAt: null, color: "SAGE" as const };
-    const icon = { kind: "SYMBOL" as const, name: "dots" };
-    const toImportGroup = previewFixture({
-      categories: previewFixture().categories.map((c) =>
-        c.sourceId === "c-misc"
-          ? { ...c, mapping: { kind: "new" as const, groupId: null, name: "Varios" } }
-          : c,
-      ),
+  it("shows the categories as they come, turns off archiving Hearth's unused ones, and goes back to the review", async () => {
+    const kept = previewFixture({
+      categories: { ...previewFixture().categories, archiveUnusedCategories: false },
     });
     const bodies: unknown[] = [];
     const { routes } = server({
-      "GET /api/v1/spaces/{spaceId}/categories": () =>
-        jsonResponse({ items: [{ ...otros, icon, categories: [] }] }),
+      // The draft's preview is read with an empty adjust; only the switch's change turns it off.
       "PATCH /api/v1/spaces/{spaceId}/imports/{importId}": async (request) => {
         const body = (await request.json()) as Record<string, unknown>;
+        if (Object.keys(body).length === 0) return jsonResponse(previewFixture());
         bodies.push(body);
-        return jsonResponse(body.categories ? toImportGroup : previewFixture());
+        return jsonResponse(kept);
       },
     });
     renderSpa(REVIEW, routes);
     await userEvent.click(await screen.findByRole("link", { name: /Categorías.*Revisar/ }, WAIT));
-    expect(
-      await screen.findByRole("heading", { level: 1, name: "Categorías a importar" }, WAIT),
-    ).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: /^Varios/ }));
-    const sheet = await screen.findByRole("dialog", { name: "Varios" }, WAIT);
-    await userEvent.click(within(sheet).getByRole("radio", { name: "Grupo de la importación" }));
-    await userEvent.click(within(sheet).getByRole("button", { name: "Guardar" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(screen.getByRole("button", { name: /^Varios/ })).toHaveTextContent(
-      "Nueva en Grupo de la importación",
+    expect(await screen.findByRole("heading", { level: 2, name: "Tus categorías" }, WAIT)).toBeVisible();
+    const toggle = screen.getByRole("switch", { name: "Archivar las de Hearth que no uses" });
+    expect(toggle).toBeChecked();
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(screen.getByRole("switch", { name: "Archivar las de Hearth que no uses" })).not.toBeChecked(),
     );
-    expect(bodies.at(-1)).toEqual({
-      categories: { "c-misc": { kind: "new", groupId: null, name: "Varios" } },
-    });
-    await userEvent.click(screen.getByRole("link", { name: "Listo" }));
+    expect(bodies).toEqual([{ archiveUnusedCategories: false }]);
+    await userEvent.click(screen.getByRole("link", { name: "Continuar" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Revisar importación" }, WAIT)).toBeVisible();
   });
 });
