@@ -18,3 +18,12 @@ export const PATCH = defineRoute({
     return result.ok ? ok({ status: 200, body: friendNameDto(result.value) }) : result;
   },
 });
+
+/** Ruling P339 (S7): removes a friend once the two are even; the direct space is archived and its history kept. */
+export const DELETE = defineRoute({
+  auth: "required",
+  handler: async ({ user, params }) => {
+    const result = await getContainer().spaces.removeFriend({ spaceId: params.spaceId!, userId: user!.id });
+    return result.ok ? ok({ status: 204 }) : result;
+  },
+});

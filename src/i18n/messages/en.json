@@ -241,7 +241,8 @@
     "UserNotFound": "Nobody uses that @. Check that it is written exactly right.",
     "OwnHandle": "That @ is yours. Write the @ of the person you want to add.",
     "AlreadyFriends": "This person is already in your Friends.",
-    "FriendRequestNotFound": "That friend request is no longer pending."
+    "FriendRequestNotFound": "That friend request is no longer pending.",
+    "FriendHasBalance": "There is a balance pending between you: settle up first."
   },
   "warnings": {
     "FundBalanceNegative": "The balance of {account} is now {balance}. A contribution to the fund can cover it."

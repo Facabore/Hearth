@@ -6,7 +6,7 @@ import {
   type SpaceId,
   type SpaceRepository,
 } from "@/modules/spaces/application";
-import { ok, type Result } from "@/shared/kernel";
+import { domainError, err, ok, type Result } from "@/shared/kernel";
 import { createGetSpaceBalances, type BalancesDeps } from "./get-space-balances";
 
 /** Ruling P338: the newest live movement of a direct space; bound to the ledger by the composition root. */
@@ -90,3 +90,18 @@ export const createListMyFriends = (deps: ListMyFriendsDeps): ListMyFriends => {
     return ok(friends.filter((friend) => friend !== null).sort(friendOrder));
   };
 };
+
+export type GetMyFriend = (input: {
+  readonly userId: string;
+  readonly spaceId: string;
+}) => Promise<Result<Friend>>;
+
+/** Ruling P339: one row of Amigos, as the list answers it, e.g. for a friend just added; SpaceNotFound when it is not one. */
+export const createGetMyFriend =
+  (list: ListMyFriends): GetMyFriend =>
+  async ({ userId, spaceId }) => {
+    const friends = await list(userId);
+    if (!friends.ok) return friends;
+    const friend = friends.value.find((f) => f.spaceId === spaceId);
+    return friend ? ok(friend) : err(domainError("SpaceNotFound"));
+  };

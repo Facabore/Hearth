@@ -42,9 +42,11 @@ import {
   createGetSpaceBalances,
   createGetMemberBalanceHistory,
   createGetMyBalances,
+  createGetMyFriend,
   createListMyFriends,
   type GetMemberBalanceHistory,
   type GetMyBalances,
+  type GetMyFriend,
   type ListMyFriends,
   type GetSettlementSuggestions,
   type GetSpaceBalances,
@@ -305,6 +307,7 @@ import {
   createCreateGuestClaim,
   createLeaveSpace,
   createSetFriendNickname,
+  createRemoveFriend,
   createSendFriendRequest,
   createListFriendRequests,
   createAcceptFriendRequest,
@@ -345,6 +348,8 @@ import {
   type LeaveSpace,
   type SetFriendNickname,
   type SendFriendRequest,
+  type RemoveFriend,
+  type StartDirectSpaceWithGuest,
   type ListFriendRequests,
   type AnswerFriendRequest,
   type FriendRequestsDeps,
@@ -429,6 +434,10 @@ export interface Container extends RouteDeps {
     readonly listFriendRequests: ListFriendRequests;
     readonly acceptFriendRequest: AnswerFriendRequest<{ readonly spaceId: SpaceId }>;
     readonly rejectFriendRequest: AnswerFriendRequest<void>;
+    /** P339 (S5): a friend who does not use Hearth, a guest in a new direct space with the person. */
+    readonly addGuestFriend: StartDirectSpaceWithGuest;
+    /** P339 (S7): archives a direct space once the pair is even; it leaves Amigos for both. */
+    readonly removeFriend: RemoveFriend;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -499,6 +508,8 @@ export interface Container extends RouteDeps {
     readonly getMyBalances: GetMyBalances;
     /** P338: Amigos, the other member of each direct space with the viewer's net and the last movement. */
     readonly listMyFriends: ListMyFriends;
+    /** P339: one row of Amigos, as the list answers it. */
+    readonly getMyFriend: GetMyFriend;
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
@@ -1138,6 +1149,21 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     windowMs: ONE_MINUTE,
   });
   const handleLookupThrottle = { allows: (userId: string) => lookupsByUser.hit(userId) };
+  // P338: Amigos; P339 answers a friend just added with its row.
+  const listMyFriends = createListMyFriends({
+    access,
+    members: spaceRepository,
+    spaces: spaceRepository,
+    aliases: spaceRepository,
+    source: ledgerQueries,
+    movements: ledgerQueries,
+  });
+  // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
+  const archiveSpace = createArchiveSpace({
+    ...lifecycleDeps,
+    spaces: spaceRepository,
+    netBalances: createGetMemberNetBalances(ledgerQueries),
+  });
   // P339: friend requests live with the direct spaces they open (spaces); the people they name are identity's, read
   // through this port, so spaces never imports identity.
   const friendRequestsDeps: FriendRequestsDeps = {
@@ -1296,12 +1322,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       addGuest: createAddGuestMember(membersDeps),
       addGuests: createAddGuestMembers(membersDeps),
       changeMemberRole: createChangeMemberRole(membersDeps),
-      // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
-      archiveSpace: createArchiveSpace({
-        ...lifecycleDeps,
-        spaces: spaceRepository,
-        netBalances: createGetMemberNetBalances(ledgerQueries),
-      }),
+      archiveSpace,
       splitWithPerson: createSplitWithPerson<DirectSplitExpense, RecordedExpense>(directSplitDeps),
       splitWithPeople: createSplitWithPeople<DirectSplitExpense, RecordedExpense>(directSplitDeps),
       settleWithPerson: createSplitWithPerson<DirectSettlementTransfer, Transaction>(directSettlementDeps),
@@ -1319,6 +1340,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       listFriendRequests: createListFriendRequests(friendRequestsDeps),
       acceptFriendRequest: createAcceptFriendRequest(friendRequestsDeps),
       rejectFriendRequest: createRejectFriendRequest(friendRequestsDeps),
+      addGuestFriend: createStartDirectSpaceWithGuest(directSplitDeps),
+      removeFriend: createRemoveFriend({ access, archiveSpace, tm }),
     },
     categories: {
       listCategories: createListCategories({ ...categoriesDeps, counts: categoryUsageCountsOf(tm) }),
@@ -1430,14 +1453,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         source: ledgerQueries,
       }),
       // P338: Amigos reads the same balances (D7), the viewer's apodos and each direct space's newest movement.
-      listMyFriends: createListMyFriends({
-        access,
-        members: spaceRepository,
-        spaces: spaceRepository,
-        aliases: spaceRepository,
-        source: ledgerQueries,
-        movements: ledgerQueries,
-      }),
+      listMyFriends,
+      getMyFriend: createGetMyFriend(listMyFriends),
     },
     budgeting: {
       createPlan: createCreateBudgetPlan(budgetingDeps),

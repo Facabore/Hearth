@@ -1235,7 +1235,11 @@ export interface paths {
          */
         get: operations["listMyFriends"];
         put?: never;
-        post?: never;
+        /**
+         * Add a friend who does not use Hearth, as a guest (P339)
+         * @description Creates a direct space between the caller and a new guest with that name, under the guest name rules, with nothing recorded in it yet. Each call adds a new guest.
+         */
+        post: operations["addGuestFriend"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1252,7 +1256,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Remove a friend once the two are even (P339)
+         * @description Archives the direct space, so it leaves Amigos for both people; every movement stays in each person's history. While either is owed money it answers FriendHasBalance with the outstanding amount.
+         */
+        delete: operations["removeFriend"];
         options?: never;
         head?: never;
         /**
@@ -8717,6 +8725,133 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    addGuestFriend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    displayName: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The new friend's Amigos row */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        spaceId: string;
+                        me: {
+                            memberId: string;
+                        };
+                        other: {
+                            memberId: string;
+                            /** @enum {string} */
+                            kind: "USER" | "GUEST";
+                            /** @description The name the space knows them by */
+                            displayName: string;
+                            /** @description The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName */
+                            nickname: string | null;
+                        };
+                        /** @description What the viewer calls them: nickname ?? displayName */
+                        name: string;
+                        /** @description The viewer's net in the space: positive when the other one owes her, negative when she owes them */
+                        net: components["schemas"]["MoneyOutput"];
+                        /** @description The newest live movement of the space; null when none is left */
+                        lastMovement: {
+                            transactionId: string;
+                            /** Format: date */
+                            date: string;
+                            description: string;
+                            /** @enum {string} */
+                            type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
+                        } | null;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description MemberNameTaken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, InvalidMemberName */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    removeFriend: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description NotADirectSpace, FriendHasBalance */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

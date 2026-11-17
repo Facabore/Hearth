@@ -141,3 +141,4 @@ export {
   type SendFriendRequest,
   type SentFriendRequest,
 } from "./friend-requests";
+export { createRemoveFriend, type RemoveFriend } from "./remove-friend";

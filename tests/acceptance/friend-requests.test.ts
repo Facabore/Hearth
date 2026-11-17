@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
 import { POST as acceptRequest } from "@/app/api/v1/me/friend-requests/[requestId]/accept/route";
 import { POST as rejectRequest } from "@/app/api/v1/me/friend-requests/[requestId]/reject/route";
 import { GET as listRequests, POST as sendRequest } from "@/app/api/v1/me/friend-requests/route";
-import { GET as listFriends } from "@/app/api/v1/me/friends/route";
+import { DELETE as removeFriend } from "@/app/api/v1/me/friends/[spaceId]/route";
+import { GET as listFriends, POST as addGuestFriend } from "@/app/api/v1/me/friends/route";
 import { GET as getMe, PATCH as updateMe } from "@/app/api/v1/me/route";
+import { GET as spaceBalances } from "@/app/api/v1/spaces/[spaceId]/balances/route";
 import { GET as findByHandle } from "@/app/api/v1/users/by-handle/[handle]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
@@ -81,6 +84,9 @@ const friendsOf = async (user: TestUser): Promise<FriendDto[]> => {
   expect(response.status).toBe(200);
   return ((await response.json()) as { items: FriendDto[] }).items;
 };
+
+const remove = (user: TestUser, spaceId: string) =>
+  call(removeFriend, "DELETE", `/api/v1/me/friends/${spaceId}`, { user, params: { spaceId } });
 
 /** Ana and Bruno, friends through an accepted request. */
 const friends = async () => {
@@ -262,5 +268,88 @@ describe("Friend requests (P339, S4)", () => {
     const ana = await person("Ana");
     expect(await problemOf(await accept(ana, "not-a-uuid"))).toEqual([404, "FriendRequestNotFound"]);
     expect(await problemOf(await reject(ana, randomUUID()))).toEqual([404, "FriendRequestNotFound"]);
+  });
+});
+
+describe("Adding a guest friend (P339, S5)", () => {
+  it("creates a direct space with the guest at once and answers the Amigos row", async () => {
+    const ana = await registerUser("Ana");
+    const added = await call(addGuestFriend, "POST", "/api/v1/me/friends", {
+      user: ana,
+      body: { displayName: "  Pedro  " },
+    });
+    expect(added.status).toBe(201);
+    const row = (await added.json()) as FriendDto;
+    expect(row).toMatchObject({
+      other: { kind: "GUEST", displayName: "Pedro", nickname: null },
+      name: "Pedro",
+      net: cop(0),
+    });
+    expect(await friendsOf(ana)).toMatchObject([{ spaceId: row.spaceId, name: "Pedro" }]);
+  });
+
+  it("refuses a name the guest rules refuse", async () => {
+    const ana = await registerUser("Ana");
+    for (const displayName of ["   ", "x".repeat(101)]) {
+      const response = await call(addGuestFriend, "POST", "/api/v1/me/friends", {
+        user: ana,
+        body: { displayName },
+      });
+      expect(await problemOf(response)).toEqual([422, "InvalidMemberName"]);
+    }
+    expect(await friendsOf(ana)).toEqual([]);
+  });
+});
+
+describe("Removing a friend (P339, S7)", () => {
+  it("refuses while they owe each other, and archives the pair's space once even; both lists drop it", async () => {
+    const { ana, bruno, spaceId } = await friends();
+    const brunoRow = (await friendsOf(ana))[0]!;
+    const taxi = await call(directSplit, "POST", "/api/v1/direct-splits", {
+      user: ana,
+      body: {
+        counterpart: { kind: "MEMBER", memberId: brunoRow.other.memberId },
+        description: "Taxi",
+        date: "2026-11-10",
+        categoryKey: "restaurants",
+        amount: cop(40_000),
+        paidBy: "COUNTERPART",
+      },
+    });
+    expect(taxi.status).toBe(201);
+    expect(await problemOf(await remove(ana, spaceId))).toEqual([409, "FriendHasBalance"]);
+    expect(await problemOf(await remove(bruno, spaceId))).toEqual([409, "FriendHasBalance"]);
+    expect(await friendsOf(ana)).toHaveLength(1);
+
+    // Even: a friend with nothing between them goes.
+    const carla = await person("Carla");
+    const request = (await (await send(ana, carla.handle)).json()) as RequestDto;
+    const carlaSpace = ((await (await accept(carla, request.id)).json()) as { spaceId: string }).spaceId;
+    expect((await remove(carla, carlaSpace)).status).toBe(204);
+    expect((await friendsOf(ana)).map((f) => f.spaceId)).toEqual([spaceId]);
+    expect(await friendsOf(carla)).toEqual([]);
+    // The history stays readable (D8), and the pair may become friends again.
+    expect(
+      (
+        await call(spaceBalances, "GET", `/api/v1/spaces/${carlaSpace}/balances`, {
+          user: ana,
+          params: { spaceId: carlaSpace },
+        })
+      ).status,
+    ).toBe(200);
+    expect(await problemOf(await remove(ana, carlaSpace))).toEqual([404, "SpaceNotFound"]);
+    expect((await send(ana, carla.handle)).status).toBe(201);
+  });
+
+  it("removes a guest friend when even, and refuses a space the caller is not in or a shared space", async () => {
+    const ana = await registerUser("Ana");
+    const eva = await registerUser("Eva");
+    const row = (await (
+      await call(addGuestFriend, "POST", "/api/v1/me/friends", { user: ana, body: { displayName: "Pedro" } })
+    ).json()) as FriendDto;
+    expect(await problemOf(await remove(eva, row.spaceId))).toEqual([404, "SpaceNotFound"]);
+    expect(await problemOf(await remove(ana, ana.spaceId))).toEqual([409, "NotADirectSpace"]);
+    expect((await remove(ana, row.spaceId)).status).toBe(204);
+    expect(await friendsOf(ana)).toEqual([]);
   });
 });

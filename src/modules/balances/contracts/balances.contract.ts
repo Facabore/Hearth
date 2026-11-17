@@ -104,40 +104,44 @@ const FriendNameFields = {
   name: z.string().meta({ description: "What the viewer calls them: nickname ?? displayName" }),
 };
 
+/** Ruling P338: one person in Amigos, the other member of one of the viewer's active direct spaces. */
+export const FriendSchema = z.object({
+  spaceId: z.string(),
+  me: z.object({ memberId: z.string() }),
+  ...FriendNameFields,
+  net: MoneySchema.meta({
+    description:
+      "The viewer's net in the space: positive when the other one owes her, negative when she owes them",
+  }),
+  lastMovement: z
+    .object({
+      transactionId: z.string(),
+      date: z.iso.date(),
+      description: z.string(),
+      type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"]),
+    })
+    .nullable()
+    .meta({ description: "The newest live movement of the space; null when none is left" }),
+});
+
 /** Ruling P338: Amigos, one entry per active direct space of the viewer. */
-export const MyFriendsSchema = z.object({
-  items: z.array(
-    z.object({
-      spaceId: z.string(),
-      me: z.object({ memberId: z.string() }),
-      ...FriendNameFields,
-      net: MoneySchema.meta({
-        description:
-          "The viewer's net in the space: positive when the other one owes her, negative when she owes them",
-      }),
-      lastMovement: z
-        .object({
-          transactionId: z.string(),
-          date: z.iso.date(),
-          description: z.string(),
-          type: z.enum(["EXPENSE", "INCOME", "TRANSFER", "SETTLEMENT", "ADJUSTMENT"]),
-        })
-        .nullable()
-        .meta({ description: "The newest live movement of the space; null when none is left" }),
-    }),
-  ),
+export const MyFriendsSchema = z.object({ items: z.array(FriendSchema) });
+
+export const friendDto = (f: Friend): z.infer<typeof FriendSchema> => ({
+  spaceId: f.spaceId,
+  me: { memberId: f.me.memberId },
+  other: { ...f.other },
+  name: f.name,
+  net: { amount: f.net.toString(), currency: f.currency },
+  lastMovement: f.lastMovement === null ? null : { ...f.lastMovement },
 });
 
 export const myFriendsDto = (friends: readonly Friend[]): z.infer<typeof MyFriendsSchema> => ({
-  items: friends.map((f) => ({
-    spaceId: f.spaceId,
-    me: { memberId: f.me.memberId },
-    other: { ...f.other },
-    name: f.name,
-    net: { amount: f.net.toString(), currency: f.currency },
-    lastMovement: f.lastMovement === null ? null : { ...f.lastMovement },
-  })),
+  items: friends.map(friendDto),
 });
+
+/** Ruling P339: a guest friend's name, under the guest rules (1–100 characters once trimmed, InvalidMemberName). */
+export const AddGuestFriendBodySchema = z.object({ displayName: z.string().max(200) });
 
 /** Ruling P338: trimmed and 1–40 characters (InvalidNickname otherwise); null clears a registered person's apodo. */
 export const FriendNicknameBodySchema = z.object({ nickname: z.string().nullable() });
@@ -258,6 +262,22 @@ export const balancesPaths: ZodOpenApiPathsObject = {
         ...problems({ "401": "Unauthenticated" }),
       },
     },
+    post: {
+      operationId: "addGuestFriend",
+      summary: "Add a friend who does not use Hearth, as a guest (P339)",
+      description:
+        "Creates a direct space between the caller and a new guest with that name, under the guest name rules, with nothing recorded in it yet. Each call adds a new guest.",
+      ...securedByUser,
+      requestBody: { content: jsonContent(AddGuestFriendBodySchema) },
+      responses: {
+        "201": { description: "The new friend's Amigos row", content: jsonContent(FriendSchema) },
+        ...problems({
+          "401": "Unauthenticated",
+          "409": "MemberNameTaken",
+          "422": "ValidationFailed, InvalidMemberName",
+        }),
+      },
+    },
   },
   "/api/v1/me/friends/{spaceId}": {
     patch: {
@@ -275,6 +295,22 @@ export const balancesPaths: ZodOpenApiPathsObject = {
           "404": "SpaceNotFound",
           "409": "NotADirectSpace, MemberNameTaken, NotAGuest, SpaceArchived",
           "422": "ValidationFailed, InvalidNickname",
+        }),
+      },
+    },
+    delete: {
+      operationId: "removeFriend",
+      summary: "Remove a friend once the two are even (P339)",
+      description:
+        "Archives the direct space, so it leaves Amigos for both people; every movement stays in each person's history. While either is owed money it answers FriendHasBalance with the outstanding amount.",
+      ...securedByUser,
+      requestParams: { path: SpacePath },
+      responses: {
+        "204": { description: "Removed" },
+        ...problems({
+          "401": "Unauthenticated",
+          "404": "SpaceNotFound",
+          "409": "NotADirectSpace, FriendHasBalance",
         }),
       },
     },

@@ -241,7 +241,8 @@
     "UserNotFound": "Nadie usa ese @. Revisa que esté escrito exactamente igual.",
     "OwnHandle": "Ese @ es el tuyo. Escribe el @ de la persona que quieres agregar.",
     "AlreadyFriends": "Ya tienes a esta persona en Amigos.",
-    "FriendRequestNotFound": "Esa solicitud de amistad ya no está pendiente."
+    "FriendRequestNotFound": "Esa solicitud de amistad ya no está pendiente.",
+    "FriendHasBalance": "Con saldo pendiente, primero se salda."
   },
   "warnings": {
     "FundBalanceNegative": "El saldo de {account} quedó en {balance}. Pueden hacer un aporte al fondo para cubrirlo."

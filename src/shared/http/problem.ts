@@ -82,6 +82,8 @@ const TITLES: ReadonlyMap<number, string> = new Map([
 // RFC 9457 extension members: the only details a client ever sees, per code; all others stay in the log.
 const PUBLIC_DETAILS: ReadonlyMap<string, readonly string[]> = new Map([
   ["OutstandingBalance", ["outstanding"]],
+  // Ruling P339: removing a friend refuses while the pair is not even, with what is still owed.
+  ["FriendHasBalance", ["outstanding"]],
   ["InvalidAllocation", ["lineIds"]],
   // Ruling P248 (M6c): the label of the ACTIVE source plan a close waits for, e.g. "2026-11".
   ["SourcePlanOpen", ["sourcePeriod"]],
