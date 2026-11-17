@@ -172,3 +172,87 @@ describe('the round icon of a movement with no category (board "Cuenta · Movimi
     expect(iconPath()).toHaveAttribute("d", SYMBOL_PATHS.wallet);
   });
 });
+
+describe("money handed between Ana and someone else says whether it paid or lent (ruling P339, S9)", () => {
+  /** A payment of `pesos` between Ana and Juan in Hogar, with the context the API gives it, if any. */
+  const payment = (
+    from: "m-ana" | "m-juan",
+    pesos: number,
+    settlement?: { kind: "PAID" | "LENT" | "PAID_AND_LENT"; paid: number; lent: number },
+  ) =>
+    activityItemDto({
+      transaction: transactionDto({
+        id: "t-pay",
+        type: "SETTLEMENT",
+        description: "",
+        date: "2026-11-10",
+        amount: cop(pesos),
+        payerMemberId: from,
+        receivingMemberId: from === "m-ana" ? "m-juan" : "m-ana",
+      }),
+      you: {
+        memberIds: ["m-ana"],
+        share: null,
+        paid: null,
+        ...(settlement
+          ? { settlement: { kind: settlement.kind, paid: cop(settlement.paid), lent: cop(settlement.lent) } }
+          : {}),
+      },
+      memberNames: { "m-ana": "Ana", "m-juan": "Juan" },
+    });
+  const titleOf = () => norm(screen.getByRole("link").querySelector(".truncate")!.textContent);
+
+  it("says she paid Juan, or that he paid her, when it paid a debt", () => {
+    const sent = renderRow(payment("m-ana", 30_000, { kind: "PAID", paid: 30_000, lent: 0 }));
+    expect(titleOf()).toBe("Le pagaste a Juan");
+    sent.unmount();
+    renderRow(payment("m-juan", 30_000, { kind: "PAID", paid: 30_000, lent: 0 }));
+    expect(titleOf()).toBe("Juan te pagó");
+  });
+
+  it("says she lent Juan, or that he lent her, when nobody owed it", () => {
+    const sent = renderRow(payment("m-ana", 20_000, { kind: "LENT", paid: 0, lent: 20_000 }));
+    expect(titleOf()).toBe("Le prestaste a Juan");
+    expect(norm(screen.getByRole("listitem").textContent)).toBe(
+      "Le prestaste a Juan10 nov · Hogar · Saldo entre ustedes−$ 20.000",
+    );
+    sent.unmount();
+    renderRow(payment("m-juan", 20_000, { kind: "LENT", paid: 0, lent: 20_000 }));
+    expect(titleOf()).toBe("Juan te prestó");
+  });
+
+  it("names both amounts, each on one line, when it went past the debt", () => {
+    const sent = renderRow(payment("m-ana", 50_000, { kind: "PAID_AND_LENT", paid: 30_000, lent: 20_000 }));
+    expect(titleOf()).toBe("Le pagaste $ 30.000 y le prestaste $ 20.000 a Juan");
+    // AGENTS.md: an amount never breaks across lines, so a no-break space joins its symbol and digits.
+    expect(screen.getByRole("link").textContent).toContain("$ 30.000");
+    sent.unmount();
+    renderRow(payment("m-juan", 50_000, { kind: "PAID_AND_LENT", paid: 30_000, lent: 20_000 }));
+    expect(titleOf()).toBe("Juan te pagó $ 30.000 y te prestó $ 20.000");
+  });
+
+  it("keeps today's words without a context, and a description over any of them", () => {
+    const sent = renderRow(payment("m-ana", 30_000));
+    expect(titleOf()).toBe("Le pagaste a Juan");
+    sent.unmount();
+    const described = payment("m-ana", 20_000, { kind: "LENT", paid: 0, lent: 20_000 });
+    renderRow({ ...described, transaction: { ...described.transaction, description: "Préstamo" } });
+    expect(titleOf()).toBe("Préstamo");
+  });
+
+  it("says it in English too", () => {
+    renderWithIntl(
+      <ol>
+        <ActivityRow
+          item={payment("m-ana", 50_000, { kind: "PAID_AND_LENT", paid: 30_000, lent: 20_000 })}
+          formats={BUILT_IN_FORMATS}
+          viewerZone="America/Bogota"
+          today="2026-11-13"
+          money={(amount) => formatMoney(amount, BUILT_IN_FORMATS)}
+        />
+      </ol>,
+      { locale: "en" },
+    );
+    expect(titleOf()).toBe("You paid Juan $ 30.000 and lent them $ 20.000");
+  });
+});

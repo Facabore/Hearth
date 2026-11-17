@@ -162,13 +162,21 @@ export function ActivityRow({
                 ? t("recordedBy", { name: item.recordedBy.name })
                 : t("recorded");
   const named = part.title;
+  const context = item.you.settlement;
   const title =
     tx.description ||
     (named === undefined
       ? ledger(`type.${kindOf(tx)}`)
       : "from" in named
         ? t(named.key, { from: named.from, to: named.to })
-        : t(named.key, { name: named.name }));
+        : // Ruling P339 (S9): a payment says what it did between the two, by the API's context: it paid a debt, lent,
+          // or both past the debt ("Le pagaste $ 30.000 y le prestaste $ 20.000 a Juan"); without one, who paid whom.
+          t(named.key, {
+            name: named.name,
+            kind: context?.kind ?? "",
+            paid: context ? money(context.paid) : "",
+            lent: context ? money(context.lent) : "",
+          }));
   const category = item.category;
   const fund = kindOf(tx) === "FUND_CONTRIBUTION";
   const icon =
