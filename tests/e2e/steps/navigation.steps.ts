@@ -345,12 +345,15 @@ Then("the module grid is shown, with the modules to come marked Próximamente", 
     ["shell.more.accounts", "/accounts"],
     ["shell.more.categories", "/categories"],
     ["shell.more.recurring", "/recurrences"],
+    // D28 (#326): Importar y exportar is a door of its own since 9e505622.
+    ["shell.more.exportImport", "/data"],
   ] as const)
     await expect(grid.getByRole("link", { name: world.t(key), exact: true })).toHaveAttribute(
       "href",
       `${homePath(world)}${suffix}`,
     );
-  await expect(grid.getByText(world.t("shell.more.soon"), { exact: true })).toHaveCount(3);
+  // Estadísticas and Calendario are still to come.
+  await expect(grid.getByText(world.t("shell.more.soon"), { exact: true })).toHaveCount(2);
 });
 
 When(
