@@ -44,7 +44,7 @@ interface Settling {
 
 /**
  * Ruling P338 (board "Amigo · Mom"): one person of Amigos, under the personal space's address, with a way back to
- * Amigos. Their name (the viewer's apodo, editable from "Apodo"), and under it "Invitada · no usa Hearth" for a guest or
+ * Amigos. Their name (the viewer's apodo, editable from "Apodo"), and under it "No usa Hearth" for a guest or
  * their own name when the apodo hides it; who owes whom in words over the amount; "Saldar", which opens Saldos'
  * settle-up sheet for their direct space, and "Registrar con …", the record form in that space, which comes back here.
  * "Entre tú y …" lists every movement that moved the balance between the two, newest first, each signed by what it did
@@ -220,6 +220,7 @@ export function FriendScreen({
         <GuestInvite
           spaceId={space.id}
           guestId={friend.other.memberId}
+          name={friend.name}
           formats={formats}
           viewerZone={timeZone}
           api={api}

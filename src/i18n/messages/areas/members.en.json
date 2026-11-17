@@ -185,7 +185,7 @@
       "ADJUSTMENT": "Adjustment"
     },
     "person": {
-      "guest": "Guest · not on Hearth",
+      "guest": "Not on Hearth",
       "nickname": "Nickname",
       "nicknameOf": "Nickname for {name}",
       "owed": "{name} owes you",
@@ -197,7 +197,7 @@
       "empty": "Nothing between you two yet.",
       "more": "Load more",
       "private": "Only you two see this. It doesn't mix with your groups or your expenses.",
-      "invite": "Invite them to Hearth: they'll see what's between you two",
+      "invite": "Invite {name} to Hearth: they'll see what's between you two",
       "inviteAction": "Invite",
       "youPaid": "you paid them",
       "paidYou": "{name} paid you",

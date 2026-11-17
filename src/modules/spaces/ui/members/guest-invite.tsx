@@ -17,6 +17,7 @@ import { createClaimLink, type ClaimLink } from "./claim-link";
 export function GuestInvite({
   spaceId,
   guestId,
+  name,
   formats,
   viewerZone,
   api: injected,
@@ -24,6 +25,8 @@ export function GuestInvite({
   /** The direct space the guest is in. */
   readonly spaceId: string;
   readonly guestId: string;
+  /** The name the viewer gives the guest, said in the invitation line. */
+  readonly name: string;
   readonly formats: Formats;
   readonly viewerZone: string;
   readonly api?: Api;
@@ -43,9 +46,9 @@ export function GuestInvite({
     setPending(false);
   };
   return (
-    <section aria-label={t("invite")} className="flex flex-col gap-2">
+    <section aria-label={t("invite", { name })} className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-3">
-        <p className="min-w-0 flex-[1_1_12rem] text-[15px] text-ink">{t("invite")}</p>
+        <p className="min-w-0 flex-[1_1_12rem] text-[15px] text-ink">{t("invite", { name })}</p>
         {claim ? null : (
           <Button
             variant="ghost"

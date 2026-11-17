@@ -185,7 +185,7 @@
       "ADJUSTMENT": "Ajuste"
     },
     "person": {
-      "guest": "Invitada · no usa Hearth",
+      "guest": "No usa Hearth",
       "nickname": "Apodo",
       "nicknameOf": "Apodo de {name}",
       "owed": "{name} te debe",
@@ -197,7 +197,7 @@
       "empty": "Todavía no hay movimientos entre ustedes.",
       "more": "Cargar más",
       "private": "Solo ustedes dos ven esto. No se mezcla con tus grupos ni con tus gastos.",
-      "invite": "Invítala a Hearth: verá lo de ustedes dos",
+      "invite": "Invita a {name} a Hearth: verá lo de ustedes dos",
       "inviteAction": "Invitar",
       "youPaid": "le pagaste",
       "paidYou": "{name} te pagó",

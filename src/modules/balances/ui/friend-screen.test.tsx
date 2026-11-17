@@ -98,7 +98,7 @@ describe('a person of Amigos (ruling P338, board "Amigo · Mom")', () => {
       "/spaces/sp-personal/balances",
     );
     expect(screen.getByRole("heading", { level: 2, name: "Mamá" })).toBeInTheDocument();
-    expect(screen.getByText("Invitada · no usa Hearth")).toBeInTheDocument();
+    expect(screen.getByText("No usa Hearth")).toBeInTheDocument();
     const balance = screen.getByRole("region", { name: "Mamá te debe" });
     expect(plain(balance.textContent)).toBe("Mamá te debe$ 500.000");
     expect(rows()).toEqual([
@@ -124,7 +124,7 @@ describe('a person of Amigos (ruling P338, board "Amigo · Mom")', () => {
       members: [ANA, memberDto({ id: "m-mama", userId: "u-lucia", displayName: "Lucía Gómez" })],
     });
     expect(screen.getByText("Lucía Gómez")).toBeInTheDocument();
-    expect(screen.queryByText("Invitada · no usa Hearth")).not.toBeInTheDocument();
+    expect(screen.queryByText("No usa Hearth")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Invitar" })).not.toBeInTheDocument();
   });
 
@@ -198,7 +198,7 @@ describe('a person of Amigos (ruling P338, board "Amigo · Mom")', () => {
         ),
     });
     view({ api });
-    const invite = screen.getByRole("region", { name: "Invítala a Hearth: verá lo de ustedes dos" });
+    const invite = screen.getByRole("region", { name: "Invita a Mamá a Hearth: verá lo de ustedes dos" });
     await userEvent.click(within(invite).getByRole("button", { name: "Invitar" }));
     expect(await within(invite).findByLabelText("Enlace para reclamar")).toHaveValue(
       "https://hearth.example/claims/XyZ",
@@ -221,7 +221,7 @@ describe('a person of Amigos (ruling P338, board "Amigo · Mom")', () => {
 
   it("speaks English", () => {
     view({}, "en");
-    expect(screen.getByText("Guest · not on Hearth")).toBeInTheDocument();
+    expect(screen.getByText("Not on Hearth")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Mamá owes you" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Record with Mamá" })).toBeInTheDocument();
   });
