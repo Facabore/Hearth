@@ -130,11 +130,27 @@ export function FriendScreen({
   /** What the movement was between the two, from the viewer's side: who paid, and whose part. */
   const whoOf = (entry: Entry): string | null => {
     if (entry.type === "SETTLEMENT") {
-      const forgiven = entry.settlementReason === "FORGIVENESS";
-      if (entry.payerMemberId === me)
-        return t(forgiven ? "person.forgivenToYou" : "person.youPaid", { name });
-      if (entry.receivingMemberId === me)
-        return t(forgiven ? "person.forgivenByYou" : "person.paidYou", { name });
+      if (entry.settlementReason === "FORGIVENESS") {
+        if (entry.payerMemberId === me) return t("person.forgivenToYou", { name });
+        if (entry.receivingMemberId === me) return t("person.forgivenByYou", { name });
+        return null;
+      }
+      // Ruling P339: money handed between the two pays a debt or lends, by the balance just before it (the viewer's
+      // net, positive when the other owed her), and both when it goes past the debt.
+      const after = BigInt(entry.balance.amount);
+      const before = after - BigInt(entry.change.amount);
+      const money = (minor: bigint) =>
+        formatMoney({ amount: minor.toString(), currency: entry.change.currency }, formats);
+      if (entry.payerMemberId === me) {
+        if (before >= 0n) return t("person.youLent", { name });
+        if (after <= 0n) return t("person.youPaid", { name });
+        return t("person.youPaidAndLent", { name, paid: money(-before), lent: money(after) });
+      }
+      if (entry.receivingMemberId === me) {
+        if (before <= 0n) return t("person.lentYou", { name });
+        if (after >= 0n) return t("person.paidYou", { name });
+        return t("person.paidAndLentYou", { name, paid: money(before), lent: money(-after) });
+      }
       return null;
     }
     const change = BigInt(entry.change.amount);

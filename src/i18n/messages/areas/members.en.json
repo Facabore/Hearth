@@ -204,7 +204,11 @@
       "forgivenToYou": "{name} forgave your debt",
       "forgivenByYou": "you forgave their debt",
       "youPaidShare": "you paid · their share",
-      "theyPaidShare": "{name} paid · your share"
+      "theyPaidShare": "{name} paid · your share",
+      "youLent": "you lent them",
+      "lentYou": "{name} lent you",
+      "youPaidAndLent": "you paid {paid} and lent them {lent}",
+      "paidAndLentYou": "{name} paid you {paid} and lent you {lent}"
     },
     "nickname": {
       "title": "Nickname for {name}",

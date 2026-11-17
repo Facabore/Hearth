@@ -286,4 +286,37 @@ describe('removing a person from Amigos (ruling P339, board "Amigos · solicitud
     expect(within(sheet).getByRole("button", { name: "Saldar" })).toBeInTheDocument();
     expect(requests).toEqual([]);
   });
+
+  it("names a payment between the two by the balance before it: paid, lent, or both (P339)", () => {
+    const pay = (id: string, date: string, pesos: number, balance: number, fromAna: boolean) =>
+      entry(id, date, "", pesos, {
+        type: "SETTLEMENT",
+        settlementReason: "PAYMENT",
+        payerMemberId: fromAna ? "m-ana-mama" : "m-mama",
+        receivingMemberId: fromAna ? "m-mama" : "m-ana-mama",
+        balance: cop(balance),
+      });
+    view({
+      history: {
+        ...HISTORY,
+        closing: cop(0),
+        entries: [
+          // Even, Ana gives Mamá 500.000: a loan.
+          pay("t-1", "2026-10-01", 500_000, 500_000, true),
+          // Mamá owes 500.000 and gives back 200.000: a payment.
+          pay("t-2", "2026-10-02", -200_000, 300_000, false),
+          // Mamá owes 300.000 and gives 500.000: she pays 300.000 and lends 200.000.
+          pay("t-3", "2026-10-03", -500_000, -200_000, false),
+          // Ana owes 200.000 and gives 200.000: a payment.
+          pay("t-4", "2026-10-04", 200_000, 0, true),
+        ],
+      },
+    });
+    expect(rows().map((row) => row.replace(/^Pago\d+ oct · /, "").replace(/[−+]\$ [\d.]+$/, ""))).toEqual([
+      "le pagaste",
+      "Mamá te pagó $ 300.000 y te prestó $ 200.000",
+      "Mamá te pagó",
+      "le prestaste",
+    ]);
+  });
 });

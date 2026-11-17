@@ -204,7 +204,11 @@
       "forgivenToYou": "{name} te perdonó la deuda",
       "forgivenByYou": "le perdonaste la deuda",
       "youPaidShare": "tú pagaste · su parte",
-      "theyPaidShare": "pagó {name} · tu parte"
+      "theyPaidShare": "pagó {name} · tu parte",
+      "youLent": "le prestaste",
+      "lentYou": "{name} te prestó",
+      "youPaidAndLent": "le pagaste {paid} y le prestaste {lent}",
+      "paidAndLentYou": "{name} te pagó {paid} y te prestó {lent}"
     },
     "nickname": {
       "title": "Apodo de {name}",
