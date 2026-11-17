@@ -1,11 +1,12 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { FriendsLine } from "@/modules/balances/ui";
 import { NeedsToday } from "@/modules/ledger/ui";
 import { controlsFor, type MyBalanceDto } from "@/modules/spaces/ui";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { useApis } from "../api";
 import { pendingOccurrencesQuery } from "../recurring-pending/queries";
-import { myBalancesQuery } from "../shell";
+import { myBalancesQuery, myFriendsQuery } from "../shell";
 
 /**
  * Board B1 · 03 (ruling P278): each space where it is the person's turn to put money in, and whom she pays first:
@@ -46,6 +47,7 @@ const owedOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], 
  * query cache. It reads the person's balances (ruling P278) and the bills that wait for their real amount in every space
  * where she records money on the personal home, in this one on a shared home: the same reads as the bar's badge, so a
  * space already read costs nothing. Inicio loads it in a chunk of its own, so the route keeps its script budget.
+ * Ruling P338: the personal Inicio's line to Amigos comes first, read here on its own so Inicio never waits for it.
  */
 export function NeedsTodayHost({
   space,
@@ -62,6 +64,14 @@ export function NeedsTodayHost({
   const personal = space.kind === "PERSONAL";
   const shared = spaces.some((s) => s.kind !== "PERSONAL");
   const balances = useQuery({ ...myBalancesQuery(api), enabled: shared }).data ?? [];
+  const friends =
+    useQuery({
+      ...myFriendsQuery(api),
+      enabled: personal && spaces.some((s) => s.kind === "DIRECT"),
+      // An optional line: it reads again on each Inicio and never retries.
+      refetchOnMount: true,
+      retry: false,
+    }).data ?? [];
   const asked = spaces.filter(
     (s) => (personal || s.id === space.id) && controlsFor(s.role, s.kind).recordMoney,
   );
@@ -83,13 +93,18 @@ export function NeedsTodayHost({
       : [];
   });
   return (
-    <NeedsToday
-      pending={pending}
-      owed={owedOf(balances, spaces, space)}
-      owes={owesOf(balances, spaces, space)}
-      today={today}
-      formats={formats}
-      here={!personal}
-    />
+    <>
+      {personal ? (
+        <FriendsLine friends={friends} href={`/spaces/${space.id}/balances`} formats={formats} />
+      ) : null}
+      <NeedsToday
+        pending={pending}
+        owed={owedOf(balances, spaces, space)}
+        owes={owesOf(balances, spaces, space)}
+        today={today}
+        formats={formats}
+        here={!personal}
+      />
+    </>
   );
 }

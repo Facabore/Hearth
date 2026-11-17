@@ -16,18 +16,23 @@ import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
  * passes their count only to someone who records money, so a viewer never sees it, and nothing shows at zero.
  * Ruling P310 (amends P125 for this tab): Inicio always opens the person's personal Inicio, where everything she does
  * meets; a shared or direct space's own home is reached by choosing it in the space switcher.
+ * Ruling P338: in the personal space the Saldos tab reads Amigos and opens the people the person shares a direct space
+ * with, at the same address; in a shared or direct space it stays Saldos.
  */
 export function NavLinks({
   spaceId,
   homeSpaceId = spaceId,
   canRecord,
   pendingCount = 0,
+  friends = false,
 }: {
   readonly spaceId: string;
   /** Ruling P310: the person's personal space, whose Inicio the Inicio tab opens from every space. */
   readonly homeSpaceId?: string;
   readonly canRecord: boolean;
   readonly pendingCount?: number;
+  /** Ruling P338: the personal space, whose Saldos tab is Amigos. */
+  readonly friends?: boolean;
 }) {
   const t = useTranslations("shell.nav");
   const pending = useTranslations("recurrences.pending");
@@ -99,7 +104,7 @@ export function NavLinks({
       ) : null}
       <Link href={balances} {...prefetch} aria-current={current(balances)} className={item}>
         <Icon name="swap" />
-        {t("balances")}
+        {t(friends ? "friends" : "balances")}
       </Link>
       <Link href={more} {...prefetch} aria-current={current(more)} className={item}>
         <Icon name="dots" />

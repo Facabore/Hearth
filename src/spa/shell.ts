@@ -1,6 +1,7 @@
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { notFound, useMatches } from "@tanstack/react-router";
 import { resolveLocale } from "@/i18n/locale";
+import type { FriendDto } from "@/modules/balances/ui";
 import {
   activeSpaceOf,
   type AppShellProps,
@@ -30,6 +31,21 @@ export const myBalancesQuery = (api: Api) =>
     queryKey: ["balances", "mine"],
     queryFn: async () => (await read(api.GET("/api/v1/me/balances"))).items,
     retry: false,
+  });
+
+/** Ruling P338: the person's Amigos, beside her standing in each space. */
+export const friendsKey = ["balances", "mine", "friends"] as const;
+
+/**
+ * Ruling P338: each person the viewer shares a direct space with, her net there and their newest movement (computed on
+ * read, D7). Amigos' loaders read it again on each visit (ADR 0006), so mounting a screen does not; Inicio's line reads
+ * it on its own. Here, beside `myBalancesQuery`, so Inicio's chunk holds no copy of the screens' reads.
+ */
+export const myFriendsQuery = (api: Api) =>
+  queryOptions<readonly FriendDto[]>({
+    refetchOnMount: false,
+    queryKey: friendsKey,
+    queryFn: async () => (await read(api.GET("/api/v1/me/friends"))).items,
   });
 
 declare module "@tanstack/react-router" {

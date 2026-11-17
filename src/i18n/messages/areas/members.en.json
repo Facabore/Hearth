@@ -166,5 +166,23 @@
       "settled": "Payment recorded",
       "forgiven": "Debt forgiven"
     }
+  },
+  "friends": {
+    "title": "Friends",
+    "totals": "You're owed {owed} · You owe {owe}",
+    "empty": "When you share an expense or a loan with someone, they show up here.",
+    "noMovements": "No movements",
+    "state": {
+      "owed": "Owes you",
+      "owes": "You owe",
+      "settled": "Settled up"
+    },
+    "type": {
+      "EXPENSE": "Expense",
+      "INCOME": "Income",
+      "TRANSFER": "Transfer",
+      "SETTLEMENT": "Payment",
+      "ADJUSTMENT": "Adjustment"
+    }
   }
 }

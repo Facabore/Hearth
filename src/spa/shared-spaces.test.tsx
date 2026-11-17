@@ -6,6 +6,7 @@ import type { InvitationDto, SpaceDto } from "@/shared/ui/api/dto";
 import {
   accountDto,
   cop,
+  friendDto,
   householdSpace,
   invitationDto,
   meDto,
@@ -75,6 +76,7 @@ const server = (signedIn = true) => {
         totals: { available: cop(0), netWorth: cop(0) },
       }),
     "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [OCTOBER] }),
+    "GET /api/v1/me/friends": () => jsonResponse({ items: [friendDto()] }),
     "GET /api/v1/spaces/{spaceId}/members/{memberId}/balance-history": (_, { memberId }) =>
       jsonResponse({
         memberId,
@@ -216,11 +218,17 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
   });
 
-  it("opens a personal space's Saldos, which says the person is al día with nothing to settle (P302)", async () => {
+  it("opens Amigos at the personal space's Saldos address, each person with what they owe (P338 amends P302)", async () => {
     const { routes } = server();
-    renderSpa("/spaces/sp-personal/balances", routes);
-    expect(await screen.findByText("Personal es solo tuyo: aquí no hay nada que saldar.")).toBeVisible();
-    expect(screen.queryByRole("heading", { name: es.notFound.title })).not.toBeInTheDocument();
+    const spa = renderSpa("/spaces/sp-personal/balances", routes);
+    expect(await screen.findByRole("heading", { level: 1, name: "Amigos" })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Mamá/ })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/friends/sp-mama",
+    );
+    expect(screen.queryByText("Personal es solo tuyo: aquí no hay nada que saldar.")).not.toBeInTheDocument();
+    expect(count(spa.requests, "GET", /\/me\/friends$/)).toBe(1);
+    expect(count(spa.requests, "GET", /\/spaces\/sp-personal\/balances$/)).toBe(0);
   });
 
   it("settles up from a suggestion: the balances, the suggestions and the ledger are read again, the profile is not", async () => {

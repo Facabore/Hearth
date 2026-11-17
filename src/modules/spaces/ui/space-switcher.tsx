@@ -49,6 +49,9 @@ function SpaceInitial({ space, size }: { readonly space: SpaceSummary; readonly 
  * ⚙, ruling P311, amending P309), then, under a divider, the boards' two ways to another space (HU-E9-05): "Crear un espacio compartido" and
  * "Unirme con un enlace de invitación", 56 px targets.
  * Each opens in the same sheet, over the switcher, with a way back to the spaces (ruling P272).
+ * Ruling P338 (board "Cambiar de espacio · solo los que creaste"): a direct space is not listed, its person is in
+ * Amigos, which the sheet says under the actions. One opened from Amigos ("Registrar con …") still names itself on the
+ * trigger, so the person knows where she records.
  */
 export function SpaceSwitcher({
   spaces,
@@ -77,6 +80,7 @@ export function SpaceSwitcher({
   // #293 (owner, 2026-11-09): from Movimientos, Saldos or Más, the chosen space opens on the same tab.
   const pathname = usePathname();
   const tab = TABS.find((name) => pathname === `/spaces/${activeSpace.id}/${name}`);
+  const listed = spaces.filter((space) => space.kind !== "DIRECT");
   return (
     <>
       <button
@@ -113,7 +117,7 @@ export function SpaceSwitcher({
         ) : (
           <>
             <ul className="flex flex-col gap-2">
-              {spaces.map((space) => {
+              {listed.map((space) => {
                 const current = space.id === activeSpace.id;
                 const balance = balances?.find((b) => b.spaceId === space.id);
                 const plain = (
@@ -165,6 +169,7 @@ export function SpaceSwitcher({
                 ))}
               </>
             ) : null}
+            <p className="mt-1 px-1 text-sm text-muted">{t("shell.space.friendsNote")}</p>
           </>
         )}
       </Sheet>

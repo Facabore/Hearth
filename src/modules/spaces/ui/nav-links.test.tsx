@@ -152,3 +152,22 @@ describe("the pending-occurrence badge on Movimientos (HU-E9-09, ruling P270)", 
     expect(screen.getByRole("link", { name: "Movimientos" })).toBeInTheDocument();
   });
 });
+
+describe("the Amigos tab (ruling P338)", () => {
+  it("reads Amigos in the personal space and opens its list at the Saldos address", () => {
+    renderWithIntl(<NavLinks spaceId="sp-personal" canRecord friends />);
+    expect(names()).toEqual(["Inicio", "Movimientos", "Registrar movimiento", "Amigos", "Más"]);
+    expect(screen.getByRole("link", { name: "Amigos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/balances",
+    );
+  });
+
+  it("stays Saldos in a group, and reads Friends in English", () => {
+    const { unmount } = renderWithIntl(<NavLinks spaceId="sp-household" canRecord />);
+    expect(screen.getByRole("link", { name: "Saldos" })).toBeInTheDocument();
+    unmount();
+    renderWithIntl(<NavLinks spaceId="sp-personal" canRecord friends />, { locale: "en" });
+    expect(screen.getByRole("link", { name: "Friends" })).toBeInTheDocument();
+  });
+});

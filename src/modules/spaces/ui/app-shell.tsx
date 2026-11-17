@@ -123,6 +123,7 @@ export function AppShell({
         spaceId={activeSpace.id}
         homeSpaceId={spaces.find((space) => space.kind === "PERSONAL")?.id ?? activeSpace.id}
         canRecord={controlsFor(activeSpace.role, activeSpace.kind).recordMoney}
+        friends={activeSpace.kind === "PERSONAL"}
         {...(pendingCount === undefined ? {} : { pendingCount })}
       />
     </div>

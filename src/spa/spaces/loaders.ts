@@ -2,9 +2,11 @@ import { notFound } from "@tanstack/react-router";
 import { controlsFor, personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { ensurer, viewerOf, type Load, type Viewer } from "../load";
+import { myFriendsQuery } from "../shell";
 import {
   accountsQuery,
   balanceHistoryQuery,
+  friendHistoryQuery,
   invitationsQuery,
   membersQuery,
   netBalancesQuery,
@@ -48,13 +50,10 @@ export const loadMembers = async (load: Load, spaceId: string) => {
  * HU-E9-07: the members, every net balance and the settle-up suggestions; for someone who records money, the accounts
  * a payment may leave from (P174), which never fail the screen.
  */
-export const loadBalances = async (load: Load, spaceId: string) => {
+const ensureBalances = async (load: Load, { space, spaces }: Viewer) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
-  // P302: Saldos opens in every space, the personal one included, where it says the person is al día.
-  const viewer = await viewerOf(load, spaceId);
-  if (!viewer) throw notFound();
-  const { space, spaces } = viewer;
+  const spaceId = space.id;
   await Promise.all([
     ensure(membersQuery(api, spaceId)),
     ensure(netBalancesQuery(api, spaceId)),
@@ -68,6 +67,37 @@ export const loadBalances = async (load: Load, spaceId: string) => {
         )
       : undefined,
   ]);
+};
+
+/**
+ * HU-E9-07's Saldos in a shared or direct space. Ruling P338 (amends P302): in the personal space the tab is Amigos,
+ * the people the person shares a direct space with.
+ */
+export const loadBalances = async (load: Load, spaceId: string) => {
+  const viewer = await viewerOf(load, spaceId);
+  if (!viewer) throw notFound();
+  if (viewer.space.kind === "PERSONAL") await ensurer(load)(myFriendsQuery(load.apis.api));
+  else await ensureBalances(load, viewer);
+};
+
+/**
+ * Ruling P338: one person of Amigos, under the personal space's address. Her direct space's balances (the settle-up
+ * sheet's members, suggestions and accounts) and every movement that moved the viewer's balance with her. A space that
+ * is not one of the viewer's direct spaces, or not under her personal one, is not found.
+ */
+export const loadFriend = async (load: Load, spaceId: string, friendSpaceId: string) => {
+  const ensure = ensurer(load);
+  const { api } = load.apis;
+  const viewer = await viewerOf(load, spaceId);
+  const direct = viewer?.spaces.find((s) => s.id === friendSpaceId && s.kind === "DIRECT");
+  if (!viewer || viewer.space.kind !== "PERSONAL" || !direct) throw notFound();
+  const [friends] = await Promise.all([
+    ensure(myFriendsQuery(api)),
+    ensureBalances(load, { ...viewer, space: direct }),
+  ]);
+  const friend = friends.find((f) => f.spaceId === friendSpaceId);
+  if (!friend) throw notFound();
+  await ensure(friendHistoryQuery(api, friendSpaceId, friend.me.memberId));
 };
 
 /**

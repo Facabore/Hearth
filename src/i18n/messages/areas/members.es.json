@@ -166,5 +166,23 @@
       "settled": "Pago registrado",
       "forgiven": "Deuda perdonada"
     }
+  },
+  "friends": {
+    "title": "Amigos",
+    "totals": "Te deben {owed} · Debes {owe}",
+    "empty": "Cuando compartas un gasto o un préstamo con alguien, aparece aquí.",
+    "noMovements": "Sin movimientos",
+    "state": {
+      "owed": "Te debe",
+      "owes": "Le debes",
+      "settled": "Al día"
+    },
+    "type": {
+      "EXPENSE": "Gasto",
+      "INCOME": "Ingreso",
+      "TRANSFER": "Transferencia",
+      "SETTLEMENT": "Pago",
+      "ADJUSTMENT": "Ajuste"
+    }
   }
 }

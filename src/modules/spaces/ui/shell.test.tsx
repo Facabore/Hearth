@@ -147,7 +147,7 @@ describe("app shell (HU-E9-01)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("shows Saldos, then Más, after Movimientos and Registrar, in a shared space and in the personal one (P311 takes Plan out of the bar; P272 brings Saldos to Personal)", () => {
+  it("shows Saldos, then Más, after Movimientos and Registrar, in a shared space, and Amigos in its place in the personal one (P311 takes Plan out of the bar; P338 amends P302)", () => {
     const { unmount } = renderWithIntl(
       <AppShell
         me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
@@ -193,6 +193,31 @@ describe("app shell (HU-E9-01)", () => {
       `/spaces/${spaces[0]!.id}/balances`,
       `/spaces/${spaces[0]!.id}/more`,
     ]);
+    const personalNav = screen.getByRole("navigation", { name: "Principal" });
+    expect(within(personalNav).getByRole("link", { name: "Amigos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/balances",
+    );
+    expect(within(personalNav).queryByRole("link", { name: "Saldos" })).toBeNull();
+  });
+
+  it("keeps Saldos in a direct space's bar (P338)", () => {
+    const direct = { id: "sp-mama", name: "Mamá", kind: "DIRECT", role: "OWNER" } as const;
+    renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={[...spaces, direct]}
+        activeSpace={direct}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    const nav = screen.getByRole("navigation", { name: "Principal" });
+    expect(within(nav).getByRole("link", { name: "Saldos" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-mama/balances",
+    );
+    expect(within(nav).queryByRole("link", { name: "Amigos" })).toBeNull();
   });
 
   const openSwitcher = async () => {
@@ -355,6 +380,47 @@ describe("app shell (HU-E9-01)", () => {
       "href",
       "/spaces/sp-household",
     );
+  });
+
+  it("leaves direct spaces out of the switcher and says their people are in Amigos (P338)", async () => {
+    const direct = { id: "sp-mama", name: "Mamá", kind: "DIRECT", role: "OWNER" } as const;
+    const { unmount } = renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={[...spaces, direct]}
+        activeSpace={spaces[0]}
+        spaceFlows={Flows}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Espacio actual: Personal. Cambiar de espacio" }),
+    );
+    const sheet = screen.getByRole("dialog", { name: "Espacios" });
+    expect(
+      within(sheet)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href")),
+    ).toEqual(["/spaces/sp-personal", "/spaces/sp-household"]);
+    expect(
+      within(sheet).getByText("Lo que compartes con una sola persona está en Amigos."),
+    ).toBeInTheDocument();
+    unmount();
+    // Opened from a person of Amigos ("Registrar con …"), a direct space still names itself on the trigger.
+    renderWithIntl(
+      <AppShell
+        me={{ id: "u-ana", name: "Ana", email: "ana@example.com", locale: "es" }}
+        spaces={[...spaces, direct]}
+        activeSpace={direct}
+      >
+        <h1>Inicio</h1>
+      </AppShell>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Espacio actual: Mamá. Cambiar de espacio" }));
+    const again = screen.getByRole("dialog", { name: "Espacios" });
+    expect(within(again).queryByRole("link", { name: /Mamá/ })).toBeNull();
+    expect(within(again).queryByRole("link", { current: "true" })).toBeNull();
   });
 
   it("draws a stacked screen with only its own header: no switcher, profile or navigation (ruling P272)", async () => {

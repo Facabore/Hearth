@@ -285,6 +285,7 @@
       "record": "Registrar movimiento",
       "recordShort": "Registrar",
       "balances": "Saldos",
+      "friends": "Amigos",
       "more": "Más"
     },
     "space": {
@@ -293,6 +294,7 @@
       "onlyYou": "Solo tú",
       "create": "Crear un espacio compartido",
       "join": "Unirme con un enlace de invitación",
+      "friendsNote": "Lo que compartes con una sola persona está en Amigos.",
       "members": "{others} y {last}",
       "owes": "Te toca poner",
       "owed": "Te toca recibir"
@@ -425,6 +427,11 @@
       "to": "a {name}",
       "settle": "Saldar",
       "settleWith": "Saldar con {name} en {space}"
+    },
+    "friends": {
+      "owed": "Amigos · te deben {amount}",
+      "owes": "Amigos · debes {amount}",
+      "both": "Amigos · te deben {owed} · debes {owe}"
     }
   },
   "settings": {

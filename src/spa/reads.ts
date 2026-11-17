@@ -190,6 +190,22 @@ export const balanceHistoryQuery = (api: Api, spaceId: string, memberId: string,
       ),
   });
 
+/**
+ * Ruling P338: every movement that ever moved the viewer's balance with one person of Amigos, newest last, as the API
+ * answers a history without a period. Under the space's balances, so a movement there reads it again.
+ */
+export const friendHistoryQuery = (api: Api, spaceId: string, memberId: string) =>
+  queryOptions<BalanceHistoryDto>({
+    ...LOADER_OWNED,
+    queryKey: [...moduleKeys.balances(spaceId), "history", memberId, "all"],
+    queryFn: () =>
+      read(
+        api.GET("/api/v1/spaces/{spaceId}/members/{memberId}/balance-history", {
+          params: { path: { spaceId, memberId } },
+        }),
+      ),
+  });
+
 /** A plan of the space, its lines and capacities (HU-E9-08); a 404 is not found. */
 export const planQuery = (api: Api, spaceId: string, planId: string) =>
   queryOptions<BudgetPlanDto>({

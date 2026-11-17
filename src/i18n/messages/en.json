@@ -285,6 +285,7 @@
       "record": "Record a transaction",
       "recordShort": "Record",
       "balances": "Balances",
+      "friends": "Friends",
       "more": "More"
     },
     "space": {
@@ -293,6 +294,7 @@
       "onlyYou": "Only you",
       "create": "Create a shared space",
       "join": "Join with an invitation link",
+      "friendsNote": "What you share with just one person is in Friends.",
       "members": "{others} and {last}",
       "owes": "You owe",
       "owed": "You are owed"
@@ -425,6 +427,11 @@
       "to": "to {name}",
       "settle": "Settle up",
       "settleWith": "Settle up with {name} in {space}"
+    },
+    "friends": {
+      "owed": "Friends · you're owed {amount}",
+      "owes": "Friends · you owe {amount}",
+      "both": "Friends · you're owed {owed} · you owe {owe}"
     }
   },
   "settings": {

@@ -9,6 +9,7 @@ import type {
   TransactionDto,
   ActivityItemDto,
 } from "@/shared/ui/api/dto";
+import type { FriendDto } from "@/modules/balances/ui/friends";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 
 /** Pesos as the wire carries them: minor units in a string (string arithmetic is safe for test amounts). */
@@ -271,3 +272,17 @@ export const octoberPage = {
   ],
   nextCursor: null,
 };
+
+/**
+ * Ruling P338: one person of Amigos, Mamá by default: a guest of Ana's direct space "sp-mama" who owes her 500,000 COP,
+ * last seen in a loan.
+ */
+export const friendDto = (overrides: Partial<FriendDto> = {}): FriendDto => ({
+  spaceId: "sp-mama",
+  me: { memberId: "m-ana-mama" },
+  other: { memberId: "m-mama", kind: "GUEST", displayName: "Mamá", nickname: null },
+  name: "Mamá",
+  net: cop(500_000),
+  lastMovement: { transactionId: "t-loan", date: "2025-03-12", description: "Préstamo", type: "EXPENSE" },
+  ...overrides,
+});
