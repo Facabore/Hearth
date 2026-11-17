@@ -113,7 +113,7 @@ Money Manager has two levels (category → subcategory) with a kind; Hearth has 
 
 - Each top-level Money Manager category becomes a Hearth **group**, named as in Money Manager, expense ones first and then income ones, each in Money Manager's order (new groups go last in the space's list, so they keep it). Its subcategories become that group's **categories**, in order. A top-level category without subcategories becomes a group with one category of the same name, picked in one tap; one with subcategories that a movement still uses directly also gets a category of its own name, first. A leading emoji becomes the group's and its categories' icon (D22 allows one emoji; one the categories module refuses only costs the icon) and leaves the name.
 - A group goes to what an earlier import of this source linked it to (a `CATEGORY_GROUP` link per top-level source category), else to a group of the space with the same name ignoring case, archived ones included (restored); a category, likewise, to its linked category, else to a category of the same name in that group. Two top-level categories of one name (an income and an expense "Others") share one group, and two categories of one name in it share one category.
-- **"Archivar las de Hearth que no uses"**, on by default (`archiveUnusedCategories`), archives once every movement is in the seeded groups (D11) no live movement uses, whole, and in a group that stays the seeded categories no movement uses; never a group or category the import lands on, and never one someone created. They can be restored (`RestoreCategoryGroup`, `RestoreCategory`); an undo restores them itself, groups first, and archives again the groups it created or restored that are left with no live category.
+- **"Archivar las de Hearth que no uses"**, on by default (`archiveUnusedCategories`), archives once every movement is in the seeded groups (D11) nothing uses, whole, and in a group that stays the seeded categories nothing uses; in use means named by a live movement, a budget line (any plan, on a line not deleted) or a recurrence (ended or paused ones too); never a group or category the import lands on, and never one someone created. They can be restored (`RestoreCategoryGroup`, `RestoreCategory`); an undo restores them itself, groups first, and archives again the groups it created or restored that are left with no live category.
 - Categories are not remapped one by one any more: the catalog matching of the first Money Manager import (Food → Mercado) is gone. A deleted Money Manager category is imported only when a movement still uses it, and then archived.
 
 ### 2.3 Movements
@@ -300,3 +300,17 @@ The owner left these to the controller on 2026-11-15; the recommendation is the 
 | Q6 | Should Money Manager budgets come in as a draft plan, or stay out? | Out in the first version; the preview says how many |
 | Q7 | Money lent to people outside Hearth (a positive "Loan" in Money Manager) | Imported as an "Otro" account until debts with people outside Hearth exist |
 | Q8 | Board 2 tells people where Money Manager keeps its backup ("Más › Copia de seguridad › Exportar"). Is that the path on your phone? | Confirm it before the copy ships |
+
+### P337 execution notes (2026-11-16)
+
+The ruling left four defaults open; the controller settled them on the owner's standing instruction to decide minor
+product defaults without asking.
+
+- **Persona suggestion:** kept as built (the Loan group, a loan word or a relationship word); a plain name such as
+  "Jhon López" outside the Loan group is suggested as Cuenta, and the person switches it.
+- **Fixed:** the review's "Cuentas · N · X nuevas, Y ya las tienes" counts as "ya las tienes" only the accounts that go
+  into one the person has; a Persona or an Archivar is neither new nor one they have.
+- **Reused groups:** a group of the space the import lands on keeps its place; only new groups follow Money Manager's
+  order.
+- **Fixed:** "Archivar las de Hearth que no uses" never archives a seeded group or category a budget line or a
+  recurrence names, not only a live movement (§2.2).

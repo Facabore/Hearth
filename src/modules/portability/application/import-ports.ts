@@ -162,7 +162,10 @@ export interface ImportWriter {
   archiveCategoryGroup(input: { spaceId: string; userId: string; groupId: string }): Promise<Result<void>>;
   /** P337: brings an archived group back with the categories archiving it took. */
   restoreCategoryGroup(input: { spaceId: string; userId: string; groupId: string }): Promise<Result<void>>;
-  /** P337: the categories a live movement of the space names (D8: deleted movements do not count), in one read. */
+  /**
+   * P337: the categories of the space in use: named by a live movement (D8: deleted ones do not count), a budget line
+   * (any plan, a line not deleted) or a recurrence. "Archivar las de Hearth que no uses" never archives one of them.
+   */
   usedCategoryIds(spaceId: string): Promise<ReadonlySet<string>>;
   /**
    * P337, P338: a DIRECT space between the importer and a new guest named `guestName`, created as a split creates one

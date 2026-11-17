@@ -76,6 +76,8 @@ export interface UseCaseImportWriterSources {
   readonly categories: Pick<CategoryRepository, "listGroups" | "listCategories">;
   readonly ledgerQueries: Pick<TransactionQuery, "list">;
   readonly usageCounts: CategoryUsageCounts;
+  /** P337: the categories of the space a budget line or a recurrence names. */
+  readonly categoryReferences: (spaceId: string) => Promise<ReadonlySet<string>>;
   readonly createAccount: CreateAccount;
   readonly archiveAccount: ArchiveAccount;
   readonly restoreAccount: RestoreAccount;
@@ -169,10 +171,12 @@ export const createUseCaseImportWriter = (sources: UseCaseImportWriterSources): 
     },
     archiveCategoryGroup: async (input) => done(await sources.archiveCategoryGroup(input)),
     restoreCategoryGroup: async (input) => done(await sources.restoreCategoryGroup(input)),
+    // P337: a live movement, a budget line or a recurrence: any of them keeps a category in use.
     usedCategoryIds: async (spaceId) =>
-      new Set(
-        [...(await sources.usageCounts.usageCountsOf(spaceId))].filter(([, n]) => n > 0).map(([id]) => id),
-      ),
+      new Set([
+        ...[...(await sources.usageCounts.usageCountsOf(spaceId))].filter(([, n]) => n > 0).map(([id]) => id),
+        ...(await sources.categoryReferences(spaceId)),
+      ]),
     createCategory: async ({ emoji, ...input }) => {
       const created = await sources.createCategory({
         ...input,

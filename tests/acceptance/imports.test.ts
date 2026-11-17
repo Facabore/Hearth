@@ -12,6 +12,8 @@ import { categoryWithKey, cop, newAccount, post, starterAccount } from "../suppo
 import { GET as directBalance } from "@/app/api/v1/spaces/[spaceId]/balances/route";
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { moneyManagerBackup, type BackupMovement } from "../support/money-manager-backup";
+import { addLine, lineNamed, newPlan, putCategories, setCapacities } from "../support/budgeting";
+import { defined } from "../support/recurrences";
 import { joinAs, newSharedSpace } from "../support/spaces";
 
 let app: Container;
@@ -154,7 +156,7 @@ interface TreeGroup {
   name: string;
   key: string | null;
   archivedAt: string | null;
-  categories: { name: string; archivedAt: string | null }[];
+  categories: { id: string; name: string; archivedAt: string | null }[];
 }
 
 /** The space's category tree through the categories API, archived groups and categories included. */
@@ -861,6 +863,56 @@ describe("your categories as you had them (P337, #333)", () => {
 
     expect(result.counts).toMatchObject({ hearthCategoriesArchived: 0, categoriesCreated: 4 });
     expect((await seededGroups(ana.spaceId)).every((g) => g.archived_at === null)).toBe(true);
+  });
+
+  it("keeps a seeded category a budget line or a recurrence names, with its group, though no movement uses it", async () => {
+    const ana = await registerUser("Ana");
+    // Rent repeats every month, and a plan's line consumes Travel: neither has a movement yet.
+    const rent = await categoryWithKey(ana, "rent");
+    const travel = await categoryWithKey(ana, "travel");
+    const member = await app.pool.query("SELECT id FROM space_members WHERE space_id = $1", [ana.spaceId]);
+    await defined(ana, ana.spaceId, {
+      description: "Arriendo",
+      amount: cop(1_200_000),
+      template: {
+        type: "EXPENSE",
+        categoryId: rent,
+        payer: {
+          memberId: (member.rows[0] as { id: string }).id,
+          accountId: await starterAccount(ana, "Cuenta bancaria"),
+        },
+      },
+      schedule: { kind: "MONTHLY", day: 1 },
+      mode: "AUTO",
+      startDate: "2027-01-01",
+    });
+    const { id: planId } = await newPlan(ana, ana.spaceId, "2027-01");
+    await setCapacities(ana, ana.spaceId, planId, [[(member.rows[0] as { id: string }).id, 2_000_000]]);
+    const plan = await addLine(ana, ana.spaceId, planId, {
+      name: "Viajes",
+      pesos: 500_000,
+      funding: "DIRECT",
+      rolloverMode: "RESET",
+    });
+    const mapped = await putCategories(ana, ana.spaceId, planId, lineNamed(plan, "Viajes").id, [travel]);
+    expect(mapped.status).toBe(200);
+
+    const preview = await uploaded(ana);
+    expect(preview.categories.unusedSeeded.categories.map((c) => c.id)).not.toContain(rent);
+    await confirmed(ana, preview.id);
+
+    const tree = await treeOf(ana);
+    const holding = (categoryId: string) => tree.find((g) => g.categories.some((c) => c.id === categoryId))!;
+    for (const id of [rent, travel]) {
+      expect(holding(id).archivedAt).toBeNull();
+      expect(holding(id).categories.find((c) => c.id === id)!.archivedAt).toBeNull();
+    }
+    // The rest of those groups' seeded categories, which nothing names, are still archived.
+    expect(
+      holding(rent)
+        .categories.filter((c) => c.id !== rent)
+        .every((c) => c.archivedAt !== null),
+    ).toBe(true);
   });
 
   it("puts a category in a group of its name ignoring case, restoring an archived one, and keeps a used seeded group", async () => {

@@ -28,7 +28,13 @@ import {
 } from "@/modules/accounts/application";
 import { DrizzleAccountRepository } from "@/modules/accounts/infrastructure/drizzle-account-repository";
 import { accounts as accountsTable } from "@/modules/accounts/infrastructure/accounts.schema";
+import {
+  budgetLineCategories as budgetLineCategoriesTable,
+  budgetLines as budgetLinesTable,
+  budgetPlans as budgetPlansTable,
+} from "@/modules/budgeting/infrastructure/budgeting.schema";
 import { transactions as transactionsTable } from "@/modules/ledger/infrastructure/ledger.schema";
+import { recurrences as recurrencesTable } from "@/modules/ledger/infrastructure/recurrences.schema";
 import {
   createGetMemberNetBalance,
   createGetMemberNetBalances,
@@ -611,6 +617,28 @@ export const categoryUsageCountsOf = (tm: DrizzleTransactionManager): CategoryUs
   },
 });
 
+/**
+ * P337: the categories of the space a plan or a recurrence names, in one read each: a budget line's mapping (any plan,
+ * on a line not deleted) and a recurrence's template, ended or paused ones included. The import's "Archivar las de
+ * Hearth que no uses" never archives one of them.
+ */
+export const categoryReferencesOf =
+  (tm: DrizzleTransactionManager) =>
+  async (spaceId: string): Promise<ReadonlySet<string>> => {
+    const db = tm.executor();
+    const mapped = await db
+      .selectDistinct({ categoryId: budgetLineCategoriesTable.categoryId })
+      .from(budgetLineCategoriesTable)
+      .innerJoin(budgetPlansTable, eq(budgetPlansTable.id, budgetLineCategoriesTable.planId))
+      .innerJoin(budgetLinesTable, eq(budgetLinesTable.id, budgetLineCategoriesTable.lineId))
+      .where(and(eq(budgetPlansTable.spaceId, spaceId), isNull(budgetLinesTable.deletedAt)));
+    const repeated = await db
+      .selectDistinct({ categoryId: recurrencesTable.categoryId })
+      .from(recurrencesTable)
+      .where(and(eq(recurrencesTable.spaceId, spaceId), isNotNull(recurrencesTable.categoryId)));
+    return new Set([...mapped, ...repeated].map((row) => row.categoryId!));
+  };
+
 /** HU-E3-03: soft-deleted transactions and every budget-line mapping, ended ones included, are references (D8). */
 export const categoryUsageOf = (
   ledger: Pick<DrizzleLedgerQueries, "isCategoryReferenced">,
@@ -1113,6 +1141,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       categories: categoryRepository,
       ledgerQueries,
       usageCounts: categoryUsageCountsOf(tm),
+      categoryReferences: categoryReferencesOf(tm),
       createAccount: createCreateAccount(accountsDeps),
       archiveAccount: createArchiveAccount(accountsDeps),
       restoreAccount: createRestoreAccount(accountsDeps),
