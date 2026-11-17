@@ -1,8 +1,10 @@
 import type { QueryClient } from "@tanstack/react-query";
+import type { FriendDto } from "@/modules/balances/ui";
 import type { MeDto, SpaceDto } from "@/shared/ui/api/dto";
 import { queryKeys } from "../queries";
 import { moduleKeys } from "../reads";
 import { friendsKey } from "../shell";
+import { friendRequestsKey } from "./friends";
 import type { WritePlanner } from "../write-plan";
 
 const SPACE = "/api/v1/spaces/{spaceId}";
@@ -18,6 +20,12 @@ const MEMBERS = new Set([
   `PATCH ${SPACE}/members/{memberId}`,
 ]);
 const ACCEPTS = new Set(["/api/v1/invitations/{token}/accept", "/api/v1/claims/{token}/accept"]);
+/** Ruling P339: the friend requests' answers, which may open a pair's direct space. */
+const REQUESTS = new Set([
+  "/api/v1/me/friend-requests",
+  "/api/v1/me/friend-requests/{requestId}/accept",
+  "/api/v1/me/friend-requests/{requestId}/reject",
+]);
 /** Ruling P309: leaving or archiving a space takes it out of the person's spaces. */
 const GONE = new Set([`${SPACE}/leave`, `${SPACE}/archive`]);
 
@@ -44,8 +52,48 @@ const joined = (queryClient: QueryClient, space: SpaceDto) => {
  * - A preference changes every format on every screen, and the profile's answer is the whole profile: it replaces the
  *   cached one, so every screen formats again without reading anything.
  * - An apodo (P338) renames the person in Amigos, and a guest's in its direct space's members and balances.
+ * - A friend request sent or answered (P339) reads the requests again, and Amigos and the spaces, which an accepted one
+ *   may have grown by the pair's direct space.
+ * - A friend added by name (P339) joins Amigos at once, and the spaces are read again for the new direct space.
+ * - A friend removed (P339) leaves Amigos and the spaces at once: their direct space is archived.
  */
 export const spaceWrites: WritePlanner = (call) => {
+  if (call.method === "POST" && REQUESTS.has(call.path))
+    return {
+      accepted: (queryClient) => {
+        void queryClient.invalidateQueries({ queryKey: friendRequestsKey });
+        void queryClient.invalidateQueries({ queryKey: friendsKey });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
+      },
+    };
+  if (call.method === "POST" && call.path === "/api/v1/me/friends")
+    return {
+      accepted: (queryClient, data) => {
+        const added = data as FriendDto;
+        queryClient.setQueryData<readonly FriendDto[]>(friendsKey, (friends) =>
+          friends === undefined || friends.some((one) => one.spaceId === added.spaceId)
+            ? friends
+            : [...friends, added],
+        );
+        void queryClient.invalidateQueries({ queryKey: friendsKey });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
+      },
+    };
+  if (call.method === "DELETE" && call.path === "/api/v1/me/friends/{spaceId}") {
+    const { spaceId = "" } = call.params;
+    return {
+      accepted: (queryClient) => {
+        queryClient.setQueryData<readonly FriendDto[]>(friendsKey, (friends) =>
+          friends?.filter((friend) => friend.spaceId !== spaceId),
+        );
+        queryClient.setQueryData<SpaceDto[]>(queryKeys.spaces, (spaces) =>
+          spaces?.filter((space) => space.id !== spaceId),
+        );
+        void queryClient.invalidateQueries({ queryKey: friendsKey });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
+      },
+    };
+  }
   if (call.method === "PATCH" && call.path === "/api/v1/me/friends/{spaceId}") {
     const { spaceId = "" } = call.params;
     return {

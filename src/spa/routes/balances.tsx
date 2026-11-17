@@ -1,5 +1,6 @@
 import { useQuery, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { useTranslations } from "use-intl";
 import { BalancesScreen } from "@/modules/balances/ui";
 import { FriendsScreen } from "@/modules/balances/ui/screens";
@@ -9,6 +10,8 @@ import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { accountsQuery, membersQuery, netBalancesQuery, suggestionsQuery } from "../reads";
 import { myFriendsQuery } from "../shell";
+import { forgetFriendLink, rememberedFriendLink } from "../spaces/friend-link";
+import { friendRequestsQuery } from "../spaces/friends";
 import { useTitle } from "../title";
 import { useViewer } from "../viewer";
 
@@ -25,12 +28,21 @@ export function BalancesRoute() {
   return space.kind === "PERSONAL" ? <FriendsRoute spaceId={spaceId} /> : <SpaceBalances spaceId={spaceId} />;
 }
 
-/** Ruling P338 (board "Amigos · cada persona con su saldo"): the people the person shares a direct space with. */
+/**
+ * Ruling P338 (board "Amigos · cada persona con su saldo"): the people the person shares a direct space with. Ruling
+ * P339: with the friend requests (optional: without them Amigos shows none), and Agregar amigo open at once with the @
+ * of a friend link (`/f/<handle>`), which is then forgotten.
+ */
 function FriendsRoute({ spaceId }: { readonly spaceId: string }) {
   useTitle(useTranslations("friends")("title"));
   const { api } = useApis();
   const { me } = useViewer(spaceId);
   const friends = useSuspenseQuery(myFriendsQuery(api)).data;
+  const requests = useQuery(friendRequestsQuery(api)).data;
+  const [addHandle] = useState(rememberedFriendLink);
+  useEffect(() => {
+    if (addHandle !== undefined) forgetFriendLink();
+  }, [addHandle]);
   return (
     <div className="mx-auto max-w-[720px] py-3">
       <FriendsScreen
@@ -38,6 +50,9 @@ function FriendsRoute({ spaceId }: { readonly spaceId: string }) {
         friends={friends}
         formats={me.preferences.effective}
         today={nowIn(new Date(), me.timezone).date}
+        requests={requests}
+        myHandle={me.handle}
+        addHandle={addHandle}
       />
     </div>
   );

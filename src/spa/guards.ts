@@ -54,15 +54,23 @@ const isSignedIn = async (
  */
 export const OPEN_PAGES = ["/trust"] as const;
 
+/** The prefix and exactly one segment, nothing deeper, no dot segment and no backslash. */
+const oneSegmentUnder = (prefix: string, pathname: string): boolean => {
+  if (!pathname.startsWith(prefix)) return false;
+  const segment = pathname.slice(prefix.length);
+  return (
+    segment !== "" && segment !== "." && segment !== ".." && !segment.includes("/") && !segment.includes("\\")
+  );
+};
+
 /**
  * D27: a referral link, `/r/<code>`, opens with or without a session, like the open prefixes of ruling P157: the prefix
  * and exactly one code segment, nothing deeper, no dot segment and no backslash.
  */
-export const isReferralPath = (pathname: string): boolean => {
-  if (!pathname.startsWith("/r/")) return false;
-  const code = pathname.slice("/r/".length);
-  return code !== "" && code !== "." && code !== ".." && !code.includes("/") && !code.includes("\\");
-};
+export const isReferralPath = (pathname: string): boolean => oneSegmentUnder("/r/", pathname);
+
+/** Ruling P339 (S6): a friend link, `/f/<handle>`, opens with or without a session, as a referral link does. */
+export const isFriendLinkPath = (pathname: string): boolean => oneSegmentUnder("/f/", pathname);
 
 /**
  * `src/proxy.ts` in the SPA (HU-E9-01): a protected path without a session goes to the sign-in screen with the path to
@@ -70,7 +78,12 @@ export const isReferralPath = (pathname: string): boolean => {
  * A guard is only navigation: the API still authorizes every request.
  */
 export const guardSession = async (context: RouterContext, where: Where): Promise<void> => {
-  if ((OPEN_PAGES as readonly string[]).includes(where.pathname) || isReferralPath(where.pathname)) return;
+  if (
+    (OPEN_PAGES as readonly string[]).includes(where.pathname) ||
+    isReferralPath(where.pathname) ||
+    isFriendLinkPath(where.pathname)
+  )
+    return;
   const target = redirectFor({ pathname: where.pathname, search: where.searchStr, hasSession: false });
   if (target !== null && !(await isSignedIn(context, { passingWhen: "signed-in" })))
     throw redirect({ href: target });

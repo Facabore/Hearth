@@ -1,8 +1,10 @@
 import { useQuery, useSuspenseQueries, useSuspenseQuery } from "@tanstack/react-query";
-import { getRouteApi, notFound } from "@tanstack/react-router";
+import { getRouteApi } from "@tanstack/react-router";
+import type { FriendDto } from "@/modules/balances/ui";
 import { sharedContextOf } from "@/modules/ledger/ui";
 import { FriendScreen } from "@/modules/balances/ui/screens";
 import { controlsFor } from "@/modules/spaces/ui";
+import type { SpaceDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import {
@@ -21,15 +23,30 @@ const route = getRouteApi("/spaces/$spaceId/friends/$friendSpaceId");
 /**
  * Ruling P338 (board "Amigo · Mom"): one person of Amigos, stacked under the personal space with its way back to
  * Amigos. Their direct space's balances, suggestions and members feed Saldar's sheet; the history is every movement
- * between the two (the loader read it all).
+ * between the two (the loader read it all, and answered not found for anyone else). Ruling P339: a person just removed
+ * leaves Amigos and the spaces before the screen goes back to Amigos, so the screen draws nothing meanwhile.
  */
 export function FriendRoute() {
   const { spaceId, friendSpaceId } = route.useParams();
   const { api } = useApis();
-  const { me, spaces } = useViewer(spaceId);
+  const { spaces } = useViewer(spaceId);
   const friend = useSuspenseQuery(myFriendsQuery(api)).data.find((f) => f.spaceId === friendSpaceId);
   const space = spaces.find((s) => s.id === friendSpaceId);
-  if (!friend || !space) throw notFound();
+  return friend && space ? <Friend spaceId={spaceId} friend={friend} space={space} /> : null;
+}
+
+function Friend({
+  spaceId,
+  friend,
+  space,
+}: {
+  readonly spaceId: string;
+  readonly friend: FriendDto;
+  readonly space: SpaceDto;
+}) {
+  const friendSpaceId = space.id;
+  const { api } = useApis();
+  const { me } = useViewer(spaceId);
   useTitle(friend.name);
   const [list, net, suggestions, history] = useSuspenseQueries({
     queries: [

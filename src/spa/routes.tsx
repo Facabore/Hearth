@@ -81,6 +81,28 @@ const referralRoute = createRoute({
   },
 });
 
+/**
+ * Ruling P339 (S6): a friend link, `/f/<handle>`. The device keeps the @ either way: a signed-in person goes to their
+ * Amigos, which opens Agregar amigo with it; a visitor goes to sign-up, and once signed up or in comes back here.
+ */
+const friendLinkRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "f/$handle",
+  beforeLoad: async ({ context, params }) => {
+    const session = meQuery(context.apis.sessionApi);
+    const [cached, link] = await Promise.all([
+      context.queryClient.ensureQueryData(session),
+      import("./spaces/friend-link"),
+    ]);
+    link.rememberFriendLink(params.handle);
+    // A visitor is decided on a fresh read: someone who just signed up or in comes back here with a stale answer.
+    const me = cached ?? (await context.queryClient.fetchQuery({ ...session, staleTime: 0 }));
+    if (!me) throw redirect({ href: "/sign-up", replace: true });
+    const spaces = await context.queryClient.ensureQueryData(spacesQuery(context.apis.api));
+    throw redirect({ href: `/spaces/${personalSpaceOf(spaces).id}/balances`, replace: true });
+  },
+});
+
 /** Ruling P125: "/" opens the signed-in person's personal space. */
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -841,6 +863,7 @@ export const routeTree = rootRoute.addChildren([
   publicRoute.addChildren([signInRoute, signUpRoute]),
   openRoute.addChildren([invitationRoute, claimRoute, verifyEmailRoute, trustRoute]),
   referralRoute,
+  friendLinkRoute,
   indexRoute,
   settingsRoute,
   newSpaceRoute,

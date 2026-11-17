@@ -8,6 +8,7 @@ import { invitationOf } from "@/shared/ui/navigation/invitation";
 import { useApis } from "../api";
 import { signUpModeQuery } from "../queries";
 import { claimReferral, referralPreviewQuery, rememberedReferral } from "../referrals/link";
+import { friendLinkNext } from "../spaces/friend-link";
 import { useTitle } from "../title";
 
 const route = getRouteApi("/public/sign-up");
@@ -29,7 +30,10 @@ const useReferral = () => {
   };
 };
 
-/** Rulings P143 and P147: while sign-up is closed, a visitor without `?invitation=` reads the notice and gets no form. */
+/**
+ * Rulings P143 and P147: while sign-up is closed, a visitor without `?invitation=` reads the notice and gets no form.
+ * Ruling P339 (S6): without a `next`, a friend link the device kept is where the new account goes.
+ */
 export function SignUpScreen() {
   const { next, invitation } = route.useSearch();
   const { api, sessionApi } = useApis();
@@ -37,7 +41,8 @@ export function SignUpScreen() {
   useTitle(useTranslations("auth.signUp")("title"));
   const referral = useReferral();
   const token = invitationOf(invitation);
-  const target = safeNext(next);
+  const [link] = useState(friendLinkNext);
+  const target = next === undefined && link !== undefined ? link : safeNext(next);
   if (mode === "closed" && token === undefined)
     return <SignUpClosedNotice signInHref={signInHrefOf(target, undefined)} />;
   return <SignUpFormContainer next={target} invitation={token} api={api} {...referral} />;

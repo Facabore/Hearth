@@ -3,6 +3,8 @@ import { controlsFor, personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import { ensurer, viewerOf, type Load, type Viewer } from "../load";
 import { myFriendsQuery } from "../shell";
+import { spacesQuery } from "../queries";
+import { friendRequestsQuery } from "./friends";
 import {
   accountsQuery,
   balanceHistoryQuery,
@@ -71,13 +73,35 @@ const ensureBalances = async (load: Load, { space, spaces }: Viewer) => {
 
 /**
  * HU-E9-07's Saldos in a shared or direct space. Ruling P338 (amends P302): in the personal space the tab is Amigos,
- * the people the person shares a direct space with.
+ * the people the person shares a direct space with; ruling P339, with the friend requests, which never fail it.
  */
 export const loadBalances = async (load: Load, spaceId: string) => {
   const viewer = await viewerOf(load, spaceId);
   if (!viewer) throw notFound();
-  if (viewer.space.kind === "PERSONAL") await ensurer(load)(myFriendsQuery(load.apis.api));
-  else await ensureBalances(load, viewer);
+  if (viewer.space.kind === "PERSONAL") {
+    const ensure = ensurer(load);
+    await Promise.all([
+      ensure(myFriendsQuery(load.apis.api)),
+      settled(ensure(friendRequestsQuery(load.apis.api))),
+    ]);
+  } else await ensureBalances(load, viewer);
+};
+
+/**
+ * Ruling P339: a person added or accepted a moment ago may not be in the cached spaces and Amigos yet (their reads are
+ * still under way): both are read again once before the person is not found.
+ */
+const freshFriend = async ({ queryClient, apis }: Load, friendSpaceId: string) => {
+  const spaces = queryClient.getQueryData(spacesQuery(apis.api).queryKey);
+  const friends = queryClient.getQueryData(myFriendsQuery(apis.api).queryKey);
+  await Promise.all([
+    spaces && !spaces.some((s) => s.id === friendSpaceId)
+      ? queryClient.fetchQuery({ ...spacesQuery(apis.api), staleTime: 0 })
+      : undefined,
+    friends && !friends.some((f) => f.spaceId === friendSpaceId)
+      ? queryClient.fetchQuery({ ...myFriendsQuery(apis.api), staleTime: 0 })
+      : undefined,
+  ]);
 };
 
 /**
@@ -88,6 +112,7 @@ export const loadBalances = async (load: Load, spaceId: string) => {
 export const loadFriend = async (load: Load, spaceId: string, friendSpaceId: string) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
+  await freshFriend(load, friendSpaceId);
   const viewer = await viewerOf(load, spaceId);
   const direct = viewer?.spaces.find((s) => s.id === friendSpaceId && s.kind === "DIRECT");
   if (!viewer || viewer.space.kind !== "PERSONAL" || !direct) throw notFound();
