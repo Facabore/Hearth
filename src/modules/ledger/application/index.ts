@@ -206,6 +206,8 @@ export {
   type MemberNames,
   type MyActivityDeps,
   type RecentTransactions,
+  type SettlementContext,
+  type SettlementContextSource,
 } from "./list-my-activity";
 export {
   createListMyTransactions,

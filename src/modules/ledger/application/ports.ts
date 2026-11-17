@@ -211,17 +211,24 @@ export interface MemberMoneyTotals {
  * Transfers, fund contributions included, never count.
  */
 export interface SpaceDebtMovements {
-  readonly expenses: readonly {
+  readonly expenses: readonly (DebtMovementPlace & {
     readonly payments: readonly { readonly memberId: string; readonly amount: bigint }[];
     readonly shares: readonly { readonly memberId: string; readonly amount: bigint }[];
-  }[];
-  readonly settlements: readonly {
+  })[];
+  readonly settlements: readonly (DebtMovementPlace & {
     readonly payerMemberId: string;
     readonly receivingMemberId: string;
     readonly amount: bigint;
     readonly reason: SettlementReason;
     readonly onBehalfOfMemberId: string | null;
-  }[];
+  })[];
+}
+
+/** Ruling P339: a debt movement's place in its space's balance history (HU-E5-04): date, creation, then id. */
+export interface DebtMovementPlace {
+  readonly transactionId: string;
+  readonly date: LocalDate;
+  readonly createdAt: Date;
 }
 
 /** HU-E5-04: a span of dates, open on either side when null. */

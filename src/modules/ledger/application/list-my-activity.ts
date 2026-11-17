@@ -6,9 +6,16 @@ import {
   type ActivityCategories,
   type ActivityItem,
   type MemberNames,
+  type SettlementContextSource,
 } from "./activity-description";
 
-export type { ActivityCategories, ActivityItem, MemberNames } from "./activity-description";
+export type {
+  ActivityCategories,
+  ActivityItem,
+  MemberNames,
+  SettlementContext,
+  SettlementContextSource,
+} from "./activity-description";
 
 export interface RecentQuery {
   readonly spaceIds: readonly string[];
@@ -35,6 +42,8 @@ export interface MyActivityDeps {
   readonly members: MemberNames;
   readonly recent: RecentTransactions;
   readonly categories: ActivityCategories;
+  /** Ruling P339: whether each payment between the caller and someone else paid or lent. */
+  readonly settlements?: SettlementContextSource;
 }
 
 export type ListMyActivity = (input: {

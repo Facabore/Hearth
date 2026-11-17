@@ -429,7 +429,8 @@ export class DrizzleLedgerQueries
   /**
    * Ruling P323: the live member-paid expenses of one space with their payments and shares in position order, and its
    * live settlements, in one statement so they all come from the same snapshot. The same rows `memberTotals` sums:
-   * a fund-paid expense and every transfer create no debt (D5). Expenses by id; empty for malformed ids.
+   * a fund-paid expense and every transfer create no debt (D5). Expenses by id; empty for malformed ids. Ruling P339:
+   * each with its date, creation instant and id, its place in the space's balance history.
    */
   async debtMovements(spaceId: string): Promise<SpaceDebtMovements> {
     if (!isUuid(spaceId)) return { expenses: [], settlements: [] };
@@ -444,6 +445,8 @@ export class DrizzleLedgerQueries
         .select({
           kind: sql<Kind>`'payment'::text`,
           transactionId: text(transactions.id),
+          date: sql<string>`${transactions.date}::text`,
+          createdAt: transactions.createdAt,
           position: sql<number>`${payments.position}::integer`,
           memberId: text(payments.memberId),
           receiverId: none,
@@ -458,6 +461,8 @@ export class DrizzleLedgerQueries
         .select({
           kind: sql<Kind>`'share'::text`,
           transactionId: text(transactions.id),
+          date: sql<string>`${transactions.date}::text`,
+          createdAt: transactions.createdAt,
           position: sql<number>`${shares.position}::integer`,
           memberId: text(shares.memberId),
           receiverId: none,
@@ -472,6 +477,8 @@ export class DrizzleLedgerQueries
         .select({
           kind: sql<Kind>`'settlement'::text`,
           transactionId: text(transactions.id),
+          date: sql<string>`${transactions.date}::text`,
+          createdAt: transactions.createdAt,
           position: sql<number>`0`,
           memberId: text(transactions.payerMemberId),
           receiverId: text(transactions.receivingMemberId),
@@ -490,12 +497,22 @@ export class DrizzleLedgerQueries
           : Number(a.position) - Number(b.position),
     );
     type Parts = { memberId: string; amount: bigint }[];
-    const expenses = new Map<string, { payments: Parts; shares: Parts }>();
+    const expenses = new Map<
+      string,
+      SpaceDebtMovements["expenses"][number] & { payments: Parts; shares: Parts }
+    >();
     const settled: SpaceDebtMovements["settlements"][number][] = [];
     for (const row of rows) {
       const amount = BigInt(row.amount);
+      // Ruling P339: each movement's place in the space's balance history.
+      const place = {
+        transactionId: row.transactionId!,
+        date: row.date as LocalDate,
+        createdAt: new Date(row.createdAt),
+      };
       if (row.kind === "settlement") {
         settled.push({
+          ...place,
           payerMemberId: row.memberId!,
           receivingMemberId: row.receiverId!,
           amount,
@@ -504,7 +521,7 @@ export class DrizzleLedgerQueries
         });
         continue;
       }
-      const expense = expenses.get(row.transactionId!) ?? { payments: [], shares: [] };
+      const expense = expenses.get(row.transactionId!) ?? { ...place, payments: [], shares: [] };
       (row.kind === "payment" ? expense.payments : expense.shares).push({ memberId: row.memberId!, amount });
       expenses.set(row.transactionId!, expense);
     }

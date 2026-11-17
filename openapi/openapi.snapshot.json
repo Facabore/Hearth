@@ -6067,6 +6067,31 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "settlement": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PAID",
+                                      "LENT",
+                                      "PAID_AND_LENT"
+                                    ]
+                                  },
+                                  "paid": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  "lent": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "paid",
+                                  "lent"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [
@@ -6403,6 +6428,31 @@
                                     "type": "null"
                                   }
                                 ]
+                              },
+                              "settlement": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "PAID",
+                                      "LENT",
+                                      "PAID_AND_LENT"
+                                    ]
+                                  },
+                                  "paid": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  "lent": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "paid",
+                                  "lent"
+                                ],
+                                "additionalProperties": false
                               }
                             },
                             "required": [

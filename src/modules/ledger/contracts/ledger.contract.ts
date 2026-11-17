@@ -1092,6 +1092,18 @@ export const ActivityItemSchema = z.object({
     share: MoneySchema.nullable(),
     /** What the caller paid of an expense; null when they paid nothing of it, and for every other type. */
     paid: MoneySchema.nullable(),
+    /**
+     * Ruling P339: a payment the caller made or received (a SETTLEMENT with reason PAYMENT, not made for someone else),
+     * by what its payer owed its receiver in the space just before it: PAID that debt, LENT it all (they were even, or
+     * the receiver owed the payer), or PAID_AND_LENT past the debt; `paid + lent` is its amount. Absent otherwise.
+     */
+    settlement: z
+      .object({
+        kind: z.enum(["PAID", "LENT", "PAID_AND_LENT"]),
+        paid: MoneySchema,
+        lent: MoneySchema,
+      })
+      .optional(),
   }),
   /** Member id to name, for the members the movement names. */
   memberNames: z.record(z.string(), z.string()),
@@ -1114,7 +1126,20 @@ export const activityItemDto = (item: ActivityItem): z.infer<typeof ActivityItem
     space: item.space,
     transaction: transactionDto(item.transaction),
     recordedBy: item.recordedBy,
-    you: { memberIds: [...item.you.memberIds], share: money(item.you.share), paid: money(item.you.paid) },
+    you: {
+      memberIds: [...item.you.memberIds],
+      share: money(item.you.share),
+      paid: money(item.you.paid),
+      ...(item.you.settlement
+        ? {
+            settlement: {
+              kind: item.you.settlement.kind,
+              paid: money(item.you.settlement.paid)!,
+              lent: money(item.you.settlement.lent)!,
+            },
+          }
+        : {}),
+    },
     memberNames: { ...item.memberNames },
     category:
       item.category === null

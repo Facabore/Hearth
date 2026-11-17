@@ -262,15 +262,19 @@ export class InMemoryTransactions
     const expenses: SpaceDebtMovements["expenses"][number][] = [];
     const settlements: SpaceDebtMovements["settlements"][number][] = [];
     for (const t of live) {
+      // Ruling P339: each movement's place in the space's balance history.
+      const place = { transactionId: t.id, date: t.date, createdAt: t.createdAt };
       // D5: an expense paid from the shared fund creates no debt.
       if (t.type === "EXPENSE" && t.payments.every((p) => p.memberId !== null)) {
         expenses.push({
+          ...place,
           payments: t.payments.map((p) => ({ memberId: p.memberId!, amount: p.amount })),
           shares: t.shares.map((s) => ({ memberId: s.memberId, amount: s.amount })),
         });
       }
       if (t.type === "SETTLEMENT") {
         settlements.push({
+          ...place,
           payerMemberId: t.payerMemberId,
           receivingMemberId: t.receivingMemberId,
           amount: t.amount,

@@ -16,6 +16,31 @@ export interface MemberNames {
   >;
 }
 
+/**
+ * Ruling P339 (S9): what a payment did between its payer and its receiver, by what the payer owed the receiver just
+ * before it: paid that debt, lent it all, or both; `paid + lent` is its amount.
+ */
+export interface SettlementContext {
+  readonly kind: "PAID" | "LENT" | "PAID_AND_LENT";
+  readonly paid: bigint;
+  readonly lent: bigint;
+}
+
+/**
+ * Ruling P339: the contexts of the payments of each space asked about, by transaction id, computed on read (D7) from
+ * the pair's balance in that space; bound by the composition root to the balances module. A payment it does not
+ * describe (a forgiveness, a gift, one made for someone else) is missing from the answer.
+ */
+export interface SettlementContextSource {
+  contextOf(
+    queries: readonly {
+      readonly spaceId: string;
+      readonly currency: string;
+      readonly settlementIds: readonly string[];
+    }[],
+  ): Promise<ReadonlyMap<string, SettlementContext>>;
+}
+
 /** The categories of a space, archived ones included (D8: deleted ones answer as missing). */
 export interface ActivityCategories {
   listCategories(spaceId: string): Promise<readonly Category[]>;
@@ -31,6 +56,8 @@ export interface ActivityItem {
     readonly memberIds: readonly string[];
     readonly share: bigint | null;
     readonly paid: bigint | null;
+    /** Ruling P339: a payment between the caller and someone else, as paid, lent or both; absent otherwise. */
+    readonly settlement?: SettlementContext;
   };
   /** The names of the members the movement names (payers, participants, a settlement's two sides). */
   readonly memberNames: Readonly<Record<string, string>>;
@@ -45,6 +72,8 @@ export interface ActivityItem {
 export interface ActivityDescriptionDeps {
   readonly members: MemberNames;
   readonly categories: ActivityCategories;
+  /** Ruling P339: without it, no payment says whether it paid or lent. */
+  readonly settlements?: SettlementContextSource;
 }
 
 export interface ActivityToDescribe {
@@ -89,9 +118,33 @@ const namedMembers = (tx: Transaction): string[] => {
 };
 
 /**
- * Rulings P306 and P319: each movement with its space, who recorded it, the caller's part of it, the names of the
- * members it names and its category, in the order given. Inicio's Recientes and the personal Movimientos describe
- * their movements alike through this one function.
+ * Ruling P339 (S9): the contexts of the payments listed that the caller made or received, asked once for all of them,
+ * grouped by space; none without a source or without such a payment. A forgiveness, a gift and a payment made for
+ * someone else keep their own words, so they are never asked about.
+ */
+const paymentContexts = async (
+  deps: ActivityDescriptionDeps,
+  transactions: readonly Transaction[],
+  spaces: ReadonlyMap<string, Pick<SpaceSummary, "id">>,
+  isYours: (spaceId: string, memberId: string) => boolean,
+): Promise<ReadonlyMap<string, SettlementContext>> => {
+  const bySpace = new Map<string, { currency: string; settlementIds: string[] }>();
+  for (const tx of transactions) {
+    if (tx.type !== "SETTLEMENT" || tx.reason !== "PAYMENT" || tx.onBehalfOfMemberId !== null) continue;
+    if (!spaces.has(tx.spaceId)) continue;
+    if (!isYours(tx.spaceId, tx.payerMemberId) && !isYours(tx.spaceId, tx.receivingMemberId)) continue;
+    const space = bySpace.get(tx.spaceId) ?? { currency: tx.currency, settlementIds: [] };
+    space.settlementIds.push(tx.id);
+    bySpace.set(tx.spaceId, space);
+  }
+  if (!deps.settlements || bySpace.size === 0) return new Map();
+  return deps.settlements.contextOf([...bySpace].map(([spaceId, space]) => ({ spaceId, ...space })));
+};
+
+/**
+ * Rulings P306 and P319: each movement with its space, who recorded it, the caller's part of it (P339: a payment's
+ * context too), the names of the members it names and its category, in the order given. Inicio's Recientes and the
+ * personal Movimientos describe their movements alike through this one function.
  */
 export const describeActivity = async (
   deps: ActivityDescriptionDeps,
@@ -99,12 +152,19 @@ export const describeActivity = async (
 ): Promise<ActivityItem[]> => {
   if (transactions.length === 0) return [];
   const touched = [...new Set(transactions.map((tx) => tx.spaceId))];
-  const [mine, rows, categories] = await Promise.all([
+  const byId = new Map(spaces.map((s) => [s.id, s]));
+  const settled = (async () => {
+    const yours = await places;
+    return paymentContexts(deps, transactions, byId, (spaceId, memberId) =>
+      yours.some((p) => p.spaceId === spaceId && p.memberId === memberId),
+    );
+  })();
+  const [mine, rows, categories, contexts] = await Promise.all([
     places,
     deps.members.namesIn(touched),
     Promise.all(touched.map(async (id) => [id, await deps.categories.listCategories(id)] as const)),
+    settled,
   ]);
-  const byId = new Map(spaces.map((s) => [s.id, s]));
   const mineIn = (spaceId: string) =>
     new Set(mine.filter((p) => p.spaceId === spaceId).map((p) => p.memberId as string));
   const names = new Map(rows.map((r) => [r.memberId, r.displayName]));
@@ -138,6 +198,7 @@ export const describeActivity = async (
           memberIds: [...yours],
           share: tx.type === "EXPENSE" ? sumOf(tx.shares, yours) : null,
           paid: tx.type === "EXPENSE" ? sumOf(tx.payments, yours) : null,
+          ...(contexts.has(tx.id) ? { settlement: contexts.get(tx.id)! } : {}),
         },
         memberNames: Object.fromEntries(
           namedMembers(tx).flatMap((id) => (names.has(id) ? [[id, names.get(id)!]] : [])),

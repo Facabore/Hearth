@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Result } from "@/shared/kernel";
+import type { LocalDate, Result } from "@/shared/kernel";
 import {
   netBalances,
   netOf,
   pairwiseDebts,
+  settlementContexts,
+  type DatedDebtMovements,
   type DebtExpense,
   type DebtMovements,
   type DebtSettlement,
@@ -445,5 +447,116 @@ describe("pairwise debts (ruling P323)", () => {
       // The same movements always give the same suggestions.
       expect(valueOf(pairwiseDebts(currency, memberIds, movements))).toEqual(suggestions);
     });
+  });
+});
+
+describe("what a payment did between its two people (ruling P339, S9)", () => {
+  const at = (transactionId: string, date: string, createdAt = "2026-11-01T12:00:00.000Z") => ({
+    transactionId,
+    date: date as LocalDate,
+    createdAt: new Date(createdAt),
+  });
+  const dinner = (
+    id: string,
+    date: string,
+    payer: string,
+    amount: bigint,
+    participants: readonly string[],
+  ): DatedDebtMovements["expenses"][number] => ({
+    ...at(id, date),
+    payments: [{ memberId: payer, amount }],
+    shares: participants.map((memberId) => ({ memberId, amount: amount / BigInt(participants.length) })),
+  });
+  const pays = (
+    id: string,
+    date: string,
+    payer: string,
+    receiver: string,
+    amount: bigint,
+    more: Partial<DebtSettlement> & { createdAt?: string } = {},
+  ): DatedDebtMovements["settlements"][number] => ({
+    ...at(id, date, more.createdAt),
+    payerMemberId: payer,
+    receivingMemberId: receiver,
+    amount,
+    reason: more.reason ?? "PAYMENT",
+    onBehalfOfMemberId: more.onBehalfOfMemberId ?? null,
+  });
+  const contexts = (movements: DatedDebtMovements, wanted: readonly string[]) => {
+    const found = settlementContexts("COP", movements, new Set(wanted));
+    if (!found.ok) throw new Error(found.error.code);
+    return Object.fromEntries(found.value);
+  };
+
+  it("lends when the two are even, pays what the payer owed, and does both past the debt", () => {
+    // Juan pays 100 for both: Ana owes him 50.
+    const movements: DatedDebtMovements = {
+      expenses: [dinner("e1", "2026-10-01", "juan", 100n, ["ana", "juan"])],
+      settlements: [
+        pays("s0", "2026-09-30", "ana", "juan", 10n),
+        pays("s1", "2026-10-02", "ana", "juan", 30n),
+        pays("s2", "2026-10-03", "ana", "juan", 15n),
+        pays("s3", "2026-10-04", "juan", "ana", 5n),
+      ],
+    };
+    expect(contexts(movements, ["s0", "s1", "s2", "s3"])).toEqual({
+      // Before the dinner they were even: Ana lent Juan 10, so he owes her 10 when it comes and she owes 40.
+      s0: { kind: "LENT", paid: 0n, lent: 10n },
+      s1: { kind: "PAID", paid: 30n, lent: 0n },
+      // She owed 10 more: 10 pays it and 5 is lent.
+      s2: { kind: "PAID_AND_LENT", paid: 10n, lent: 5n },
+      // Juan owed Ana 5: he pays it back.
+      s3: { kind: "PAID", paid: 5n, lent: 0n },
+    });
+  });
+
+  it("reads the pair alone, never the payer's whole net in a shared space", () => {
+    // Ana owes Luis 50, and is even with Juan: what she hands Juan is lent, though her net is negative.
+    const movements: DatedDebtMovements = {
+      expenses: [dinner("e1", "2026-10-01", "luis", 100n, ["ana", "luis"])],
+      settlements: [pays("s1", "2026-10-02", "ana", "juan", 20n)],
+    };
+    expect(contexts(movements, ["s1"])).toEqual({ s1: { kind: "LENT", paid: 0n, lent: 20n } });
+  });
+
+  it("orders by date, then by when each was recorded, then by id, whatever order they come in", () => {
+    // Juan pays 60 for both: Ana owes 30. Two payments of 30 the same day: the one recorded first pays it.
+    const movements: DatedDebtMovements = {
+      expenses: [dinner("e1", "2026-10-01", "juan", 60n, ["ana", "juan"])],
+      settlements: [
+        pays("b-later", "2026-10-05", "ana", "juan", 30n, { createdAt: "2026-11-02T08:00:00.000Z" }),
+        pays("c-first", "2026-10-05", "ana", "juan", 30n, { createdAt: "2026-11-02T07:00:00.000Z" }),
+      ],
+    };
+    expect(contexts(movements, ["b-later", "c-first"])).toEqual({
+      "c-first": { kind: "PAID", paid: 30n, lent: 0n },
+      "b-later": { kind: "LENT", paid: 0n, lent: 30n },
+    });
+    // An expense dated after a payment comes after it, though it is listed first.
+    const late: DatedDebtMovements = {
+      expenses: [dinner("e2", "2026-10-09", "juan", 60n, ["ana", "juan"])],
+      settlements: [pays("s1", "2026-10-08", "ana", "juan", 30n)],
+    };
+    expect(contexts(late, ["s1"])).toEqual({ s1: { kind: "LENT", paid: 0n, lent: 30n } });
+  });
+
+  it("says nothing of a forgiveness, a gift, a payment made for someone else or one nobody asked about", () => {
+    const movements: DatedDebtMovements = {
+      expenses: [dinner("e1", "2026-10-01", "juan", 100n, ["ana", "juan", "luis", "sofi"])],
+      settlements: [
+        pays("f", "2026-10-02", "ana", "juan", 10n, { reason: "FORGIVENESS" }),
+        pays("g", "2026-10-02", "ana", "luis", 10n, { reason: "GIFT" }),
+        pays("p", "2026-10-03", "ana", "juan", 10n, { onBehalfOfMemberId: "sofi" }),
+        pays("x", "2026-10-04", "ana", "juan", 5n),
+      ],
+    };
+    expect(contexts(movements, ["f", "g", "p"])).toEqual({});
+    // Each still counts for the pair: the forgiveness cleared 10 of Ana's 25, so the 5 after it pays.
+    expect(contexts(movements, ["x"])).toEqual({ x: { kind: "PAID", paid: 5n, lent: 0n } });
+  });
+
+  it("answers UnknownCurrency for a currency Money does not know", () => {
+    const found = settlementContexts("XXX", { expenses: [], settlements: [] }, new Set());
+    expect(found.ok ? null : found.error.code).toBe("UnknownCurrency");
   });
 });

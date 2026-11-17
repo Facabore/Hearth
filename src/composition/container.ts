@@ -44,6 +44,7 @@ import {
   createGetMyBalances,
   createGetMyFriend,
   createListMyFriends,
+  createGetSettlementContexts,
   type GetMemberBalanceHistory,
   type GetMyBalances,
   type GetMyFriend,
@@ -1167,6 +1168,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         ),
     },
   });
+  // P339 (S9): Movimientos and Inicio say whether a payment paid or lent from the pair's balance just before it,
+  // replayed on read by balances over the ledger's debt movements; the ledger never imports balances.
+  const settlementContexts = { contextOf: createGetSettlementContexts(ledgerQueries) };
   // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
   const archiveSpace = createArchiveSpace({
     ...lifecycleDeps,
@@ -1393,6 +1397,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         recent: ledgerQueries,
         categories: categoryRepository,
+        settlements: settlementContexts,
       }),
       getAccountUsage: createGetAccountUsage({
         usage: ledgerQueries,
@@ -1410,6 +1415,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         clock,
         userTimeZones: ledgerDeps.userTimeZones,
         query: ledgerQueries,
+        settlements: settlementContexts,
       }),
       getTransaction: createGetTransaction(ledgerDeps),
       editTransaction: createEditTransaction(ledgerDeps),

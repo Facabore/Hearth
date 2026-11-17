@@ -6154,6 +6154,12 @@ export interface operations {
                                 memberIds: string[];
                                 share: components["schemas"]["MoneyOutput"] | null;
                                 paid: components["schemas"]["MoneyOutput"] | null;
+                                settlement?: {
+                                    /** @enum {string} */
+                                    kind: "PAID" | "LENT" | "PAID_AND_LENT";
+                                    paid: components["schemas"]["MoneyOutput"];
+                                    lent: components["schemas"]["MoneyOutput"];
+                                };
                             };
                             memberNames: {
                                 [key: string]: string;
@@ -6245,6 +6251,12 @@ export interface operations {
                                 memberIds: string[];
                                 share: components["schemas"]["MoneyOutput"] | null;
                                 paid: components["schemas"]["MoneyOutput"] | null;
+                                settlement?: {
+                                    /** @enum {string} */
+                                    kind: "PAID" | "LENT" | "PAID_AND_LENT";
+                                    paid: components["schemas"]["MoneyOutput"];
+                                    lent: components["schemas"]["MoneyOutput"];
+                                };
                             };
                             memberNames: {
                                 [key: string]: string;

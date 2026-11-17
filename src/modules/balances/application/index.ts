@@ -1,12 +1,20 @@
 export type {
+  DatedDebtMovements,
   DebtExpense,
   DebtMovements,
   DebtSettlement,
   MemberBalance,
   MemberStanding,
   MemberTotals,
+  SettlementContext,
   SettlementSuggestion,
 } from "../domain/balances";
+export {
+  createGetSettlementContexts,
+  type DebtHistorySource,
+  type GetSettlementContexts,
+  type SettlementContextQuery,
+} from "./get-settlement-contexts";
 export {
   createGetSpaceBalances,
   type BalancesDeps,

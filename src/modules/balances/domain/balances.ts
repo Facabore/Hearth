@@ -1,4 +1,4 @@
-import { currencyOf, flatMap, Money, ok, type Result } from "@/shared/kernel";
+import { currencyOf, flatMap, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 
 /** Per-member sums over the live transactions of one space that move balances (E5 balance rule). */
 export interface MemberTotals {
@@ -103,6 +103,12 @@ class PairLedger {
     const pair = this.owed.get(key) ?? { a, b, net: 0n };
     pair.net += sign * amount;
     this.owed.set(key, pair);
+  }
+
+  /** Ruling P339: what `debtor` owes `creditor` now; negative when the creditor is the one who owes. */
+  owedBy(debtor: string, creditor: string): bigint {
+    const [a, b, sign] = debtor < creditor ? [debtor, creditor, 1n] : [creditor, debtor, -1n];
+    return sign * (this.owed.get(`${a}\n${b}`)?.net ?? 0n);
   }
 
   debts(): SettlementSuggestion[] {
@@ -224,4 +230,91 @@ export const pairwiseDebts = (
           placeOf(x.receivingMemberId) - placeOf(y.receivingMemberId),
       ),
   );
+};
+
+/** Ruling P339: a movement's place in its space's history: its date, when it was recorded, then its id. */
+export interface DebtPlace {
+  readonly transactionId: string;
+  readonly date: LocalDate;
+  readonly createdAt: Date;
+}
+
+/** Ruling P339: `DebtMovements`, each with its place in the space's history. */
+export interface DatedDebtMovements {
+  readonly expenses: readonly (DebtExpense & DebtPlace)[];
+  readonly settlements: readonly (DebtSettlement & DebtPlace)[];
+}
+
+/**
+ * Ruling P339 (S9): what a payment did between its payer and its receiver, by what the payer owed the receiver just
+ * before it: it pays that debt (PAID), lends all of it when the payer owed nothing (LENT), or pays the debt and lends
+ * the rest (PAID_AND_LENT). `paid + lent` is the payment's amount.
+ */
+export interface SettlementContext {
+  readonly kind: "PAID" | "LENT" | "PAID_AND_LENT";
+  readonly paid: bigint;
+  readonly lent: bigint;
+}
+
+/** The order of a space's balance history (HU-E5-04): date, then when it was recorded, then id. */
+const inHistoryOrder = (x: DebtPlace, y: DebtPlace): number =>
+  x.date !== y.date
+    ? x.date < y.date
+      ? -1
+      : 1
+    : x.createdAt.getTime() !== y.createdAt.getTime()
+      ? x.createdAt.getTime() - y.createdAt.getTime()
+      : x.transactionId < y.transactionId
+        ? -1
+        : x.transactionId > y.transactionId
+          ? 1
+          : 0;
+
+/**
+ * Ruling P339 (S9): for each payment in `wanted`, what it did between its two people, computed on read (D7). Replays
+ * the space's movements in its history's order with the P323 pairwise rule and reads the pair's debt just before each
+ * payment. Only a PAYMENT made for oneself has one: a forgiveness or a gift moves no money, and a payment made for
+ * someone else (P322) settles that person's debt, not the payer's; every movement still counts for the pairs.
+ * UnknownCurrency for a currency Money does not know.
+ */
+export const settlementContexts = (
+  currency: string,
+  movements: DatedDebtMovements,
+  wanted: ReadonlySet<string>,
+): Result<Map<string, SettlementContext>> => {
+  const known = currencyOf(currency);
+  if (!known.ok) return known;
+  type Step = { readonly place: DebtPlace } & (
+    { readonly expense: DebtExpense } | { readonly settlement: DebtSettlement & DebtPlace }
+  );
+  const history: Step[] = [
+    ...movements.expenses.map((expense) => ({ place: expense, expense })),
+    ...movements.settlements.map((settlement) => ({ place: settlement, settlement })),
+  ].sort((x, y) => inHistoryOrder(x.place, y.place));
+  const pairs = new PairLedger();
+  const found = new Map<string, SettlementContext>();
+  for (const step of history) {
+    if ("expense" in step) {
+      const owed = oweExpense(currency, step.expense, pairs);
+      if (!owed.ok) return owed;
+      continue;
+    }
+    const { settlement } = step;
+    if (
+      wanted.has(settlement.transactionId) &&
+      settlement.reason === "PAYMENT" &&
+      settlement.onBehalfOfMemberId === null
+    ) {
+      const debt = pairs.owedBy(settlement.payerMemberId, settlement.receivingMemberId);
+      const paid = debt <= 0n ? 0n : debt < settlement.amount ? debt : settlement.amount;
+      const lent = settlement.amount - paid;
+      found.set(settlement.transactionId, {
+        kind: lent === 0n ? "PAID" : paid === 0n ? "LENT" : "PAID_AND_LENT",
+        paid,
+        lent,
+      });
+    }
+    oweSettlement(settlement, pairs);
+  }
+  return ok(found);
 };
