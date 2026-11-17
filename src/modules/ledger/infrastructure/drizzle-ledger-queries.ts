@@ -18,7 +18,6 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
-import { accounts } from "@/modules/accounts/infrastructure/accounts.schema";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate } from "@/shared/kernel";
 import type { AccountUsageQuery, AccountUse, CategoryAccount } from "../application/get-account-usage";
@@ -109,7 +108,8 @@ export class DrizzleLedgerQueries
       last_used_on: string;
     }>(sql`
       WITH mine AS (
-        SELECT a.id FROM ${accounts} a WHERE a.owner_user_id = ${userId} AND a.archived_at IS NULL
+        -- The accounts table by name, as transaction-rows.ts reads it: the ledger imports no other module's schema (ADR 0001).
+        SELECT a.id FROM accounts a WHERE a.owner_user_id = ${userId} AND a.archived_at IS NULL
       ), legs AS (
         SELECT t.id, p.account_id, t.date, t.type, t.category_id,
           coalesce(t.occurred_at, '-infinity'::timestamptz) AS at, t.created_at
