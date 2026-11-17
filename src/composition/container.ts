@@ -156,7 +156,9 @@ import {
   type LedgerDeps,
   type ListAudit,
   type ListTransactions,
+  type GetAccountUsage,
   type ListMyActivity,
+  createGetAccountUsage,
   createListMyActivity,
   type ListMyTransactions,
   createListMyTransactions,
@@ -428,6 +430,7 @@ export interface Container extends RouteDeps {
     readonly listTransactions: ListTransactions;
     /** Ruling P306: the personal Inicio's feed of the caller's shared and direct spaces. */
     readonly listMyActivity: ListMyActivity;
+    readonly getAccountUsage: GetAccountUsage;
     /** Ruling P319: the personal Movimientos, the caller's movements in every current space. */
     readonly listMyTransactions: ListMyTransactions;
     readonly getTransaction: GetTransaction;
@@ -1256,6 +1259,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         recent: ledgerQueries,
         categories: categoryRepository,
+      }),
+      getAccountUsage: createGetAccountUsage({
+        usage: ledgerQueries,
+        clock,
+        userTimeZones: ledgerDeps.userTimeZones,
       }),
       listMyTransactions: createListMyTransactions({
         spaces: spaceRepository,

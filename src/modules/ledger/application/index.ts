@@ -186,6 +186,16 @@ export {
   type SkipOccurrence,
 } from "./pending-occurrences";
 export {
+  createGetAccountUsage,
+  USAGE_WINDOW_DAYS,
+  type AccountUsage,
+  type AccountUsageDeps,
+  type AccountUsageQuery,
+  type AccountUse,
+  type CategoryAccount,
+  type GetAccountUsage,
+} from "./get-account-usage";
+export {
   createListMyActivity,
   MAX_ACTIVITY,
   type ActivityCategories,
