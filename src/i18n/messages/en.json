@@ -238,7 +238,10 @@
     "ImportTargetRefused": "One account or category from the file can't be created as it is. Change its mapping and confirm again.",
     "HandleTaken": "Someone else already uses that @. Try another one.",
     "InvalidHandle": "Your @ must have 3 to 20 characters: lower-case letters, numbers and underscores.",
-    "UserNotFound": "Nobody uses that @. Check that it is written exactly right."
+    "UserNotFound": "Nobody uses that @. Check that it is written exactly right.",
+    "OwnHandle": "That @ is yours. Write the @ of the person you want to add.",
+    "AlreadyFriends": "This person is already in your Friends.",
+    "FriendRequestNotFound": "That friend request is no longer pending."
   },
   "warnings": {
     "FundBalanceNegative": "The balance of {account} is now {balance}. A contribution to the fund can cover it."

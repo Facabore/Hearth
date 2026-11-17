@@ -148,3 +148,35 @@ export const spaceInvitationUses = pgTable(
     index("space_invitation_uses_user_id_idx").on(t.userId),
   ],
 );
+
+// Ruling P339: friend requests between registered people. Values mirror the domain types. Rows are never deleted: an
+// answer sets the status and when it was given (D8).
+export const friendRequests = pgTable(
+  "friend_requests",
+  {
+    id: uuid("id").primaryKey(),
+    fromUserId: text("from_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    toUserId: text("to_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // The pair, keyed as a direct space is ("<userA>:<userB>", sorted), so one key covers both directions.
+    pairKey: text("pair_key").notNull(),
+    status: text("status", { enum: ["PENDING", "ACCEPTED", "REJECTED"] }).notNull(),
+    createdAt: tz("created_at").notNull(),
+    decidedAt: tz("decided_at"),
+  },
+  (t) => [
+    // At most one open request per pair; a rejected one stays open for its sender (S4), only an acceptance closes it.
+    uniqueIndex("friend_requests_open_pair_uq")
+      .on(t.pairKey)
+      .where(sql`${t.status} <> 'ACCEPTED'`),
+    // Foreign keys to user: each person's lists, and deleting a user, find their requests without a scan.
+    index("friend_requests_from_user_id_idx").on(t.fromUserId),
+    index("friend_requests_to_user_id_idx").on(t.toUserId),
+    check("friend_requests_status", sql`${t.status} IN ('PENDING', 'ACCEPTED', 'REJECTED')`),
+    check("friend_requests_not_self", sql`${t.fromUserId} <> ${t.toUserId}`),
+    check("friend_requests_decided", sql`(${t.status} = 'PENDING') = (${t.decidedAt} IS NULL)`),
+  ],
+);

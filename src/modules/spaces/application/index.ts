@@ -126,3 +126,18 @@ export {
   type SetFriendNickname,
   type SetFriendNicknameDeps,
 } from "./set-friend-nickname";
+export type { FriendRequest, FriendRequestStatus } from "../domain/friend-request";
+export {
+  createAcceptFriendRequest,
+  createListFriendRequests,
+  createRejectFriendRequest,
+  createSendFriendRequest,
+  type AnswerFriendRequest,
+  type FriendRequestPeople,
+  type FriendRequestRepository,
+  type FriendRequestsDeps,
+  type FriendRequestView,
+  type ListFriendRequests,
+  type SendFriendRequest,
+  type SentFriendRequest,
+} from "./friend-requests";

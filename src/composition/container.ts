@@ -224,6 +224,7 @@ import {
   createSignOut,
   createSignUp,
   createUpdateProfile,
+  parseHandle,
   type FindUserByHandle,
   createVerifyEmail,
   type GetProfile,
@@ -304,6 +305,10 @@ import {
   createCreateGuestClaim,
   createLeaveSpace,
   createSetFriendNickname,
+  createSendFriendRequest,
+  createListFriendRequests,
+  createAcceptFriendRequest,
+  createRejectFriendRequest,
   createPreviewClaim,
   createPreviewInvitation,
   type AcceptInvitation,
@@ -339,10 +344,16 @@ import {
   type RemoveGuestMember,
   type LeaveSpace,
   type SetFriendNickname,
+  type SendFriendRequest,
+  type ListFriendRequests,
+  type AnswerFriendRequest,
+  type FriendRequestsDeps,
+  type SpaceId,
   type LifecycleDeps,
 } from "@/modules/spaces/application";
 import { cryptoInvitationTokens } from "@/modules/spaces/infrastructure/crypto-invitation-tokens";
 import { DrizzleInvitationRepository } from "@/modules/spaces/infrastructure/drizzle-invitation-repository";
+import { DrizzleFriendRequests } from "@/modules/spaces/infrastructure/drizzle-friend-requests";
 import { DrizzleSpaceRepository } from "@/modules/spaces/infrastructure/drizzle-space-repository";
 import {
   spaceMembers as spaceMembersTable,
@@ -413,6 +424,11 @@ export interface Container extends RouteDeps {
     readonly leaveSpace: LeaveSpace;
     /** P338: the viewer's apodo for the other member of a direct space (a guest's name). */
     readonly setFriendNickname: SetFriendNickname;
+    /** P339: friend requests by @usuario; accepting creates the pair's direct space or reuses the active one. */
+    readonly sendFriendRequest: SendFriendRequest;
+    readonly listFriendRequests: ListFriendRequests;
+    readonly acceptFriendRequest: AnswerFriendRequest<{ readonly spaceId: SpaceId }>;
+    readonly rejectFriendRequest: AnswerFriendRequest<void>;
   };
   readonly categories: {
     readonly listCategories: ListCategories;
@@ -1122,6 +1138,20 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     windowMs: ONE_MINUTE,
   });
   const handleLookupThrottle = { allows: (userId: string) => lookupsByUser.hit(userId) };
+  // P339: friend requests live with the direct spaces they open (spaces); the people they name are identity's, read
+  // through this port, so spaces never imports identity.
+  const friendRequestsDeps: FriendRequestsDeps = {
+    ...directSplitDeps,
+    requests: new DrizzleFriendRequests(tm),
+    people: {
+      byHandle: async (raw) => {
+        const handle = parseHandle(raw);
+        return handle.ok ? profiles.findByHandle(handle.value) : null;
+      },
+      holdersOf: (userIds) => profiles.holdersOf(userIds),
+    },
+    throttle: handleLookupThrottle,
+  };
   // D28, design §3.6: the export reads through each module's own use cases, which authorize every read again.
   const exportsByUser = createFixedWindowLimiter({
     limit: options.exportsPerMinute ?? 5,
@@ -1285,6 +1315,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         members: spaceRepository,
         tm,
       }),
+      sendFriendRequest: createSendFriendRequest(friendRequestsDeps),
+      listFriendRequests: createListFriendRequests(friendRequestsDeps),
+      acceptFriendRequest: createAcceptFriendRequest(friendRequestsDeps),
+      rejectFriendRequest: createRejectFriendRequest(friendRequestsDeps),
     },
     categories: {
       listCategories: createListCategories({ ...categoriesDeps, counts: categoryUsageCountsOf(tm) }),

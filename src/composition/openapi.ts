@@ -25,6 +25,7 @@ import {
 } from "@/modules/ledger/contracts/recurrences.contract";
 import { ExportDocumentSchema, exportPaths } from "@/modules/portability/contracts/export.contract";
 import { ImportPreviewSchema, importPaths } from "@/modules/portability/contracts/import.contract";
+import { friendRequestsPaths } from "@/modules/spaces/contracts/friend-requests.contract";
 import { referralsPaths } from "@/modules/referrals/contracts/referrals.contract";
 import { reportingPaths } from "@/modules/reporting/contracts/reporting.contract";
 import {
@@ -90,6 +91,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
           ...ledgerPaths,
           ...recurrencesPaths,
           ...balancesPaths,
+          ...friendRequestsPaths,
           ...budgetingPaths,
           ...reportingPaths,
           ...referralsPaths,

@@ -59,7 +59,7 @@ export interface SplitWithPersonDeps<E, T> extends DirectSpaceDeps {
 
 export type SplitWithPerson<E, T> = (input: SplitWithPersonInput<E>) => Promise<Result<DirectSplit<T>>>;
 
-type Requester = Pick<SplitWithPersonInput<unknown>, "userId" | "userName" | "locale">;
+export type Requester = Pick<SplitWithPersonInput<unknown>, "userId" | "userName" | "locale">;
 type Resolved = { readonly spaceId: SpaceId; readonly created: boolean };
 
 const newDirectSpace = async (
@@ -87,6 +87,20 @@ const newDirectSpace = async (
   const seeded = await deps.onCreated(space.value, { locale: requester.locale });
   if (!seeded.ok) return seeded;
   return ok({ spaceId, created: true });
+};
+
+/**
+ * HU-E1-13, D16, P339: the pair's active direct space with a registered person, reused when there is one and created
+ * and seeded otherwise; a concurrent creation of the same pair's space is decided by its pair key (`addDirect`).
+ */
+export const directSpaceWithUser = async (
+  deps: DirectSpaceDeps,
+  requester: Requester,
+  other: { readonly userId: string; readonly displayName: string },
+): Promise<Result<Resolved>> => {
+  const existing = await deps.direct.findByPairKey(pairKeyOf(requester.userId, other.userId));
+  if (existing !== null) return ok({ spaceId: existing, created: false });
+  return newDirectSpace(deps, requester, { kind: "USER", ...other });
 };
 
 /** HU-E1-13, D16: the direct space to record in, reused for the same person and created on first use. */
@@ -118,13 +132,7 @@ const directSpaceFor = async (
   if (found.spaceKind === "DIRECT" && member.userId === null) return err(domainError("SpaceArchived"));
   // A guest exists only in its own space (D15): a one-to-one split with them starts from a new guest.
   if (member.userId === null) return err(domainError("InvalidDirectCounterpart"));
-  const existing = await deps.direct.findByPairKey(pairKeyOf(requester.userId, member.userId));
-  if (existing !== null) return ok({ spaceId: existing, created: false });
-  return newDirectSpace(deps, requester, {
-    kind: "USER",
-    userId: member.userId,
-    displayName: member.displayName,
-  });
+  return directSpaceWithUser(deps, requester, { userId: member.userId, displayName: member.displayName });
 };
 
 /** Resolves the person's direct space and records their expense there (HU-E1-13). */

@@ -1319,6 +1319,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/friend-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The friend requests the signed-in person received and sent (P339) */
+        get: operations["listFriendRequests"];
+        put?: never;
+        /**
+         * Ask someone to be a friend, by their exact @usuario (P339)
+         * @description One open request per pair: a second one answers the open one. When the other person already asked the caller, sending accepts their request and the pair's direct space is created (or the active one reused). Throttled per person with the @ lookup.
+         */
+        post: operations["sendFriendRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/friend-requests/{requestId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept a friend request the signed-in person received (P339)
+         * @description Creates the pair's direct space, or reuses the active one; both people then see each other in Amigos.
+         */
+        post: operations["acceptFriendRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/friend-requests/{requestId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn down a friend request the signed-in person received (P339)
+         * @description Silent: the sender keeps seeing the request as sent.
+         */
+        post: operations["rejectFriendRequest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/plans": {
         parameters: {
             query?: never;
@@ -8901,6 +8962,244 @@ export interface operations {
             };
             /** @description ValidationFailed, InvalidDate */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listFriendRequests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Incoming and outgoing requests */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Pending requests to the viewer, newest first */
+                        incoming: {
+                            id: string;
+                            /** @description The other person's @usuario; null when they have none any more */
+                            handle: string | null;
+                            displayName: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        /** @description Requests the viewer sent that were not accepted, newest first; a rejection is never told (S4) */
+                        outgoing: {
+                            id: string;
+                            /** @description The other person's @usuario; null when they have none any more */
+                            handle: string | null;
+                            displayName: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    sendFriendRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    /** @description The exact @usuario; a leading @ and upper case are accepted */
+                    handle: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The pair's open request, or the other's request accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @description The other person's @usuario; null when they have none any more */
+                        handle: string | null;
+                        displayName: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /**
+                         * @description PENDING: the viewer's request, new (201) or already open (200). ACCEPTED: the other person had asked the viewer, and sending accepted it (200)
+                         * @enum {string}
+                         */
+                        status: "PENDING" | "ACCEPTED";
+                        /** @description The pair's direct space, when ACCEPTED */
+                        spaceId?: string;
+                    };
+                };
+            };
+            /** @description A new pending request */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** @description The other person's @usuario; null when they have none any more */
+                        handle: string | null;
+                        displayName: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /**
+                         * @description PENDING: the viewer's request, new (201) or already open (200). ACCEPTED: the other person had asked the viewer, and sending accepted it (200)
+                         * @enum {string}
+                         */
+                        status: "PENDING" | "ACCEPTED";
+                        /** @description The pair's direct space, when ACCEPTED */
+                        spaceId?: string;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description UserNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description AlreadyFriends */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, OwnHandle */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TooManyRequests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    acceptFriendRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The pair's direct space, new or the active one reused */
+                        spaceId: string;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description FriendRequestNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    rejectFriendRequest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Turned down */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description FriendRequestNotFound */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
