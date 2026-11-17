@@ -13,6 +13,14 @@ export {
 } from "./profile";
 export type { InstallationRulesReader } from "./installation-rules";
 export {
+  createFindUserByHandle,
+  type FindUserByHandle,
+  type HandleHolder,
+  type HandleLookupThrottle,
+  type UserHandles,
+} from "./handles";
+export { parseHandle } from "../domain/handle";
+export {
   BUILT_IN_RULES,
   DATE_FORMATS,
   LOCALES,

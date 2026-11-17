@@ -112,6 +112,10 @@
                       "type": "string",
                       "description": "The person's own IANA time zone."
                     },
+                    "handle": {
+                      "description": "P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none.",
+                      "type": "string"
+                    },
                     "preferences": {
                       "type": "object",
                       "properties": {
@@ -341,7 +345,7 @@
       },
       "patch": {
         "operationId": "updateMe",
-        "summary": "Change the signed-in user's time zone, language and formats (HU-E1-14, HU-E1-15)",
+        "summary": "Change the signed-in user's time zone, language, formats and @usuario (HU-E1-14, HU-E1-15, P339)",
         "security": [
           {
             "cookieAuth": []
@@ -437,6 +441,17 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "handle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 }
               }
@@ -469,6 +484,10 @@
                     "timezone": {
                       "type": "string",
                       "description": "The person's own IANA time zone."
+                    },
+                    "handle": {
+                      "description": "P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none.",
+                      "type": "string"
                     },
                     "preferences": {
                       "type": "object",
@@ -696,7 +715,7 @@
             }
           },
           "409": {
-            "description": "PreferenceLocked",
+            "description": "PreferenceLocked, HandleTaken",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -706,7 +725,88 @@
             }
           },
           "422": {
-            "description": "ValidationFailed, InvalidTimeZone",
+            "description": "ValidationFailed, InvalidTimeZone, UnknownCurrency, InvalidHandle",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/by-handle/{handle}": {
+      "get": {
+        "operationId": "findUserByHandle",
+        "summary": "Find someone by their exact @usuario (P339)",
+        "description": "Exact match ignoring case; a leading @ is ignored. There is no listing and no prefix search. An unknown or malformed handle, and the caller's own, all answer UserNotFound. Throttled per person.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "handle",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person's handle and name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "handle": {
+                      "type": "string",
+                      "description": "The @usuario, in lower case and without the @"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "handle",
+                    "displayName"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "UserNotFound",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TooManyRequests",
             "content": {
               "application/problem+json": {
                 "schema": {

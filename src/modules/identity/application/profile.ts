@@ -17,6 +17,8 @@ import {
   type ProfileChange,
   type StoredPreferences,
 } from "../domain/preferences";
+import { parseHandle } from "../domain/handle";
+import type { UserHandles } from "./handles";
 import type { InstallationRulesReader } from "./installation-rules";
 
 /** HU-E1-14, HU-E1-15: where a user's own settings live (the provider's `user` row). */
@@ -33,6 +35,8 @@ export interface UserProfiles {
 /** HU-E1-15: the profile that `GET` and `PATCH /api/v1/me` answer. */
 export interface ProfileView {
   readonly user: AuthUser;
+  /** Ruling P339: the person's @usuario; null until they pick one. */
+  readonly handle: string | null;
   readonly preferences: {
     readonly stored: StoredPreferences;
     readonly effective: FormatPreferences;
@@ -49,17 +53,20 @@ export type GetProfile = (input: { readonly user: AuthUser }) => Promise<Result<
 export const createGetProfile =
   (deps: {
     readonly profiles: Pick<UserProfiles, "preferencesOf" | "displayCurrencyOf">;
+    readonly handles: Pick<UserHandles, "handleOf">;
     readonly rules: InstallationRulesReader;
     readonly regionDefaults: { readonly timezone: string; readonly locale: Locale };
   }): GetProfile =>
   async ({ user }) => {
-    const [stored, displayCurrency, rules] = await Promise.all([
+    const [stored, displayCurrency, handle, rules] = await Promise.all([
       deps.profiles.preferencesOf(user.id),
       deps.profiles.displayCurrencyOf(user.id),
+      deps.handles.handleOf(user.id),
       deps.rules.rules(),
     ]);
     return ok({
       user,
+      handle,
       preferences: {
         stored,
         effective: effectivePreferences(stored, rules),
@@ -70,19 +77,27 @@ export const createGetProfile =
     });
   };
 
-export type UpdateProfile = (input: { readonly user: AuthUser } & ProfileChange) => Promise<Result<AuthUser>>;
+export type UpdateProfile = (
+  input: { readonly user: AuthUser } & ProfileChange & {
+      /** Ruling P339: the person's new @usuario; null clears it, and an omitted one is unchanged. */
+      readonly handle?: string | null;
+    },
+) => Promise<Result<AuthUser>>;
 
 /**
  * HU-E1-14, HU-E1-15: the signed-in user changes their own zone, language and formats. A change that names a locked
  * field is PreferenceLocked, even to clear it or to repeat its value; then an unknown zone is InvalidTimeZone. Nothing
  * is written unless the whole change passes, and a zone or a language equal to the current one is not written.
+ * Ruling P339: a handle outside the rules is InvalidHandle, and one someone else holds, ignoring case, is HandleTaken;
+ * the handle is written first, so a taken one leaves everything else unwritten too.
  */
 export const createUpdateProfile =
   (deps: {
     readonly profiles: Pick<UserProfiles, "saveProfile">;
+    readonly handles: Pick<UserHandles, "setHandle">;
     readonly rules: InstallationRulesReader;
   }): UpdateProfile =>
-  async ({ user, ...change }) => {
+  async ({ user, handle: rawHandle, ...change }) => {
     // The check lives here, never only in the handler (HU-E1-15).
     const locked = lockedFieldsIn(change, await deps.rules.rules());
     if (locked.length > 0) return err(domainError("PreferenceLocked", { fields: locked }));
@@ -94,6 +109,8 @@ export const createUpdateProfile =
     if (typeof displayCurrency === "string" && knownCurrency(displayCurrency) === undefined) {
       return err(domainError("UnknownCurrency", { currency: change.displayCurrency }));
     }
+    const handle = rawHandle === undefined || rawHandle === null ? ok(rawHandle) : parseHandle(rawHandle);
+    if (!handle.ok) return handle;
     const locale = change.locale ?? user.locale;
     const fields: ProfileChange = {
       ...(zone.value === user.timezone ? {} : { timezone: zone.value }),
@@ -101,6 +118,9 @@ export const createUpdateProfile =
       ...(displayCurrency === undefined ? {} : { displayCurrency }),
       ...formatsIn(change),
     };
+    if (handle.value !== undefined && (await deps.handles.setHandle(user.id, handle.value)) === "taken") {
+      return err(domainError("HandleTaken"));
+    }
     if (Object.keys(fields).length > 0) await deps.profiles.saveProfile(user.id, fields);
     return ok({ ...user, timezone: zone.value, locale });
   };

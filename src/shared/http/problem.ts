@@ -28,6 +28,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   ["UnreadableBackup", 422],
   ["ZipBackupNotSupported", 422],
   ["ImportTimedOut", 422],
+  // Ruling P339: a friend request to one's own @usuario is the request's mistake; the default would be 409.
+  ["OwnHandle", 422],
   ["CategoryRequired", 422],
   ["AccountRequired", 422],
   ["PaymentsRequired", 422],

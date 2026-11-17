@@ -10,6 +10,7 @@ import {
 } from "@/modules/categories/contracts/categories.contract";
 import { authPaths } from "@/modules/identity/contracts/auth.contract";
 import { mePaths } from "@/modules/identity/contracts/me.contract";
+import { usersPaths } from "@/modules/identity/contracts/users.contract";
 import {
   ConvertedTransactionSchema,
   ledgerPaths,
@@ -81,6 +82,7 @@ export const buildOpenApiDocument = (): Record<string, unknown> =>
           ...healthPaths,
           ...openApiPaths,
           ...mePaths,
+          ...usersPaths,
           ...authPaths,
           ...spacesPaths,
           ...categoriesPaths,

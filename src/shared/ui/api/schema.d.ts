@@ -48,8 +48,28 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change the signed-in user's time zone, language and formats (HU-E1-14, HU-E1-15) */
+        /** Change the signed-in user's time zone, language, formats and @usuario (HU-E1-14, HU-E1-15, P339) */
         patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/api/v1/users/by-handle/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find someone by their exact @usuario (P339)
+         * @description Exact match ignoring case; a leading @ is ignored. There is no listing and no prefix search. An unknown or malformed handle, and the caller's own, all answer UserNotFound. Throttled per person.
+         */
+        get: operations["findUserByHandle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/auth/sign-up": {
@@ -2920,6 +2940,8 @@ export interface operations {
                         locale: string;
                         /** @description The person's own IANA time zone. */
                         timezone: string;
+                        /** @description P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none. */
+                        handle?: string;
                         preferences: {
                             stored: {
                                 numberFormat: ("DOT_COMMA" | "COMMA_DOT" | "SPACE_COMMA") | null;
@@ -2990,6 +3012,7 @@ export interface operations {
                     dateFormat?: ("DMY" | "MDY" | "YMD") | null;
                     weekStart?: ("MONDAY" | "SUNDAY") | null;
                     displayCurrency?: string | null;
+                    handle?: string | null;
                 };
             };
         };
@@ -3009,6 +3032,8 @@ export interface operations {
                         locale: string;
                         /** @description The person's own IANA time zone. */
                         timezone: string;
+                        /** @description P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none. */
+                        handle?: string;
                         preferences: {
                             stored: {
                                 numberFormat: ("DOT_COMMA" | "COMMA_DOT" | "SPACE_COMMA") | null;
@@ -3059,7 +3084,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description PreferenceLocked */
+            /** @description PreferenceLocked, HandleTaken */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3068,8 +3093,61 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidTimeZone */
+            /** @description ValidationFailed, InvalidTimeZone, UnknownCurrency, InvalidHandle */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    findUserByHandle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The person's handle and name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The @usuario, in lower case and without the @ */
+                        handle: string;
+                        displayName: string;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description UserNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description TooManyRequests */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };

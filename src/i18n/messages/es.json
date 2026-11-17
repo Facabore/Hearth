@@ -235,7 +235,10 @@
     "InvalidImportMapping": "Una de las opciones no encaja: elige una cuenta en la misma moneda y una categoría o un grupo que todavía exista.",
     "UnreadableBackup": "No pudimos leer esta copia. Expórtala de nuevo y sube el archivo nuevo.",
     "ZipBackupNotSupported": "Todavía no leemos copias comprimidas (.mmbak). Exporta la copia como archivo .sqlite.",
-    "ImportTargetRefused": "Una cuenta o categoría del archivo no se puede crear así. Cambia a dónde va y confirma de nuevo."
+    "ImportTargetRefused": "Una cuenta o categoría del archivo no se puede crear así. Cambia a dónde va y confirma de nuevo.",
+    "HandleTaken": "Alguien más ya usa ese @. Prueba con otro.",
+    "InvalidHandle": "Tu @ debe tener entre 3 y 20 caracteres: letras minúsculas, números y guion bajo.",
+    "UserNotFound": "Nadie usa ese @. Revisa que esté escrito exactamente igual."
   },
   "warnings": {
     "FundBalanceNegative": "El saldo de {account} quedó en {balance}. Pueden hacer un aporte al fondo para cubrirlo."

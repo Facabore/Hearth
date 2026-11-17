@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, check, index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { DATE_FORMATS, NUMBER_FORMATS, TIME_FORMATS, WEEK_STARTS } from "../domain/preferences";
 
 // Property names are the field names Better Auth expects; column names are snake_case.
@@ -23,6 +23,8 @@ export const user = pgTable(
     // D29, slice MC4: the ISO 4217 currency of this person's totals and unified view; null means "my personal space's
     // currency". An open set (any circulating code), so no check constraint; the use case refuses unknown codes.
     displayCurrency: text("display_currency"),
+    // Ruling P339: the person's @usuario, stored in lower case; null until they pick one. Better Auth never reads it.
+    handle: text("handle"),
     createdAt: tz("created_at").notNull().defaultNow(),
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },
@@ -31,6 +33,9 @@ export const user = pgTable(
     check("user_time_format", sql`${t.timeFormat} IN ('H24', 'H12')`),
     check("user_date_format", sql`${t.dateFormat} IN ('DMY', 'MDY', 'YMD')`),
     check("user_week_start", sql`${t.weekStart} IN ('MONDAY', 'SUNDAY')`),
+    // Ruling P339: unique ignoring case; the database decides two people picking the same handle at once.
+    uniqueIndex("user_handle_uq").on(sql`lower(${t.handle})`),
+    check("user_handle_format", sql`${t.handle} ~ '^[a-z0-9_]{3,20}$'`),
   ],
 );
 

@@ -218,11 +218,13 @@ import {
 } from "@/modules/categories/application";
 import { DrizzleCategoryRepository } from "@/modules/categories/infrastructure/drizzle-category-repository";
 import {
+  createFindUserByHandle,
   createGetProfile,
   createSignIn,
   createSignOut,
   createSignUp,
   createUpdateProfile,
+  type FindUserByHandle,
   createVerifyEmail,
   type GetProfile,
   type InstallationRulesReader,
@@ -378,6 +380,8 @@ export interface Container extends RouteDeps {
     readonly verifyEmail: VerifyEmail;
     readonly updateProfile: UpdateProfile;
     readonly getProfile: GetProfile;
+    /** P339: someone by their exact @usuario, throttled per person. */
+    readonly findUserByHandle: FindUserByHandle;
   };
   readonly spaces: {
     readonly createPersonalSpace: CreatePersonalSpace;
@@ -567,6 +571,8 @@ export interface ContainerOptions {
   readonly clock?: Clock;
   /** Test seam: the installation's defaults and locks (HU-E1-15); the built-in es-CO rules until HU-E8-18. */
   readonly installationRules?: InstallationRulesReader;
+  /** P339: @usuario lookups and friend requests per person per minute; 30 by default. */
+  readonly handleLookupsPerMinute?: number;
   /** Exports per person per minute (design §3.6); 5 by default. */
   readonly exportsPerMinute?: number;
   /** Test seam: how long an upload's reads may take (design §3.5); 30 seconds by default. */
@@ -1109,6 +1115,13 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // The SPA's link page (`/r/<code>`); the URL carries only the code.
     referralUrl: (code) => new URL(`/r/${code}`, env.BETTER_AUTH_URL).toString(),
   };
+  // P339 (S3): finding someone by their @ is throttled per person, as sign-in is per address, so handles cannot be
+  // guessed in bulk; a friend request names a handle too, so it counts against the same window.
+  const lookupsByUser = createFixedWindowLimiter({
+    limit: options.handleLookupsPerMinute ?? 30,
+    windowMs: ONE_MINUTE,
+  });
+  const handleLookupThrottle = { allows: (userId: string) => lookupsByUser.hit(userId) };
   // D28, design §3.6: the export reads through each module's own use cases, which authorize every read again.
   const exportsByUser = createFixedWindowLimiter({
     limit: options.exportsPerMinute ?? 5,
@@ -1202,15 +1215,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       }),
       signUpMode: env.HEARTH_SIGN_UP,
       verifyEmail: createVerifyEmail(provider),
-      updateProfile: createUpdateProfile({ profiles, rules: installationRules }),
+      updateProfile: createUpdateProfile({ profiles, handles: profiles, rules: installationRules }),
       // HU-E9-13, ruling P124: the installation's zone and, until HU-E8-18 stores one, its built-in language.
       getProfile: createGetProfile({
         profiles,
+        handles: profiles,
         rules: installationRules,
         regionDefaults: { timezone: env.APP_TIMEZONE, locale: INSTALLATION_DEFAULT_LOCALE },
       }),
       signIn: createSignIn(provider),
       signOut: createSignOut(provider),
+      findUserByHandle: createFindUserByHandle({ handles: profiles, throttle: handleLookupThrottle }),
     },
     spaces: {
       createPersonalSpace,

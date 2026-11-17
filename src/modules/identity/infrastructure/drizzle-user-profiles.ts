@@ -1,6 +1,7 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { canonicalTimeZone, type UserTimeZones } from "@/shared/kernel";
+import type { HandleHolder, UserHandles } from "../application/handles";
 import type { UserProfiles } from "../application/profile";
 import { NO_PREFERENCES, type ProfileChange, type StoredPreferences } from "../domain/preferences";
 import { user } from "./auth.schema";
@@ -9,7 +10,7 @@ import { user } from "./auth.schema";
  * HU-E1-14, HU-E1-15: the zone, the language and the formats on Better Auth's `user` row; read and written inside the
  * caller's transaction when there is one.
  */
-export class DrizzleUserProfiles implements UserProfiles, UserTimeZones {
+export class DrizzleUserProfiles implements UserProfiles, UserTimeZones, UserHandles {
   constructor(
     private readonly tm: DrizzleTransactionManager,
     /** APP_TIMEZONE. */
@@ -82,6 +83,62 @@ export class DrizzleUserProfiles implements UserProfiles, UserTimeZones {
     return this.tm
       .executor()
       .select({ id: user.id, name: user.name, emailVerified: user.emailVerified, createdAt: user.createdAt })
+      .from(user)
+      .where(inArray(user.id, [...userIds]));
+  }
+
+  /** Ruling P339: the stored handle; an unknown user, or one who picked none, has null. */
+  async handleOf(userId: string): Promise<string | null> {
+    const [row] = await this.tm
+      .executor()
+      .select({ handle: user.handle })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return row?.handle ?? null;
+  }
+
+  /**
+   * Ruling P339: one UPDATE in a savepoint, since the unique index on lower(handle) refuses one that someone else took
+   * meanwhile, and a refused statement would otherwise abort the caller's transaction.
+   */
+  async setHandle(userId: string, handle: string | null): Promise<"saved" | "taken"> {
+    try {
+      await this.tm
+        .executor()
+        .transaction((savepoint) =>
+          savepoint.update(user).set({ handle, updatedAt: new Date() }).where(eq(user.id, userId)),
+        );
+      return "saved";
+    } catch (error) {
+      const { code, constraint } = ((error as Error).cause ?? error) as {
+        code?: unknown;
+        constraint?: unknown;
+      };
+      if (code === "23505" && constraint === "user_handle_uq") return "taken";
+      throw error;
+    }
+  }
+
+  /** Ruling P339: exact match ignoring case, through the unique index. */
+  async findByHandle(handle: string): Promise<HandleHolder | null> {
+    const [row] = await this.tm
+      .executor()
+      .select({ userId: user.id, handle: user.handle, displayName: user.name })
+      .from(user)
+      .where(eq(sql`lower(${user.handle})`, handle.toLowerCase()))
+      .limit(1);
+    return row?.handle ? { userId: row.userId, handle: row.handle, displayName: row.displayName } : null;
+  }
+
+  /** Ruling P339: the handle and name of each known id, for the friend requests' lists. */
+  async holdersOf(
+    userIds: readonly string[],
+  ): Promise<{ userId: string; handle: string | null; displayName: string }[]> {
+    if (userIds.length === 0) return [];
+    return this.tm
+      .executor()
+      .select({ userId: user.id, handle: user.handle, displayName: user.name })
       .from(user)
       .where(inArray(user.id, [...userIds]));
   }

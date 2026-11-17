@@ -39,10 +39,12 @@ const world = (
       if (fields.displayCurrency !== undefined) currencies.set(userId, fields.displayCurrency);
     },
   };
+  const handles = { handleOf: async () => null, setHandle: async () => "saved" as const };
   let current = rules;
   const reader = { rules: async () => current };
   const getProfile = createGetProfile({
     profiles,
+    handles,
     rules: reader,
     regionDefaults,
   });
@@ -52,7 +54,7 @@ const world = (
     lock: (locked: readonly LockableField[]) => {
       current = { ...current, locked };
     },
-    update: createUpdateProfile({ profiles, rules: reader }),
+    update: createUpdateProfile({ profiles, handles, rules: reader }),
     preferencesOf: async (user: AuthUser = ana) => unwrap(await getProfile({ user })).preferences,
   };
 };

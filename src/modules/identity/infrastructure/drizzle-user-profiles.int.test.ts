@@ -80,3 +80,35 @@ describe("DrizzleUserProfiles formats (HU-E1-15)", () => {
     });
   });
 });
+
+describe("DrizzleUserProfiles handles (P339)", () => {
+  const tm = new DrizzleTransactionManager(db);
+  const handles = new DrizzleUserProfiles(tm, "America/Bogota");
+  const unique = () => `h_${Math.random().toString(36).slice(2, 10)}`;
+
+  it("finds a handle ignoring case and answers taken for one someone else holds, inside a transaction that goes on", async () => {
+    const ana = await userFixture(pool, "Ana");
+    const eva = await userFixture(pool, "Eva");
+    const handle = unique();
+    expect(await handles.setHandle(ana.id, handle)).toBe("saved");
+    expect(await handles.findByHandle(handle.toUpperCase())).toEqual({
+      userId: ana.id,
+      handle,
+      displayName: "Ana",
+    });
+    const outcome = await tm.run(async () => {
+      const taken = await handles.setHandle(eva.id, handle);
+      // The refused UPDATE ran in a savepoint: the transaction still answers.
+      expect(await handles.handleOf(eva.id)).toBeNull();
+      return { ok: true as const, value: taken };
+    });
+    expect(outcome).toEqual({ ok: true, value: "taken" });
+    // Cleared, the handle is free for someone else.
+    await pool.query(`UPDATE "user" SET handle = NULL WHERE id = $1`, [ana.id]);
+    expect(await handles.findByHandle(handle)).toBeNull();
+    expect(await handles.setHandle(eva.id, handle)).toBe("saved");
+    expect(await handles.holdersOf([eva.id, "nobody"])).toEqual([
+      { userId: eva.id, handle, displayName: "Eva" },
+    ]);
+  });
+});

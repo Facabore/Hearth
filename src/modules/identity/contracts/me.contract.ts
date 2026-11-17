@@ -33,6 +33,12 @@ const Formats = z.object({
 
 /** HU-E1-15: the user, with the formats as stored (null follows the rule), as they apply, the rules' defaults and locks. */
 export const ProfileResponseSchema = MeResponseSchema.extend({
+  handle: z
+    .string()
+    .optional()
+    .describe(
+      "P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none.",
+    ),
   preferences: z.object({
     stored: z.object({
       numberFormat: NumberFormat.nullable(),
@@ -75,16 +81,20 @@ export const UpdateMeBodySchema = z.object({
   weekStart: WeekStart.nullable().optional(),
   /** D29 (MC4): the person's display currency as an ISO 4217 code; null returns to their personal space's currency. */
   displayCurrency: z.string().length(3).nullable().optional(),
+  /** P339: the person's @usuario (3–20 of a–z, 0–9 and _, a leading @ and upper case accepted); null clears it. */
+  handle: z.string().max(64).nullable().optional(),
 });
 
 /**
  * HU-E1-15: the profile as `GET` and `PATCH /api/v1/me` answer it. D29 (MC4): `displayCurrency` is sent only once the
- * person chose one, so a client that never asked for it receives exactly what it received before (additive only).
+ * person chose one, so a client that never asked for it receives exactly what it received before (additive only); so is
+ * P339's `handle`.
  */
 export const meDto = (view: ProfileView) => {
   const { displayCurrency, ...preferences } = view.preferences;
   return {
     ...view.user,
+    ...(view.handle === null ? {} : { handle: view.handle }),
     preferences: displayCurrency === null ? preferences : { ...preferences, displayCurrency },
   };
 };
@@ -108,14 +118,18 @@ export const mePaths: ZodOpenApiPathsObject = {
     },
     patch: {
       operationId: "updateMe",
-      summary: "Change the signed-in user's time zone, language and formats (HU-E1-14, HU-E1-15)",
+      summary:
+        "Change the signed-in user's time zone, language, formats and @usuario (HU-E1-14, HU-E1-15, P339)",
       security,
       requestBody: { content: { "application/json": { schema: UpdateMeBodySchema } } },
       responses: {
         "200": profile("The updated user"),
         "401": { description: "Not signed in", content: problemContent },
-        "409": { description: "PreferenceLocked", content: problemContent },
-        "422": { description: "ValidationFailed, InvalidTimeZone", content: problemContent },
+        "409": { description: "PreferenceLocked, HandleTaken", content: problemContent },
+        "422": {
+          description: "ValidationFailed, InvalidTimeZone, UnknownCurrency, InvalidHandle",
+          content: problemContent,
+        },
       },
     },
   },
