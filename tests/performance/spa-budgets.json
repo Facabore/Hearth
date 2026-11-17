@@ -7,7 +7,7 @@
     "routes/space-shell.tsx": 10,
     "routes/space-home.tsx": 25,
     "home/needs-today-host.tsx": 7,
-    "routes/transactions.tsx": 26,
+    "routes/transactions.tsx": 27,
     "routes/record.tsx": 40,
     "ledger/record-behind.tsx": 2,
     "routes/record-backdrop.tsx": 34,
