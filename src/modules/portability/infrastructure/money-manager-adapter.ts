@@ -11,7 +11,7 @@ import {
 } from "@/shared/kernel";
 import { MAX_IMPORT_BYTES, type SourceAdapter, type SourceFile } from "../application/source-adapter";
 import { moneyFromDecimal, moneyFromFloat } from "../domain/amounts";
-import { accountTypeForGroup } from "../domain/account-type-map";
+import { accountTypeForGroup, LOAN_GROUP_TYPE } from "../domain/account-type-map";
 import { splitLeadingEmoji } from "../domain/category-match";
 import type {
   SourceAccount,
@@ -29,11 +29,24 @@ export { MAX_IMPORT_BYTES };
 const SQLITE_HEADER = new TextEncoder().encode("SQLite format 3\u0000");
 
 /** The tables this reader queries. Each must be a real table, so a crafted view cannot make a query run unbounded. */
-const READ_TABLES = ["CURRENCY", "ASSETS", "ZCATEGORY", "INOUTCOME", "TAG", "TX_TAG", "BUDGET", "ZETC"];
+const READ_TABLES = [
+  "CURRENCY",
+  "ASSETGROUP",
+  "ASSETS",
+  "ZCATEGORY",
+  "INOUTCOME",
+  "TAG",
+  "TX_TAG",
+  "BUDGET",
+  "ZETC",
+];
 
 /** Every read the snapshot is built from, by name: fixed, read-only, one table each (no join can grow its output). */
 const QUERIES = {
   currency: "SELECT uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY FROM CURRENCY",
+  // P337: an account's group is a row of its own; its TYPE (1 Accounts … 11 Cash) is what the account is, never the
+  // group's uid, which is text and differs between backups.
+  assetGroups: "SELECT uid, ACC_GROUP_NAME, TYPE, ORDERSEQ, IS_DEL FROM ASSETGROUP",
   assets: "SELECT * FROM ASSETS",
   tag: "SELECT uid, NAME FROM TAG",
   txTag: "SELECT txUid, tagUid FROM TX_TAG",
@@ -49,7 +62,7 @@ type TableRows = Readonly<Record<keyof typeof QUERIES, Row[]>>;
 
 /** Money Manager's two core tables exist, and nothing the reader queries is a view (names are case-insensitive). */
 export const MONEY_MANAGER_READ: ExtractSpec = {
-  required: ["ASSETS", "INOUTCOME"],
+  required: ["ASSETGROUP", "ASSETS", "INOUTCOME"],
   guarded: READ_TABLES,
   queries: QUERIES,
 };
@@ -151,10 +164,20 @@ export class MoneyManagerAdapter implements SourceAdapter {
       if (mainCurrency === null && trimmed(row.MAIN_ISO)) mainCurrency = str(row.MAIN_ISO);
     }
 
-    // Accounts, minus their type, which needs each account's balance (group 5 Loan, gap G4).
+    // P337: each group's TYPE and place; a deleted group's accounts still read, as Others, after every live group.
+    const groups = new Map<string, { type: number; order: number }>();
+    for (const row of rows.assetGroups) {
+      if (num(row.IS_DEL) !== 0) continue;
+      groups.set(str(row.uid).trim(), { type: num(row.TYPE), order: num(row.ORDERSEQ) });
+    }
+
+    // Accounts, minus their type, which needs each account's balance (group type 5 Loan, gap G4).
     // An account in a currency the backup does not list, or Hearth does not know, is a row error: its movements then
     // come out as MovementWithoutAccount, and the rest of the backup still reads (§3.2).
-    const accountInfo = new Map<string, { row: Row; currency: string; groupUid: number }>();
+    const accountInfo = new Map<
+      string,
+      { row: Row; currency: string; groupType: number; groupOrder: number }
+    >();
     const accountErrors: SourceIssue[] = [];
     for (const row of rows.assets) {
       const currency = currencyByUid.get(str(row.currencyUid).trim());
@@ -167,7 +190,13 @@ export class MoneyManagerAdapter implements SourceAdapter {
         );
         continue;
       }
-      accountInfo.set(str(row.uid), { row, currency, groupUid: num(row.groupUid) });
+      const group = groups.get(str(row.groupUid).trim());
+      accountInfo.set(str(row.uid), {
+        row,
+        currency,
+        groupType: group?.type ?? 0,
+        groupOrder: group?.order ?? Number.MAX_SAFE_INTEGER,
+      });
     }
 
     const { byMovement: tagsByMovement, truncated: truncatedTags } = this.tags(rows);
@@ -178,23 +207,27 @@ export class MoneyManagerAdapter implements SourceAdapter {
       currencyByUid,
     );
 
-    const accounts: SourceAccount[] = [];
-    for (const [sourceId, info] of accountInfo) {
+    // P337: Money Manager's own order, its groups' order first and each account's within its group.
+    const ordered = [...accountInfo].sort(
+      ([, a], [, b]) => a.groupOrder - b.groupOrder || num(a.row.ORDERSEQ) - num(b.row.ORDERSEQ),
+    );
+    const accounts: SourceAccount[] = ordered.map(([sourceId, info], order) => {
       const { row } = info;
       const cardDay = (field: string) => (num(row[field]) > 0 ? num(row[field]) : null);
-      accounts.push({
+      return {
         sourceId,
         name: str(row.NIC_NAME),
-        type: accountTypeForGroup(info.groupUid, (balances.get(sourceId) ?? 0n) < 0n),
+        type: accountTypeForGroup(info.groupType, (balances.get(sourceId) ?? 0n) < 0n),
         currency: info.currency,
-        order: num(row.ORDERSEQ),
+        order,
         cutOffDay: cardDay("CARD_DAY_FIN"),
         paymentDay: cardDay("CARD_DAY_PAY"),
         memo: trimmed(row.ZDATA1),
         hidden: num(row.ZDATA) !== 0,
         excludedFromTotals: num(row.ZDATA2) !== 0,
-      });
-    }
+        loan: info.groupType === LOAN_GROUP_TYPE,
+      };
+    });
 
     const { categories, deletedCategories } = this.categories(rows, usedCategories);
     const budgets: SourceBudget[] = rows.budgets.map((row) => ({

@@ -46,6 +46,7 @@ export interface SourceAccount {
   readonly type: SourceAccountType;
   /** ISO 4217 code of the account's currency (D29). */
   readonly currency: string;
+  /** P337: the account's place in the source's own list (its group's order, then its own), from 0. */
   readonly order: number;
   /** Credit-card cut-off day (`CARD_DAY_FIN`); null for a non-card or an unset value. */
   readonly cutOffDay: number | null;
@@ -56,6 +57,11 @@ export interface SourceAccount {
   readonly hidden: boolean;
   /** `ASSETS.ZDATA2` flag, meaning unverified (design §1.1): treated as "exclude from totals". */
   readonly excludedFromTotals: boolean;
+  /**
+   * P337: the source files it among loans (Money Manager's Loan group), which suggests a person rather than an account.
+   * Absent in a snapshot stored before P337, read as false.
+   */
+  readonly loan?: boolean;
 }
 
 /** Money Manager has two levels and a kind; Hearth has three levels and no kind (design §2.2). */

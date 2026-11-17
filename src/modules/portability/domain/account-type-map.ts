@@ -1,12 +1,15 @@
 import type { SourceAccountType } from "./source-snapshot";
 
+/** Money Manager's `ASSETGROUP.TYPE` of its Loan group. */
+export const LOAN_GROUP_TYPE = 5;
+
 /**
- * The Hearth type a Money Manager account group maps to (design §2.1). Group 5 (Loan) depends on the sign of the
- * account's balance (gap G4): a negative balance is money owed (`LOAN`), a positive one money lent (`OTHER`, until
- * HU-E8-15 exists). An unknown group falls back to `OTHER`.
+ * The Hearth type a Money Manager account group's `TYPE` maps to (design §2.1, P337: the group row's TYPE, never its
+ * uid). Type 5 (Loan) depends on the sign of the account's balance (gap G4): a negative balance is money owed (`LOAN`),
+ * a positive one money lent (`OTHER`, until HU-E8-15 exists). An unknown type falls back to `OTHER`.
  */
-export const accountTypeForGroup = (groupUid: number, balanceNegative: boolean): SourceAccountType => {
-  switch (groupUid) {
+export const accountTypeForGroup = (groupType: number, balanceNegative: boolean): SourceAccountType => {
+  switch (groupType) {
     case 1: // Accounts
     case 3: // Debit Card — Hearth has no separate debit card
     case 9: // Overdrafts — a negative balance is allowed on a BANK account

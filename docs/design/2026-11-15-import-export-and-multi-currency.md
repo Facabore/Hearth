@@ -32,7 +32,7 @@ Money Manager (Realbyte, Android) backs up to one SQLite file (`.mmbak`, or the 
 
 | Table | Holds | Used by the import |
 |---|---|---|
-| `ASSETGROUP` | The 11 fixed account groups: 1 Accounts, 2 Card, 3 Debit Card, 4 Savings, 5 Loan, 6 Top-Up/Prepaid, 7 Others, 8 Investments, 9 Overdrafts, 10 Insurance, 11 Cash | Account type |
+| `ASSETGROUP` | Account groups: `uid` (text), `ACC_GROUP_NAME`, `TYPE` (1 Accounts, 2 Card, 3 Debit Card, 4 Savings, 5 Loan, 6 Top-Up/Prepaid, 7 Others, 8 Investments, 9 Overdrafts, 10 Insurance, 11 Cash), `ORDERSEQ`, `IS_DEL`. An account's type is its group's `TYPE`, never the group's uid (P337) | Account type and order |
 | `ASSETS` | Accounts: `uid`, `NIC_NAME` (name), `groupUid`, `currencyUid`, `ORDERSEQ`, `CARD_DAY_FIN` / `CARD_DAY_PAY` (card cut-off and payment days), `cardAssetUid` (a card's paying account), `ZDATA1` (memo), `ZDATA` and `ZDATA2` (small flags, meaning unverified, probably "hidden" and "exclude from totals"). No delete column and no opening balance | Accounts |
 | `ZCATEGORY` | Categories: `uid`, `NAME`, `TYPE` (0 income, 1 expense), `pUid` (parent; `''` or `'0'` for top level), `STATUS` (0 top level, 2 subcategory), `C_IS_DEL`, `ORDERSEQ`. Two levels at most. Built-in defaults have small numeric uids, the person's own have UUIDs. Names often start with an emoji | Categories |
 | `INOUTCOME` | Every movement: see 1.2 | Movements |

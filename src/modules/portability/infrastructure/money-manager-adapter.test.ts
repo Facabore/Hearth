@@ -26,8 +26,8 @@ const buildFixture = (extra: readonly MovementRow[] = [], extraSql = ""): Uint8A
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE CURRENCY (uid INTEGER, ISO TEXT, MAIN_ISO TEXT, IS_MAIN_CURRENCY INTEGER, RATE TEXT, DECIMAL_POINT INTEGER, SYMBOL_POSITION INTEGER);
-    CREATE TABLE ASSETGROUP (uid INTEGER, NAME TEXT);
-    CREATE TABLE ASSETS (uid TEXT, NIC_NAME TEXT, groupUid INTEGER, currencyUid INTEGER, ORDERSEQ INTEGER, CARD_DAY_FIN INTEGER, CARD_DAY_PAY INTEGER, cardAssetUid TEXT, ZDATA1 TEXT, ZDATA INTEGER, ZDATA2 INTEGER);
+    CREATE TABLE ASSETGROUP (uid TEXT, ACC_GROUP_NAME TEXT, TYPE INTEGER, ORDERSEQ INTEGER, IS_DEL INTEGER);
+    CREATE TABLE ASSETS (uid TEXT, NIC_NAME TEXT, groupUid TEXT, currencyUid INTEGER, ORDERSEQ INTEGER, CARD_DAY_FIN INTEGER, CARD_DAY_PAY INTEGER, cardAssetUid TEXT, ZDATA1 TEXT, ZDATA INTEGER, ZDATA2 INTEGER);
     CREATE TABLE ZCATEGORY (uid TEXT, NAME TEXT, TYPE INTEGER, pUid TEXT, STATUS INTEGER, C_IS_DEL INTEGER, ORDERSEQ INTEGER);
     CREATE TABLE INOUTCOME (uid TEXT, DO_TYPE INTEGER, WDATE TEXT, ZDATE INTEGER, UTIME INTEGER, assetUid TEXT, toAssetUid TEXT, ctgUid TEXT, ZMONEY TEXT, currencyUid INTEGER, IN_ZMONEY TEXT, AMOUNT_ACCOUNT REAL, txUidTrans TEXT, ZCONTENT TEXT, ZDATA TEXT, IS_DEL INTEGER);
     CREATE TABLE TAG (uid TEXT, NAME TEXT);
@@ -40,8 +40,9 @@ const buildFixture = (extra: readonly MovementRow[] = [], extraSql = ""): Uint8A
   currency.run(1, "COP", "COP", 1, "1", 0, 0);
   currency.run(2, "USD", "COP", 0, "4000", 2, 0);
 
-  const group = db.prepare("INSERT INTO ASSETGROUP VALUES (?,?)");
-  for (const [uid, name] of [
+  // P337: a group's uid is text and says nothing about what it is; its TYPE does. Listed in Money Manager's order.
+  const group = db.prepare("INSERT INTO ASSETGROUP VALUES (?,?,?,?,?)");
+  for (const [type, name] of [
     [1, "Accounts"],
     [2, "Card"],
     [3, "Debit Card"],
@@ -54,25 +55,25 @@ const buildFixture = (extra: readonly MovementRow[] = [], extraSql = ""): Uint8A
     [10, "Insurance"],
     [11, "Cash"],
   ] as const) {
-    group.run(uid, name);
+    group.run(`grp-${name}`, name, type, type, 0);
   }
 
   const asset = db.prepare("INSERT INTO ASSETS VALUES (?,?,?,?,?,?,?,?,?,?,?)");
   // uid, name, group, currency, order, cardFin, cardPay, cardAsset, memo, ZDATA, ZDATA2
-  asset.run("a-bank", "Bancolombia", 1, 1, 0, 0, 0, null, "cuenta nómina", 0, 0);
-  asset.run("a-card", "Visa", 2, 1, 1, 15, 5, "a-bank", null, 0, 0);
-  asset.run("a-debit", "Débito", 3, 1, 2, 0, 0, null, null, 0, 0);
-  asset.run("a-sav", "Ahorros", 4, 1, 3, 0, 0, null, null, 0, 0);
-  asset.run("a-loan-neg", "Préstamo banco", 5, 1, 4, 0, 0, null, null, 0, 0);
-  asset.run("a-loan-pos", "Presté a Ana", 5, 1, 5, 0, 0, null, null, 0, 0);
-  asset.run("a-wallet", "Nequi", 6, 1, 6, 0, 0, null, null, 0, 0);
-  asset.run("a-other", "Otros", 7, 1, 7, 0, 0, null, null, 0, 0);
-  asset.run("a-inv", "CDT", 8, 1, 8, 0, 0, null, null, 0, 0);
-  asset.run("a-over", "Sobregiro", 9, 1, 9, 0, 0, null, null, 0, 0);
-  asset.run("a-ins", "Seguro", 10, 1, 10, 0, 0, null, null, 0, 0);
-  asset.run("a-cash", "Efectivo", 11, 1, 11, 0, 0, null, null, 0, 0);
-  asset.run("a-usd", "US savings", 1, 2, 12, 0, 0, null, null, 0, 0);
-  asset.run("a-hidden", "Oculta", 7, 1, 13, 0, 0, null, null, 1, 1);
+  asset.run("a-bank", "Bancolombia", "grp-Accounts", 1, 0, 0, 0, null, "cuenta nómina", 0, 0);
+  asset.run("a-card", "Visa", "grp-Card", 1, 1, 15, 5, "a-bank", null, 0, 0);
+  asset.run("a-debit", "Débito", "grp-Debit Card", 1, 2, 0, 0, null, null, 0, 0);
+  asset.run("a-sav", "Ahorros", "grp-Savings", 1, 3, 0, 0, null, null, 0, 0);
+  asset.run("a-loan-neg", "Préstamo banco", "grp-Loan", 1, 4, 0, 0, null, null, 0, 0);
+  asset.run("a-loan-pos", "Presté a Ana", "grp-Loan", 1, 5, 0, 0, null, null, 0, 0);
+  asset.run("a-wallet", "Nequi", "grp-Top-Up/Prepaid", 1, 6, 0, 0, null, null, 0, 0);
+  asset.run("a-other", "Otros", "grp-Others", 1, 7, 0, 0, null, null, 0, 0);
+  asset.run("a-inv", "CDT", "grp-Investments", 1, 8, 0, 0, null, null, 0, 0);
+  asset.run("a-over", "Sobregiro", "grp-Overdrafts", 1, 9, 0, 0, null, null, 0, 0);
+  asset.run("a-ins", "Seguro", "grp-Insurance", 1, 10, 0, 0, null, null, 0, 0);
+  asset.run("a-cash", "Efectivo", "grp-Cash", 1, 11, 0, 0, null, null, 0, 0);
+  asset.run("a-usd", "US savings", "grp-Accounts", 2, 12, 0, 0, null, null, 0, 0);
+  asset.run("a-hidden", "Oculta", "grp-Others", 1, 13, 0, 0, null, null, 1, 1);
 
   const category = db.prepare("INSERT INTO ZCATEGORY VALUES (?,?,?,?,?,?,?)");
   // uid, name, TYPE, pUid, STATUS, C_IS_DEL, order
@@ -374,7 +375,7 @@ describe("MoneyManagerAdapter (design §1-2)", () => {
 
   it("carries the card cut-off and payment days, name, order, memo and currency", () => {
     const card = snapshot.accounts.find((a) => a.sourceId === "a-card")!;
-    expect(card).toMatchObject({ name: "Visa", currency: "COP", order: 1, cutOffDay: 15, paymentDay: 5 });
+    expect(card).toMatchObject({ name: "Visa", currency: "COP", cutOffDay: 15, paymentDay: 5 });
     expect(snapshot.accounts.find((a) => a.sourceId === "a-bank")!.memo).toBe("cuenta nómina");
     expect(snapshot.accounts.find((a) => a.sourceId === "a-usd")!.currency).toBe("USD");
   });
@@ -383,6 +384,44 @@ describe("MoneyManagerAdapter (design §1-2)", () => {
     const hidden = snapshot.accounts.find((a) => a.sourceId === "a-hidden")!;
     expect(hidden.hidden).toBe(true);
     expect(hidden.excludedFromTotals).toBe(true);
+    expect(snapshot.accounts.find((a) => a.sourceId === "a-bank")!.hidden).toBe(false);
+  });
+
+  it("marks the accounts of the Loan group (P337), whatever their balance", () => {
+    expect(snapshot.accounts.filter((a) => a.loan).map((a) => a.sourceId)).toEqual([
+      "a-loan-neg",
+      "a-loan-pos",
+    ]);
+  });
+
+  it("keeps Money Manager's order: its groups' order, then each account's within its group (P337)", () => {
+    // Cash moves first and Accounts last; inside Accounts, US savings (12) still follows Bancolombia (0).
+    const reordered = readOk(
+      buildFixture(
+        [],
+        `UPDATE ASSETGROUP SET ORDERSEQ = -1 WHERE TYPE = 11;
+         UPDATE ASSETGROUP SET ORDERSEQ = 99 WHERE TYPE = 1;`,
+      ),
+    );
+    const ids = reordered.accounts.map((a) => a.sourceId);
+    expect(ids[0]).toBe("a-cash");
+    expect(ids.slice(-2)).toEqual(["a-bank", "a-usd"]);
+    expect(reordered.accounts.map((a) => a.order)).toEqual(ids.map((_, index) => index));
+  });
+
+  it("reads the type from the group row, so a group with any uid and a deleted group still map (P337)", () => {
+    const moved = readOk(
+      buildFixture(
+        [],
+        `UPDATE ASSETGROUP SET uid = 'ab12-cd34' WHERE TYPE = 2;
+         UPDATE ASSETS SET groupUid = 'ab12-cd34' WHERE uid = 'a-card';
+         UPDATE ASSETGROUP SET IS_DEL = 1 WHERE TYPE = 11;`,
+      ),
+    );
+    const card = moved.accounts.find((a) => a.sourceId === "a-card")!;
+    expect(card.type).toBe("CREDIT_CARD");
+    // An account whose group was deleted still reads, as Others, after every live group.
+    expect(moved.accounts.at(-1)).toMatchObject({ sourceId: "a-cash", type: "OTHER" });
   });
 
   it("splits a leading emoji into the category icon and keeps two levels", () => {
@@ -637,7 +676,7 @@ describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
     const snapshot = readOk(
       buildFixture(
         [["on-odd", 1, "2025-04-01", day, "a-odd", "c-food", 1, "1000.0", 1000, ""]],
-        "INSERT INTO ASSETS VALUES ('a-odd', 'Odd', 1, 99, 50, 0, 0, '', '', 0, 0);",
+        "INSERT INTO ASSETS VALUES ('a-odd', 'Odd', 'grp-Accounts', 99, 50, 0, 0, '', '', 0, 0);",
       ),
     );
     expect(snapshot.errors).toContainEqual(
@@ -655,7 +694,7 @@ describe("MoneyManagerAdapter row handling (design §2.3, §3.2)", () => {
           ["x-out", 3, "2025-04-01", day, "a-bank", "", 1, "1000.0", 1000, "t-odd"],
           ["x-in", 4, "2025-04-01", day, "a-odd", "", 1, "1000.0", 1000, "t-odd"],
         ],
-        "INSERT INTO ASSETS VALUES ('a-odd', 'Odd', 1, 99, 50, 0, 0, '', '', 0, 0);",
+        "INSERT INTO ASSETS VALUES ('a-odd', 'Odd', 'grp-Accounts', 99, 50, 0, 0, '', '', 0, 0);",
       ),
     );
     expect(snapshot.warnings).toContainEqual({ code: "TransferWithoutAccount", sourceKey: "t-odd" });
@@ -680,8 +719,14 @@ describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
     db.exec(`
       INSERT INTO CURRENCY (uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY, IS_DEL) VALUES ('COP_COP', 'COP', 'COP', 1, 0);
       INSERT INTO CURRENCY (uid, ISO, MAIN_ISO, IS_MAIN_CURRENCY, IS_DEL) VALUES ('COP_USD', 'USD', 'COP', 0, 0);
-      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ) VALUES ('a-bank', 'Banco', 1, 'COP_COP', 0);
-      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ) VALUES ('a-usd', 'Dólares', 1, 'COP_USD', 1);
+      INSERT INTO ASSETGROUP (uid, ACC_GROUP_NAME, TYPE, ORDERSEQ, IS_DEL) VALUES ('8f3a-accounts', 'Accounts', 1, 0, 0);
+      INSERT INTO ASSETGROUP (uid, ACC_GROUP_NAME, TYPE, ORDERSEQ, IS_DEL) VALUES ('c41e-loan', 'Loan', 5, 1, 0);
+      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ, ZDATA)
+        VALUES ('a-bank', 'Banco', '8f3a-accounts', 'COP_COP', 0, '0');
+      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ, ZDATA)
+        VALUES ('a-usd', 'Dólares', '8f3a-accounts', 'COP_USD', 1, '1');
+      INSERT INTO ASSETS (uid, NIC_NAME, groupUid, currencyUid, ORDERSEQ, ZDATA)
+        VALUES ('a-mom', 'Mom Loan', 'c41e-loan', 'COP_COP', 0, '0');
       INSERT INTO ZCATEGORY (uid, NAME, TYPE, pUid, STATUS, C_IS_DEL, ORDERSEQ) VALUES ('c-food', 'Comida', 1, '', 0, 0, 0);
       INSERT INTO INOUTCOME (uid, DO_TYPE, WDATE, ZDATE, UTIME, assetUid, ctgUid, ZMONEY, currencyUid, IN_ZMONEY,
         AMOUNT_ACCOUNT, txUidTrans, ZCONTENT, IS_DEL)
@@ -701,8 +746,20 @@ describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
     const result = new MoneyManagerAdapter().read({ bytes: realBackup() });
     expect(isErr(result) ? result.error : null).toBeNull();
     const snapshot = (result as { value: SourceSnapshot }).value;
-    expect(snapshot.accounts.map((account) => account.name)).toEqual(["Banco", "Dólares"]);
+    expect(snapshot.accounts.map((account) => account.name)).toEqual(["Banco", "Dólares", "Mom Loan"]);
     expect(snapshot.movements).toHaveLength(1);
+  });
+
+  it("reads each account's type, order, hidden flag and loan from ASSETGROUP's real columns (P337)", () => {
+    const snapshot = (new MoneyManagerAdapter().read({ bytes: realBackup() }) as { value: SourceSnapshot })
+      .value;
+    expect(
+      snapshot.accounts.map(({ name, type, order, hidden, loan }) => ({ name, type, order, hidden, loan })),
+    ).toEqual([
+      { name: "Banco", type: "BANK", order: 0, hidden: false, loan: false },
+      { name: "Dólares", type: "BANK", order: 1, hidden: true, loan: false },
+      { name: "Mom Loan", type: "OTHER", order: 2, hidden: false, loan: true },
+    ]);
   });
 
   it("keeps each account's own currency: Money Manager's currency ids are text such as COP_COP and COP_USD", () => {
@@ -713,6 +770,7 @@ describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
     expect(snapshot.accounts.map((account) => [account.name, account.currency])).toEqual([
       ["Banco", "COP"],
       ["Dólares", "USD"],
+      ["Mom Loan", "COP"],
     ]);
     expect(snapshot.movements.map((movement) => movement.amount.currency.code)).toEqual(["COP"]);
     expect(snapshot.settings.mainCurrency).toBe("COP");
