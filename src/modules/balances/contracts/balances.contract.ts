@@ -100,12 +100,9 @@ const FriendNameFields = {
       description:
         "The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName",
     }),
-    handle: z
-      .string()
-      .optional()
-      .meta({
-        description: "P339: the registered person's @usuario; absent for a guest or someone who picked none",
-      }),
+    handle: z.string().optional().meta({
+      description: "P339: the registered person's @usuario; absent for a guest or someone who picked none",
+    }),
   }),
   name: z.string().meta({ description: "What the viewer calls them: nickname ?? displayName" }),
 };
