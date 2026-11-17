@@ -14,6 +14,9 @@ export const POST = defineRoute({
       spaceId: params.spaceId!,
       userId: user!.id,
       importId: params.importId!,
+      // P337: a Persona's new direct space is named and seeded as a split's (the user's name and locale).
+      userName: user!.name,
+      locale: user!.locale,
     });
     return result.ok ? ok({ status: 200, body: importResultDto(result.value) }) : result;
   },

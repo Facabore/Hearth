@@ -34,7 +34,11 @@ export interface ImportBatchRepository {
   removeSnapshotsSettledBefore(before: Date): Promise<number>;
 }
 
-export type ImportEntityType = "ACCOUNT" | "CATEGORY" | "MOVEMENT";
+/**
+ * What a link points at; a PERSON link (P337) points a Persona's source account at its direct space, and a
+ * CATEGORY_GROUP link a top-level source category at the group it became.
+ */
+export type ImportEntityType = "ACCOUNT" | "CATEGORY" | "CATEGORY_GROUP" | "MOVEMENT" | "PERSON";
 
 export interface ImportLink {
   readonly spaceId: string;
@@ -146,8 +150,44 @@ export interface ImportWriter {
   archiveAccount(input: { spaceId: string; userId: string; accountId: string }): Promise<Result<void>>;
   restoreAccount(input: { spaceId: string; userId: string; accountId: string }): Promise<Result<void>>;
   restoreCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
-  createCategoryGroup(input: { spaceId: string; userId: string; name: string }): Promise<Result<string>>;
+  /** P337: a group named as the source category, its emoji as the icon (dropped when the module refuses it). */
+  createCategoryGroup(input: {
+    spaceId: string;
+    userId: string;
+    name: string;
+    emoji: string | null;
+  }): Promise<Result<string>>;
   archiveCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
+  /** P337: archives a group with its categories. */
+  archiveCategoryGroup(input: { spaceId: string; userId: string; groupId: string }): Promise<Result<void>>;
+  /** P337: brings an archived group back with the categories archiving it took. */
+  restoreCategoryGroup(input: { spaceId: string; userId: string; groupId: string }): Promise<Result<void>>;
+  /**
+   * P337: the categories of the space in use: named by a live movement (D8: deleted ones do not count), a budget line
+   * (any plan, a line not deleted) or a recurrence. "Archivar las de Hearth que no uses" never archives one of them.
+   */
+  usedCategoryIds(spaceId: string): Promise<ReadonlySet<string>>;
+  /**
+   * P337, P338: a DIRECT space between the importer and a new guest named `guestName`, created as a split creates one
+   * (HU-E1-13, its categories seeded in `locale`). Answers the space's id.
+   */
+  openDirectSpaceWithGuest(input: {
+    readonly userId: string;
+    readonly userName: string;
+    readonly locale: string;
+    readonly guestName: string;
+  }): Promise<Result<{ readonly spaceId: string }>>;
+  /**
+   * P334, P337: a settlement between the importer and the other member of the direct space `spaceId`: TO when the
+   * importer gave (from `accountId`, if any), FROM when they got (into it). Answers the movement's id.
+   */
+  recordPersonSettlement(
+    input: MovementBase & {
+      readonly direction: "TO" | "FROM";
+      readonly accountId: string | null;
+      readonly amount: Money;
+    },
+  ): Promise<Result<string>>;
   /** Whether a live movement still uses the account or the category (D8: deleted ones do not count). */
   accountInUse(spaceId: string, accountId: string): Promise<boolean>;
   categoryInUse(spaceId: string, categoryId: string): Promise<boolean>;

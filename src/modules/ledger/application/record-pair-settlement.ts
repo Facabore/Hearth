@@ -10,11 +10,14 @@ import type { RecordSettlement, RecordSettlementInput } from "./record-settlemen
  */
 export type RecordPairSettlementInput = Pick<
   RecordSettlementInput,
-  "spaceId" | "userId" | "description" | "date" | "occurredAt" | "timeZone" | "amount"
+  "spaceId" | "userId" | "description" | "date" | "occurredAt" | "timeZone" | "untimed" | "amount"
 > & {
   readonly direction: "TO" | "FROM";
-  /** The recorder's own account: the source of what they gave, or where what they got went. */
-  readonly accountId: string;
+  /**
+   * The recorder's own account: the source of what they gave, or where what they got went. Null for none (P337: an
+   * import records a person's loan history, whose incomes and expenses moved no account of the recorder's).
+   */
+  readonly accountId: string | null;
 };
 
 export type RecordPairSettlement = (input: RecordPairSettlementInput) => Promise<Result<Settlement>>;

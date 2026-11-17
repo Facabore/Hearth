@@ -13,6 +13,7 @@ import { POST as createAccount } from "@/app/api/v1/spaces/[spaceId]/accounts/ro
 import { POST as archiveCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/archive/route";
 import { POST as restoreCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/restore/route";
 import { POST as archiveGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/archive/route";
+import { POST as restoreGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/restore/route";
 import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
 import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
@@ -364,5 +365,16 @@ describe("retiring categories (HU-E3-03)", () => {
     const travel = archivedLeisure.categories.find((c) => c.name === "Viajes")!;
     const restore = await onCategory(restoreCategory, "POST", ana, travel.id, "/restore");
     expect([restore.status, (await restore.json()).code]).toEqual([409, "CategoryGroupArchived"]);
+
+    // P337: the group comes back with the categories archiving it took.
+    const restored = await call(
+      restoreGroup,
+      "POST",
+      `/api/v1/spaces/${ana.spaceId}/category-groups/${leisure.id}/restore`,
+      { user: ana, params: { spaceId: ana.spaceId, groupId: leisure.id } },
+    );
+    expect([restored.status, (await restored.json()).archivedAt]).toEqual([200, null]);
+    const live = (await groupsIn(await treeOf(ana, ana.spaceId))).find((g) => g.id === leisure.id)!;
+    expect(live.categories.map((c) => c.name)).toContain("Viajes");
   });
 });

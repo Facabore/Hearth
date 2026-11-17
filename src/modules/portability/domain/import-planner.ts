@@ -1,5 +1,4 @@
 import { isErr, localDateIn, Money, ok, parseTimeZone, type LocalDate, type Result } from "@/shared/kernel";
-import { matchCatalog, type CatalogMatch } from "./category-match";
 import type {
   SourceAccount,
   SourceIssue,
@@ -36,20 +35,6 @@ export interface AccountProposal {
   readonly sourceClosingBalance: Money;
 }
 
-export type CategoryProposalTarget =
-  CatalogMatch | { readonly kind: "subcategory"; readonly parentSourceId: string };
-
-export interface CategoryProposal {
-  readonly sourceId: string;
-  readonly name: string;
-  readonly icon: string | null;
-  readonly kind: "INCOME" | "EXPENSE";
-  readonly parentSourceId: string | null;
-  readonly proposal: CategoryProposalTarget;
-  /** A used-but-deleted category is imported archived (design §2.2). */
-  readonly archived: boolean;
-}
-
 export interface ImportPreview {
   readonly sourceApp: string;
   readonly counts: {
@@ -62,7 +47,6 @@ export interface ImportPreview {
   };
   readonly dateRange: { readonly first: LocalDate; readonly last: LocalDate } | null;
   readonly accounts: readonly AccountProposal[];
-  readonly categories: readonly CategoryProposal[];
   readonly duplicates: readonly { readonly sourceKey: string }[];
   readonly leftOut: { readonly budgets: number; readonly zeroAmountMovements: number };
   /** The adapter's warnings, then one `DateZoneMismatch` per movement whose date the chosen zone does not confirm. */
@@ -112,6 +96,26 @@ const applyToBalances = (balances: Map<string, bigint>, movement: SourceMovement
   }
 };
 
+/** Each source account's closing balance in minor units of its own currency, from every movement (design §3.1). */
+export const closingBalancesOf = (movements: readonly SourceMovement[]): Map<string, bigint> => {
+  const balances = new Map<string, bigint>();
+  for (const movement of movements) applyToBalances(balances, movement);
+  return balances;
+};
+
+/** P337: how many of the movements touch each source account, as its source or its destination. */
+export const movementCountsOf = (movements: readonly SourceMovement[]): Map<string, number> => {
+  const counts = new Map<string, number>();
+  const see = (accountId: string | null) => {
+    if (accountId !== null) counts.set(accountId, (counts.get(accountId) ?? 0) + 1);
+  };
+  for (const movement of movements) {
+    see(movement.accountSourceId);
+    if (movement.toAccountSourceId !== movement.accountSourceId) see(movement.toAccountSourceId);
+  }
+  return counts;
+};
+
 /**
  * Design §2.3: a movement keeps `WDATE`, but when its instant falls on another calendar day in the chosen zone the
  * preview says so, with both dates, so the person can pick another zone before confirming.
@@ -133,7 +137,7 @@ const dateZoneMismatches = (movements: readonly SourceMovement[], timeZone: stri
 
 /**
  * The dry run (design §3.1, §3.2): counts by kind, the date range, a proposed mapping and closing balance for each
- * account, a proposed target for each category, likely duplicates, warnings, row errors, and what is left out. Pure:
+ * account, likely duplicates, warnings, row errors, and what is left out. Pure:
  * it reads nothing and writes nothing. It never throws; it fails only on an unknown zone (`InvalidTimeZone`) or a
  * balance whose currency is unknown (`UnknownCurrency`).
  */
@@ -169,18 +173,6 @@ export const previewImport = (snapshot: SourceSnapshot, options: PreviewOptions)
     });
   }
 
-  const categories: CategoryProposal[] = snapshot.categories.map((category) => ({
-    sourceId: category.sourceId,
-    name: category.name,
-    icon: category.icon,
-    kind: category.kind,
-    parentSourceId: category.parentSourceId,
-    proposal: category.parentSourceId
-      ? { kind: "subcategory", parentSourceId: category.parentSourceId }
-      : matchCatalog(category.name, category.kind),
-    archived: category.deleted,
-  }));
-
   const existing = new Set(
     (options.existing ?? []).map((m) =>
       fingerprint(m.accountSourceId, m.date, m.amountMinor, m.incoming === true ? "TRANSFER_IN" : m.kind),
@@ -199,7 +191,6 @@ export const previewImport = (snapshot: SourceSnapshot, options: PreviewOptions)
     },
     dateRange: first && last ? { first, last } : null,
     accounts,
-    categories,
     duplicates,
     leftOut: { budgets: snapshot.budgets.length, zeroAmountMovements: snapshot.skipped.zeroAmountMovements },
     warnings: [...snapshot.warnings, ...dateZoneMismatches(snapshot.movements, timeZone.value)],

@@ -8,6 +8,7 @@ import { createSpaceAccess } from "./space-access";
 import {
   createSplitWithPeople,
   createSplitWithPerson,
+  createStartDirectSpaceWithGuest,
   type DirectExpenseRecorder,
   type DirectSplitCounterpart,
   type SplitWithPersonDeps,
@@ -92,7 +93,8 @@ const world = (
   };
   const split = createSplitWithPerson<string, string>(deps);
   const splitPeople = createSplitWithPeople<string, string>(deps);
-  return { store, seeded, recorded, rolledBack, split, splitPeople };
+  const startWithGuest = createStartDirectSpaceWithGuest(deps);
+  return { store, seeded, recorded, rolledBack, split, splitPeople, startWithGuest };
 };
 const byAna = (counterpart: DirectSplitCounterpart) => ({
   userId: "u-ana",
@@ -486,5 +488,37 @@ describe("SplitWithPeople: an expense that was for several people (P331)", () =>
     expect(codeOf(await w.splitPeople(juanTwice))).toBe("InvalidDirectCounterpart");
     expect(w.recorded).toEqual([]);
     expect(codeOf(await w.splitPeople(forPeople([], "Ana")))).toBe("ParticipantsRequired");
+  });
+});
+
+describe("StartDirectSpaceWithGuest: a person an import brings (P337, P338)", () => {
+  it("creates 'Ana & Mom' with Ana as OWNER and the new guest, seeds it, and records nothing", async () => {
+    const w = world();
+    expect(
+      unwrap(await w.startWithGuest({ userId: "u-ana", userName: "Ana", locale: "es", guestName: "Mom" })),
+    ).toEqual({ spaceId: "id-1" });
+    const [space] = directSpaces(w.store);
+    expect(space).toMatchObject({ id: "id-1", name: "Ana & Mom", kind: "DIRECT", currency: "COP" });
+    expect(space?.members.map((m) => [m.displayName, m.kind, m.role])).toEqual([
+      ["Ana", "USER", "OWNER"],
+      ["Mom", "GUEST", null],
+    ]);
+    expect(w.seeded).toEqual(["id-1"]);
+    expect(w.recorded).toEqual([]);
+  });
+
+  it("opens a new space for each call, since a guest exists only in its own space (D15)", async () => {
+    const w = world();
+    unwrap(await w.startWithGuest({ userId: "u-ana", userName: "Ana", locale: "es", guestName: "Mom" }));
+    unwrap(await w.startWithGuest({ userId: "u-ana", userName: "Ana", locale: "es", guestName: "Mom" }));
+    expect(directSpaces(w.store)).toHaveLength(2);
+  });
+
+  it("refuses a guest without a usable name and creates nothing", async () => {
+    const w = world();
+    expect(
+      codeOf(await w.startWithGuest({ userId: "u-ana", userName: "Ana", locale: "es", guestName: "  " })),
+    ).toBe("InvalidMemberName");
+    expect(directSpaces(w.store)).toEqual([]);
   });
 });

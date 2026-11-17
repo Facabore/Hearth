@@ -16,6 +16,20 @@ import { decodeSnapshot, encodeSnapshot, type StoredSnapshot } from "./snapshot-
 
 type BatchRow = typeof importBatches.$inferSelect;
 
+/**
+ * P337: a draft stored before categories came as groups had a mapping per category, which no longer exists: it is
+ * dropped, and such a draft archives the unused seeded categories as any new one does (the switch starts on).
+ */
+const mappingsOf = (stored: unknown): ImportMappings => {
+  const raw = stored as Partial<ImportMappings> & Record<string, unknown>;
+  return {
+    timeZone: raw.timeZone!,
+    accounts: raw.accounts ?? {},
+    archiveUnusedCategories: raw.archiveUnusedCategories ?? true,
+    includeDuplicates: raw.includeDuplicates ?? [],
+  };
+};
+
 const batchOf = (row: BatchRow): ImportBatch => ({
   id: row.id,
   spaceId: row.spaceId,
@@ -24,18 +38,29 @@ const batchOf = (row: BatchRow): ImportBatch => ({
   fileSha256: row.fileSha256,
   status: row.status,
   snapshot: row.snapshot === null ? null : decodeSnapshot(row.snapshot as StoredSnapshot),
-  mappings: row.mappings as ImportMappings,
-  // Counts stored before restores were counted lack those two fields: such a confirm restored nothing.
+  mappings: mappingsOf(row.mappings),
+  // Counts stored before restores were counted lack those two fields: such a confirm restored nothing; and those
+  // stored before P337 lack its two: it added no person and archived no account.
   counts:
     row.counts === null
       ? null
       : ({
           accountsRestored: 0,
           categoriesRestored: 0,
+          peopleCreated: 0,
+          accountsArchived: 0,
+          hearthCategoriesArchived: 0,
           ...(row.counts as Partial<ImportCounts>),
         } as ImportCounts),
   rowErrors: row.rowErrors as SourceIssue[],
-  created: row.created as CreatedEntities,
+  // P337: a batch stored before it recorded no settlement, opened no direct space, made no group, archived nothing.
+  created: {
+    settlements: [],
+    people: [],
+    groups: [],
+    archivedSeeded: { groups: [], categories: [] },
+    ...(row.created as Partial<CreatedEntities>),
+  } as CreatedEntities,
   createdAt: row.createdAt,
   confirmedAt: row.confirmedAt,
   undoneAt: row.undoneAt,

@@ -191,7 +191,11 @@ export function ImportReviewScreen({
   const count = (n: number) => formatCount(n, formats);
   const { counts } = preview;
   const newAccounts = preview.accounts.filter((a) => a.mapping.kind === "new").length;
-  const newCategories = preview.categories.filter((c) => c.mapping.kind === "new").length;
+  // P337: "ya las tienes" counts only the accounts that go into one the person has, never a Persona or an Archivar.
+  const existingAccounts = preview.accounts.filter((a) => a.mapping.kind === "existing").length;
+  // P337: what the file's categories land on, in their groups.
+  const planned = preview.categories.groups.flatMap((g) => g.categories);
+  const newCategories = planned.filter((c) => c.target === "new").length;
   const zone = t("review.zoneValue", {
     city: zoneCity(preview.timeZone),
     offset: zoneOffset(preview.timeZone, new Date()),
@@ -257,7 +261,7 @@ export function ImportReviewScreen({
             note={t("review.accountsNote", {
               total: count(preview.accounts.length),
               created: count(newAccounts),
-              existing: count(preview.accounts.length - newAccounts),
+              existing: count(existingAccounts),
             })}
             action={t("review.check")}
           />
@@ -272,9 +276,9 @@ export function ImportReviewScreen({
             }
             title={t("review.categories")}
             note={t("review.categoriesNote", {
-              total: count(preview.categories.length),
+              total: count(planned.length),
               created: count(newCategories),
-              existing: count(preview.categories.length - newCategories),
+              existing: count(planned.length - newCategories),
             })}
             action={t("review.check")}
           />

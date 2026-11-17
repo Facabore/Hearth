@@ -2,259 +2,157 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
-import { AmountText, Button, ChoiceGroup, Icon, ScreenHeader, Sheet } from "@/shared/ui";
+import { AmountText, Button, ScreenHeader } from "@/shared/ui";
 import type { AccountDto } from "@/shared/ui/api/dto";
+import { cn } from "@/shared/ui/cn";
 import { formatCount } from "@/shared/ui/format/count";
 import { formatMoney } from "@/shared/ui/format/formatters";
-import type { AccountMappingDto, AccountMappingInputDto, ImportAccountDto, ImportPreviewDto } from "./dto";
-import { Column, Pinned, RefusalNotice, type ScreenFormats } from "./parts";
+import type { AccountMappingDto, ImportAccountDto, ImportPreviewDto } from "./dto";
+import { Column, Pinned, RefusalNotice, sourceNamesOf, type ScreenFormats } from "./parts";
 import { useAdjust, type DraftPlace } from "./use-adjust";
 
-type AccountType = Extract<AccountMappingDto, { kind: "new" }>["type"];
+/** P337, board 1: what a source account is, as the screen offers it. */
+type Kind = keyof ImportAccountDto["options"];
 
-const TYPES: readonly AccountType[] = [
-  "BANK",
-  "CREDIT_CARD",
-  "SAVINGS",
-  "CASH",
-  "WALLET",
-  "INVESTMENT",
-  "LOAN",
-  "OTHER",
-];
+const KINDS: readonly Kind[] = ["account", "person", "archive"];
 
-/** Until the person widens the list, the board shows this many accounts and "y N cuentas más". */
-const FIRST = 4;
+/** The sections, in the board's order, by what Hearth suggested (it stays as the person changes a row). */
+const SECTIONS: readonly ImportAccountDto["suggested"][] = ["ACCOUNT", "PERSON", "ARCHIVE"];
+
+/** What a mapping makes of its source account: a Cuenta (an account of the person's or a new one), Persona or Archivar. */
+const kindOf = (mapping: AccountMappingDto): Kind =>
+  mapping.kind === "person" ? "person" : mapping.kind === "archive" ? "archive" : "account";
 
 /**
- * The accounts of the person's a source account can go to (design §3.2): live ones in its currency, and the archived
- * one it is mapped to already, which an undone import of this file created and a confirm restores.
+ * The line under an account's name (board 1): its closing balance in the file, and for a Persona whether that person
+ * owes the person or is owed, for Archivar why ("igual a Efectivo", "sin movimientos"). A sign or a word always says
+ * the direction, never color alone.
  */
-const candidatesFor = (source: ImportAccountDto, accounts: readonly AccountDto[]) =>
-  accounts.filter(
-    (a) =>
-      a.type !== "SHARED_FUND" &&
-      a.balance.currency === source.currency &&
-      (a.archivedAt === null || (source.mapping.kind === "existing" && source.mapping.accountId === a.id)),
-  );
-
-/** The terms a new card carries over from the file: "corte el 15, pago el 30". */
-const useTerms = () => {
+function Summary({ item, formats }: { readonly item: ImportAccountDto; readonly formats: ScreenFormats }) {
   const t = useTranslations("portability.accounts");
-  return (source: ImportAccountDto, type: AccountType) =>
-    type === "CREDIT_CARD" && source.cutOffDay !== null && source.paymentDay !== null
-      ? t("terms", { cutOff: source.cutOffDay, payment: source.paymentDay })
-      : null;
-};
-
-/**
- * What a source account goes to, as its card names it: an account of the person's (one an undone import archived is
- * restored), one that is no longer there, or a new one under the name the confirm will give it.
- */
-function MappingText({
-  source,
-  accounts,
-}: {
-  readonly source: ImportAccountDto;
-  readonly accounts: readonly AccountDto[];
-}) {
-  const t = useTranslations("portability.accounts");
-  const terms = useTerms();
-  const { mapping } = source;
-  if (mapping.kind === "existing") {
-    const target = accounts.find((a) => a.id === mapping.accountId);
-    if (!target) {
-      return (
-        <>
-          <span className="text-[15px] font-medium text-danger">{t("missing")}</span>
-          <span className="text-[13px] text-muted">{t("missingNote")}</span>
-        </>
-      );
-    }
-    return (
-      <>
-        <span className="text-[15px] font-medium text-ink">{t("use", { name: target.name })}</span>
-        {target.type !== "SHARED_FUND" ? (
-          <span className="text-[13px] text-muted">
-            {target.archivedAt === null
-              ? t("yours", { type: t(`types.${target.type}`) })
-              : t("restored", { type: t(`types.${target.type}`) })}
-          </span>
-        ) : null}
-      </>
-    );
+  const balance = formatMoney(item.sourceClosingBalance, formats);
+  const minor = BigInt(item.sourceClosingBalance.amount);
+  const { mapping } = item;
+  let text = balance;
+  if (mapping.kind === "person" && minor !== 0n) {
+    text = t(minor > 0n ? "owesYou" : "youOwe", { balance });
+  } else if (mapping.kind === "archive") {
+    if (item.duplicateOf !== null && mapping.accountId === item.duplicateOf.id) {
+      text = t("sameAs", { balance, name: item.duplicateOf.name });
+    } else if (item.movementCount === 0) text = t("noMovements", { balance });
+    else if (item.hidden) text = t("hidden", { balance });
   }
-  const note = [mapping.name, source.currency, terms(source, mapping.type)].filter((part) => part !== null);
   return (
-    <>
-      <span className="text-[15px] font-medium text-ink">
-        {t("new", { type: t(`types.${mapping.type}`) })}
-      </span>
-      <span className="text-[13px] text-muted">{note.join(" · ")}</span>
-    </>
+    <p className="text-[13px] text-muted">
+      <AmountText text={text} />
+    </p>
   );
 }
 
-/** One source account's choice: an account of the person's in its currency, or a new one of a type. */
-function AccountSheet({
-  source,
-  accounts,
-  onClose,
-  draft,
+/** Cuenta / Persona / Archivar for one account: three buttons, the chosen one pressed and drawn bold and raised. */
+function KindChoice({
+  item,
+  disabled,
+  onChoose,
 }: {
-  readonly source: ImportAccountDto;
-  readonly accounts: readonly AccountDto[];
-  readonly onClose: () => void;
-  readonly draft: DraftPlace;
+  readonly item: ImportAccountDto;
+  readonly disabled: boolean;
+  readonly onChoose: (kind: Kind) => void;
 }) {
   const t = useTranslations("portability.accounts");
-  const busy = useTranslations("portability")("busy");
-  const candidates = candidatesFor(source, accounts);
-  const [choice, setChoice] = useState(source.mapping.kind === "existing" ? source.mapping.accountId : "new");
-  const [type, setType] = useState<AccountType>(
-    source.mapping.kind === "new" ? source.mapping.type : source.type,
-  );
-  const { adjust, pending, refusal } = useAdjust(draft);
-  const save = async () => {
-    // A new account keeps the name the preview settled on (one no account of the person's holds); one that was not
-    // new yet leaves it to the API, which gives it the file's name or a free variant of it.
-    const mapping: AccountMappingInputDto =
-      choice === "new"
-        ? {
-            kind: "new",
-            type,
-            currency: source.currency,
-            ...(source.mapping.kind === "new" ? { name: source.mapping.name } : {}),
-          }
-        : { kind: "existing", accountId: choice };
-    if (await adjust({ accounts: { [source.sourceId]: mapping } })) onClose();
-  };
+  const chosen = kindOf(item.mapping);
   return (
-    <Sheet
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-      title={source.name}
-      footer={
-        <Button size="lg" disabled={pending} onClick={() => void save()}>
-          {t("save")}
-        </Button>
-      }
+    <div
+      role="group"
+      aria-label={t("choice", { name: item.name })}
+      className="flex shrink-0 gap-0.5 rounded-[12px] bg-track p-0.5"
     >
-      <div className="flex flex-col gap-4">
-        <ChoiceGroup
-          label={t("sheetChoice")}
-          layout="list"
-          value={choice}
-          options={[
-            { value: "new", label: t("createNew") },
-            ...candidates.map((a) => ({
-              value: a.id,
-              label: t("use", { name: a.name }),
-              description:
-                a.type === "SHARED_FUND"
-                  ? undefined
-                  : t(a.archivedAt === null ? "yours" : "restored", { type: t(`types.${a.type}`) }),
-            })),
-          ]}
-          onValueChange={setChoice}
-        />
-        {candidates.length === 0 ? (
-          <p className="text-sm text-muted">{t("noExisting", { currency: source.currency })}</p>
-        ) : null}
-        {choice === "new" ? (
-          <>
-            <ChoiceGroup
-              label={t("type")}
-              layout="chips"
-              value={type}
-              options={TYPES.map((value) => ({ value, label: t(`types.${value}`) }))}
-              onValueChange={setType}
-            />
-            <p className="text-sm text-muted">{t("currency", { currency: source.currency })}</p>
-          </>
-        ) : null}
-        {refusal ? <RefusalNotice refusal={refusal} tooMany={busy} /> : null}
-      </div>
-    </Sheet>
+      {KINDS.map((kind) => (
+        <button
+          key={kind}
+          type="button"
+          aria-pressed={chosen === kind}
+          disabled={disabled}
+          onClick={() => {
+            if (chosen !== kind) onChoose(kind);
+          }}
+          className={cn(
+            "min-h-11 min-w-11 rounded-[10px] border px-2.5 text-[14px]",
+            chosen === kind
+              ? "border-line bg-surface font-semibold text-accent shadow-sm"
+              : "border-transparent text-muted",
+          )}
+        >
+          {t(`kinds.${kind}`)}
+        </button>
+      ))}
+    </div>
   );
 }
 
 /**
- * D28, board "4 · Importar · cuentas": each account of the file, under its name and the type it was given, goes to an
- * account of the person's or to a new one; tapping its card opens the choice. A mapped account keeps the file's
- * currency (the API refuses any other, design §3.2), so the sheet offers only accounts in it and names it for a new
- * one. Under each card, the account's closing balance in the file.
+ * D28, P337, board 1 "¿Qué es cada cuenta?": each account of the file, in Money Manager's order, under the section of
+ * what Hearth suggested it is (Cuentas de dinero, Personas, Archivar), with its balance and a three-way choice. A
+ * choice sends the mapping the preview offers for it (`options`), so the screen never builds one itself; the API
+ * answers the new preview. A Cuenta keeps the file's currency and type; a Persona becomes a guest in the pair's direct
+ * space; Archivar keeps the account's history out of the pickers.
  */
 export function ImportAccountsScreen({
   backHref,
   preview,
-  accounts,
   formats,
   draft,
 }: {
   readonly backHref: string;
   readonly preview: ImportPreviewDto;
-  /** The person's accounts in their personal space. */
-  readonly accounts: readonly AccountDto[];
+  /** The person's accounts in their personal space (the preview names the one an account duplicates already). */
+  readonly accounts?: readonly AccountDto[];
   readonly formats: ScreenFormats;
   readonly draft: DraftPlace;
 }) {
   const t = useTranslations("portability.accounts");
-  const [editing, setEditing] = useState<string | null>(null);
-  const [all, setAll] = useState(preview.accounts.length <= FIRST);
-  const shown = all ? preview.accounts : preview.accounts.slice(0, FIRST);
-  const rest = preview.accounts.length - shown.length;
-  const source = preview.accounts.find((a) => a.sourceId === editing);
+  const busy = useTranslations("portability")("busy");
+  const { adjust, pending, refusal } = useAdjust(draft);
+  const total = preview.accounts.length;
+  const choose = (item: ImportAccountDto, kind: Kind) =>
+    void adjust({ accounts: { [item.sourceId]: item.options[kind] } });
   return (
     <Column>
-      <ScreenHeader backHref={backHref} title={t("title")} />
-      <p className="text-[15px] text-muted">{t("intro")}</p>
-      <ul className="flex flex-col divide-y divide-line">
-        {shown.map((item) => (
-          <li key={item.sourceId} className="flex flex-col gap-2 py-3">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-              <h2 className="min-w-0 text-[15px] font-medium [overflow-wrap:anywhere] text-ink">
-                {item.name}
-              </h2>
-              <span className="text-[13px] text-muted">{t(`types.${item.type}`)}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setEditing(item.sourceId)}
-              aria-label={`${item.name}: ${t("sheetChoice")}`}
-              className={`flex min-h-14 w-full items-center gap-3 rounded-[14px] border border-line p-3 text-left ${item.mapping.kind === "new" ? "bg-accent-soft" : "bg-surface"}`}
-            >
-              <Icon
-                name={item.mapping.kind === "new" ? "plus" : "check"}
-                size={20}
-                className="shrink-0 text-accent"
-              />
-              <span className="flex min-w-0 flex-1 flex-col [overflow-wrap:anywhere]">
-                <MappingText source={item} accounts={accounts} />
-              </span>
-              <Icon name="chevronDown" size={20} className="shrink-0 text-muted" />
-            </button>
-            <p className="text-[13px] text-muted">
-              <AmountText text={t("balance", { balance: formatMoney(item.sourceClosingBalance, formats) })} />
-            </p>
-          </li>
-        ))}
-      </ul>
-      {rest > 0 ? (
-        <button
-          type="button"
-          onClick={() => setAll(true)}
-          className="min-h-11 self-start text-[15px] font-semibold text-accent"
-        >
-          {t("more", { n: rest, count: formatCount(rest, formats) })}
-        </button>
+      <ScreenHeader backHref={backHref} title={t("header")} />
+      <div className="flex flex-col gap-1">
+        <h2 className="text-[22px] leading-tight font-semibold text-ink">{t("title")}</h2>
+        <p className="text-[15px] text-muted">
+          {t("intro", { n: total, count: formatCount(total, formats) })}
+        </p>
+      </div>
+      {refusal ? (
+        <RefusalNotice refusal={refusal} tooMany={busy} sourceNames={sourceNamesOf(preview)} />
       ) : null}
-      {source ? (
-        <AccountSheet source={source} accounts={accounts} onClose={() => setEditing(null)} draft={draft} />
-      ) : null}
+      {SECTIONS.map((section) => {
+        const items = preview.accounts.filter((a) => a.suggested === section);
+        if (items.length === 0) return null;
+        return (
+          <section key={section} aria-labelledby={`section-${section}`} className="flex flex-col">
+            <h3 id={`section-${section}`} className="text-[13px] font-medium text-muted">
+              {t(`sections.${section}`, { count: formatCount(items.length, formats) })}
+            </h3>
+            <ul className="flex flex-col">
+              {items.map((item) => (
+                <li
+                  key={item.sourceId}
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2"
+                >
+                  <div className="flex min-w-0 flex-1 basis-32 flex-col">
+                    <p className="text-[15px] font-medium [overflow-wrap:anywhere] text-ink">{item.name}</p>
+                    <Summary item={item} formats={formats} />
+                  </div>
+                  <KindChoice item={item} disabled={pending} onChoose={(kind) => choose(item, kind)} />
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
       <Pinned>
         <Button size="lg" asChild>
           <Link href={backHref}>{t("done")}</Link>

@@ -285,6 +285,25 @@ export const archivedTree = (category: Category, categories: readonly Category[]
   ...categories.filter((c) => c.parentCategoryId === category.id).map((c) => archiveCategory(c, now)),
 ];
 
+/**
+ * P337: a group archived (by the person, or by an import's "Archivar las de Hearth que no uses") comes back with the
+ * categories archiving it took, those archived at the same instant; one archived before it stays archived. A live group
+ * restores nothing.
+ */
+export const restoreGroup = (
+  group: CategoryGroup,
+  categories: readonly Category[],
+): { group: CategoryGroup; categories: Category[] } => {
+  const archivedAt = group.archivedAt;
+  if (archivedAt === null) return { group, categories: [] };
+  return {
+    group: { ...group, archivedAt: null },
+    categories: categories
+      .filter((c) => c.groupId === group.id && c.archivedAt?.getTime() === archivedAt.getTime())
+      .map((c) => ({ ...c, archivedAt: null })),
+  };
+};
+
 /** HU-E3-03: archiving a group archives all its categories. */
 export const archiveGroup = (
   group: CategoryGroup,

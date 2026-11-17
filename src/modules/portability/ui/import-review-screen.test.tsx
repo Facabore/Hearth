@@ -13,7 +13,7 @@ import {
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { ImportPreviewDto } from "./dto";
 import { ImportReviewScreen } from "./import-review-screen";
-import { previewFixture, resultFixture } from "./preview-fixture";
+import { previewFixture, resultFixture, SORTED_ACCOUNTS } from "./preview-fixture";
 
 /** The block that pins a screen's main action (#281): sticky at the bottom, the gutter's 16 px above its buttons. */
 const expectPinned = (action: HTMLElement) => {
@@ -50,6 +50,14 @@ const renderReview = (
 };
 
 describe("Revisar importación (D28, board 3)", () => {
+  it("counts as ya las tienes only the accounts that go into one of the person's, never a Persona or an Archivar (P337)", () => {
+    // Bancolombia goes into an account Ana has; Mom and Jhon López are people, Cash and Card are archived.
+    renderReview(previewFixture({ accounts: [...previewFixture().accounts, ...SORTED_ACCOUNTS] }));
+    expect(
+      screen.getByRole("link", { name: /Cuentas.*7 · 2 nuevas, 1 ya las tienes.*Revisar/ }),
+    ).toBeVisible();
+  });
+
   it("shows the dry run: counts, range, accounts, categories, zone and what stays out", async () => {
     const { container } = renderReview();
     expect(screen.getByRole("heading", { level: 1, name: "Revisar importación" })).toBeVisible();
@@ -71,7 +79,7 @@ describe("Revisar importación (D28, board 3)", () => {
       screen.getByRole("link", { name: /Cuentas.*3 · 2 nuevas, 1 ya las tienes.*Revisar/ }),
     ).toHaveAttribute("href", `${BASE}/accounts`);
     expect(
-      screen.getByRole("link", { name: /Categorías.*4 · 2 con la tuya, 2 nuevas.*Revisar/ }),
+      screen.getByRole("link", { name: /Categorías.*4 · 1 con la tuya, 3 nuevas.*Revisar/ }),
     ).toHaveAttribute("href", `${BASE}/categories`);
     expect(
       screen.getByRole("button", { name: /Zona horaria.*Bogota \(GMT-5\) · de tu perfil/ }),

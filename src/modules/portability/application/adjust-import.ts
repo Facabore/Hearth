@@ -1,5 +1,5 @@
 import type { Result } from "@/shared/kernel";
-import { draftSnapshot, type AccountMapping, type CategoryMapping } from "../domain/import-batch";
+import { draftSnapshot, type AccountMapping } from "../domain/import-batch";
 import { checkMappings } from "../domain/mapping-proposals";
 import { authorizeImporter, ownBatch, priorLinksFor } from "./import-access";
 import type { ImportDeps } from "./import-ports";
@@ -9,7 +9,8 @@ import { viewOf, type ImportView } from "./import-view";
 export interface ImportChanges {
   readonly timeZone?: string;
   readonly accounts?: Readonly<Record<string, AccountMapping>>;
-  readonly categories?: Readonly<Record<string, CategoryMapping>>;
+  /** P337: whether the confirm archives the seeded groups and categories no movement uses. */
+  readonly archiveUnusedCategories?: boolean;
   /** Replaces the whole list of likely duplicates to import anyway. */
   readonly includeDuplicates?: readonly string[];
 }
@@ -36,19 +37,22 @@ export const createAdjustImport =
       if (!targets.ok) return targets;
       const current = batch.value.mappings;
       const { changes } = input;
+      const links = await priorLinksFor(deps, input.spaceId, snapshot.value.sourceApp);
+      const spaceCurrency = importer.value.currency;
       const mappings = checkMappings(
         snapshot.value,
         {
           timeZone: changes.timeZone ?? current.timeZone,
           accounts: { ...current.accounts, ...changes.accounts },
-          categories: { ...current.categories, ...changes.categories },
+          archiveUnusedCategories: changes.archiveUnusedCategories ?? current.archiveUnusedCategories,
           includeDuplicates: changes.includeDuplicates ?? current.includeDuplicates,
         },
         targets.value,
-        await priorLinksFor(deps, input.spaceId, snapshot.value.sourceApp),
+        links,
+        spaceCurrency,
       );
       if (!mappings.ok) return mappings;
       const adjusted = { ...batch.value, mappings: mappings.value };
       await deps.batches.save(adjusted);
-      return viewOf(deps, adjusted, snapshot.value);
+      return viewOf(deps, adjusted, snapshot.value, { targets: targets.value, links, spaceCurrency });
     });

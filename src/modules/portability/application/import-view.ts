@@ -1,13 +1,22 @@
 import { isErr, ok, type Money, type Result } from "@/shared/kernel";
-import type {
-  AccountMapping,
-  CategoryMapping,
-  ImportBatch,
-  ImportMappings,
-  ImportStatus,
+import type { AccountDisposition } from "../domain/account-dispositions";
+import { existingTargetsOf, planCategoryGroups, unusedSeeded } from "../domain/category-groups";
+import {
+  targetAccountOf,
+  type AccountMapping,
+  type ImportBatch,
+  type ImportMappings,
+  type ImportStatus,
 } from "../domain/import-batch";
 import { planImport } from "../domain/import-plan";
 import { previewImport, type ExistingMovement, type ImportPreview } from "../domain/import-planner";
+import {
+  accountOptionsOf,
+  categoryLinksOf,
+  type AccountOptions,
+  type HearthTargets,
+  type PriorLinks,
+} from "../domain/mapping-proposals";
 import type { SourceAccountType, SourceIssue, SourceSnapshot } from "../domain/source-snapshot";
 import type { ImportDeps, ImportLink } from "./import-ports";
 
@@ -54,8 +63,9 @@ export const knownFor = async (
   );
   const sourcesOf = new Map<string, string[]>();
   for (const [sourceId, mapping] of Object.entries(mappings.accounts)) {
-    if (mapping.kind !== "existing") continue;
-    sourcesOf.set(mapping.accountId, [...(sourcesOf.get(mapping.accountId) ?? []), sourceId]);
+    const accountId = targetAccountOf(mapping);
+    if (accountId === null) continue;
+    sourcesOf.set(accountId, [...(sourcesOf.get(accountId) ?? []), sourceId]);
   }
   const dates = snapshot.movements.map((m) => m.date).sort();
   const hearth =
@@ -87,20 +97,46 @@ export interface ImportAccountView {
   readonly cutOffDay: number | null;
   readonly paymentDay: number | null;
   readonly sourceClosingBalance: Money;
+  /** Money Manager's hidden flag (P337: it suggests Archivar). */
+  readonly hidden: boolean;
+  /** P337: the snapshot's movements that touch it, as source or destination. */
+  readonly movementCount: number;
+  /** P337: what Hearth preselected (Cuenta, Persona or Archivar); it stays as the person changes the mapping. */
+  readonly suggested: AccountDisposition;
+  /** P337: the mapping each disposition stands for, ready to send back as it is. */
+  readonly options: AccountOptions["options"];
+  /** P337: the person's account this starter account duplicates ("Cash" beside "Efectivo"), if any. */
+  readonly duplicateOf: { readonly id: string; readonly name: string } | null;
   readonly mapping: AccountMapping;
 }
 
+/** P337: a source category as the confirm will land it, in a group of its own name or one the space holds. */
 export interface ImportCategoryView {
   readonly sourceId: string;
   readonly name: string;
   readonly icon: string | null;
-  readonly kind: "INCOME" | "EXPENSE";
-  readonly parentSourceId: string | null;
-  /** A deleted source category still used by a movement: imported, then archived (design §2.2). */
-  readonly archived: boolean;
-  /** The catalog category (P330) its name matched, whether or not the space has it; null otherwise. */
-  readonly catalogKey: string | null;
-  readonly mapping: CategoryMapping;
+  /** "existing" when it lands on a category the space holds (restored when archived). */
+  readonly target: "new" | "existing";
+}
+
+/** P337: a top-level Money Manager category as the group it becomes, with its categories in the source's order. */
+export interface ImportCategoryGroupView {
+  readonly name: string;
+  readonly icon: string | null;
+  /** "existing" when a group of the same name (or one an earlier import made) takes it, restored when archived. */
+  readonly target: "new" | "existing";
+  readonly categories: readonly ImportCategoryView[];
+}
+
+/** P337, board 4 "Tus categorías": the person's categories as they had them, and what "Archivar…" would archive. */
+export interface ImportCategoriesView {
+  readonly groups: readonly ImportCategoryGroupView[];
+  readonly archiveUnusedCategories: boolean;
+  /** The seeded groups and categories no movement uses, the import's included: what the switch archives. */
+  readonly unusedSeeded: {
+    readonly groups: readonly { readonly id: string; readonly name: string }[];
+    readonly categories: readonly { readonly id: string; readonly name: string }[];
+  };
 }
 
 /** An upload's preview, the dry run of design §3.2, with the mappings a confirm would use. */
@@ -114,8 +150,9 @@ export interface ImportView {
   readonly timeZone: string;
   readonly counts: ImportPreview["counts"];
   readonly dateRange: ImportPreview["dateRange"];
+  /** In the source's own order (P337). */
   readonly accounts: readonly ImportAccountView[];
-  readonly categories: readonly ImportCategoryView[];
+  readonly categories: ImportCategoriesView;
   /** Likely duplicates of movements already in Hearth; skipped unless listed in `includeDuplicates`. */
   readonly duplicates: readonly string[];
   readonly includeDuplicates: readonly string[];
@@ -132,17 +169,39 @@ export interface ImportView {
   readonly errors: readonly SourceIssue[];
 }
 
+/** What Hearth holds that the view's account options read (P337). */
+export interface ViewContext {
+  readonly targets: HearthTargets;
+  readonly links: PriorLinks;
+  readonly spaceCurrency: string;
+}
+
 /** The view of a draft: its preview with the batch's own mappings over the planner's first proposal. */
 export const viewOf = async (
   deps: Pick<ImportDeps, "links" | "writer" | "batches">,
   batch: ImportBatch,
   snapshot: SourceSnapshot,
+  context: ViewContext,
 ): Promise<Result<ImportView>> => {
   const known = await knownFor(deps, batch.spaceId, snapshot, batch.mappings);
   if (isErr(known)) return known;
   const { preview } = known.value;
   const plan = planImport(snapshot, batch.mappings, known.value);
-  const byId = new Map(snapshot.accounts.map((a) => [a.sourceId, a]));
+  const byId = new Map(snapshot.accounts.map((a, index) => [a.sourceId, { ...a, index }]));
+  const options = accountOptionsOf(snapshot, context.targets, context.links, context.spaceCurrency);
+  // A snapshot stored before P337 has no order: the source's own list order stands in for it.
+  const rank = (sourceId: string) => byId.get(sourceId)?.order ?? byId.get(sourceId)?.index ?? 0;
+  const { targets } = context;
+  const groups = planCategoryGroups(snapshot, targets, categoryLinksOf(context.links));
+  const unused = unusedSeeded(
+    targets,
+    await deps.writer.usedCategoryIds(batch.spaceId),
+    existingTargetsOf(groups),
+  );
+  const nameOf = (records: readonly { readonly id: string; readonly name: string }[]) => (id: string) => ({
+    id,
+    name: records.find((r) => r.id === id)?.name ?? "",
+  });
   return ok({
     id: batch.id,
     status: batch.status,
@@ -152,26 +211,47 @@ export const viewOf = async (
     timeZone: batch.mappings.timeZone,
     counts: preview.counts,
     dateRange: preview.dateRange,
-    accounts: preview.accounts.map((account) => ({
-      sourceId: account.sourceId,
-      name: account.name,
-      type: account.mapping.type,
-      currency: byId.get(account.sourceId)!.currency,
-      cutOffDay: account.cutOffDay,
-      paymentDay: account.paymentDay,
-      sourceClosingBalance: account.sourceClosingBalance,
-      mapping: batch.mappings.accounts[account.sourceId] ?? account.mapping,
-    })),
-    categories: preview.categories.map((category) => ({
-      sourceId: category.sourceId,
-      name: category.name,
-      icon: category.icon,
-      kind: category.kind,
-      parentSourceId: category.parentSourceId,
-      archived: category.archived,
-      catalogKey: category.proposal.kind === "catalog" ? category.proposal.catalogKey : null,
-      mapping: batch.mappings.categories[category.sourceId] ?? { kind: "new", groupId: null },
-    })),
+    accounts: [...preview.accounts]
+      .sort((a, b) => rank(a.sourceId) - rank(b.sourceId))
+      .map((account) => {
+        const proposal = options.get(account.sourceId)!;
+        return {
+          sourceId: account.sourceId,
+          name: account.name,
+          type: account.mapping.type,
+          currency: byId.get(account.sourceId)!.currency,
+          cutOffDay: account.cutOffDay,
+          paymentDay: account.paymentDay,
+          sourceClosingBalance: account.sourceClosingBalance,
+          hidden: byId.get(account.sourceId)!.hidden,
+          movementCount: proposal.movementCount,
+          suggested: proposal.suggested,
+          options: proposal.options,
+          duplicateOf:
+            proposal.duplicateOf === null
+              ? null
+              : { id: proposal.duplicateOf.id, name: proposal.duplicateOf.name },
+          mapping: batch.mappings.accounts[account.sourceId] ?? account.mapping,
+        };
+      }),
+    categories: {
+      groups: groups.map((group) => ({
+        name: group.name,
+        icon: group.icon,
+        target: group.target.kind,
+        categories: group.categories.map((category) => ({
+          sourceId: category.sourceId,
+          name: category.name,
+          icon: category.icon,
+          target: category.target.kind,
+        })),
+      })),
+      archiveUnusedCategories: batch.mappings.archiveUnusedCategories,
+      unusedSeeded: {
+        groups: unused.groups.map(nameOf(targets.groups)),
+        categories: unused.categories.map(nameOf(targets.categories)),
+      },
+    },
     duplicates: [...known.value.duplicateKeys],
     includeDuplicates: batch.mappings.includeDuplicates,
     plan: {

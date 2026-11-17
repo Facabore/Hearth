@@ -24,7 +24,7 @@ export const authorizeImporter = async (
 export const ownBatch = (batch: ImportBatch | null, userId: string): Result<ImportBatch> =>
   batch === null || batch.userId !== userId ? err(domainError("ImportNotFound")) : ok(batch);
 
-const byType = (links: readonly ImportLink[], type: "ACCOUNT" | "CATEGORY") =>
+const byType = (links: readonly ImportLink[], type: "ACCOUNT" | "CATEGORY" | "CATEGORY_GROUP") =>
   new Map(
     links
       .filter((l) => l.entityType === type && !l.sourceKey.startsWith("opening:"))
@@ -32,8 +32,8 @@ const byType = (links: readonly ImportLink[], type: "ACCOUNT" | "CATEGORY") =>
   );
 
 /**
- * Design §3.3: what earlier imports of this source linked each source account and category to, those that stand and
- * those that were undone apart (folded adjustments left out).
+ * Design §3.3: what earlier imports of this source linked each source account, category and (P337) top-level
+ * category's group to, those that stand and those that were undone apart (folded adjustments left out).
  */
 export const priorLinksFor = async (
   deps: Pick<ImportDeps, "links">,
@@ -47,5 +47,7 @@ export const priorLinksFor = async (
     categories: byType(live, "CATEGORY"),
     undoneAccounts: byType(undone, "ACCOUNT"),
     undoneCategories: byType(undone, "CATEGORY"),
+    groups: byType(live, "CATEGORY_GROUP"),
+    undoneGroups: byType(undone, "CATEGORY_GROUP"),
   };
 };

@@ -103,6 +103,7 @@
     "CurrencyUnchanged": "La cuenta ya está en esa moneda.",
     "ConvertedAmountTooSmall": "Con esa tasa algún movimiento de la cuenta quedaría en cero. Revisa la tasa.",
     "ExchangeRateRequired": "No hay tasa de cambio para esa fecha entre estas monedas. Escribe cuánto fue en la moneda del espacio.",
+    "TransferBetweenPeople": "Una transferencia entre dos personas no se puede importar: regístrala con cada una por separado.",
     "FieldNotEditable": "Este dato no se puede cambiar en este tipo de movimiento.",
     "GuestAlreadyClaimed": "Este lugar de invitado ya fue reclamado.",
     "GuestHasNoAccounts": "Un invitado no tiene cuentas: quita la cuenta de su pago.",

@@ -313,4 +313,16 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
       },
     },
   },
+  "/api/v1/spaces/{spaceId}/category-groups/{groupId}/restore": {
+    post: {
+      operationId: "restoreCategoryGroup",
+      summary: "Restore an archived group with the categories archiving it took (P337)",
+      ...securedByUser,
+      requestParams: { path: GroupPath },
+      responses: {
+        "200": { description: "The restored group", content: jsonContent(CategoryGroupSummarySchema) },
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryGroupNotFound", "409": "SpaceArchived" }),
+      },
+    },
+  },
 };

@@ -16,6 +16,7 @@ import { createDeleteCategory } from "./delete-category";
 import type { CategoriesDeps } from "./deps";
 import { createListCategories } from "./list-categories";
 import { createRestoreCategory } from "./restore-category";
+import { createRestoreCategoryGroup } from "./restore-category-group";
 import { createSeedDefaultCategories } from "./seed-default-categories";
 
 const household = membership({ spaceId: "space-household", name: "Household", spaceKind: "SHARED" });
@@ -51,6 +52,7 @@ const setup = async () => {
     archive: createArchiveCategory(deps),
     restore: createRestoreCategory(deps),
     archiveGroup: createArchiveCategoryGroup(deps),
+    restoreGroup: createRestoreCategoryGroup(deps),
     list: createListCategories({ ...deps, counts: noUsage }),
   };
 };
@@ -104,8 +106,28 @@ describe("retiring categories (HU-E3-03)", () => {
     expect(codeOf(await restore({ ...asAna, categoryId: named("Travel").id }))).toBe("CategoryGroupArchived");
   });
 
+  it("restores an archived group with the categories archiving it took, not one archived before (P337)", async () => {
+    const { categories, named, archiveGroup, restoreGroup, activeNames } = await setup();
+    const leisure = categories.groups.find((g) => g.name === "Leisure")!;
+    // Archived on its own, days before the group.
+    await categories.saveCategories([{ ...named("Travel"), archivedAt: new Date("2026-10-01T12:00:00Z") }]);
+    unwrap(await archiveGroup({ ...asAna, groupId: leisure.id }));
+    await expect(activeNames()).resolves.not.toContain("Games");
+
+    expect(unwrap(await restoreGroup({ ...asAna, groupId: leisure.id })).archivedAt).toBeNull();
+    const names = await activeNames();
+    expect(names).toContain("Games");
+    expect(names).not.toContain("Travel");
+    // A live group restores nothing and answers as it is.
+    expect(unwrap(await restoreGroup({ ...asAna, groupId: leisure.id })).archivedAt).toBeNull();
+  });
+
   it("forbids viewers and reports unknown ids", async () => {
-    const { named, remove, archiveGroup } = await setup();
+    const { named, remove, archiveGroup, restoreGroup } = await setup();
+    expect(codeOf(await restoreGroup({ ...asAna, groupId: "nope" }))).toBe("CategoryGroupNotFound");
+    expect(
+      codeOf(await restoreGroup({ spaceId: "space-household", userId: "u-sofi", groupId: "nope" })),
+    ).toBe("InsufficientRole");
     const asSofi = { spaceId: "space-household", userId: "u-sofi" };
     expect(codeOf(await remove({ ...asSofi, categoryId: named("Groceries").id }))).toBe("InsufficientRole");
     expect(codeOf(await remove({ ...asAna, categoryId: "nope" }))).toBe("CategoryNotFound");

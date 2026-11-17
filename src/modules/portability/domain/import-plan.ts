@@ -1,5 +1,5 @@
 import type { LocalDate } from "@/shared/kernel";
-import type { ImportMappings } from "./import-batch";
+import { createsAccount, targetAccountOf, type ImportMappings } from "./import-batch";
 import type { SourceMovement, SourceSnapshot } from "./source-snapshot";
 
 /**
@@ -40,10 +40,11 @@ const firstMovementDates = (movements: readonly SourceMovement[]): Map<string, L
  *
  * - A movement an earlier import linked is skipped as already imported, edited or deleted in Hearth since or not.
  * - A likely duplicate is skipped unless the person included it.
- * - An adjustment dated on or before its account's first other movement, on an account the import creates, becomes
- *   part of that account's opening balance. One an undone import folded into the account it now maps to (restored
- *   with that opening balance) stays folded there, never recorded on top of it. Any other adjustment is recorded as an
- *   ADJUSTMENT movement (design Q4, #329), linked and checked for duplicates like every other movement.
+ * - An adjustment dated on or before its account's first other movement, on an account the import creates (a new one,
+ *   or a new one it archives, P337), becomes part of that account's opening balance. One an undone import folded into
+ *   the account it now maps to (restored with that opening balance) stays folded there, never recorded on top of it.
+ *   Any other adjustment is recorded as an ADJUSTMENT movement (design Q4, #329), linked and checked for duplicates
+ *   like every other movement; a Persona's is never folded, since it is a settlement with that person (P337).
  */
 export const planImport = (
   snapshot: SourceSnapshot,
@@ -73,12 +74,17 @@ export const planImport = (
         alreadyImported.push(movement.sourceKey);
         continue;
       }
-      if (mapping?.kind === "new" && (firstDate === undefined || movement.date <= firstDate)) {
+      if (
+        mapping !== undefined &&
+        createsAccount(mapping) &&
+        (firstDate === undefined || movement.date <= firstDate)
+      ) {
         folded.push(movement);
         openingBalances.set(account, (openingBalances.get(account) ?? 0n) + movement.amount.minor);
         continue;
       }
-      if (mapping?.kind === "existing" && known.undoneOpenings.get(opening) === mapping.accountId) {
+      const into = mapping === undefined ? null : targetAccountOf(mapping);
+      if (into !== null && known.undoneOpenings.get(opening) === into) {
         folded.push(movement);
         continue;
       }

@@ -5,9 +5,10 @@ type Json<T> = T extends { content: { "application/json": infer B } } ? B : neve
 /** D28, design §3.2: an upload's dry run, as `POST …/imports` and `PATCH …/imports/{importId}` answer it. */
 export type ImportPreviewDto = Json<paths["/api/v1/spaces/{spaceId}/imports"]["post"]["responses"][201]>;
 export type ImportAccountDto = ImportPreviewDto["accounts"][number];
-export type ImportCategoryDto = ImportPreviewDto["categories"][number];
+/** P337: a top-level Money Manager category as the group it becomes, and its categories. */
+export type ImportCategoryGroupDto = ImportPreviewDto["categories"]["groups"][number];
+export type ImportCategoryDto = ImportCategoryGroupDto["categories"][number];
 export type AccountMappingDto = ImportAccountDto["mapping"];
-export type CategoryMappingDto = ImportCategoryDto["mapping"];
 /** What a confirm did: its counts and the rows the ledger refused. */
 export type ImportResultDto = Json<
   paths["/api/v1/spaces/{spaceId}/imports/{importId}/confirm"]["post"]["responses"][200]
@@ -22,4 +23,3 @@ export type ImportChangesDto = NonNullable<
 >["content"]["application/json"];
 /** A mapping as the person sends it: a new record's name is optional, the file's (or a free variant) by default. */
 export type AccountMappingInputDto = NonNullable<ImportChangesDto["accounts"]>[string];
-export type CategoryMappingInputDto = NonNullable<ImportChangesDto["categories"]>[string];

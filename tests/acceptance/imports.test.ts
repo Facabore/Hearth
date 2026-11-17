@@ -9,7 +9,11 @@ import { setContainerForTests, type Container } from "@/composition/container";
 import { FixedClock } from "@/shared/kernel";
 import { call, problemOf, registerUser, routeParams, startTestApp, type TestUser } from "../support/app";
 import { categoryWithKey, cop, newAccount, post, starterAccount } from "../support/ledger";
-import { moneyManagerBackup } from "../support/money-manager-backup";
+import { GET as directBalance } from "@/app/api/v1/spaces/[spaceId]/balances/route";
+import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
+import { moneyManagerBackup, type BackupMovement } from "../support/money-manager-backup";
+import { addLine, lineNamed, newPlan, putCategories, setCapacities } from "../support/budgeting";
+import { defined } from "../support/recurrences";
 import { joinAs, newSharedSpace } from "../support/spaces";
 
 let app: Container;
@@ -85,10 +89,15 @@ interface Preview {
     mapping: { kind: string; accountId?: string; type?: string; currency?: string };
   }[];
   categories: {
-    sourceId: string;
-    catalogKey: string | null;
-    mapping: { kind: string; categoryId?: string };
-  }[];
+    groups: {
+      name: string;
+      icon: string | null;
+      target: string;
+      categories: { sourceId: string; name: string; icon: string | null; target: string }[];
+    }[];
+    archiveUnusedCategories: boolean;
+    unusedSeeded: { groups: { id: string; name: string }[]; categories: { id: string; name: string }[] };
+  };
   duplicates: string[];
   plan: {
     movements: number;
@@ -133,6 +142,38 @@ const imported = async (user: TestUser): Promise<{ preview: Preview; result: Res
   return { preview, result: await confirmed(user, preview.id) };
 };
 
+/** The space's seeded groups (D11), as the categories module seeds them at sign-up. */
+const seededGroups = async (spaceId: string) =>
+  (
+    await app.pool.query(
+      "SELECT id, name, archived_at FROM category_groups WHERE space_id = $1 AND key IS NOT NULL ORDER BY position",
+      [spaceId],
+    )
+  ).rows as { id: string; name: string; archived_at: Date | null }[];
+
+interface TreeGroup {
+  id: string;
+  name: string;
+  key: string | null;
+  archivedAt: string | null;
+  categories: { id: string; name: string; archivedAt: string | null }[];
+}
+
+/** The space's category tree through the categories API, archived groups and categories included. */
+const treeOf = async (user: TestUser): Promise<TreeGroup[]> => {
+  const response = await call(
+    listCategories,
+    "GET",
+    `/api/v1/spaces/${user.spaceId}/categories?archived=true`,
+    {
+      user,
+      params: { spaceId: user.spaceId },
+    },
+  );
+  expect(response.status).toBe(200);
+  return ((await response.json()) as { items: TreeGroup[] }).items;
+};
+
 const liveMovements = async (spaceId: string): Promise<number> =>
   Number(
     (
@@ -161,19 +202,40 @@ describe("POST /api/v1/spaces/{spaceId}/imports (D28, design §3.2)", () => {
       "a-cash": { kind: "existing", accountId: await starterAccount(ana, "Efectivo") },
       "a-bank": { kind: "new", type: "BANK", currency: "COP", name: "Banco Uno" },
       "a-usd": { kind: "new", type: "BANK", currency: "USD", name: "US savings" },
-      "a-card": { kind: "new", type: "CREDIT_CARD", currency: "COP", name: "Visa" },
+      // P337: Visa has no movement and a zero balance, so Hearth suggests archiving it (created, then archived).
+      "a-card": { kind: "archive", accountId: null, type: "CREDIT_CARD", currency: "COP", name: "Visa" },
     });
-    const categories = Object.fromEntries(preview.categories.map((c) => [c.sourceId, c.mapping]));
-    expect(categories["c-food"]).toEqual({
-      kind: "existing",
-      categoryId: await categoryWithKey(ana, "groceries"),
-    });
-    expect(categories["c-salary"]).toEqual({
-      kind: "existing",
-      categoryId: await categoryWithKey(ana, "salary"),
-    });
-    expect(categories["c-guitar"]).toMatchObject({ kind: "new" });
-    expect(categories["c-food-sub"]).toEqual({ kind: "new", groupId: null, name: "Supermercado" });
+    // P337: each Money Manager category is a group, expense ones first, then income ones, each in its order; Food is
+    // used directly too, so it keeps a category of its own name before its subcategory.
+    expect(preview.categories.groups).toEqual([
+      {
+        name: "Food",
+        icon: "🍔",
+        target: "new",
+        categories: [
+          { sourceId: "c-food", name: "Food", icon: "🍔", target: "new" },
+          { sourceId: "c-food-sub", name: "Supermercado", icon: "🍔", target: "new" },
+        ],
+      },
+      {
+        name: "Guitarra",
+        icon: "🎸",
+        target: "new",
+        categories: [{ sourceId: "c-guitar", name: "Guitarra", icon: "🎸", target: "new" }],
+      },
+      {
+        name: "Salary",
+        icon: "💰",
+        target: "new",
+        categories: [{ sourceId: "c-salary", name: "Salary", icon: "💰", target: "new" }],
+      },
+    ]);
+    // No movement uses any seeded group yet: the switch, on by default, would archive them all.
+    expect(preview.categories.archiveUnusedCategories).toBe(true);
+    expect(preview.categories.unusedSeeded.groups.map((g) => g.name).sort()).toEqual(
+      (await seededGroups(ana.spaceId)).map((g) => g.name).sort(),
+    );
+    expect(preview.categories.unusedSeeded.categories).toEqual([]);
     expect(preview.plan).toEqual({
       movements: 7,
       alreadyImported: [],
@@ -309,7 +371,8 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
       counts: {
         accountsCreated: 3,
         accountsRestored: 0,
-        categoriesCreated: 2,
+        // P337: Food, Supermercado, Guitarra and Salary, in three groups of their own.
+        categoriesCreated: 4,
         categoriesRestored: 0,
         movementsImported: 6,
         alreadyImported: 0,
@@ -317,6 +380,9 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
         adjustmentsInOpeningBalance: 1,
         adjustmentsNotImported: 0,
         rowErrors: 1,
+        peopleCreated: 0,
+        accountsArchived: 1,
+        hearthCategoriesArchived: (await seededGroups(ana.spaceId)).length,
       },
       // A USD expense from the USD account needs a USD→COP rate for its date, and there is none: that row only.
       rowErrors: [expect.objectContaining({ code: "ExchangeRateRequired", sourceKey: "m6" })],
@@ -330,6 +396,8 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
       type: "CREDIT_CARD",
       cut_off_day: 15,
       payment_day: 5,
+      // P337: Archivar keeps the account and its history, out of the pickers and totals.
+      archived_at: expect.any(Date),
     });
 
     const { rows } = await app.pool.query(
@@ -385,7 +453,15 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
     const again = await uploaded(ana);
     expect(again.previouslyImportedAt).toBe("2026-11-16T15:00:00.000Z");
     expect(again.plan.alreadyImported.sort()).toEqual(["adj0", "adj1", "m1", "m2", "m5", "m7", "t1"]);
-    expect(again.accounts.every((a) => a.mapping.kind === "existing")).toBe(true);
+    // P337: the archived Visa stays the one its movements would go to, never a new one beside it.
+    const visa = await accountNamed(ana.spaceId, "Visa");
+    expect(Object.fromEntries(again.accounts.map((a) => [a.sourceId, a.mapping.kind]))).toEqual({
+      "a-cash": "existing",
+      "a-bank": "existing",
+      "a-usd": "existing",
+      "a-card": "archive",
+    });
+    expect(again.accounts.find((a) => a.sourceId === "a-card")?.mapping.accountId).toBe(visa?.id);
     const result = await confirmed(ana, again.id);
 
     expect(result.counts).toMatchObject({
@@ -574,10 +650,19 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       id: preview.id,
       status: "UNDONE",
       movementsDeleted: 6,
-      accountsArchived: 3,
-      categoriesArchived: 2,
+      // Visa was archived by the confirm already (P337): only the bank and the USD account are archived now.
+      accountsArchived: 2,
+      categoriesArchived: 4,
+      // P337: the three groups it created are empty again, and the seeded groups it archived come back.
+      categoryGroupsArchived: 3,
+      hearthCategoriesRestored: (await seededGroups(ana.spaceId)).length,
     });
     expect(await liveMovements(ana.spaceId)).toBe(0);
+    expect((await seededGroups(ana.spaceId)).every((g) => g.archived_at === null)).toBe(true);
+    const tree = await treeOf(ana);
+    expect(
+      tree.filter((g) => ["Food", "Guitarra", "Salary"].includes(g.name)).map((g) => g.archivedAt),
+    ).toEqual([expect.any(String), expect.any(String), expect.any(String)]);
     const { rows } = await app.pool.query(
       "SELECT count(*) FROM transactions WHERE space_id = $1 AND deleted_at IS NOT NULL",
       [ana.spaceId],
@@ -691,9 +776,11 @@ describe("a re-import after an undo, and names the space already holds (D28, des
 
     expect(result.counts).toMatchObject({
       accountsCreated: 0,
-      accountsRestored: 3,
+      // Visa (Archivar, P337) has no movement to take: it stays archived, never restored.
+      accountsRestored: 2,
       categoriesCreated: 0,
-      categoriesRestored: 2,
+      // P337: the groups the undo archived come back with their categories, never made again.
+      categoriesRestored: 4,
       movementsImported: 6,
       // The restored bank still holds adj0 in its opening balance: kept there, never recorded on top of it.
       adjustmentsInOpeningBalance: 1,
@@ -706,27 +793,10 @@ describe("a re-import after an undo, and names the space already holds (D28, des
     expect(await liveMovements(ana.spaceId)).toBe(6);
   });
 
-  it("gives a new account or category a name no archived one holds, and says so in the preview", async () => {
+  it("gives a new account a name no archived one holds, and says so in the preview", async () => {
     const ana = await registerUser("Ana");
     const archived = await newAccount(ana, "banco uno", 0, "SAVINGS");
     await app.accounts.archiveAccount({ spaceId: ana.spaceId, userId: ana.userId, accountId: archived });
-    const otros = (
-      await app.pool.query("SELECT id FROM category_groups WHERE space_id = $1 AND key = 'other'", [
-        ana.spaceId,
-      ])
-    ).rows[0].id as string;
-    const guitar = await app.categories.createCategory({
-      spaceId: ana.spaceId,
-      userId: ana.userId,
-      groupId: otros,
-      name: "Guitarra",
-    });
-    if (!guitar.ok) throw new Error(guitar.error.code);
-    await app.categories.archiveCategory({
-      spaceId: ana.spaceId,
-      userId: ana.userId,
-      categoryId: guitar.value.id,
-    });
 
     const preview = await uploaded(ana);
     expect(preview.accounts.find((a) => a.sourceId === "a-bank")?.mapping).toEqual({
@@ -735,14 +805,328 @@ describe("a re-import after an undo, and names the space already holds (D28, des
       currency: "COP",
       name: "Banco Uno (Money Manager)",
     });
-    expect(preview.categories.find((c) => c.sourceId === "c-guitar")?.mapping).toEqual({
-      kind: "new",
-      groupId: otros,
-      name: "Guitarra (Money Manager)",
-    });
     const result = await confirmed(ana, preview.id);
 
-    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 2, movementsImported: 6 });
+    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 4, movementsImported: 6 });
     expect(await accountNamed(ana.spaceId, "Banco Uno (Money Manager)")).toMatchObject({ archived_at: null });
+  });
+});
+
+describe("your categories as you had them (P337, #333)", () => {
+  const adjust = (user: TestUser, importId: string, body: unknown) =>
+    call(adjustImport, "PATCH", importPath(user, importId), {
+      user,
+      params: { spaceId: user.spaceId, importId },
+      body,
+    });
+
+  it("makes each category a group of its subcategories, in Money Manager's order, and archives the seeded ones nothing uses", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+
+    const tree = await treeOf(ana);
+    const live = tree.filter((g) => g.archivedAt === null);
+    expect(live.map((g) => [g.name, g.categories.map((c) => c.name)])).toEqual([
+      ["Food", ["Food", "Supermercado"]],
+      ["Guitarra", ["Guitarra"]],
+      ["Salary", ["Salary"]],
+    ]);
+    // Every seeded group is archived, its categories with it, and can be restored.
+    const seeded = tree.filter((g) => g.key !== null);
+    expect(seeded.length).toBeGreaterThan(0);
+    expect(seeded.every((g) => g.archivedAt !== null)).toBe(true);
+    const vivienda = seeded.find((g) => g.name === "Vivienda")!;
+    expect((await app.categories.restoreCategoryGroup({ ...ana, groupId: vivienda.id })).ok).toBe(true);
+    const restored = (await treeOf(ana)).find((g) => g.id === vivienda.id)!;
+    expect(restored.archivedAt).toBeNull();
+    expect(restored.categories.every((c) => c.archivedAt === null)).toBe(true);
+
+    const links = await app.pool.query(
+      "SELECT source_key FROM import_links WHERE import_id = $1 AND entity_type = 'CATEGORY_GROUP' ORDER BY source_key",
+      [preview.id],
+    );
+    expect(links.rows.map((r: { source_key: string }) => r.source_key)).toEqual([
+      "c-food",
+      "c-guitar",
+      "c-salary",
+    ]);
+  });
+
+  it("archives nothing of Hearth's when the person turns the switch off", async () => {
+    const ana = await registerUser("Ana");
+    const preview = await uploaded(ana);
+    const off = await adjust(ana, preview.id, { archiveUnusedCategories: false });
+    expect(off.status).toBe(200);
+    expect(((await off.json()) as Preview).categories.archiveUnusedCategories).toBe(false);
+
+    const result = await confirmed(ana, preview.id);
+
+    expect(result.counts).toMatchObject({ hearthCategoriesArchived: 0, categoriesCreated: 4 });
+    expect((await seededGroups(ana.spaceId)).every((g) => g.archived_at === null)).toBe(true);
+  });
+
+  it("keeps a seeded category a budget line or a recurrence names, with its group, though no movement uses it", async () => {
+    const ana = await registerUser("Ana");
+    // Rent repeats every month, and a plan's line consumes Travel: neither has a movement yet.
+    const rent = await categoryWithKey(ana, "rent");
+    const travel = await categoryWithKey(ana, "travel");
+    const member = await app.pool.query("SELECT id FROM space_members WHERE space_id = $1", [ana.spaceId]);
+    await defined(ana, ana.spaceId, {
+      description: "Arriendo",
+      amount: cop(1_200_000),
+      template: {
+        type: "EXPENSE",
+        categoryId: rent,
+        payer: {
+          memberId: (member.rows[0] as { id: string }).id,
+          accountId: await starterAccount(ana, "Cuenta bancaria"),
+        },
+      },
+      schedule: { kind: "MONTHLY", day: 1 },
+      mode: "AUTO",
+      startDate: "2027-01-01",
+    });
+    const { id: planId } = await newPlan(ana, ana.spaceId, "2027-01");
+    await setCapacities(ana, ana.spaceId, planId, [[(member.rows[0] as { id: string }).id, 2_000_000]]);
+    const plan = await addLine(ana, ana.spaceId, planId, {
+      name: "Viajes",
+      pesos: 500_000,
+      funding: "DIRECT",
+      rolloverMode: "RESET",
+    });
+    const mapped = await putCategories(ana, ana.spaceId, planId, lineNamed(plan, "Viajes").id, [travel]);
+    expect(mapped.status).toBe(200);
+
+    const preview = await uploaded(ana);
+    expect(preview.categories.unusedSeeded.categories.map((c) => c.id)).not.toContain(rent);
+    await confirmed(ana, preview.id);
+
+    const tree = await treeOf(ana);
+    const holding = (categoryId: string) => tree.find((g) => g.categories.some((c) => c.id === categoryId))!;
+    for (const id of [rent, travel]) {
+      expect(holding(id).archivedAt).toBeNull();
+      expect(holding(id).categories.find((c) => c.id === id)!.archivedAt).toBeNull();
+    }
+    // The rest of those groups' seeded categories, which nothing names, are still archived.
+    expect(
+      holding(rent)
+        .categories.filter((c) => c.id !== rent)
+        .every((c) => c.archivedAt !== null),
+    ).toBe(true);
+  });
+
+  it("puts a category in a group of its name ignoring case, restoring an archived one, and keeps a used seeded group", async () => {
+    const ana = await registerUser("Ana");
+    const food = await app.categories.createCategoryGroup({ ...ana, name: "food" });
+    if (!food.ok) throw new Error(food.error.code);
+    expect((await app.categories.archiveCategoryGroup({ ...ana, groupId: food.value.id })).ok).toBe(true);
+    // Ana pays for groceries in Hearth already: the seeded group holding it stays, and so does Mercado.
+    const typed = await post(recordExpense, ana, "expenses", {
+      description: "Mercado",
+      date: "2026-11-01",
+      categoryId: await categoryWithKey(ana, "groceries"),
+      amount: cop(10_000),
+      accountId: await starterAccount(ana, "Efectivo"),
+    });
+    expect(typed.status).toBe(201);
+
+    const preview = await uploaded(ana);
+    expect(preview.categories.groups[0]).toMatchObject({ name: "Food", target: "existing" });
+    const result = await confirmed(ana, preview.id);
+
+    expect(result.counts).toMatchObject({ categoriesCreated: 4 });
+    const tree = await treeOf(ana);
+    expect(tree.find((g) => g.id === food.value.id)).toMatchObject({ name: "food", archivedAt: null });
+    expect(tree.find((g) => g.id === food.value.id)?.categories.map((c) => c.name)).toEqual([
+      "Food",
+      "Supermercado",
+    ]);
+    const groceries = tree.find((g) =>
+      g.categories.some((c) => c.name === "Mercado" && c.archivedAt === null),
+    );
+    expect(groceries?.archivedAt).toBeNull();
+  });
+});
+
+describe("what each account is: Cuenta, Persona or Archivar (P337, #332)", () => {
+  const leg = { zdate: 0, currency: 1 as const };
+  /** Ana lent Mom 500,000 from the bank, Mom paid 150,000 back, and "Cash" is Money Manager's cash beside Efectivo. */
+  const lending: BackupMovement[] = [
+    {
+      ...leg,
+      uid: "l1",
+      doType: 3,
+      wdate: "2025-01-05",
+      asset: "a-bank",
+      toAsset: "a-mom",
+      entered: "500000.0",
+      inAccount: 500000,
+      txUidTrans: "lend",
+    },
+    {
+      ...leg,
+      uid: "l2",
+      doType: 4,
+      wdate: "2025-01-05",
+      asset: "a-mom",
+      toAsset: "a-bank",
+      entered: "500000.0",
+      inAccount: 500000,
+      txUidTrans: "lend",
+    },
+    {
+      ...leg,
+      uid: "l3",
+      doType: 3,
+      wdate: "2025-02-05",
+      asset: "a-mom",
+      toAsset: "a-bank",
+      entered: "150000.0",
+      inAccount: 150000,
+      txUidTrans: "back",
+    },
+    {
+      ...leg,
+      uid: "l4",
+      doType: 4,
+      wdate: "2025-02-05",
+      asset: "a-bank",
+      toAsset: "a-mom",
+      entered: "150000.0",
+      inAccount: 150000,
+      txUidTrans: "back",
+    },
+    {
+      ...leg,
+      uid: "c1",
+      doType: 1,
+      wdate: "2025-02-06",
+      asset: "a-mm-cash",
+      category: "c-food",
+      entered: "8000.0",
+      inAccount: 8000,
+    },
+  ];
+  const sorted = moneyManagerBackup(lending, [
+    { uid: "a-mom", name: "Mom Loan", group: "g-loan", currency: 1 },
+    { uid: "a-mm-cash", name: "Cash", group: "g-cash", currency: 1, order: 1 },
+  ]);
+
+  it("suggests what each account is, and offers the three ready mappings with what the board shows", async () => {
+    const ana = await registerUser("Ana");
+    const response = await upload(ana, sorted);
+    expect(response.status).toBe(201);
+    const preview = (await response.json()) as {
+      accounts: {
+        sourceId: string;
+        suggested: string;
+        duplicateOf: unknown;
+        movementCount: number;
+        options: unknown;
+      }[];
+    };
+    const efectivo = await starterAccount(ana, "Efectivo");
+    const bySource = Object.fromEntries(preview.accounts.map((a) => [a.sourceId, a]));
+    expect(bySource["a-mom"]).toMatchObject({ suggested: "PERSON", movementCount: 2, duplicateOf: null });
+    expect(bySource["a-mom"]?.options).toMatchObject({ person: { kind: "person", name: "Mom" } });
+    expect(bySource["a-mm-cash"]).toMatchObject({
+      suggested: "ARCHIVE",
+      duplicateOf: { id: efectivo, name: "Efectivo" },
+      options: { archive: { kind: "archive", accountId: efectivo } },
+    });
+    expect(bySource["a-bank"]).toMatchObject({ suggested: "ACCOUNT" });
+    // In Money Manager's own order: its groups' order (Cash, Accounts, Card, Loan), then each account's.
+    expect(preview.accounts.map((a) => a.sourceId)).toEqual([
+      "a-cash",
+      "a-mm-cash",
+      "a-bank",
+      "a-usd",
+      "a-card",
+      "a-mom",
+    ]);
+  });
+
+  it("records Mom as a guest in Ana's direct space, owing what is left, with no account, and Cash in Efectivo", async () => {
+    const ana = await registerUser("Ana");
+    const efectivo = await starterAccount(ana, "Efectivo");
+    const response = await upload(ana, sorted);
+    const preview = (await response.json()) as Preview;
+
+    const result = await confirmed(ana, preview.id);
+
+    expect(result.counts).toMatchObject({ peopleCreated: 1, rowErrors: 0 });
+    expect(await accountNamed(ana.spaceId, "Mom Loan")).toBeUndefined();
+    expect(await accountNamed(ana.spaceId, "Mom")).toBeUndefined();
+    expect(await accountNamed(ana.spaceId, "Cash")).toBeUndefined();
+    const cashExpense = await app.pool.query(
+      "SELECT count(*) FROM transactions t JOIN payments p ON p.transaction_id = t.id WHERE t.space_id = $1 AND p.account_id = $2",
+      [ana.spaceId, efectivo],
+    );
+    expect(Number(cashExpense.rows[0].count)).toBe(1);
+
+    const direct = await app.pool.query(
+      `SELECT s.id, s.name FROM spaces s JOIN import_links l ON l.entity_id = s.id
+        WHERE l.space_id = $1 AND l.entity_type = 'PERSON' AND l.source_key = 'a-mom'`,
+      [ana.spaceId],
+    );
+    expect(direct.rows).toEqual([{ id: expect.any(String), name: "Ana & Mom" }]);
+    const directId = direct.rows[0].id as string;
+    const balances = await call(directBalance, "GET", `/api/v1/spaces/${directId}/balances`, {
+      user: ana,
+      params: { spaceId: directId },
+    });
+    expect(balances.status).toBe(200);
+    const names = new Map(
+      (
+        await app.pool.query("SELECT id, display_name FROM space_members WHERE space_id = $1", [directId])
+      ).rows.map((m: { id: string; display_name: string }) => [m.id, m.display_name]),
+    );
+    const nets = (
+      (await balances.json()) as { members: { memberId: string; net: { amount: string } }[] }
+    ).members.map((m) => [names.get(m.memberId), m.net.amount]);
+    // Mom got 500,000 and paid 150,000 back: she owes Ana 350,000.00.
+    expect(Object.fromEntries(nets)).toEqual({ Ana: "35000000", Mom: "-35000000" });
+
+    const undone = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+    expect(await undone.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 3 });
+    const live = await liveMovements(directId);
+    expect(live).toBe(0);
+    // No hard delete: the direct space and its guest stay.
+    expect(
+      (await app.pool.query("SELECT count(*) FROM spaces WHERE id = $1", [directId])).rows[0].count,
+    ).toBe("1");
+  });
+
+  it("takes Cuenta or Persona the person chooses instead, and refuses a Persona in another currency", async () => {
+    const ana = await registerUser("Ana");
+    const preview = (await (await upload(ana, sorted)).json()) as Preview;
+    const adjust = (body: unknown) =>
+      call(adjustImport, "PATCH", importPath(ana, preview.id), {
+        user: ana,
+        params: { spaceId: ana.spaceId, importId: preview.id },
+        body,
+      });
+
+    const asAccount = await adjust({ accounts: { "a-mom": { kind: "new", type: "LOAN", currency: "COP" } } });
+    expect(asAccount.status).toBe(200);
+    expect(((await asAccount.json()) as Preview).accounts.find((a) => a.sourceId === "a-mom")).toMatchObject({
+      suggested: "PERSON",
+      mapping: { kind: "new", name: "Mom Loan" },
+    });
+
+    const named = await adjust({ accounts: { "a-mom": { kind: "person", name: "  Mamá " } } });
+    expect(((await named.json()) as Preview).accounts.find((a) => a.sourceId === "a-mom")?.mapping).toEqual({
+      kind: "person",
+      name: "Mamá",
+    });
+    const refused = await adjust({ accounts: { "a-usd": { kind: "person" } } });
+    expect(await refused.json()).toMatchObject({
+      code: "InvalidImportMapping",
+      reason: "currencyMismatch",
+      sourceId: "a-usd",
+    });
   });
 });

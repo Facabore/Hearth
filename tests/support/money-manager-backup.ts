@@ -129,17 +129,34 @@ export const DEFAULT_MOVEMENTS: readonly BackupMovement[] = [
   },
 ];
 
+/** One more ASSETS row (P337): an account beside the default four, such as a person's loan. */
+export interface BackupAccount {
+  readonly uid: string;
+  readonly name: string;
+  /** "g-cash", "g-accounts", "g-card", or "g-loan" (Money Manager's Loan group, TYPE 5). */
+  readonly group: string;
+  /** 1 COP, 2 USD. */
+  readonly currency: 1 | 2;
+  readonly order?: number;
+  /** `ZDATA`, read as hidden. */
+  readonly hidden?: boolean;
+}
+
 /**
  * A tiny synthetic Money Manager SQLite backup, built in memory and returned as bytes; nothing touches the disk.
  * Accounts: "Efectivo" (cash, COP, the name of a starter account), "Banco Uno" (bank, COP), "US savings" (bank, USD)
  * and "Visa" (card, COP, cut-off 15, payment 5). Categories: "🍔 Food" with its subcategory "Supermercado",
- * "💰 Salary" (income) and "🎸 Guitarra".
+ * "💰 Salary" (income) and "🎸 Guitarra". `accounts` adds more (P337), and the Loan group when one is in it.
  */
-export const moneyManagerBackup = (movements: readonly BackupMovement[] = DEFAULT_MOVEMENTS): Uint8Array => {
+export const moneyManagerBackup = (
+  movements: readonly BackupMovement[] = DEFAULT_MOVEMENTS,
+  accounts: readonly BackupAccount[] = [],
+): Uint8Array => {
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE CURRENCY (uid INTEGER, ISO TEXT, MAIN_ISO TEXT, IS_MAIN_CURRENCY INTEGER, RATE TEXT, DECIMAL_POINT INTEGER, SYMBOL_POSITION INTEGER);
-    CREATE TABLE ASSETS (uid TEXT, NIC_NAME TEXT, groupUid INTEGER, currencyUid INTEGER, ORDERSEQ INTEGER, CARD_DAY_FIN INTEGER, CARD_DAY_PAY INTEGER, cardAssetUid TEXT, ZDATA1 TEXT, ZDATA INTEGER, ZDATA2 INTEGER);
+    CREATE TABLE ASSETGROUP (uid TEXT, ACC_GROUP_NAME TEXT, TYPE INTEGER, ORDERSEQ INTEGER, IS_DEL INTEGER);
+    CREATE TABLE ASSETS (uid TEXT, NIC_NAME TEXT, groupUid TEXT, currencyUid INTEGER, ORDERSEQ INTEGER, CARD_DAY_FIN INTEGER, CARD_DAY_PAY INTEGER, cardAssetUid TEXT, ZDATA1 TEXT, ZDATA INTEGER, ZDATA2 INTEGER);
     CREATE TABLE ZCATEGORY (uid TEXT, NAME TEXT, TYPE INTEGER, pUid TEXT, STATUS INTEGER, C_IS_DEL INTEGER, ORDERSEQ INTEGER);
     CREATE TABLE INOUTCOME (uid TEXT, DO_TYPE INTEGER, WDATE TEXT, ZDATE INTEGER, UTIME INTEGER, assetUid TEXT, toAssetUid TEXT, ctgUid TEXT, ZMONEY TEXT, currencyUid INTEGER, IN_ZMONEY TEXT, AMOUNT_ACCOUNT REAL, txUidTrans TEXT, ZCONTENT TEXT, ZDATA TEXT, IS_DEL INTEGER);
     CREATE TABLE TAG (uid TEXT, NAME TEXT);
@@ -150,11 +167,20 @@ export const moneyManagerBackup = (movements: readonly BackupMovement[] = DEFAUL
   const currency = db.prepare("INSERT INTO CURRENCY VALUES (?,?,?,?,?,?,?)");
   currency.run(1, "COP", "COP", 1, "1", 0, 0);
   currency.run(2, "USD", "COP", 0, "4000", 2, 0);
+  // Money Manager's real ASSETGROUP columns (P337): a text uid, and the TYPE that says what its accounts are.
+  const group = db.prepare("INSERT INTO ASSETGROUP VALUES (?,?,?,?,?)");
+  group.run("g-cash", "Cash", 11, 0, 0);
+  group.run("g-accounts", "Accounts", 1, 1, 0);
+  group.run("g-card", "Card", 2, 2, 0);
   const asset = db.prepare("INSERT INTO ASSETS VALUES (?,?,?,?,?,?,?,?,?,?,?)");
-  asset.run("a-cash", "Efectivo", 11, 1, 0, 0, 0, null, null, 0, 0);
-  asset.run("a-bank", "Banco Uno", 1, 1, 1, 0, 0, null, null, 0, 0);
-  asset.run("a-usd", "US savings", 1, 2, 2, 0, 0, null, null, 0, 0);
-  asset.run("a-card", "Visa", 2, 1, 3, 15, 5, "a-bank", null, 0, 0);
+  asset.run("a-cash", "Efectivo", "g-cash", 1, 0, 0, 0, null, null, 0, 0);
+  asset.run("a-bank", "Banco Uno", "g-accounts", 1, 0, 0, 0, null, null, 0, 0);
+  asset.run("a-usd", "US savings", "g-accounts", 2, 1, 0, 0, null, null, 0, 0);
+  asset.run("a-card", "Visa", "g-card", 1, 0, 15, 5, "a-bank", null, 0, 0);
+  if (accounts.some((a) => a.group === "g-loan")) group.run("g-loan", "Loan", 5, 3, 0);
+  for (const a of accounts) {
+    asset.run(a.uid, a.name, a.group, a.currency, a.order ?? 0, 0, 0, null, null, a.hidden ? 1 : 0, 0);
+  }
   const category = db.prepare("INSERT INTO ZCATEGORY VALUES (?,?,?,?,?,?,?)");
   category.run("c-food", "🍔 Food", 1, "", 0, 0, 0);
   category.run("c-food-sub", "Supermercado", 1, "c-food", 2, 0, 0);

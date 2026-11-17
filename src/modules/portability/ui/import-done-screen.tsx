@@ -40,6 +40,9 @@ const NONE: ImportCountsDto = {
   adjustmentsInOpeningBalance: 0,
   adjustmentsNotImported: 0,
   rowErrors: 0,
+  peopleCreated: 0,
+  accountsArchived: 0,
+  hearthCategoriesArchived: 0,
 };
 
 /**

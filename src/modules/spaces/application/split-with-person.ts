@@ -43,7 +43,7 @@ export type DirectExpenseRecorder<E, T> = (input: {
   readonly expense: E;
 }) => Promise<Result<T>>;
 
-interface DirectSpaceDeps {
+export interface DirectSpaceDeps {
   readonly access: SpaceAccess;
   readonly spaces: Pick<SpaceRepository, "listForUser">;
   readonly direct: DirectSpaceRepository;
@@ -151,6 +151,31 @@ export const createSplitWithPerson =
   <E, T>(deps: SplitWithPersonDeps<E, T>): SplitWithPerson<E, T> =>
   (input) =>
     deps.tm.run(() => recordWith(deps, input, input.counterpart, input.expense));
+
+export type StartDirectSpaceWithGuest = (input: {
+  readonly userId: string;
+  readonly userName: string;
+  /** The new direct space's default categories are seeded in this locale (HU-E3-01). */
+  readonly locale: string;
+  readonly guestName: string;
+}) => Promise<Result<{ readonly spaceId: SpaceId }>>;
+
+/**
+ * P337, P338: a DIRECT space between the requester and a new guest named `guestName`, created and seeded as a split
+ * creates one (HU-E1-13), with nothing recorded in it yet. A guest exists only in its own space (D15), so each call
+ * opens a new one; an import that brings a person keeps the space it opened and reuses it.
+ */
+export const createStartDirectSpaceWithGuest =
+  (deps: DirectSpaceDeps & { readonly tm: TransactionManager }): StartDirectSpaceWithGuest =>
+  (input) =>
+    deps.tm.run(async () => {
+      const resolved = await newDirectSpace(deps, input, {
+        kind: "GUEST",
+        displayName: input.guestName,
+        contactEmail: null,
+      });
+      return resolved.ok ? ok({ spaceId: resolved.value.spaceId }) : resolved;
+    });
 
 /** P331: an expense that was for several people, each person's part with them and the recorder's own part. */
 export interface SplitWithPeopleInput<E> extends Requester {
