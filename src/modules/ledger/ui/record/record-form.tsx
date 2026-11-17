@@ -14,14 +14,21 @@ import {
   type ReactNode,
   useSyncExternalStore,
 } from "react";
-import { AccountPicker } from "@/modules/accounts/ui";
+import { AccountPicker, byUse } from "@/modules/accounts/ui";
 import { controlsFor } from "@/modules/spaces/ui";
-import { activeTree, categoryPath, groupsForKind, type CategoryChoice } from "@/modules/categories/ui";
+import {
+  activeTree,
+  categoryPath,
+  findCategory,
+  groupsForKind,
+  type CategoryChoice,
+} from "@/modules/categories/ui";
 import { Button, ChoiceGroup, Icon, ProblemNotice, ScreenHeader } from "@/shared/ui";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type {
   AccountDto,
+  AccountUsageDto,
   CategoryDto,
   CategoryGroupDto,
   DirectSplitDto,
@@ -62,6 +69,7 @@ import { DescriptionField, MoneyField, RowError } from "./form-rows";
 import { Keypad } from "./keypad";
 import { RecordSheet } from "./record-sheet";
 import { LineWarningConfirm, LineWarningNote } from "./line-warning";
+import { accountOfScreen, learnedAccount } from "./desde";
 import { preferredAccountId, readLastAccount, rememberLastAccount } from "./last-account";
 import { offeredRecent, parseRecent, rawRecent, rememberRecent, safeStorage } from "./recent-categories";
 import { asksFirst, lineWarningOf, type LineWatch } from "./line-watch";
@@ -222,19 +230,24 @@ export interface RecordFormProps {
    * it in `groups`, and the form chooses it.
    */
   readonly onCategoryCreated?: (category: CategoryDto) => void;
+  /**
+   * Ruling P337 (#334): how much the person used each account lately: "Desde" and the account pickers list the most used
+   * first, and an expense's category preselects the account it was last paid from. Without it, by name and last used.
+   */
+  readonly accountUsage?: AccountUsageDto | null;
 }
 
 /** HU-E9-03, the QuickAdd artboard as a page: amount, description, category, accounts, date and time, Save. */
 export function RecordForm({
   space,
-  accounts,
+  accounts: givenAccounts,
   groups,
   formats,
   initialKind,
   initialNow,
   timeZone,
   profileZone = "UTC",
-  shared,
+  shared: givenShared,
   people,
   api: injected,
   edit,
@@ -243,8 +256,16 @@ export function RecordForm({
   holdNavigation,
   spaces = [],
   onCategoryCreated,
+  accountUsage = null,
 }: RecordFormProps) {
   const t = useTranslations("ledger");
+  // Ruling P337: the most used accounts first, wherever the form lists them.
+  const ranked = accountUsage?.accounts;
+  const accounts = useMemo(() => byUse(givenAccounts, ranked), [givenAccounts, ranked]);
+  const shared = useMemo(
+    () => givenShared && { ...givenShared, myAccounts: byUse(givenShared.myAccounts, ranked) },
+    [givenShared, ranked],
+  );
   const errors = useTranslations("errors");
   const tAccounts = useTranslations("accounts");
   // P305: what the form of another space handed over when the person moved it here; never in an edit.
@@ -341,13 +362,22 @@ export function RecordForm({
       : accountId;
     if (kind === "EXPENSE" && paidFrom) rememberLastAccount(paidFrom);
   };
+  // Ruling P321: the account handed over by Crear un fondo; ruling P337: the account whose screen the form was opened
+  // from. Either is where the form starts while it is one Desde offers, and a category never changes it.
+  const [givenAccount] = useState(() =>
+    edit
+      ? null
+      : ([carried?.accountId, accountOfScreen(returnTo, space.id)].find(
+          (id) => id && [...fromAccounts, ...(shared?.myAccounts ?? [])].some((a) => a.id === id),
+        ) ?? null),
+  );
   const [accountId, setAccountId] = useState<string | null>(() => {
     if (edit) return edit.initial.accountId;
-    // Ruling P321: the account handed over by Crear un fondo, while it is still one Desde offers.
-    const handed = carried?.accountId;
-    if (handed && fromAccounts.some((a) => a.id === handed)) return handed;
+    if (givenAccount && fromAccounts.some((a) => a.id === givenAccount)) return givenAccount;
     return preferredAccountId(fromAccounts, readLastAccount());
   });
+  // Ruling P337: once the person picks the account, a category no longer proposes one.
+  const [accountPicked, setAccountPicked] = useState(false);
   const [toAccountId, setToAccountId] = useState<string | null>(
     () =>
       edit?.initial.toAccountId ?? (fundTransfer && shared.funds.length === 1 ? shared.funds[0]!.id : null),
@@ -360,7 +390,14 @@ export function RecordForm({
   const [split, setSplit] = useState(
     () =>
       edit?.initial.split ??
-      (shared ? initialSplitDraft(shared, preferredAccountId(shared.myAccounts, readLastAccount())) : null),
+      (shared
+        ? initialSplitDraft(
+            shared,
+            givenAccount && shared.myAccounts.some((a) => a.id === givenAccount)
+              ? givenAccount
+              : preferredAccountId(shared.myAccounts, readLastAccount()),
+          )
+        : null),
   );
   const [unbuilt, setUnbuilt] = useState<"amount" | "account" | "toAccount" | "payer" | "split" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -484,6 +521,27 @@ export function RecordForm({
     [...accounts, ...(shared?.myAccounts ?? [])].find((a) => a.id === id)?.name ?? null;
   // #142 (P235, P236): only an expense of the form's own space, never a split with someone nor an edit.
   const chosenCategory = category ? (category.subcategoryId ?? category.categoryId) : null;
+  // Ruling P337: "Bancolombia: con la que sueles pagar Gas." while Desde holds the account the category was last paid from.
+  const paysFrom = sharedExpense
+    ? split?.payer.kind === "ME" || split?.payer.kind === "FOR_FUND"
+      ? split.payer.accountId
+      : null
+    : accountId;
+  const usual =
+    kind === "EXPENSE" && !edit
+      ? learnedAccount(
+          accountUsage,
+          chosenCategory,
+          sharedExpense && shared ? shared.myAccounts : fromAccounts,
+        )
+      : null;
+  const fromHint =
+    usual !== null && usual === paysFrom && chosenCategory !== null
+      ? t("who.usual", {
+          account: nameOf(usual) ?? "",
+          category: findCategory(groups, chosenCategory)?.category.name ?? "",
+        })
+      : null;
   // D29, board 9: a foreign-currency expense's base amount is only known once the server converts it, so the plan-line
   // warning (which reads base-currency lines) waits for MC4; it still applies to every base-currency expense.
   const warning =
@@ -571,6 +629,19 @@ export function RecordForm({
     },
     [clear],
   );
+  // Ruling P337: an expense's category preselects the account the person last paid it from, in Desde or as the account
+  // they pay from in a shared space, until they pick one themselves or the form was given one.
+  const chooseCategory = (choice: CategoryChoice) => {
+    setCategory(choice);
+    clear("category");
+    if (edit || kind !== "EXPENSE" || givenAccount !== null || !choice) return;
+    const leaf = choice.subcategoryId ?? choice.categoryId;
+    const learned = learnedAccount(accountUsage, leaf, fromAccounts);
+    if (learned && !accountPicked) setAccountId(learned);
+    const mine = shared ? learnedAccount(accountUsage, leaf, shared.myAccounts) : null;
+    if (mine && split && !split.payerChosen && (split.payer.kind === "ME" || split.payer.kind === "FOR_FUND"))
+      setSplit({ ...split, payer: { ...split.payer, accountId: mine } });
+  };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -872,10 +943,7 @@ export function RecordForm({
               offered={offeredGroups}
               recent={offered}
               value={category}
-              onChoose={(choice) => {
-                setCategory(choice);
-                clear("category");
-              }}
+              onChoose={chooseCategory}
               onMore={() => {
                 setPickerOpened(true);
                 setSheet("category");
@@ -904,6 +972,7 @@ export function RecordForm({
                 payerError={errorOf("payer")}
                 defaultSplit={!edit}
                 forFund={!edit}
+                fromHint={fromHint}
               />
             ) : null}
             <div role="group" aria-label={t("form.details")} className="flex flex-col">
@@ -1061,10 +1130,12 @@ export function RecordForm({
           accountId={accountId}
           onAccount={(id) => {
             setAccountId(id);
+            setAccountPicked(true);
             clear("account");
           }}
           people={known}
           newAccountHref={newAccountHref}
+          fromHint={fromHint}
           forWhom={forWhom}
           onForWhom={setForWhom}
           meId={ME}
@@ -1081,10 +1152,7 @@ export function RecordForm({
           groups={offeredGroups}
           value={category}
           recent={offered}
-          onChoose={(choice) => {
-            setCategory(choice);
-            clear("category");
-          }}
+          onChoose={chooseCategory}
           space={space}
           {...(onCategoryCreated
             ? {
@@ -1093,8 +1161,7 @@ export function RecordForm({
                   kind,
                   onCreated: (made: CategoryDto) => {
                     onCategoryCreated(made);
-                    setCategory({ categoryId: made.id, subcategoryId: null });
-                    clear("category");
+                    chooseCategory({ categoryId: made.id, subcategoryId: null });
                   },
                 },
               }
@@ -1109,6 +1176,7 @@ export function RecordForm({
         value={accountId}
         onChoose={(id) => {
           setAccountId(id);
+          setAccountPicked(true);
           if (id === toAccountId) setToAccountId(null);
           clear("account", "toAccount");
         }}

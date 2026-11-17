@@ -1,19 +1,32 @@
-import { useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import { queryOptions, useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
 import { lineWatchOf, peopleOf, sharedContextOf, type SharedExpenseContext } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
-import type { MemberDto, TransactionDto } from "@/shared/ui/api/dto";
+import type { Api } from "@/shared/ui/api/client";
+import type { AccountUsageDto, MemberDto, TransactionDto } from "@/shared/ui/api/dto";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { transactionQuery } from "./queries";
+import { read } from "../read";
+import { ledgerKeys, transactionQuery } from "./queries";
 
 /**
  * The record and edit forms' query hooks (P127 in the SPA, ADR 0006): each reads what its loader put in the cache and
  * hands the form its props. A module apart from the home's and the lists' hooks (`hooks.ts`), so the forms' routes
  * load only what the forms read.
  */
+
+/**
+ * Ruling P337 (#334): how much the person used each account lately, which orders "Desde" and learns its default. Only
+ * the record form reads it, never a loader, so the screens that share the ledger's queries do not carry it (ADR 0004):
+ * the form opens without it and orders its accounts once it arrives.
+ */
+export const accountUsageQuery = (api: Api) =>
+  queryOptions<AccountUsageDto>({
+    queryKey: ledgerKeys.accountUsage(),
+    queryFn: () => read(api.GET("/api/v1/me/account-usage")),
+  });
 
 /** Queries a screen reads only sometimes, as a plain list: hooks are called the same way on every render. */
 const when = <T>(yes: boolean, queries: T[]): T[] => (yes ? queries : []);
@@ -60,6 +73,8 @@ export const useRecord = (viewer: Viewer) => {
   const period = useQuery(periodQuery(api, spaceId, today));
   const label = period.data?.label;
   const report = useQuery({ ...lineReportQuery(api, spaceId, label ?? ""), enabled: label !== undefined });
+  // Ruling P337: never holds the form up; without it Desde lists by name and starts on the last account used.
+  const usage = useQuery(accountUsageQuery(api));
   const membersBySpace: Record<string, readonly MemberDto[]> = {};
   others.forEach((space, i) => {
     const members = memberReads[i]?.data;
@@ -71,6 +86,7 @@ export const useRecord = (viewer: Viewer) => {
     shared,
     people: shared ? undefined : peopleOf({ meUserId: viewer.me.id, spaces: others, membersBySpace }),
     lineWatch: report.data ? lineWatchOf(report.data) : null,
+    accountUsage: usage.data ?? null,
   };
 };
 

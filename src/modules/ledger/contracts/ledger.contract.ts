@@ -26,6 +26,7 @@ import {
 } from "@/shared/kernel";
 import { PALETTE } from "@/shared/kernel/style";
 import type {
+  AccountUsage,
   ActivityItem,
   AuditEntry,
   ConversionTarget,
@@ -1039,6 +1040,34 @@ export const MyActivityQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_ACTIVITY).default(10),
 });
 
+/** Ruling P337 (#334): what "Desde" orders the caller's accounts by and preselects for a category. */
+export const AccountUsageSchema = z.object({
+  since: z.iso.date().describe("The first day counted, 89 days before today in the caller's time zone."),
+  accounts: z
+    .array(
+      z.object({
+        accountId: z.string(),
+        uses: z
+          .number()
+          .int()
+          .describe("The movements that took money out of the account or into it, adjustments aside."),
+        lastUsedOn: z.iso.date(),
+      }),
+    )
+    .describe(
+      "The caller's active accounts that moved money since `since`, the most used first; a tie, the latest.",
+    ),
+  categories: z
+    .array(z.object({ categoryId: z.string(), accountId: z.string() }))
+    .describe("Per expense category, the caller's account its latest expense since `since` was paid from."),
+});
+
+export const accountUsageDto = (usage: AccountUsage): z.infer<typeof AccountUsageSchema> => ({
+  since: usage.since,
+  accounts: usage.accounts.map((a) => ({ accountId: a.accountId, uses: a.uses, lastUsedOn: a.lastUsedOn })),
+  categories: usage.categories.map((c) => ({ categoryId: c.categoryId, accountId: c.accountId })),
+});
+
 const ActivityIconSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("SYMBOL"), name: z.string() }),
   z.object({ kind: z.literal("EMOJI"), value: z.string() }),
@@ -1169,6 +1198,20 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
       responses: {
         "200": { description: "The movements, newest first", content: jsonContent(MyActivitySchema) },
         ...problems({ "401": "Unauthenticated", "422": "ValidationFailed, InvalidDate" }),
+      },
+    },
+  },
+  "/api/v1/me/account-usage": {
+    get: {
+      operationId: "getAccountUsage",
+      summary:
+        "How much the caller used each of their accounts over the last 90 days, and with which categories",
+      description:
+        "Ruling P337: over the caller's live movements of the last 90 days in their time zone (today included), each active account they own with how many movements took money out of it or into it (an expense's payment, or the source or destination of an income, a transfer or a settlement; adjustments aside), the most used first, and per expense category the account its latest expense was paid from. Computed on read (D7).",
+      ...securedByUser,
+      responses: {
+        "200": { description: "The caller's account usage", content: jsonContent(AccountUsageSchema) },
+        ...problems({ "401": "Unauthenticated" }),
       },
     },
   },

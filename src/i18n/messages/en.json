@@ -734,6 +734,7 @@
       "add": "Add",
       "otherPaid": "{name} paid with their own money: none of your accounts moves.",
       "onlyBetween": "Only between you and {name}",
+      "usual": "{account}: the one you usually pay {category} with.",
       "line": {
         "yourPart": "Your part",
         "owesYou": "Owes you",

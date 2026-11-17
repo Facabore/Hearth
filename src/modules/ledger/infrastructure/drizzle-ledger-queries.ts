@@ -18,8 +18,10 @@ import {
   type SQL,
 } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
+import { accounts } from "@/modules/accounts/infrastructure/accounts.schema";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate } from "@/shared/kernel";
+import type { AccountUsageQuery, AccountUse, CategoryAccount } from "../application/get-account-usage";
 import type { RecentQuery } from "../application/list-my-activity";
 import type {
   BalanceMovement,
@@ -85,8 +87,72 @@ const rangeRows = (ranges: readonly DateRange[]) =>
 const literalLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
-export class DrizzleLedgerQueries implements TransactionQuery, TransactionsAcrossQuery, LastMovementQuery {
+export class DrizzleLedgerQueries
+  implements TransactionQuery, TransactionsAcrossQuery, LastMovementQuery, AccountUsageQuery
+{
   constructor(private readonly tm: DrizzleTransactionManager) {}
+
+  /**
+   * Ruling P337 (#334): one statement over the live movements dated `from` or later that moved money out of or into an
+   * active account `userId` owns: an expense's payments, and the source or destination of every other type but an
+   * adjustment. A movement counts once per account, however many of its legs use it.
+   */
+  async accountUsage(
+    userId: string,
+    from: LocalDate,
+  ): Promise<{ accounts: AccountUse[]; categories: CategoryAccount[] }> {
+    const { rows } = await this.tm.executor().execute<{
+      kind: "account" | "category";
+      account_id: string;
+      category_id: string | null;
+      uses: number;
+      last_used_on: string;
+    }>(sql`
+      WITH mine AS (
+        SELECT a.id FROM ${accounts} a WHERE a.owner_user_id = ${userId} AND a.archived_at IS NULL
+      ), legs AS (
+        SELECT t.id, p.account_id, t.date, t.type, t.category_id,
+          coalesce(t.occurred_at, '-infinity'::timestamptz) AS at, t.created_at
+        FROM ${payments} p JOIN ${transactions} t ON t.id = p.transaction_id
+        WHERE p.account_id IN (SELECT id FROM mine) AND t.deleted_at IS NULL AND t.date >= ${from}
+        UNION
+        SELECT t.id, t.source_account_id, t.date, t.type, t.category_id,
+          coalesce(t.occurred_at, '-infinity'::timestamptz), t.created_at
+        FROM ${transactions} t
+        WHERE t.source_account_id IN (SELECT id FROM mine) AND t.type <> 'ADJUSTMENT'
+          AND t.deleted_at IS NULL AND t.date >= ${from}
+        UNION
+        SELECT t.id, t.destination_account_id, t.date, t.type, t.category_id,
+          coalesce(t.occurred_at, '-infinity'::timestamptz), t.created_at
+        FROM ${transactions} t
+        WHERE t.destination_account_id IN (SELECT id FROM mine) AND t.type <> 'ADJUSTMENT'
+          AND t.deleted_at IS NULL AND t.date >= ${from}
+      )
+      SELECT 'account' AS kind, account_id, NULL::uuid AS category_id, count(DISTINCT id)::int AS uses,
+        max(date)::text AS last_used_on
+      FROM legs GROUP BY account_id
+      UNION ALL
+      SELECT * FROM (
+        SELECT DISTINCT ON (category_id) 'category', account_id, category_id, 0, date::text
+        FROM legs WHERE type = 'EXPENSE'
+        ORDER BY category_id, date DESC, at DESC, created_at DESC, id DESC
+      ) latest
+    `);
+    return {
+      accounts: rows
+        .filter((row) => row.kind === "account")
+        .map((row) => ({
+          accountId: row.account_id,
+          uses: Number(row.uses),
+          lastUsedOn: row.last_used_on as LocalDate,
+        })),
+      categories: rows.flatMap((row) =>
+        row.kind === "category" && row.category_id !== null
+          ? [{ categoryId: row.category_id, accountId: row.account_id }]
+          : [],
+      ),
+    };
+  }
 
   async list(
     filter: TransactionFilter,

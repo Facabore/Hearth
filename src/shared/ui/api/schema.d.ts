@@ -716,6 +716,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/account-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How much the caller used each of their accounts over the last 90 days, and with which categories
+         * @description Ruling P337: over the caller's live movements of the last 90 days in their time zone (today included), each active account they own with how many movements took money out of it or into it (an expense's payment, or the source or destination of an income, a transfer or a settlement; adjustments aside), the most used first, and per expense category the account its latest expense was paid from. Computed on read (D7).
+         */
+        get: operations["getAccountUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/expenses": {
         parameters: {
             query?: never;
@@ -5926,6 +5946,54 @@ export interface operations {
             };
             /** @description ValidationFailed, InvalidDate */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getAccountUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's account usage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: date
+                         * @description The first day counted, 89 days before today in the caller's time zone.
+                         */
+                        since: string;
+                        /** @description The caller's active accounts that moved money since `since`, the most used first; a tie, the latest. */
+                        accounts: {
+                            accountId: string;
+                            /** @description The movements that took money out of the account or into it, adjustments aside. */
+                            uses: number;
+                            /** Format: date */
+                            lastUsedOn: string;
+                        }[];
+                        /** @description Per expense category, the caller's account its latest expense since `since` was paid from. */
+                        categories: {
+                            categoryId: string;
+                            accountId: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

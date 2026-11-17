@@ -68,3 +68,5 @@ export type PersonalSpendingByGroupDto = Json<
 export type PersonalTrendDto = Json<paths["/api/v1/me/trend"]["get"]["responses"][200]>;
 export type LineTrendDto = Json<paths["/api/v1/spaces/{spaceId}/reports/trend"]["get"]["responses"][200]>;
 export type CashFlowDto = Json<paths["/api/v1/me/cash-flow"]["get"]["responses"][200]>;
+/** Ruling P337: how much the caller used each account lately, and the account each expense category was paid from. */
+export type AccountUsageDto = Json<paths["/api/v1/me/account-usage"]["get"]["responses"][200]>;

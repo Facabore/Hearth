@@ -734,6 +734,7 @@
       "add": "Agregar",
       "otherPaid": "{name} lo pagó con su plata: no se mueve ninguna de tus cuentas.",
       "onlyBetween": "Solo entre tú y {name}",
+      "usual": "{account}: con la que sueles pagar {category}.",
       "line": {
         "yourPart": "Tu parte",
         "owesYou": "Te debe",

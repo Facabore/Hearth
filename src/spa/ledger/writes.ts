@@ -138,6 +138,8 @@ const invalidateMovement = (queryClient: QueryClient, spaceId: string): void => 
     moduleKeys.accounts(spaceId),
     moduleKeys.reports(spaceId),
     moduleKeys.balances(spaceId),
+    // Ruling P337: a movement changes which accounts the person uses most, and with which category.
+    ledgerKeys.accountUsage(),
   ];
   const personal = personalOf(queryClient);
   // From a shared space, the person's own accounts may pay, and My spending counts their share (D11).
