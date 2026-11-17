@@ -51,6 +51,10 @@
       "followsPersonal": "{value} · like your {space} space",
       "hint": "Your accounts and movements keep their own currency. This is the one we add everything up in, on Home and in your personal view.",
       "spaceNote": "{space}'s currency"
+    },
+    "handle": {
+      "label": "Your @username",
+      "hint": "This is how people find you to add you to Friends: only by your exact @. Leave it empty and nobody finds you."
     }
   }
 }

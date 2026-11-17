@@ -316,3 +316,58 @@ describe("settings: the way to the trust page (issue #146, ruling P290)", () => 
     );
   });
 });
+
+describe("settings: the person's @usuario (ruling P339, S2)", () => {
+  const field = () => screen.getByRole("textbox", { name: "Tu @usuario" });
+
+  it("shows the current @ and stores a new one when the field is left, as the API wrote it", async () => {
+    const { api, requests } = fakeApi({
+      "PATCH /api/v1/me": () => jsonResponse(meDto({ handle: "ana_lopez" })),
+    });
+    const { container } = renderWithIntl(
+      <SettingsForm backHref="/spaces/sp-personal" me={meDto({ handle: "ana" })} api={api} />,
+    );
+    expect(field()).toHaveValue("ana");
+    expect(screen.getByText(/solo con tu @ exacto/)).toBeInTheDocument();
+    await userEvent.clear(field());
+    await userEvent.type(field(), "@Ana_Lopez");
+    await userEvent.tab();
+    await waitFor(() => expect(field()).toHaveValue("ana_lopez"));
+    expect(requests).toHaveLength(1);
+    expect(await requests[0]!.json()).toEqual({ handle: "Ana_Lopez" });
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("clears the @ with an empty field", async () => {
+    const { api, requests } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(meDto()) });
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto({ handle: "ana" })} api={api} />);
+    await userEvent.clear(field());
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(await requests[0]!.json()).toEqual({ handle: null });
+  });
+
+  it("says why an @ is refused, under the field, until the person types again", async () => {
+    const { api } = fakeApi({
+      "PATCH /api/v1/me": async (request) => {
+        const { handle } = (await request.json()) as { handle: string };
+        return handle === "ab" ? problemResponse(422, "InvalidHandle") : problemResponse(409, "HandleTaken");
+      },
+    });
+    renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
+    expect(field()).toHaveValue("");
+    await userEvent.type(field(), "ab{Enter}");
+    expect(
+      await screen.findByText(
+        "Tu @ debe tener entre 3 y 20 caracteres: letras minúsculas, números y guion bajo.",
+      ),
+    ).toBeInTheDocument();
+    expect(field()).toHaveValue("ab");
+    expect(field()).toHaveAttribute("aria-invalid", "true");
+    await userEvent.type(field(), "c");
+    expect(screen.queryByText(/Tu @ debe tener/)).not.toBeInTheDocument();
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByText("Alguien más ya usa ese @. Prueba con otro.")).toBeInTheDocument();
+    expect(field()).toHaveValue("abc");
+  });
+});

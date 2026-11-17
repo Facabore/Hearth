@@ -51,6 +51,10 @@
       "followsPersonal": "{value} · como tu espacio {space}",
       "hint": "Tus cuentas y movimientos siguen en su moneda. Con esta sumamos todo en Inicio y en tu vista personal.",
       "spaceNote": "la de {space}"
+    },
+    "handle": {
+      "label": "Tu @usuario",
+      "hint": "Así te encuentran para agregarte en Amigos: solo con tu @ exacto. Si lo dejas vacío, nadie te encuentra."
     }
   }
 }

@@ -13,6 +13,7 @@ import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { Icon, ScreenHeader, Sheet } from "@/shared/ui";
 import { AppearanceSection, appLocaleOf, useDeviceTheme } from "./appearance-section";
 import { CurrencySection } from "./currency-section";
+import { HandleSection } from "./handle-section";
 import { formatSample } from "./format-preview";
 import { RegionSection } from "./region-section";
 import { SummaryRow } from "./summary-row";
@@ -24,7 +25,7 @@ import { chooseRegion, regionState, type FormatField, type RegionField } from ".
 const FormatsFields = dynamic(() => import("./formats-fields").then((module) => module.FormatsFields), {
   ssr: false,
 });
-type Field = FormatField | RegionField | "displayCurrency";
+type Field = FormatField | RegionField | "displayCurrency" | "handle";
 type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content"]["application/json"];
 
 /** Rulings P149 and P152: the stored language changes only here; the visitor cookie follows it. */
@@ -41,7 +42,8 @@ const trustFromSpaceHref = (backHref: string): string => `/trust?from=${backHref
 /**
  * HU-E9-13, the Settings artboard: no Save button; each choice is stored as it is made (ruling P137). Decision U8
  * (#224): three summary rows, each with its current values, and each opening its own sheet: Apariencia e idioma first
- * (#176), then Números y fechas, whose row writes the preview's own sample, then the time zone (ruling P266).
+ * (#176), then Números y fechas, whose row writes the preview's own sample, then the time zone (ruling P266). Ruling
+ * P339: first of all, the person's @usuario.
  */
 export function SettingsForm({
   me,
@@ -105,6 +107,8 @@ export function SettingsForm({
     const next: MeDto = { ...current, preferences: { ...current.preferences, displayCurrency: currency } };
     void send("displayCurrency", next, { displayCurrency: currency } as MePatch);
   };
+  // P339: the @ is not shown ahead of the API, which normalizes it and may refuse it: what was typed stays until then.
+  const sendHandle = (handle: string | null) => void send("handle", current, { handle });
 
   return (
     <div className="flex flex-col gap-3">
@@ -113,6 +117,13 @@ export function SettingsForm({
         {/* The screen draws the shell itself: a prefetch of the space's home would load its script again (#196). */}
         <ScreenHeader backHref={backHref} title={t("title")} prefetch={false} />
       </div>
+      {/* P339: the person's own @, by which others find them, before the app's settings. */}
+      <HandleSection
+        handle={current.handle}
+        onCommit={sendHandle}
+        problem={problems.handle ?? null}
+        saved={saved === "handle"}
+      />
       {/* Issue #176: theme and language, the most changed, come first. */}
       <SummaryRow
         title={t("appearance")}
