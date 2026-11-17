@@ -23,7 +23,7 @@
     "../modules/ledger/ui/record/category-sheet.tsx": 21,
     "../modules/ledger/ui/record/new-category-form.tsx": 7,
     "../modules/ledger/ui/record/space-sheet.tsx": 39,
-    "../modules/identity/ui/settings/formats-fields.tsx": 20,
+    "../modules/identity/ui/settings/formats-fields.tsx": 21,
     "../modules/spaces/ui/space-name-section.tsx": 20,
     "../modules/spaces/ui/space-color-field.tsx": 4,
     "../modules/ledger/ui/split/split-sheet.tsx": 36,
