@@ -575,6 +575,24 @@ const balancesRoute = createRoute({
 });
 
 /**
+ * Ruling P338: one person of Amigos, the other member of a direct space, under the personal space's address; stacked,
+ * Volver to Amigos. Any other space, or a direct space that is not the person's, is not found.
+ */
+const friendRoute = createRoute({
+  getParentRoute: () => spaceRoute,
+  path: "friends/$friendSpaceId",
+  staticData: { ...stackedScreen, areas: ["members"] },
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await sharedSpaces()).loadFriend({ ...context, cause }, params.spaceId, params.friendSpaceId),
+    ),
+  pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HistoryPending"),
+  errorComponent: ScreenError,
+  component: lazyRouteComponent(() => import("./routes/friend"), "FriendRoute"),
+});
+
+/**
  * Ruling P157: the invitation and claim pages, open to anyone, signed in or not: in the public frame, but without its
  * redirect of a signed-in person, and each page reads the session it needs.
  */
@@ -854,6 +872,7 @@ export const routeTree = rootRoute.addChildren([
     membersRoute,
     historyRoute,
     balancesRoute,
+    friendRoute,
     planRoute,
     linesRoute,
     groupsRoute,

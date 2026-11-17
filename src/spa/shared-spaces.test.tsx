@@ -29,6 +29,7 @@ const server = (signedIn = true) => {
     invitations: [invitationDto()] as InvitationDto[],
     owed: 100_000,
     guests: [] as string[],
+    friendName: "Mamá",
   };
   const routes: Record<string, FakeHandler> = {
     "GET /api/v1/me": () => (signedIn ? jsonResponse(meDto()) : problemResponse(401, "Unauthenticated")),
@@ -76,7 +77,11 @@ const server = (signedIn = true) => {
         totals: { available: cop(0), netWorth: cop(0) },
       }),
     "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [OCTOBER] }),
-    "GET /api/v1/me/friends": () => jsonResponse({ items: [friendDto()] }),
+    "GET /api/v1/me/friends": () => jsonResponse({ items: [friendDto({ name: state.friendName })] }),
+    "PATCH /api/v1/me/friends/{spaceId}": async (request) => {
+      state.friendName = ((await request.json()) as { nickname: string }).nickname;
+      return jsonResponse({ spaceId: "sp-mama", other: friendDto().other, name: state.friendName });
+    },
     "GET /api/v1/spaces/{spaceId}/members/{memberId}/balance-history": (_, { memberId }) =>
       jsonResponse({
         memberId,
@@ -229,6 +234,41 @@ describe("shared spaces in the SPA (slice 4 of #199, ADR 0006)", () => {
     expect(screen.queryByText("Personal es solo tuyo: aquí no hay nada que saldar.")).not.toBeInTheDocument();
     expect(count(spa.requests, "GET", /\/me\/friends$/)).toBe(1);
     expect(count(spa.requests, "GET", /\/spaces\/sp-personal\/balances$/)).toBe(0);
+  });
+
+  it("opens a person of Amigos under the personal space, stacked with its way back to Amigos (P338)", async () => {
+    const { routes, state } = server();
+    state.spaces.push(spaceDto({ id: "sp-mama", name: "Mamá", kind: "DIRECT", role: "OWNER" }));
+    const spa = renderSpa("/spaces/sp-personal/friends/sp-mama", routes);
+    expect(await screen.findByRole("heading", { level: 2, name: "Mamá" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/balances",
+    );
+    expect(screen.queryByRole("navigation", { name: "Principal" })).not.toBeInTheDocument();
+    expect(count(spa.requests, "GET", /\/spaces\/sp-mama\/members\/m-ana-mama\/balance-history$/)).toBe(1);
+    await waitFor(() => expect(document.title).toBe("Mamá · Hearth"));
+  });
+
+  it("renames a person from Apodo and reads Amigos again, not the profile (P338)", async () => {
+    const { routes, state } = server();
+    state.spaces.push(spaceDto({ id: "sp-mama", name: "Mamá", kind: "DIRECT", role: "OWNER" }));
+    const spa = renderSpa("/spaces/sp-personal/friends/sp-mama", routes);
+    await userEvent.click(await screen.findByRole("button", { name: "Apodo de Mamá" }));
+    const sheet = await screen.findByRole("dialog", { name: "Apodo de Mamá" });
+    const me = count(spa.requests, "GET", /\/me$/);
+    await userEvent.clear(within(sheet).getByRole("textbox", { name: "Apodo" }));
+    await userEvent.type(within(sheet).getByRole("textbox", { name: "Apodo" }), "Mami");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Guardar" }));
+    expect(await screen.findByRole("heading", { level: 2, name: "Mami" })).toBeVisible();
+    expect(count(spa.requests, "PATCH", /\/me\/friends\/sp-mama$/)).toBe(1);
+    expect(count(spa.requests, "GET", /\/me$/)).toBe(me);
+  });
+
+  it("answers a space under Amigos that is not one of the person's direct spaces with the not-found screen (P338)", async () => {
+    const { routes } = server();
+    renderSpa("/spaces/sp-personal/friends/sp-household", routes);
+    expect(await screen.findByRole("heading", { name: es.notFound.title })).toBeVisible();
   });
 
   it("settles up from a suggestion: the balances, the suggestions and the ledger are read again, the profile is not", async () => {

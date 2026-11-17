@@ -183,6 +183,35 @@
       "TRANSFER": "Transfer",
       "SETTLEMENT": "Payment",
       "ADJUSTMENT": "Adjustment"
+    },
+    "person": {
+      "guest": "Guest · not on Hearth",
+      "nickname": "Nickname",
+      "nicknameOf": "Nickname for {name}",
+      "owed": "{name} owes you",
+      "owes": "You owe {name}",
+      "settled": "You and {name} are settled up",
+      "settle": "Settle up",
+      "record": "Record with {name}",
+      "between": "Between you and {name}",
+      "empty": "Nothing between you two yet.",
+      "more": "Load more",
+      "private": "Only you two see this. It doesn't mix with your groups or your expenses.",
+      "invite": "Invite them to Hearth: they'll see what's between you two",
+      "inviteAction": "Invite",
+      "youPaid": "you paid them",
+      "paidYou": "{name} paid you",
+      "forgivenToYou": "{name} forgave your debt",
+      "forgivenByYou": "you forgave their debt",
+      "youPaidShare": "you paid · their share",
+      "theyPaidShare": "{name} paid · your share"
+    },
+    "nickname": {
+      "title": "Nickname for {name}",
+      "label": "Nickname",
+      "userNote": "Only you see it. Leave it empty to call them {name} again.",
+      "guestNote": "It's their name on Hearth while they don't use the app.",
+      "save": "Save"
     }
   }
 }

@@ -304,15 +304,19 @@ Then("the planner is shown", async ({ page, world }) => {
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-/** Ruling P302 (#240): Saldos in the personal space says the person is al día, with nothing to settle. */
-Then("the balances page of her personal space is shown", async ({ page, world }) => {
+/** Ruling P338 (amends P302): the personal space's Amigos tab, at its Saldos address. */
+When("{string} opens the Amigos tab", async ({ page, world }, name: string) => {
+  expect(name).toBe(world.user!.name);
+  await page.getByRole("link", { name: world.t("shell.nav.friends"), exact: true }).click();
+  await expect(page).toHaveURL(/\/balances$/);
+});
+
+/** Ruling P338: Amigos without anyone yet teaches where people come from. */
+Then("the Amigos page of her personal space is shown", async ({ page, world }) => {
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/balances$`));
-  await expect(page.getByText(world.t("balances.you.settled"), { exact: true })).toBeVisible();
-  await expect(
-    // The personal space is named "Personal" when it is created (space.ts).
-    page.getByText(world.t("balances.personalNote", { space: "Personal" })),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: world.t("shell.nav.balances"), exact: true })).toHaveAttribute(
+  await expect(page.getByRole("heading", { level: 1, name: world.t("friends.title") })).toBeVisible();
+  await expect(page.getByText(world.t("friends.empty"))).toBeVisible();
+  await expect(page.getByRole("link", { name: world.t("shell.nav.friends"), exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );

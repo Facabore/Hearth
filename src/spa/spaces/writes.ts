@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { MeDto, SpaceDto } from "@/shared/ui/api/dto";
 import { queryKeys } from "../queries";
 import { moduleKeys } from "../reads";
+import { friendsKey } from "../shell";
 import type { WritePlanner } from "../write-plan";
 
 const SPACE = "/api/v1/spaces/{spaceId}";
@@ -42,8 +43,19 @@ const joined = (queryClient: QueryClient, space: SpaceDto) => {
  * - Signing out leaves the cache to the sign-in screen's guard, which drops the person's answers.
  * - A preference changes every format on every screen, and the profile's answer is the whole profile: it replaces the
  *   cached one, so every screen formats again without reading anything.
+ * - An apodo (P338) renames the person in Amigos, and a guest's in its direct space's members and balances.
  */
 export const spaceWrites: WritePlanner = (call) => {
+  if (call.method === "PATCH" && call.path === "/api/v1/me/friends/{spaceId}") {
+    const { spaceId = "" } = call.params;
+    return {
+      accepted: (queryClient) => {
+        void queryClient.invalidateQueries({ queryKey: friendsKey });
+        void queryClient.invalidateQueries({ queryKey: moduleKeys.members(spaceId) });
+        void queryClient.invalidateQueries({ queryKey: moduleKeys.balances(spaceId) });
+      },
+    };
+  }
   if (call.method === "POST" && (call.path === "/api/v1/spaces" || ACCEPTS.has(call.path)))
     return { accepted: (queryClient, data) => joined(queryClient, data as SpaceDto) };
   // The members (pending invitations under them) and every balance, which a guest's removal or a role may change.

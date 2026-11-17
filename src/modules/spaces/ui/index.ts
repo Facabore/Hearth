@@ -9,6 +9,7 @@ export { LazySpaceNameSection } from "./lazy-space-name-section";
 export { LazyAddGuestsSheet } from "./members/lazy-add-guests-sheet";
 export { controlsFor, type MemberControls } from "./members/space-controls";
 export { memberLabel, type MemberLabelT } from "./members/member-label";
+export { GuestInvite } from "./members/guest-invite";
 export {
   SpaceStanding,
   type MyBalanceDto,

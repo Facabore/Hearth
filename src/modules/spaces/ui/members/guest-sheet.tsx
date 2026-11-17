@@ -11,6 +11,7 @@ import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { MemberDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { formatDate, formatMoney, type Formats } from "@/shared/ui/format/formatters";
+import { createClaimLink, type ClaimLink } from "./claim-link";
 import type { MemberControls } from "./space-controls";
 
 /** The board's soft red removal button: a 56 px target, no border. */
@@ -65,7 +66,7 @@ export function GuestSheet({
   const common = useTranslations("common");
   const router = useRouter();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
-  const [claim, setClaim] = useState<{ url: string; expiresAt: string } | null>(null);
+  const [claim, setClaim] = useState<ClaimLink | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
@@ -78,16 +79,9 @@ export function GuestSheet({
   const createClaim = async () => {
     setPending(true);
     setProblem(null);
-    try {
-      const { data, error, response } = await api.POST(
-        "/api/v1/spaces/{spaceId}/guests/{memberId}/claim-links",
-        path,
-      );
-      if (response.ok && data) setClaim({ url: data.url, expiresAt: data.invitation.expiresAt });
-      else setProblem(problemFrom(error, response));
-    } catch (error) {
-      setProblem(problemFrom(error, undefined));
-    }
+    const created = await createClaimLink(api, space.id, guest.id);
+    if ("claim" in created) setClaim(created.claim);
+    else setProblem(created.problem);
     setPending(false);
   };
 
