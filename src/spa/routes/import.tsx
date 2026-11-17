@@ -23,7 +23,7 @@ import { useViewer } from "../viewer";
  * of the import route (ADR 0004).
  */
 const ImportCategoriesScreen = lazy(() =>
-  import("@/modules/portability/ui/import-categories-screen").then((module) => ({
+  import("../portability/categories-step").then((module) => ({
     default: module.ImportCategoriesScreen,
   })),
 );

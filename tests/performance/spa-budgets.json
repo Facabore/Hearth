@@ -49,7 +49,7 @@
     "referrals/loaders.ts": 2,
     "routes/data.tsx": 16,
     "routes/import.tsx": 22,
-    "../modules/portability/ui/import-categories-screen.tsx": 26,
+    "portability/categories-step.tsx": 26,
     "portability/loaders.ts": 3,
     "routes/new-space.tsx": 16,
     "accounts/writes.ts": 2,
