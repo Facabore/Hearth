@@ -112,9 +112,19 @@ export function FriendsScreen({
                       <span className={`${AMOUNT_ROW_LABEL} flex flex-col`}>
                         <span className="font-medium [overflow-wrap:anywhere] text-ink">{friend.name}</span>
                         <span className="text-[13px] [overflow-wrap:anywhere] text-muted">
-                          {last
-                            ? `${last.description || t(`type.${last.type}`)} · ${dayOf(last.date)}`
-                            : t("noMovements")}
+                          {[
+                            // Ruling P339: who they are first, the registered person's @ or that they do not use Hearth.
+                            friend.other.handle
+                              ? `@${friend.other.handle}`
+                              : friend.other.kind === "GUEST"
+                                ? t("person.guest")
+                                : null,
+                            last
+                              ? `${last.description || t(`type.${last.type}`)} · ${dayOf(last.date)}`
+                              : t("noMovements"),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       </span>
                       <span className={`${AMOUNT_ROW_AMOUNT} flex flex-col items-end`}>

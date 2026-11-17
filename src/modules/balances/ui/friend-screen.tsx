@@ -99,7 +99,12 @@ export function FriendScreen({
   const here = `/spaces/${personalSpaceId}/friends/${space.id}`;
   const canSettle = controlsFor(space.role, space.kind).recordMoney && members.some((m) => m.id === me);
   const guest = friend.other.kind === "GUEST";
-  const subtitle = guest ? t("person.guest") : friend.other.nickname ? friend.other.displayName : undefined;
+  // Ruling P339: a registered person's @ under their name, after their own name when an apodo stands in for it.
+  const handle = friend.other.handle ? `@${friend.other.handle}` : undefined;
+  const subtitle = guest
+    ? t("person.guest")
+    : [friend.other.nickname ? friend.other.displayName : undefined, handle].filter(Boolean).join(" · ") ||
+      undefined;
   const [naming, setNaming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [settling, setSettling] = useState<Settling | null>(null);

@@ -11591,6 +11591,10 @@
                                   "string",
                                   "null"
                                 ]
+                              },
+                              "handle": {
+                                "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -11759,6 +11763,10 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "handle": {
+                          "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
+                          "type": "string"
                         }
                       },
                       "required": [
@@ -11942,6 +11950,10 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "handle": {
+                          "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
+                          "type": "string"
                         }
                       },
                       "required": [

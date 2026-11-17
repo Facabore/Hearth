@@ -23,8 +23,15 @@ export interface LastMovementSource {
   lastMovementsIn(spaceIds: readonly string[]): Promise<readonly LastMovement[]>;
 }
 
+/** Ruling P339: the @usuario of each registered person who picked one; bound to identity by the composition root. */
+export interface FriendHandles {
+  handlesOf(userIds: readonly string[]): Promise<ReadonlyMap<string, string>>;
+}
+
 /** Ruling P338: one person in Amigos, the other member of one of the viewer's direct spaces. */
-export interface Friend extends FriendName {
+export interface Friend extends Omit<FriendName, "other"> {
+  /** Ruling P339: `handle` is the registered person's @usuario, absent for a guest or someone who picked none. */
+  readonly other: FriendName["other"] & { readonly handle?: string };
   readonly spaceId: string;
   readonly currency: string;
   readonly me: { readonly memberId: string };
@@ -39,6 +46,8 @@ export interface ListMyFriendsDeps extends BalancesDeps {
   readonly spaces: Pick<SpaceRepository, "listForUser">;
   readonly aliases: Pick<FriendNameRepository, "peerAliasesOf">;
   readonly movements: LastMovementSource;
+  /** Ruling P339: left out, no row carries a handle. */
+  readonly handles?: FriendHandles;
 }
 
 /** Newest last movement first, people without one last; then by name, then by space so the order is total. */
@@ -69,6 +78,7 @@ export const createListMyFriends = (deps: ListMyFriendsDeps): ListMyFriends => {
     ]);
     const aliasOf = new Map(aliases.map((row) => [row.spaceId, row.alias]));
     const lastOf = new Map(movements.map(({ spaceId, ...movement }) => [spaceId, movement]));
+    const peers = new Map<string, string>();
     const friends = await Promise.all(
       direct.map(async (space): Promise<Friend | null> => {
         const balances = await getBalances({ spaceId: space.id, userId });
@@ -77,6 +87,7 @@ export const createListMyFriends = (deps: ListMyFriendsDeps): ListMyFriends => {
         const me = members.find((member) => member.userId === userId);
         const other = me && directPeer(members, me.id);
         if (!me || !other) return null;
+        if (other.userId) peers.set(space.id, other.userId);
         return {
           spaceId: space.id,
           currency: balances.value.currency,
@@ -87,7 +98,17 @@ export const createListMyFriends = (deps: ListMyFriendsDeps): ListMyFriends => {
         };
       }),
     );
-    return ok(friends.filter((friend) => friend !== null).sort(friendOrder));
+    const handles = deps.handles ? await deps.handles.handlesOf([...new Set(peers.values())]) : new Map();
+    return ok(
+      friends
+        .filter((friend) => friend !== null)
+        .map((friend) => {
+          const peer = peers.get(friend.spaceId);
+          const handle = peer === undefined ? undefined : handles.get(peer);
+          return handle === undefined ? friend : { ...friend, other: { ...friend.other, handle } };
+        })
+        .sort(friendOrder),
+    );
   };
 };
 

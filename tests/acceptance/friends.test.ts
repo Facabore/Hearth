@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as directSplit } from "@/app/api/v1/direct-splits/route";
 import { PATCH as setNickname } from "@/app/api/v1/me/friends/[spaceId]/route";
+import { PATCH as updateMe } from "@/app/api/v1/me/route";
 import { GET as listFriends } from "@/app/api/v1/me/friends/route";
 import { GET as listMembers } from "@/app/api/v1/spaces/[spaceId]/members/route";
 import { setContainerForTests, type Container } from "@/composition/container";
@@ -19,7 +20,13 @@ afterAll(async () => {
 interface FriendDto {
   spaceId: string;
   me: { memberId: string };
-  other: { memberId: string; kind: "USER" | "GUEST"; displayName: string; nickname: string | null };
+  other: {
+    memberId: string;
+    kind: "USER" | "GUEST";
+    displayName: string;
+    nickname: string | null;
+    handle?: string;
+  };
   name: string;
   net: MoneyDto;
   lastMovement: { transactionId: string; date: string; description: string; type: string } | null;
@@ -183,5 +190,19 @@ describe("Amigos: one row per person a direct space is shared with (P338)", () =
     expect(await problemOf(await nickname(h.ana, taxi.spaceId, "ana"))).toEqual([409, "MemberNameTaken"]);
     expect(await memberNamesIn(h.ana, taxi.spaceId)).toEqual(["Ana", "Pedro"]);
     expect((await friendsOf(h.ana)).map((f) => f.name)).toEqual(["Pedro", "Juan"]);
+  });
+
+  it("shows a registered friend's @usuario once they pick one, and none for a guest (P339)", async () => {
+    const { h, dinner, taxi } = await anaWithJuanAndPedro();
+    const before = await friendsOf(h.ana.personal);
+    expect(before.find((f) => f.spaceId === dinner.spaceId)?.other.handle).toBeUndefined();
+    const picked = await call(updateMe, "PATCH", "/api/v1/me", {
+      user: h.juan.personal,
+      body: { handle: "juanp" },
+    });
+    expect(picked.status).toBe(200);
+    const after = await friendsOf(h.ana.personal);
+    expect(after.find((f) => f.spaceId === dinner.spaceId)?.other.handle).toBe("juanp");
+    expect(after.find((f) => f.spaceId === taxi.spaceId)?.other.handle).toBeUndefined();
   });
 });

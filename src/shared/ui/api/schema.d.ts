@@ -8705,6 +8705,8 @@ export interface operations {
                                 displayName: string;
                                 /** @description The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName */
                                 nickname: string | null;
+                                /** @description P339: the registered person's @usuario; absent for a guest or someone who picked none */
+                                handle?: string;
                             };
                             /** @description What the viewer calls them: nickname ?? displayName */
                             name: string;
@@ -8768,6 +8770,8 @@ export interface operations {
                             displayName: string;
                             /** @description The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName */
                             nickname: string | null;
+                            /** @description P339: the registered person's @usuario; absent for a guest or someone who picked none */
+                            handle?: string;
                         };
                         /** @description What the viewer calls them: nickname ?? displayName */
                         name: string;
@@ -8894,6 +8898,8 @@ export interface operations {
                             displayName: string;
                             /** @description The viewer's own apodo for a registered person, which nobody else sees; always null for a guest, whose apodo is its displayName */
                             nickname: string | null;
+                            /** @description P339: the registered person's @usuario; absent for a guest or someone who picked none */
+                            handle?: string;
                         };
                         /** @description What the viewer calls them: nickname ?? displayName */
                         name: string;

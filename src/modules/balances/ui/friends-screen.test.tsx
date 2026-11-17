@@ -23,7 +23,13 @@ const view = (props: Partial<Parameters<typeof FriendsScreen>[0]> = {}, locale: 
         friendDto(),
         friendDto({
           spaceId: "sp-juan",
-          other: { memberId: "m-juan", kind: "USER", displayName: "Juan Pérez", nickname: "Juan" },
+          other: {
+            memberId: "m-juan",
+            kind: "USER",
+            displayName: "Juan Pérez",
+            nickname: "Juan",
+            handle: "juanp",
+          },
           name: "Juan",
           net: cop(25_000),
           lastMovement: {
@@ -73,8 +79,11 @@ describe('Amigos (ruling P338, board "Amigos · cada persona con su saldo")', ()
       "Te deben $ 525.000 · Debes $ 120.000",
     );
     expect(rows()).toEqual([
-      { text: "MMamáPréstamo · 12 mar 2025Te debe$ 500.000", href: "/spaces/sp-personal/friends/sp-mama" },
-      { text: "JJuanAlmuerzo · AyerTe debe$ 25.000", href: "/spaces/sp-personal/friends/sp-juan" },
+      {
+        text: "MMamáNo usa Hearth · Préstamo · 12 mar 2025Te debe$ 500.000",
+        href: "/spaces/sp-personal/friends/sp-mama",
+      },
+      { text: "JJuan@juanp · Almuerzo · AyerTe debe$ 25.000", href: "/spaces/sp-personal/friends/sp-juan" },
       { text: "JLJhon LópezPréstamo · 3 octLe debes$ 120.000", href: "/spaces/sp-personal/friends/sp-jhon" },
       { text: "SSaraSin movimientosAl día", href: "/spaces/sp-personal/friends/sp-sara" },
     ]);

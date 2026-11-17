@@ -1157,6 +1157,15 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     aliases: spaceRepository,
     source: ledgerQueries,
     movements: ledgerQueries,
+    // P339: a registered friend's @usuario, from identity's profiles (balances never imports identity).
+    handles: {
+      handlesOf: async (userIds) =>
+        new Map(
+          (await profiles.holdersOf(userIds)).flatMap((holder) =>
+            holder.handle ? [[holder.userId, holder.handle] as const] : [],
+          ),
+        ),
+    },
   });
   // HU-E1-09: every current member's net from one aggregate (balances' GetMemberNetBalances).
   const archiveSpace = createArchiveSpace({
