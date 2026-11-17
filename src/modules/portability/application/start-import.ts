@@ -29,6 +29,8 @@ export const createStartImport =
       const targets = await deps.writer.targetsOf(input.spaceId, input.userId);
       if (!targets.ok) return targets;
       const timeZone = await deps.userTimeZones.timeZoneOf(input.userId);
+      const links = await priorLinksFor(deps, input.spaceId, snapshot.sourceApp);
+      const spaceCurrency = importer.value.currency;
       const batch: ImportBatch = {
         id: deps.ids.next<"ImportBatch">(),
         spaceId: importer.value.spaceId,
@@ -37,12 +39,7 @@ export const createStartImport =
         fileSha256,
         status: "DRAFT",
         snapshot,
-        mappings: proposeMappings(
-          snapshot,
-          targets.value,
-          await priorLinksFor(deps, input.spaceId, snapshot.sourceApp),
-          timeZone,
-        ),
+        mappings: proposeMappings(snapshot, targets.value, links, timeZone, spaceCurrency),
         counts: null,
         rowErrors: [],
         created: NOTHING_CREATED,
@@ -51,7 +48,7 @@ export const createStartImport =
         undoneAt: null,
       };
       await deps.batches.add(batch);
-      const view = await viewOf(deps, batch, snapshot);
+      const view = await viewOf(deps, batch, snapshot, { targets: targets.value, links, spaceCurrency });
       return view.ok ? ok(view.value) : view;
     });
   };

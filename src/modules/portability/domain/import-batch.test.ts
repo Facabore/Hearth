@@ -32,6 +32,8 @@ const outcome = {
     adjustmentsInOpeningBalance: 0,
     adjustmentsNotImported: 0,
     rowErrors: 0,
+    peopleCreated: 0,
+    accountsArchived: 0,
   },
   rowErrors: [],
   created: NOTHING_CREATED,

@@ -90,6 +90,23 @@ Every table also has `isSynced`, `syncTime` and `syncVersion` (Realbyte's own sy
 
 The name, order and memo carry over. The currency is the account's (D29). Each source account maps to a new account or to an existing one of the person's.
 
+P337 ("¿Qué es cada cuenta?"): each source account is a **Cuenta**, a **Persona** or **Archivar**, preselected by Hearth
+and kept in Money Manager's order.
+
+- **Persona** is suggested for the Loan group, a loan word ("Loan", "Préstamo") or a relationship word (Mom, mamá,
+  hermano, tía, amigo…, whole words, case and accents ignored), unless the name names an institution (banco, bank,
+  crédito, hipoteca, leasing, icetex…: a debt to keep as a `LOAN` account), and only in the space's currency. It becomes
+  a guest in the pair's direct space (P338), named as the source without its loan words ("Mom Loan" → "Mom"); its
+  movements are P334 settlements there, by their effect on its balance: a transfer into it, an income or a positive
+  adjustment is TO the person, a transfer out of it, an expense or a negative adjustment FROM them; only a transfer has
+  an account side. A transfer between two people is a row error (`TransferBetweenPeople`). A re-import reuses the
+  direct space its `PERSON` link names; an undo deletes the settlements and leaves the space and its guest.
+- **Archivar** is suggested for Money Manager's hidden flag, an account no movement touches at a zero balance, or a
+  starter account's duplicate ("Cash", "Card", "Accounts" beside the person's "Efectivo", "Tarjeta de crédito",
+  "Cuenta bancaria" in the same currency), which comes first and merges into the person's account (never archived). Any
+  other Archivar is created (or restored, when an import of this source created it) for its movements, then archived.
+- **Cuenta** is everything else, and any account an import that still stands linked to a live account.
+
 ### 2.2 Categories
 
 Money Manager has two levels (category → subcategory) with a kind; Hearth has three (group → category → subcategory, D20) and no kind on categories (one category serves expenses and incomes). So a top-level Money Manager category becomes a Hearth **category**, and its subcategories become **subcategories** under it. A leading emoji becomes the category's icon (D22 allows one emoji) and leaves the name.

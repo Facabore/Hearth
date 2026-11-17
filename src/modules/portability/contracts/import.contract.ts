@@ -9,6 +9,7 @@ import {
   securedByUser,
 } from "@/shared/http/contracts";
 import type {
+  AccountMapping,
   ImportAccountView,
   SourceIssue,
   ImportCategoryView,
@@ -38,6 +39,10 @@ const GROUP_ID = IdSchema.nullable().describe(
   "The group a new top-level category goes in; null for the import's own group (found or created at confirm). Ignored for a subcategory, which goes under what its parent maps to.",
 );
 
+const ARCHIVE_INTO = IdSchema.nullable().describe(
+  "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it.",
+);
+
 /** A mapping as the person sends it: a new record's name is optional, the source's by default. */
 const AccountMappingInputSchema = z.discriminatedUnion("kind", [
   ExistingAccountSchema,
@@ -47,6 +52,21 @@ const AccountMappingInputSchema = z.discriminatedUnion("kind", [
     currency: CURRENCY,
     name: NAME.optional(),
   }),
+  z.object({
+    kind: z.literal("archive"),
+    accountId: ARCHIVE_INTO,
+    type: z.enum(ACCOUNT_TYPES),
+    currency: CURRENCY,
+    name: NAME.optional().describe("Only for a new account (accountId null); the source's by default."),
+  }),
+  z
+    .object({
+      kind: z.literal("person"),
+      name: NAME.optional().describe("The guest's name; the source's without its loan words by default."),
+    })
+    .describe(
+      "P337, Persona: someone who owes the caller or whom they owe, a guest in the pair's direct space; never an account.",
+    ),
 ]);
 const CategoryMappingInputSchema = z.discriminatedUnion("kind", [
   ExistingCategorySchema,
@@ -60,7 +80,30 @@ const CategoryMappingInputSchema = z.discriminatedUnion("kind", [
 const AccountMappingSchema = z.discriminatedUnion("kind", [
   ExistingAccountSchema,
   z.object({ kind: z.literal("new"), type: z.enum(ACCOUNT_TYPES), currency: CURRENCY, name: z.string() }),
+  z.object({
+    kind: z.literal("archive"),
+    accountId: ARCHIVE_INTO,
+    type: z.enum(ACCOUNT_TYPES),
+    currency: CURRENCY,
+    name: z.string().optional().describe("The new account's name; present only when accountId is null."),
+  }),
+  z.object({ kind: z.literal("person"), name: z.string() }),
 ]);
+
+/** P337: a disposition's ready mapping, to send back as it is; names left out are settled by the API. */
+const AccountOptionSchema = z.discriminatedUnion("kind", [
+  ExistingAccountSchema,
+  z.object({ kind: z.literal("new"), type: z.enum(ACCOUNT_TYPES), currency: CURRENCY }),
+  z.object({
+    kind: z.literal("archive"),
+    accountId: ARCHIVE_INTO,
+    type: z.enum(ACCOUNT_TYPES),
+    currency: CURRENCY,
+  }),
+  z.object({ kind: z.literal("person"), name: z.string() }),
+]);
+
+const DISPOSITIONS = ["ACCOUNT", "PERSON", "ARCHIVE"] as const;
 const CategoryMappingSchema = z.discriminatedUnion("kind", [
   ExistingCategorySchema,
   z.object({
@@ -114,6 +157,14 @@ const CountsSchema = z.object({
       "Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview.",
     ),
   rowErrors: z.number().int(),
+  peopleCreated: z
+    .number()
+    .int()
+    .describe("P337: people (Persona) added as guests, each in a new direct space; 0 before P337."),
+  accountsArchived: z
+    .number()
+    .int()
+    .describe("P337: accounts created or restored for Archivar and archived once their movements were in."),
 });
 
 const STATUS = z.enum(["DRAFT", "CONFIRMED", "UNDONE"]);
@@ -149,6 +200,22 @@ export const ImportPreviewSchema = z
         cutOffDay: z.number().int().nullable(),
         paymentDay: z.number().int().nullable(),
         sourceClosingBalance: MoneySchema,
+        hidden: z.boolean().describe("Money Manager's hidden flag; it suggests Archivar (P337)."),
+        movementCount: z.number().int().describe("The file's movements that touch this account (P337)."),
+        suggested: z
+          .enum(DISPOSITIONS)
+          .describe(
+            "P337: what Hearth preselected (Cuenta, Persona or Archivar); it stays as the mapping changes.",
+          ),
+        options: z
+          .object({ account: AccountOptionSchema, person: AccountOptionSchema, archive: AccountOptionSchema })
+          .describe("P337: the mapping each disposition stands for, ready to send back in `accounts`."),
+        duplicateOf: z
+          .object({ id: z.string(), name: z.string() })
+          .nullable()
+          .describe(
+            'P337: the caller\'s account this starter account duplicates ("Cash" beside "Efectivo").',
+          ),
         mapping: AccountMappingSchema,
       }),
     ),
@@ -219,6 +286,27 @@ type MappingDto<T> = T extends { readonly kind: "new" } ? T & { readonly name: s
 const named = <T extends { readonly kind: string; readonly name?: string }>(mapping: T, fallback: string) =>
   (mapping.kind === "new" ? { ...mapping, name: mapping.name ?? fallback } : mapping) as MappingDto<T>;
 
+/** P337: an account's mapping as answered; a Persona and a new archived account carry their settled names too. */
+const accountMappingDto = (
+  mapping: AccountMapping,
+  fallback: string,
+): PreviewDto["accounts"][number]["mapping"] => {
+  if (mapping.kind === "person") return { kind: "person", name: mapping.name ?? fallback };
+  if (mapping.kind === "archive") {
+    const { name, ...rest } = mapping;
+    return rest.accountId === null ? { ...rest, name: name ?? fallback } : rest;
+  }
+  return named(mapping, fallback);
+};
+
+/** P337: a ready option, without a name for a new account (the API settles one when it is chosen). */
+const optionDto = (mapping: AccountMapping): PreviewDto["accounts"][number]["options"]["account"] => {
+  if (mapping.kind === "existing") return mapping;
+  if (mapping.kind === "person") return { kind: "person", name: mapping.name ?? "" };
+  const { kind, type, currency } = mapping;
+  return kind === "new" ? { kind, type, currency } : { kind, accountId: mapping.accountId, type, currency };
+};
+
 const accountDto = (a: ImportAccountView): PreviewDto["accounts"][number] => ({
   sourceId: a.sourceId,
   name: a.name,
@@ -227,7 +315,16 @@ const accountDto = (a: ImportAccountView): PreviewDto["accounts"][number] => ({
   cutOffDay: a.cutOffDay,
   paymentDay: a.paymentDay,
   sourceClosingBalance: moneyToDto(a.sourceClosingBalance),
-  mapping: named(a.mapping, a.name),
+  hidden: a.hidden,
+  movementCount: a.movementCount,
+  suggested: a.suggested,
+  options: {
+    account: optionDto(a.options.account),
+    person: optionDto(a.options.person),
+    archive: optionDto(a.options.archive),
+  },
+  duplicateOf: a.duplicateOf === null ? null : { ...a.duplicateOf },
+  mapping: accountMappingDto(a.mapping, a.name),
 });
 
 const categoryDto = (c: ImportCategoryView): PreviewDto["categories"][number] => ({
@@ -343,7 +440,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "adjustImport",
       summary: "Change a draft's mappings, time zone or included duplicates, and get its new preview",
       description:
-        "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency. A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).",
+        "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).",
       ...securedByUser,
       requestParams: { path: ImportPath },
       requestBody: { content: jsonContent(AdjustImportBodySchema) },
@@ -363,7 +460,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "confirmImport",
       summary: "Import a draft into the ledger, in one transaction",
       description:
-        "Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
+        "Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
       ...securedByUser,
       requestParams: { path: ImportPath, header: IdempotencyHeader },
       responses: {
@@ -383,7 +480,7 @@ export const importPaths: ZodOpenApiPathsObject = {
       operationId: "undoImport",
       summary: "Undo a confirmed import",
       description:
-        "Deletes logically every movement the import created and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
+        "Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests) and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
       ...securedByUser,
       requestParams: { path: ImportPath },
       responses: {

@@ -140,13 +140,20 @@ describe("Importar y exportar in the app (D28, #326)", () => {
     });
     renderSpa(`${HOUSEHOLD}/data/imports/imp-1`, routes);
     await userEvent.click(await screen.findByRole("link", { name: /Cuentas.*3 · 2 nuevas/ }, WAIT));
-    expect(await screen.findByRole("heading", { level: 1, name: "Cuentas a importar" }, WAIT)).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Visa Oro: Dónde va esta cuenta" }));
-    const sheet = await screen.findByRole("dialog", { name: "Visa Oro" }, WAIT);
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "¿Qué es cada cuenta?" }, WAIT),
+    ).toBeVisible();
     adjusted = true;
-    await userEvent.click(within(sheet).getByRole("button", { name: "Guardar" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await userEvent.click(screen.getByRole("link", { name: "Listo" }));
+    const visa = screen.getByRole("group", { name: "Qué es Visa Oro" });
+    await userEvent.click(within(visa).getByRole("button", { name: "Persona" }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole("group", { name: "Qué es Visa Oro" })).getByRole("button", {
+          name: "Cuenta",
+        }),
+      ).toHaveAttribute("aria-pressed", "true"),
+    );
+    await userEvent.click(screen.getByRole("link", { name: "Continuar" }));
     expect(
       await screen.findByRole("link", { name: /Cuentas.*3 · 0 nuevas, 3 ya las tienes/ }, WAIT),
     ).toBeVisible();

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { LocalDate } from "@/shared/kernel";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
 import { ACCOUNTS, householdLedger } from "../../../../tests/support/in-memory-ledger";
+import { memberOf } from "../../../../tests/support/in-memory-spaces";
+import { createRecordPairSettlement } from "./record-pair-settlement";
 import { createRecordSettlement, type RecordSettlementInput } from "./record-settlement";
 
 /** HU-E5-02: Juan records a settlement of 1,200,000 COP paid to Ana on 2026-10-30. */
@@ -221,5 +223,55 @@ describe("RecordSettlement for someone else and forgiveness (ruling P322)", () =
     expect(codeOf(await record(forgive({ onBehalfOfMemberId: "member-juan" })))).toBe("InvalidOnBehalfOf");
     expect(codeOf(await record(forgive({ gift: true })))).toBe("GiftRequiresOnBehalfOf");
     expect(store.rows).toEqual([]);
+  });
+});
+
+describe("RecordPairSettlement (P334, P337)", () => {
+  // A pair: Ana and her guest Pedro, as in a direct space an import opened for a person.
+  const pair = () => householdLedger([memberOf("Ana", "OWNER", 0), memberOf("Pedro", null, 1)]);
+  const recordWith = (deps: ReturnType<typeof pair>["deps"]) =>
+    createRecordPairSettlement(deps, createRecordSettlement(deps));
+
+  it("records what Ana gave Pedro from her account, with no account on his side", async () => {
+    const { deps } = pair();
+    const recorded = unwrap(
+      await recordWith(deps)({
+        spaceId: "space-household",
+        userId: "u-ana",
+        date: "2026-10-30" as LocalDate,
+        amount: money(50_000_00n),
+        direction: "TO",
+        accountId: ACCOUNTS.bancolombia.id,
+      }),
+    );
+    expect(recorded).toMatchObject({
+      payerMemberId: "member-ana",
+      receivingMemberId: "member-pedro",
+      sourceAccountId: ACCOUNTS.bancolombia.id,
+      destinationAccountId: null,
+    });
+  });
+
+  it("records one with no account on either side and with its date alone, as an import records a loan's history", async () => {
+    const { deps } = pair();
+    const recorded = unwrap(
+      await recordWith(deps)({
+        spaceId: "space-household",
+        userId: "u-ana",
+        date: "2025-01-10" as LocalDate,
+        untimed: true,
+        amount: money(20_000_00n),
+        direction: "FROM",
+        accountId: null,
+      }),
+    );
+    expect(recorded).toMatchObject({
+      payerMemberId: "member-pedro",
+      receivingMemberId: "member-ana",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      date: "2025-01-10",
+      occurredAt: null,
+    });
   });
 });

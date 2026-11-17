@@ -90,34 +90,26 @@
       "confirming": "Importando…"
     },
     "accounts": {
-      "title": "Cuentas a importar",
-      "intro": "Elige si cada cuenta va a una que ya tienes o se crea nueva. Toca una para cambiarla.",
-      "use": "Usar {name}",
-      "yours": "Tu cuenta · {type}",
-      "new": "Nueva cuenta: {type}",
-      "balance": "Saldo al final en Money Manager: {balance}",
-      "more": "{n, plural, one {y {count} cuenta más} other {y {count} cuentas más}}",
-      "done": "Listo",
-      "sheetChoice": "Dónde va esta cuenta",
-      "createNew": "Crear una cuenta nueva",
-      "noExisting": "No tienes cuentas en {currency}: se crea una nueva.",
-      "type": "Tipo de cuenta",
-      "currency": "En {currency}, la moneda que tiene en Money Manager.",
-      "save": "Guardar",
-      "types": {
-        "BANK": "Banco",
-        "WALLET": "Billetera",
-        "CASH": "Efectivo",
-        "CREDIT_CARD": "Tarjeta de crédito",
-        "SAVINGS": "Ahorro o CDT",
-        "INVESTMENT": "Inversión",
-        "LOAN": "Préstamo o deuda",
-        "OTHER": "Otra"
+      "title": "¿Qué es cada cuenta?",
+      "header": "Importar de Money Manager",
+      "intro": "{n, plural, one {Hearth sugirió qué es tu cuenta. Cámbialo si no es así.} other {Hearth sugirió qué es cada una de tus {count} cuentas. Cámbialo si no es así.}}",
+      "sections": {
+        "ACCOUNT": "Cuentas de dinero · {count}",
+        "PERSON": "Personas · {count}",
+        "ARCHIVE": "Archivar · {count}"
       },
-      "terms": "corte el {cutOff}, pago el {payment}",
-      "missing": "La cuenta elegida ya no está",
-      "missingNote": "Toca para elegir otra o crear una nueva",
-      "restored": "Tu cuenta archivada · {type} · se recupera"
+      "kinds": {
+        "account": "Cuenta",
+        "person": "Persona",
+        "archive": "Archivar"
+      },
+      "choice": "Qué es {name}",
+      "owesYou": "{balance} · te debe",
+      "youOwe": "{balance} · le debes",
+      "sameAs": "{balance} · igual a {name}",
+      "noMovements": "{balance} · sin movimientos",
+      "hidden": "{balance} · oculta en Money Manager",
+      "done": "Continuar"
     },
     "categories": {
       "title": "Categorías a importar",

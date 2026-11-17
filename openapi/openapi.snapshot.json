@@ -16295,6 +16295,18 @@
                                     "type": "integer",
                                     "minimum": -9007199254740991,
                                     "maximum": 9007199254740991
+                                  },
+                                  "peopleCreated": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991,
+                                    "description": "P337: people (Persona) added as guests, each in a new direct space; 0 before P337."
+                                  },
+                                  "accountsArchived": {
+                                    "type": "integer",
+                                    "minimum": -9007199254740991,
+                                    "maximum": 9007199254740991,
+                                    "description": "P337: accounts created or restored for Archivar and archived once their movements were in."
                                   }
                                 },
                                 "required": [
@@ -16307,7 +16319,9 @@
                                   "duplicatesSkipped",
                                   "adjustmentsInOpeningBalance",
                                   "adjustmentsNotImported",
-                                  "rowErrors"
+                                  "rowErrors",
+                                  "peopleCreated",
+                                  "accountsArchived"
                                 ],
                                 "additionalProperties": false
                               },
@@ -16385,7 +16399,7 @@
       "patch": {
         "operationId": "adjustImport",
         "summary": "Change a draft's mappings, time zone or included duplicates, and get its new preview",
-        "description": "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency. A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).",
+        "description": "An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).",
         "security": [
           {
             "cookieAuth": []
@@ -16485,6 +16499,76 @@
                             "type",
                             "currency"
                           ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "archive"
+                            },
+                            "accountId": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            },
+                            "name": {
+                              "description": "Only for a new account (accountId null); the source's by default.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId",
+                            "type",
+                            "currency"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "person"
+                            },
+                            "name": {
+                              "description": "The guest's name; the source's without its loan words by default.",
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "description": "P337, Persona: someone who owes the caller or whom they owe, a guest in the pair's direct space; never an account."
                         }
                       ],
                       "type": "object"
@@ -16636,7 +16720,7 @@
       "post": {
         "operationId": "confirmImport",
         "summary": "Import a draft into the ledger, in one transaction",
-        "description": "Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
+        "description": "Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.",
         "security": [
           {
             "cookieAuth": []
@@ -16746,6 +16830,18 @@
                               "type": "integer",
                               "minimum": -9007199254740991,
                               "maximum": 9007199254740991
+                            },
+                            "peopleCreated": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "P337: people (Persona) added as guests, each in a new direct space; 0 before P337."
+                            },
+                            "accountsArchived": {
+                              "type": "integer",
+                              "minimum": -9007199254740991,
+                              "maximum": 9007199254740991,
+                              "description": "P337: accounts created or restored for Archivar and archived once their movements were in."
                             }
                           },
                           "required": [
@@ -16758,7 +16854,9 @@
                             "duplicatesSkipped",
                             "adjustmentsInOpeningBalance",
                             "adjustmentsNotImported",
-                            "rowErrors"
+                            "rowErrors",
+                            "peopleCreated",
+                            "accountsArchived"
                           ],
                           "additionalProperties": false
                         },
@@ -16865,7 +16963,7 @@
       "post": {
         "operationId": "undoImport",
         "summary": "Undo a confirmed import",
-        "description": "Deletes logically every movement the import created and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
+        "description": "Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests) and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.",
         "security": [
           {
             "cookieAuth": []
@@ -19796,6 +19894,418 @@
                 "sourceClosingBalance": {
                   "$ref": "#/components/schemas/MoneyOutput"
                 },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "Money Manager's hidden flag; it suggests Archivar (P337)."
+                },
+                "movementCount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "The file's movements that touch this account (P337)."
+                },
+                "suggested": {
+                  "type": "string",
+                  "enum": [
+                    "ACCOUNT",
+                    "PERSON",
+                    "ARCHIVE"
+                  ],
+                  "description": "P337: what Hearth preselected (Cuenta, Persona or Archivar); it stays as the mapping changes."
+                },
+                "options": {
+                  "type": "object",
+                  "properties": {
+                    "account": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "existing"
+                            },
+                            "accountId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "new"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "type",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "archive"
+                            },
+                            "accountId": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId",
+                            "type",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "person"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "type": "object"
+                    },
+                    "person": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "existing"
+                            },
+                            "accountId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "new"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "type",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "archive"
+                            },
+                            "accountId": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId",
+                            "type",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "person"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "type": "object"
+                    },
+                    "archive": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "existing"
+                            },
+                            "accountId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "new"
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "type",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "archive"
+                            },
+                            "accountId": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "description": "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it."
+                            },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "CASH",
+                                "BANK",
+                                "WALLET",
+                                "CREDIT_CARD",
+                                "SAVINGS",
+                                "INVESTMENT",
+                                "LOAN",
+                                "OTHER"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "pattern": "^[A-Z]{3}$"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "accountId",
+                            "type",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "const": "person"
+                            },
+                            "name": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "account",
+                    "person",
+                    "archive"
+                  ],
+                  "additionalProperties": false,
+                  "description": "P337: the mapping each disposition stands for, ready to send back in `accounts`."
+                },
+                "duplicateOf": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "P337: the caller's account this starter account duplicates (\"Cash\" beside \"Efectivo\")."
+                },
                 "mapping": {
                   "oneOf": [
                     {
@@ -19852,6 +20362,73 @@
                         "name"
                       ],
                       "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "archive"
+                        },
+                        "accountId": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 64
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it."
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "CASH",
+                            "BANK",
+                            "WALLET",
+                            "CREDIT_CARD",
+                            "SAVINGS",
+                            "INVESTMENT",
+                            "LOAN",
+                            "OTHER"
+                          ]
+                        },
+                        "currency": {
+                          "type": "string",
+                          "pattern": "^[A-Z]{3}$"
+                        },
+                        "name": {
+                          "description": "The new account's name; present only when accountId is null.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "accountId",
+                        "type",
+                        "currency"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "person"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "name"
+                      ],
+                      "additionalProperties": false
                     }
                   ],
                   "type": "object"
@@ -19865,6 +20442,11 @@
                 "cutOffDay",
                 "paymentDay",
                 "sourceClosingBalance",
+                "hidden",
+                "movementCount",
+                "suggested",
+                "options",
+                "duplicateOf",
                 "mapping"
               ],
               "additionalProperties": false

@@ -52,7 +52,7 @@ export const importLinks = pgTable(
       .references(() => spaces.id, { onDelete: "cascade" }),
     sourceApp: text("source_app").notNull(),
     sourceKey: text("source_key").notNull(),
-    entityType: text("entity_type", { enum: ["ACCOUNT", "CATEGORY", "MOVEMENT"] }).notNull(),
+    entityType: text("entity_type", { enum: ["ACCOUNT", "CATEGORY", "MOVEMENT", "PERSON"] }).notNull(),
     entityId: uuid("entity_id").notNull(),
     importId: uuid("import_id")
       .notNull()

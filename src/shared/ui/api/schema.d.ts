@@ -1709,7 +1709,7 @@ export interface paths {
         head?: never;
         /**
          * Change a draft's mappings, time zone or included duplicates, and get its new preview
-         * @description An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency. A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).
+         * @description An account maps to one of the caller's live accounts in the space, or to a new account of a type, in the source account's own currency; or (P337) to Archivar (into an account it duplicates, or a new one archived after the confirm) or to Persona (a guest in the pair's direct space, the source account in the space's currency). A category maps to a live category, or to a new one in a group (a subcategory goes under what its parent maps to).
          */
         patch: operations["adjustImport"];
         trace?: never;
@@ -1725,7 +1725,7 @@ export interface paths {
         put?: never;
         /**
          * Import a draft into the ledger, in one transaction
-         * @description Creates the new accounts and categories and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.
+         * @description Creates the new accounts and categories, in the file's order, and records every movement through the ledger's own rules, keeping each one's date and, when the file has it, its time. P337: a Persona becomes a guest in the caller's direct space with them, its movements settlements there (a transfer between two people is a row error, TransferBetweenPeople); an Archivar's account is archived once its movements are in. What an earlier import brought is skipped, even if it was edited or deleted since. A movement the ledger refuses (no exchange rate for its date, a closed period) is listed in `rowErrors` and the rest is imported. Balance adjustments on or before a new account's first movement become its opening balance; later ones, and any on an existing account, are recorded as ADJUSTMENT movements.
          */
         post: operations["confirmImport"];
         delete?: never;
@@ -1745,7 +1745,7 @@ export interface paths {
         put?: never;
         /**
          * Undo a confirmed import
-         * @description Deletes logically every movement the import created and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.
+         * @description Deletes logically every movement the import created (a Persona's settlements in their direct spaces too, which stay with their guests) and archives the accounts and categories it created that nothing else uses. Importing the same file again afterwards brings everything back.
          */
         post: operations["undoImport"];
         delete?: never;
@@ -2256,6 +2256,92 @@ export interface components {
                 cutOffDay: number | null;
                 paymentDay: number | null;
                 sourceClosingBalance: components["schemas"]["MoneyOutput"];
+                /** @description Money Manager's hidden flag; it suggests Archivar (P337). */
+                hidden: boolean;
+                /** @description The file's movements that touch this account (P337). */
+                movementCount: number;
+                /**
+                 * @description P337: what Hearth preselected (Cuenta, Persona or Archivar); it stays as the mapping changes.
+                 * @enum {string}
+                 */
+                suggested: "ACCOUNT" | "PERSON" | "ARCHIVE";
+                /** @description P337: the mapping each disposition stands for, ready to send back in `accounts`. */
+                options: {
+                    account: {
+                        /** @constant */
+                        kind: "existing";
+                        accountId: string;
+                    } | {
+                        /** @constant */
+                        kind: "new";
+                        /** @enum {string} */
+                        type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        kind: "archive";
+                        /** @description P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it. */
+                        accountId: string | null;
+                        /** @enum {string} */
+                        type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        kind: "person";
+                        name: string;
+                    };
+                    person: {
+                        /** @constant */
+                        kind: "existing";
+                        accountId: string;
+                    } | {
+                        /** @constant */
+                        kind: "new";
+                        /** @enum {string} */
+                        type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        kind: "archive";
+                        /** @description P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it. */
+                        accountId: string | null;
+                        /** @enum {string} */
+                        type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        kind: "person";
+                        name: string;
+                    };
+                    archive: {
+                        /** @constant */
+                        kind: "existing";
+                        accountId: string;
+                    } | {
+                        /** @constant */
+                        kind: "new";
+                        /** @enum {string} */
+                        type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        kind: "archive";
+                        /** @description P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it. */
+                        accountId: string | null;
+                        /** @enum {string} */
+                        type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                        currency: string;
+                    } | {
+                        /** @constant */
+                        kind: "person";
+                        name: string;
+                    };
+                };
+                /** @description P337: the caller's account this starter account duplicates ("Cash" beside "Efectivo"). */
+                duplicateOf: {
+                    id: string;
+                    name: string;
+                } | null;
                 mapping: {
                     /** @constant */
                     kind: "existing";
@@ -2266,6 +2352,20 @@ export interface components {
                     /** @enum {string} */
                     type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
                     currency: string;
+                    name: string;
+                } | {
+                    /** @constant */
+                    kind: "archive";
+                    /** @description P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it. */
+                    accountId: string | null;
+                    /** @enum {string} */
+                    type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                    currency: string;
+                    /** @description The new account's name; present only when accountId is null. */
+                    name?: string;
+                } | {
+                    /** @constant */
+                    kind: "person";
                     name: string;
                 };
             }[];
@@ -10406,6 +10506,10 @@ export interface operations {
                                 /** @description Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview. */
                                 adjustmentsNotImported: number;
                                 rowErrors: number;
+                                /** @description P337: people (Persona) added as guests, each in a new direct space; 0 before P337. */
+                                peopleCreated: number;
+                                /** @description P337: accounts created or restored for Archivar and archived once their movements were in. */
+                                accountsArchived: number;
                             } | null;
                         }[];
                     };
@@ -10566,6 +10670,21 @@ export interface operations {
                             type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
                             currency: string;
                             name?: string;
+                        } | {
+                            /** @constant */
+                            kind: "archive";
+                            /** @description P337, Archivar: the caller's account its movements go to (one this account duplicates, or one an earlier import of this source created, archived again after); null creates a new account, records its movements and archives it. */
+                            accountId: string | null;
+                            /** @enum {string} */
+                            type: "CASH" | "BANK" | "WALLET" | "CREDIT_CARD" | "SAVINGS" | "INVESTMENT" | "LOAN" | "OTHER";
+                            currency: string;
+                            /** @description Only for a new account (accountId null); the source's by default. */
+                            name?: string;
+                        } | {
+                            /** @constant */
+                            kind: "person";
+                            /** @description The guest's name; the source's without its loan words by default. */
+                            name?: string;
                         };
                     };
                     categories?: {
@@ -10680,6 +10799,10 @@ export interface operations {
                             /** @description Balance adjustments the ledger refused to record as ADJUSTMENT movements (they are also in rowErrors); 0 in a preview. */
                             adjustmentsNotImported: number;
                             rowErrors: number;
+                            /** @description P337: people (Persona) added as guests, each in a new direct space; 0 before P337. */
+                            peopleCreated: number;
+                            /** @description P337: accounts created or restored for Archivar and archived once their movements were in. */
+                            accountsArchived: number;
                         } | null;
                         /** @description Rows the ledger refused, with its code; the rest was imported. */
                         rowErrors: {

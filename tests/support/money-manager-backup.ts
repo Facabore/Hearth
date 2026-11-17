@@ -129,13 +129,29 @@ export const DEFAULT_MOVEMENTS: readonly BackupMovement[] = [
   },
 ];
 
+/** One more ASSETS row (P337): an account beside the default four, such as a person's loan. */
+export interface BackupAccount {
+  readonly uid: string;
+  readonly name: string;
+  /** "g-cash", "g-accounts", "g-card", or "g-loan" (Money Manager's Loan group, TYPE 5). */
+  readonly group: string;
+  /** 1 COP, 2 USD. */
+  readonly currency: 1 | 2;
+  readonly order?: number;
+  /** `ZDATA`, read as hidden. */
+  readonly hidden?: boolean;
+}
+
 /**
  * A tiny synthetic Money Manager SQLite backup, built in memory and returned as bytes; nothing touches the disk.
  * Accounts: "Efectivo" (cash, COP, the name of a starter account), "Banco Uno" (bank, COP), "US savings" (bank, USD)
  * and "Visa" (card, COP, cut-off 15, payment 5). Categories: "🍔 Food" with its subcategory "Supermercado",
- * "💰 Salary" (income) and "🎸 Guitarra".
+ * "💰 Salary" (income) and "🎸 Guitarra". `accounts` adds more (P337), and the Loan group when one is in it.
  */
-export const moneyManagerBackup = (movements: readonly BackupMovement[] = DEFAULT_MOVEMENTS): Uint8Array => {
+export const moneyManagerBackup = (
+  movements: readonly BackupMovement[] = DEFAULT_MOVEMENTS,
+  accounts: readonly BackupAccount[] = [],
+): Uint8Array => {
   const db = new DatabaseSync(":memory:");
   db.exec(`
     CREATE TABLE CURRENCY (uid INTEGER, ISO TEXT, MAIN_ISO TEXT, IS_MAIN_CURRENCY INTEGER, RATE TEXT, DECIMAL_POINT INTEGER, SYMBOL_POSITION INTEGER);
@@ -161,6 +177,10 @@ export const moneyManagerBackup = (movements: readonly BackupMovement[] = DEFAUL
   asset.run("a-bank", "Banco Uno", "g-accounts", 1, 0, 0, 0, null, null, 0, 0);
   asset.run("a-usd", "US savings", "g-accounts", 2, 1, 0, 0, null, null, 0, 0);
   asset.run("a-card", "Visa", "g-card", 1, 0, 15, 5, "a-bank", null, 0, 0);
+  if (accounts.some((a) => a.group === "g-loan")) group.run("g-loan", "Loan", 5, 3, 0);
+  for (const a of accounts) {
+    asset.run(a.uid, a.name, a.group, a.currency, a.order ?? 0, 0, 0, null, null, a.hidden ? 1 : 0, 0);
+  }
   const category = db.prepare("INSERT INTO ZCATEGORY VALUES (?,?,?,?,?,?,?)");
   category.run("c-food", "🍔 Food", 1, "", 0, 0, 0);
   category.run("c-food-sub", "Supermercado", 1, "c-food", 2, 0, 0);

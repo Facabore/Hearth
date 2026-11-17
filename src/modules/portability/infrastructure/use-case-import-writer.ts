@@ -14,6 +14,7 @@ import type {
 } from "@/modules/categories/application";
 import {
   positionOf,
+  type RecordPairSettlement,
   type DeleteTransaction,
   type RecordExpense,
   type RecordIncome,
@@ -23,6 +24,7 @@ import {
   type TransactionPosition,
   type TransactionQuery,
 } from "@/modules/ledger/application";
+import type { StartDirectSpaceWithGuest } from "@/modules/spaces/application";
 import { fromParts, map, ok, type LocalDate, type Result } from "@/shared/kernel";
 import type { HearthMovement, ImportWriter, MovementTime } from "../application";
 
@@ -84,6 +86,10 @@ export interface UseCaseImportWriterSources {
   readonly recordTransfer: RecordTransfer;
   readonly recordAdjustment: RecordAdjustment;
   readonly deleteTransaction: DeleteTransaction;
+  /** P337, P338: a Persona's direct space with its new guest. */
+  readonly startDirectSpaceWithGuest: StartDirectSpaceWithGuest;
+  /** P334, P337: a Persona's movements, as settlements in that space. */
+  readonly recordPairSettlement: RecordPairSettlement;
 }
 
 /**
@@ -175,6 +181,10 @@ export const createUseCaseImportWriter = (sources: UseCaseImportWriterSources): 
       if (!deleted.ok && deleted.error.code === "TransactionNotFound") return ok(false);
       return map(deleted, () => true);
     },
+    openDirectSpaceWithGuest: async (input) =>
+      map(await sources.startDirectSpaceWithGuest(input), ({ spaceId }) => ({ spaceId: String(spaceId) })),
+    recordPersonSettlement: async ({ time, ...input }) =>
+      idOf(await sources.recordPairSettlement({ ...input, ...importedWhen(time) })),
     archiveAccount: async (input) => done(await sources.archiveAccount(input)),
     restoreAccount: async (input) => done(await sources.restoreAccount(input)),
     archiveCategory: async (input) => done(await sources.archiveCategory(input)),

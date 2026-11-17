@@ -96,7 +96,9 @@ export type { DirectSpaceRepository, MemberInSpace } from "./direct-space-reposi
 export {
   createSplitWithPeople,
   createSplitWithPerson,
+  createStartDirectSpaceWithGuest,
   type DirectExpenseRecorder,
+  type DirectSpaceDeps,
   type DirectSplit,
   type DirectSplitCounterpart,
   type PeopleSplit,
@@ -105,6 +107,7 @@ export {
   type SplitWithPerson,
   type SplitWithPersonDeps,
   type SplitWithPersonInput,
+  type StartDirectSpaceWithGuest,
 } from "./split-with-person";
 export type { SpaceArchiveRepository } from "./space-repository";
 export {

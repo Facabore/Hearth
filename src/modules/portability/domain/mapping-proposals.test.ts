@@ -1,12 +1,39 @@
 import { describe, expect, it } from "vitest";
+import { localDate, Money, type LocalDate } from "@/shared/kernel";
 import {
+  accountOptionsOf,
   checkMappings,
   freeName,
   proposeMappings,
   type HearthTargets,
   type PriorLinks,
 } from "./mapping-proposals";
-import type { SourceSnapshot } from "./source-snapshot";
+import type { SourceAccount, SourceMovement, SourceSnapshot } from "./source-snapshot";
+
+const day = (iso: string): LocalDate => {
+  const parsed = localDate(iso);
+  if (!parsed.ok) throw new Error(iso);
+  return parsed.value;
+};
+
+/** An income of 10.00 into `account`, so that account is no empty one (P337 suggests archiving those). */
+const incomeInto = (account: string, currency = "COP"): SourceMovement => {
+  const amount = Money.ofMinor(1000n, currency);
+  if (!amount.ok) throw new Error(currency);
+  return {
+    sourceKey: `m-${account}`,
+    kind: "INCOME",
+    date: day("2025-01-10"),
+    occurredAt: null,
+    accountSourceId: account,
+    toAccountSourceId: null,
+    categorySourceId: "c-food",
+    amount: amount.value,
+    originalAmount: null,
+    toAmount: null,
+    note: null,
+  };
+};
 
 const snapshot: SourceSnapshot = {
   sourceApp: "money-manager",
@@ -77,7 +104,7 @@ const snapshot: SourceSnapshot = {
       order: 1,
     },
   ],
-  movements: [],
+  movements: [incomeInto("a-cash"), incomeInto("a-usd", "USD")],
   budgets: [],
   settings: { startDay: null, mainCurrency: "COP" },
   skipped: { zeroAmountMovements: 0, deletedCategories: 0 },
@@ -128,6 +155,7 @@ describe("proposeMappings (design §2.1, §2.2, §3.3)", () => {
     targets,
     { ...noLinks, accounts: new Map([["a-linked", "h-linked"]]) },
     "America/Bogota",
+    "COP",
   );
 
   it("maps an account to its linked account, else to one of the same name and currency, else to a new one", () => {
@@ -168,6 +196,7 @@ describe("proposals a confirm can use as they are (design §3.3)", () => {
         undoneAccounts: new Map([["a-cash", "h-old-cash"]]),
       },
       "America/Bogota",
+      "COP",
     );
     expect(mappings.accounts["a-cash"]).toEqual({ kind: "existing", accountId: "h-old-cash" });
     expect(mappings.accounts["a-usd"]).toEqual({
@@ -184,6 +213,7 @@ describe("proposals a confirm can use as they are (design §3.3)", () => {
       { ...targets, accounts: [{ id: "old", name: "EFECTIVO", currency: "USD", archived: true }] },
       noLinks,
       "America/Bogota",
+      "COP",
     );
     expect(mappings.accounts["a-cash"]).toEqual({
       kind: "new",
@@ -194,7 +224,13 @@ describe("proposals a confirm can use as they are (design §3.3)", () => {
   });
 
   it("puts new categories in the import's own group (groupId null) when the space has no live group", () => {
-    const mappings = proposeMappings(snapshot, { accounts: [], groups: [], categories: [] }, noLinks, "UTC");
+    const mappings = proposeMappings(
+      snapshot,
+      { accounts: [], groups: [], categories: [] },
+      noLinks,
+      "UTC",
+      "COP",
+    );
     expect(mappings.categories["c-guitar"]).toEqual({ kind: "new", groupId: null, name: "Guitarra" });
     expect(mappings.categories["c-sub"]).toEqual({ kind: "new", groupId: null, name: "Supermercado" });
   });
@@ -212,9 +248,9 @@ describe("freeName", () => {
 });
 
 describe("checkMappings (design §3.2)", () => {
-  const proposed = proposeMappings(snapshot, targets, noLinks, "America/Bogota");
+  const proposed = proposeMappings(snapshot, targets, noLinks, "America/Bogota", "COP");
   const reasonOf = (mappings: typeof proposed, links: PriorLinks = noLinks) => {
-    const checked = checkMappings(snapshot, mappings, targets, links);
+    const checked = checkMappings(snapshot, mappings, targets, links, "COP");
     return checked.ok
       ? "ok"
       : [checked.error.code, checked.error.details?.reason, checked.error.details?.sourceId];
@@ -297,9 +333,9 @@ describe("checkMappings (design §3.2)", () => {
       accounts: [{ id: "h-old", name: "Efectivo", currency: "COP", archived: true }],
     };
     const mappings = withAccount("a-cash", { kind: "existing", accountId: "h-old" });
-    expect(checkMappings(snapshot, mappings, archived, noLinks).ok).toBe(false);
+    expect(checkMappings(snapshot, mappings, archived, noLinks, "COP").ok).toBe(false);
     const undone = { ...noLinks, undoneAccounts: new Map([["a-cash", "h-old"]]) };
-    expect(checkMappings(snapshot, mappings, archived, undone).ok).toBe(true);
+    expect(checkMappings(snapshot, mappings, archived, undone, "COP").ok).toBe(true);
   });
 
   it("settles a name the person chose that a record already holds", () => {
@@ -308,6 +344,7 @@ describe("checkMappings (design §3.2)", () => {
       withAccount("a-cash", { kind: "new", type: "CASH", currency: "COP", name: "efectivo" }),
       targets,
       noLinks,
+      "COP",
     );
     expect(checked.ok && checked.value.accounts["a-cash"]).toEqual({
       kind: "new",
@@ -315,5 +352,124 @@ describe("checkMappings (design §3.2)", () => {
       currency: "COP",
       name: "efectivo (Money Manager)",
     });
+  });
+});
+
+describe("what each account is (P337, board 1)", () => {
+  const account = (
+    sourceId: string,
+    name: string,
+    overrides: Partial<SourceAccount> = {},
+  ): SourceAccount => ({
+    sourceId,
+    name,
+    type: "BANK",
+    currency: "COP",
+    order: 0,
+    cutOffDay: null,
+    paymentDay: null,
+    memo: null,
+    hidden: false,
+    excludedFromTotals: false,
+    ...overrides,
+  });
+  const sorting: SourceSnapshot = {
+    ...snapshot,
+    accounts: [
+      account("a-bank", "Bancolombia"),
+      account("a-mom", "Mom Loan", { type: "OTHER", loan: true }),
+      account("a-cash", "Cash", { type: "CASH" }),
+      account("a-card", "Visa", { type: "CREDIT_CARD" }),
+      account("a-old", "Old", { hidden: true }),
+    ],
+    movements: [incomeInto("a-bank"), incomeInto("a-mom"), incomeInto("a-cash"), incomeInto("a-old")],
+  };
+  const mine: HearthTargets = {
+    ...targets,
+    accounts: [{ id: "h-cash", name: "Efectivo", currency: "COP", archived: false }],
+  };
+
+  it("proposes Persona, Archivar into a starter duplicate, Archivar for an empty or hidden account, else Cuenta", () => {
+    const proposed = proposeMappings(sorting, mine, noLinks, "America/Bogota", "COP");
+    expect(proposed.accounts).toEqual({
+      "a-bank": { kind: "new", type: "BANK", currency: "COP", name: "Bancolombia" },
+      "a-mom": { kind: "person", name: "Mom" },
+      "a-cash": { kind: "archive", accountId: "h-cash", type: "CASH", currency: "COP" },
+      "a-card": { kind: "archive", accountId: null, type: "CREDIT_CARD", currency: "COP", name: "Visa" },
+      "a-old": { kind: "archive", accountId: null, type: "BANK", currency: "COP", name: "Old" },
+    });
+    expect(checkMappings(sorting, proposed, mine, noLinks, "COP")).toEqual({ ok: true, value: proposed });
+  });
+
+  it("offers each account's three ready mappings, its suggestion, its duplicate and how many movements touch it", () => {
+    const options = accountOptionsOf(sorting, mine, noLinks, "COP");
+    expect(options.get("a-cash")).toEqual({
+      suggested: "ARCHIVE",
+      options: {
+        account: { kind: "new", type: "CASH", currency: "COP" },
+        person: { kind: "person", name: "Cash" },
+        archive: { kind: "archive", accountId: "h-cash", type: "CASH", currency: "COP" },
+      },
+      duplicateOf: mine.accounts[0],
+      movementCount: 1,
+    });
+    expect(options.get("a-mom")).toMatchObject({ suggested: "PERSON", duplicateOf: null, movementCount: 1 });
+    expect(options.get("a-card")).toMatchObject({ suggested: "ARCHIVE", movementCount: 0 });
+  });
+
+  it("archives into the account an import of this source created and archived, never a new one beside it", () => {
+    const visa = { id: "h-visa", name: "Visa", currency: "COP", archived: true };
+    const links = { ...noLinks, accounts: new Map([["a-card", "h-visa"]]) };
+    const proposed = proposeMappings(
+      sorting,
+      { ...mine, accounts: [...mine.accounts, visa] },
+      links,
+      "UTC",
+      "COP",
+    );
+    expect(proposed.accounts["a-card"]).toEqual({
+      kind: "archive",
+      accountId: "h-visa",
+      type: "CREDIT_CARD",
+      currency: "COP",
+    });
+    expect(
+      checkMappings(sorting, proposed, { ...mine, accounts: [...mine.accounts, visa] }, links, "COP").ok,
+    ).toBe(true);
+    // Any other archived account is not one to put movements in.
+    expect(
+      checkMappings(sorting, proposed, { ...mine, accounts: [...mine.accounts, visa] }, noLinks, "COP"),
+    ).toEqual(expect.objectContaining({ ok: false }));
+  });
+
+  it("refuses a Persona in another currency than the space's, and names a Persona left unnamed after its source", () => {
+    const proposed = proposeMappings(sorting, mine, noLinks, "UTC", "COP");
+    const asPerson = {
+      ...proposed,
+      accounts: { ...proposed.accounts, "a-bank": { kind: "person" as const } },
+    };
+    const checked = checkMappings(sorting, asPerson, mine, noLinks, "COP");
+    expect(checked.ok && checked.value.accounts["a-bank"]).toEqual({ kind: "person", name: "Bancolombia" });
+    const refused = checkMappings(sorting, asPerson, mine, noLinks, "USD");
+    expect(refused.ok ? null : [refused.error.code, refused.error.details?.reason]).toEqual([
+      "InvalidImportMapping",
+      "currencyMismatch",
+    ]);
+  });
+
+  it("refuses an Archivar into another currency, and settles the name of a new archived account", () => {
+    const proposed = proposeMappings(sorting, mine, noLinks, "UTC", "COP");
+    const into = (mapping: (typeof proposed.accounts)[string]) =>
+      checkMappings(
+        sorting,
+        { ...proposed, accounts: { ...proposed.accounts, "a-old": mapping } },
+        mine,
+        noLinks,
+        "COP",
+      );
+    const usd = into({ kind: "archive", accountId: null, type: "BANK", currency: "USD" });
+    expect(usd.ok ? null : usd.error.details?.reason).toBe("currencyMismatch");
+    const taken = into({ kind: "archive", accountId: null, type: "BANK", currency: "COP", name: "Efectivo" });
+    expect(taken.ok && taken.value.accounts["a-old"]).toMatchObject({ name: "Efectivo (Money Manager)" });
   });
 });

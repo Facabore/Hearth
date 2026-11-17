@@ -1,13 +1,21 @@
 import { isErr, ok, type Money, type Result } from "@/shared/kernel";
-import type {
-  AccountMapping,
-  CategoryMapping,
-  ImportBatch,
-  ImportMappings,
-  ImportStatus,
+import type { AccountDisposition } from "../domain/account-dispositions";
+import {
+  targetAccountOf,
+  type AccountMapping,
+  type CategoryMapping,
+  type ImportBatch,
+  type ImportMappings,
+  type ImportStatus,
 } from "../domain/import-batch";
 import { planImport } from "../domain/import-plan";
 import { previewImport, type ExistingMovement, type ImportPreview } from "../domain/import-planner";
+import {
+  accountOptionsOf,
+  type AccountOptions,
+  type HearthTargets,
+  type PriorLinks,
+} from "../domain/mapping-proposals";
 import type { SourceAccountType, SourceIssue, SourceSnapshot } from "../domain/source-snapshot";
 import type { ImportDeps, ImportLink } from "./import-ports";
 
@@ -54,8 +62,9 @@ export const knownFor = async (
   );
   const sourcesOf = new Map<string, string[]>();
   for (const [sourceId, mapping] of Object.entries(mappings.accounts)) {
-    if (mapping.kind !== "existing") continue;
-    sourcesOf.set(mapping.accountId, [...(sourcesOf.get(mapping.accountId) ?? []), sourceId]);
+    const accountId = targetAccountOf(mapping);
+    if (accountId === null) continue;
+    sourcesOf.set(accountId, [...(sourcesOf.get(accountId) ?? []), sourceId]);
   }
   const dates = snapshot.movements.map((m) => m.date).sort();
   const hearth =
@@ -87,6 +96,16 @@ export interface ImportAccountView {
   readonly cutOffDay: number | null;
   readonly paymentDay: number | null;
   readonly sourceClosingBalance: Money;
+  /** Money Manager's hidden flag (P337: it suggests Archivar). */
+  readonly hidden: boolean;
+  /** P337: the snapshot's movements that touch it, as source or destination. */
+  readonly movementCount: number;
+  /** P337: what Hearth preselected (Cuenta, Persona or Archivar); it stays as the person changes the mapping. */
+  readonly suggested: AccountDisposition;
+  /** P337: the mapping each disposition stands for, ready to send back as it is. */
+  readonly options: AccountOptions["options"];
+  /** P337: the person's account this starter account duplicates ("Cash" beside "Efectivo"), if any. */
+  readonly duplicateOf: { readonly id: string; readonly name: string } | null;
   readonly mapping: AccountMapping;
 }
 
@@ -114,6 +133,7 @@ export interface ImportView {
   readonly timeZone: string;
   readonly counts: ImportPreview["counts"];
   readonly dateRange: ImportPreview["dateRange"];
+  /** In the source's own order (P337). */
   readonly accounts: readonly ImportAccountView[];
   readonly categories: readonly ImportCategoryView[];
   /** Likely duplicates of movements already in Hearth; skipped unless listed in `includeDuplicates`. */
@@ -132,17 +152,28 @@ export interface ImportView {
   readonly errors: readonly SourceIssue[];
 }
 
+/** What Hearth holds that the view's account options read (P337). */
+export interface ViewContext {
+  readonly targets: HearthTargets;
+  readonly links: PriorLinks;
+  readonly spaceCurrency: string;
+}
+
 /** The view of a draft: its preview with the batch's own mappings over the planner's first proposal. */
 export const viewOf = async (
   deps: Pick<ImportDeps, "links" | "writer" | "batches">,
   batch: ImportBatch,
   snapshot: SourceSnapshot,
+  context: ViewContext,
 ): Promise<Result<ImportView>> => {
   const known = await knownFor(deps, batch.spaceId, snapshot, batch.mappings);
   if (isErr(known)) return known;
   const { preview } = known.value;
   const plan = planImport(snapshot, batch.mappings, known.value);
-  const byId = new Map(snapshot.accounts.map((a) => [a.sourceId, a]));
+  const byId = new Map(snapshot.accounts.map((a, index) => [a.sourceId, { ...a, index }]));
+  const options = accountOptionsOf(snapshot, context.targets, context.links, context.spaceCurrency);
+  // A snapshot stored before P337 has no order: the source's own list order stands in for it.
+  const rank = (sourceId: string) => byId.get(sourceId)?.order ?? byId.get(sourceId)?.index ?? 0;
   return ok({
     id: batch.id,
     status: batch.status,
@@ -152,16 +183,29 @@ export const viewOf = async (
     timeZone: batch.mappings.timeZone,
     counts: preview.counts,
     dateRange: preview.dateRange,
-    accounts: preview.accounts.map((account) => ({
-      sourceId: account.sourceId,
-      name: account.name,
-      type: account.mapping.type,
-      currency: byId.get(account.sourceId)!.currency,
-      cutOffDay: account.cutOffDay,
-      paymentDay: account.paymentDay,
-      sourceClosingBalance: account.sourceClosingBalance,
-      mapping: batch.mappings.accounts[account.sourceId] ?? account.mapping,
-    })),
+    accounts: [...preview.accounts]
+      .sort((a, b) => rank(a.sourceId) - rank(b.sourceId))
+      .map((account) => {
+        const proposal = options.get(account.sourceId)!;
+        return {
+          sourceId: account.sourceId,
+          name: account.name,
+          type: account.mapping.type,
+          currency: byId.get(account.sourceId)!.currency,
+          cutOffDay: account.cutOffDay,
+          paymentDay: account.paymentDay,
+          sourceClosingBalance: account.sourceClosingBalance,
+          hidden: byId.get(account.sourceId)!.hidden,
+          movementCount: proposal.movementCount,
+          suggested: proposal.suggested,
+          options: proposal.options,
+          duplicateOf:
+            proposal.duplicateOf === null
+              ? null
+              : { id: proposal.duplicateOf.id, name: proposal.duplicateOf.name },
+          mapping: batch.mappings.accounts[account.sourceId] ?? account.mapping,
+        };
+      }),
     categories: preview.categories.map((category) => ({
       sourceId: category.sourceId,
       name: category.name,

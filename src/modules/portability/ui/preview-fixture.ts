@@ -21,6 +21,15 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       cutOffDay: null,
       paymentDay: null,
       sourceClosingBalance: { amount: "146960000", currency: "COP" },
+      hidden: false,
+      movementCount: 640,
+      suggested: "ACCOUNT",
+      options: {
+        account: { kind: "existing", accountId: "acc-bancolombia" },
+        person: { kind: "person", name: "Ahorros Bancolombia" },
+        archive: { kind: "archive", accountId: "acc-bancolombia", type: "SAVINGS", currency: "COP" },
+      },
+      duplicateOf: null,
       mapping: { kind: "existing", accountId: "acc-bancolombia" },
     },
     {
@@ -31,6 +40,15 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       cutOffDay: 15,
       paymentDay: 30,
       sourceClosingBalance: { amount: "-50000000", currency: "COP" },
+      hidden: false,
+      movementCount: 310,
+      suggested: "ACCOUNT",
+      options: {
+        account: { kind: "new", type: "CREDIT_CARD", currency: "COP" },
+        person: { kind: "person", name: "Visa Oro" },
+        archive: { kind: "archive", accountId: null, type: "CREDIT_CARD", currency: "COP" },
+      },
+      duplicateOf: null,
       mapping: { kind: "new", type: "CREDIT_CARD", currency: "COP", name: "Visa Oro" },
     },
     {
@@ -41,6 +59,15 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
       cutOffDay: null,
       paymentDay: null,
       sourceClosingBalance: { amount: "51240", currency: "USD" },
+      hidden: false,
+      movementCount: 40,
+      suggested: "ACCOUNT",
+      options: {
+        account: { kind: "new", type: "BANK", currency: "USD" },
+        person: { kind: "person", name: "Cuenta en dólares" },
+        archive: { kind: "archive", accountId: null, type: "BANK", currency: "USD" },
+      },
+      duplicateOf: null,
       // The person already has an account of this name: the confirm will use a free one.
       mapping: { kind: "new", type: "BANK", currency: "USD", name: "Cuenta en dólares (Money Manager)" },
     },
@@ -102,6 +129,89 @@ export const previewFixture = (overrides: Partial<ImportPreviewDto> = {}): Impor
   ...overrides,
 });
 
+/**
+ * P337, board 1: two people and two accounts to archive (a starter duplicate and an empty card), for the account step;
+ * `previewFixture({ accounts: [...previewFixture().accounts, ...SORTED_ACCOUNTS] })` has all seven.
+ */
+export const SORTED_ACCOUNTS: ImportPreviewDto["accounts"] = [
+  {
+    sourceId: "a-4",
+    name: "Mom Loan",
+    type: "OTHER",
+    currency: "COP",
+    cutOffDay: null,
+    paymentDay: null,
+    sourceClosingBalance: { amount: "50000000", currency: "COP" },
+    hidden: false,
+    movementCount: 6,
+    suggested: "PERSON",
+    options: {
+      account: { kind: "new", type: "OTHER", currency: "COP" },
+      person: { kind: "person", name: "Mom" },
+      archive: { kind: "archive", accountId: null, type: "OTHER", currency: "COP" },
+    },
+    duplicateOf: null,
+    mapping: { kind: "person", name: "Mom" },
+  },
+  {
+    sourceId: "a-5",
+    name: "Jhon López",
+    type: "OTHER",
+    currency: "COP",
+    cutOffDay: null,
+    paymentDay: null,
+    sourceClosingBalance: { amount: "-12000000", currency: "COP" },
+    hidden: false,
+    movementCount: 2,
+    suggested: "PERSON",
+    options: {
+      account: { kind: "new", type: "OTHER", currency: "COP" },
+      person: { kind: "person", name: "Jhon López" },
+      archive: { kind: "archive", accountId: null, type: "OTHER", currency: "COP" },
+    },
+    duplicateOf: null,
+    mapping: { kind: "person", name: "Jhon López" },
+  },
+  {
+    sourceId: "a-6",
+    name: "Cash",
+    type: "CASH",
+    currency: "COP",
+    cutOffDay: null,
+    paymentDay: null,
+    sourceClosingBalance: { amount: "0", currency: "COP" },
+    hidden: false,
+    movementCount: 3,
+    suggested: "ARCHIVE",
+    options: {
+      account: { kind: "new", type: "CASH", currency: "COP" },
+      person: { kind: "person", name: "Cash" },
+      archive: { kind: "archive", accountId: "acc-cash", type: "CASH", currency: "COP" },
+    },
+    duplicateOf: { id: "acc-cash", name: "Efectivo" },
+    mapping: { kind: "archive", accountId: "acc-cash", type: "CASH", currency: "COP" },
+  },
+  {
+    sourceId: "a-7",
+    name: "Card",
+    type: "CREDIT_CARD",
+    currency: "COP",
+    cutOffDay: null,
+    paymentDay: null,
+    sourceClosingBalance: { amount: "0", currency: "COP" },
+    hidden: false,
+    movementCount: 0,
+    suggested: "ARCHIVE",
+    options: {
+      account: { kind: "new", type: "CREDIT_CARD", currency: "COP" },
+      person: { kind: "person", name: "Card" },
+      archive: { kind: "archive", accountId: null, type: "CREDIT_CARD", currency: "COP" },
+    },
+    duplicateOf: null,
+    mapping: { kind: "archive", accountId: null, type: "CREDIT_CARD", currency: "COP", name: "Card" },
+  },
+];
+
 export const resultFixture = (overrides: Partial<ImportResultDto> = {}): ImportResultDto => ({
   id: "imp-1",
   status: "CONFIRMED",
@@ -116,6 +226,8 @@ export const resultFixture = (overrides: Partial<ImportResultDto> = {}): ImportR
     adjustmentsInOpeningBalance: 0,
     adjustmentsNotImported: 0,
     rowErrors: 0,
+    peopleCreated: 0,
+    accountsArchived: 0,
   },
   rowErrors: [],
   ...overrides,

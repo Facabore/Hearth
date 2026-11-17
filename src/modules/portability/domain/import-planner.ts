@@ -112,6 +112,26 @@ const applyToBalances = (balances: Map<string, bigint>, movement: SourceMovement
   }
 };
 
+/** Each source account's closing balance in minor units of its own currency, from every movement (design §3.1). */
+export const closingBalancesOf = (movements: readonly SourceMovement[]): Map<string, bigint> => {
+  const balances = new Map<string, bigint>();
+  for (const movement of movements) applyToBalances(balances, movement);
+  return balances;
+};
+
+/** P337: how many of the movements touch each source account, as its source or its destination. */
+export const movementCountsOf = (movements: readonly SourceMovement[]): Map<string, number> => {
+  const counts = new Map<string, number>();
+  const see = (accountId: string | null) => {
+    if (accountId !== null) counts.set(accountId, (counts.get(accountId) ?? 0) + 1);
+  };
+  for (const movement of movements) {
+    see(movement.accountSourceId);
+    if (movement.toAccountSourceId !== movement.accountSourceId) see(movement.toAccountSourceId);
+  }
+  return counts;
+};
+
 /**
  * Design §2.3: a movement keeps `WDATE`, but when its instant falls on another calendar day in the chosen zone the
  * preview says so, with both dates, so the person can pick another zone before confirming.

@@ -34,7 +34,8 @@ export interface ImportBatchRepository {
   removeSnapshotsSettledBefore(before: Date): Promise<number>;
 }
 
-export type ImportEntityType = "ACCOUNT" | "CATEGORY" | "MOVEMENT";
+/** What a link points at; a PERSON link (P337) points a Persona's source account at its direct space. */
+export type ImportEntityType = "ACCOUNT" | "CATEGORY" | "MOVEMENT" | "PERSON";
 
 export interface ImportLink {
   readonly spaceId: string;
@@ -148,6 +149,27 @@ export interface ImportWriter {
   restoreCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
   createCategoryGroup(input: { spaceId: string; userId: string; name: string }): Promise<Result<string>>;
   archiveCategory(input: { spaceId: string; userId: string; categoryId: string }): Promise<Result<void>>;
+  /**
+   * P337, P338: a DIRECT space between the importer and a new guest named `guestName`, created as a split creates one
+   * (HU-E1-13, its categories seeded in `locale`). Answers the space's id.
+   */
+  openDirectSpaceWithGuest(input: {
+    readonly userId: string;
+    readonly userName: string;
+    readonly locale: string;
+    readonly guestName: string;
+  }): Promise<Result<{ readonly spaceId: string }>>;
+  /**
+   * P334, P337: a settlement between the importer and the other member of the direct space `spaceId`: TO when the
+   * importer gave (from `accountId`, if any), FROM when they got (into it). Answers the movement's id.
+   */
+  recordPersonSettlement(
+    input: MovementBase & {
+      readonly direction: "TO" | "FROM";
+      readonly accountId: string | null;
+      readonly amount: Money;
+    },
+  ): Promise<Result<string>>;
   /** Whether a live movement still uses the account or the category (D8: deleted ones do not count). */
   accountInUse(spaceId: string, accountId: string): Promise<boolean>;
   categoryInUse(spaceId: string, categoryId: string): Promise<boolean>;

@@ -283,6 +283,7 @@ import {
   createArchiveSpace,
   createSplitWithPeople,
   createSplitWithPerson,
+  createStartDirectSpaceWithGuest,
   createRemoveGuestMember,
   createClaimGuestPlace,
   createInvitationAdmitsSignUp,
@@ -1121,6 +1122,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       recordTransfer,
       recordAdjustment,
       deleteTransaction: createDeleteTransaction(ledgerDeps),
+      // P337: a Persona is a guest in the pair's direct space (P338), its movements P334's settlements there.
+      startDirectSpaceWithGuest: createStartDirectSpaceWithGuest(directSplitDeps),
+      recordPairSettlement,
     }),
     digest: (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex"),
     ids,

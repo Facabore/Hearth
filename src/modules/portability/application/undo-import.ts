@@ -22,7 +22,8 @@ export type UndoImport = (input: {
  * Design §3.2: in one transaction under the space lock (#89), logically deletes every movement the batch created
  * (D8, through the ledger's delete, which keeps the audit), then archives the categories and accounts it created that
  * no live movement uses any more; the batch becomes UNDONE and its links stop counting (design §3.3), so importing the
- * same file again brings everything back. A refusal (a movement in a closed period) undoes nothing.
+ * same file again brings everything back. A refusal (a movement in a closed period) undoes nothing. P337: a Persona's
+ * settlements are deleted in their direct spaces too; the spaces and their guests stay.
  */
 export const createUndoImport =
   (deps: ImportDeps): UndoImport =>
@@ -41,6 +42,12 @@ export const createUndoImport =
       let movementsDeleted = 0;
       for (const movementId of created.movements) {
         const deleted = await deps.writer.deleteMovement({ ...who, movementId });
+        if (!deleted.ok) return deleted;
+        if (deleted.value) movementsDeleted += 1;
+      }
+      // P337: a Persona's settlements, each in its direct space; the space and its guest stay (no hard deletes).
+      for (const { spaceId, movementId } of created.settlements) {
+        const deleted = await deps.writer.deleteMovement({ spaceId, userId: input.userId, movementId });
         if (!deleted.ok) return deleted;
         if (deleted.value) movementsDeleted += 1;
       }

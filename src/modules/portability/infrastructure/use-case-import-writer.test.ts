@@ -107,3 +107,41 @@ describe("creating an imported category (D22)", () => {
     expect(createCategory).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("a Persona's settlement (P337, P334)", () => {
+  it("records it through the pair settlement with its date alone, or its instant and zone, and answers its id", async () => {
+    const recordPairSettlement = vi.fn().mockResolvedValue(ok({ id: "tx-1" }));
+    const writer = createUseCaseImportWriter({
+      recordPairSettlement,
+    } as unknown as UseCaseImportWriterSources);
+    const amount = { minor: 100n, currency: { code: "COP" } } as never;
+    const base = { spaceId: "direct", userId: "u", direction: "FROM" as const, accountId: null, amount };
+
+    expect(
+      await writer.recordPersonSettlement({ ...base, time: { date: "2025-01-10" as never, untimed: true } }),
+    ).toEqual(ok("tx-1"));
+    expect(recordPairSettlement).toHaveBeenLastCalledWith({ ...base, date: "2025-01-10", untimed: true });
+
+    const occurredAt = new Date("2025-01-10T15:00:00Z");
+    await writer.recordPersonSettlement({
+      ...base,
+      time: { date: "2025-01-10" as never, occurredAt, timeZone: "America/Bogota" },
+    });
+    expect(recordPairSettlement).toHaveBeenLastCalledWith({
+      ...base,
+      date: "2025-01-10",
+      occurredAt,
+      timeZone: "America/Bogota",
+    });
+  });
+
+  it("opens the Persona's direct space with its guest through the spaces use case", async () => {
+    const startDirectSpaceWithGuest = vi.fn().mockResolvedValue(ok({ spaceId: "direct-1" }));
+    const writer = createUseCaseImportWriter({
+      startDirectSpaceWithGuest,
+    } as unknown as UseCaseImportWriterSources);
+    const input = { userId: "u", userName: "Ana", locale: "es", guestName: "Mom" };
+    expect(await writer.openDirectSpaceWithGuest(input)).toEqual(ok({ spaceId: "direct-1" }));
+    expect(startDirectSpaceWithGuest).toHaveBeenCalledWith(input);
+  });
+});

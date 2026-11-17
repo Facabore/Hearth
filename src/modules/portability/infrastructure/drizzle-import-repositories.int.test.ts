@@ -9,11 +9,12 @@ import { testDatabase } from "../../../../tests/support/database";
 import { fixedTimeZones } from "../../../../tests/support/fakes";
 import { personalSpaceFixture, type SpaceFixture } from "../../../../tests/support/fixtures";
 import { heldBy, holder, outcomesOf } from "../../../../tests/support/locks";
-import { moneyManagerBackup } from "../../../../tests/support/money-manager-backup";
+import { moneyManagerBackup, type BackupMovement } from "../../../../tests/support/money-manager-backup";
 import {
   createConfirmImport,
   createRemoveExpiredSnapshots,
   createStartImport,
+  createUndoImport,
   NOTHING_CREATED,
   type ImportBatch,
   type ImportDeps,
@@ -31,12 +32,20 @@ const clock = new FixedClock(new Date("2026-11-16T15:00:00Z"));
 afterAll(() => pool.end());
 
 /** An `ImportWriter` that writes nothing: every create answers a fresh id and is counted. */
-const countingWriter = (): ImportWriter & { readonly recorded: string[] } => {
+const countingWriter = (): ImportWriter & {
+  readonly recorded: string[];
+  readonly opened: string[];
+  readonly deleted: string[];
+} => {
   const recorded: string[] = [];
+  const opened: string[] = [];
+  const deleted: string[] = [];
   const otros = randomUUID();
   const id = async () => ok(randomUUID());
   return {
     recorded,
+    opened,
+    deleted,
     targetsOf: async () =>
       ok({
         accounts: [],
@@ -62,7 +71,22 @@ const countingWriter = (): ImportWriter & { readonly recorded: string[] } => {
       recorded.push("adjustment");
       return id();
     },
-    deleteMovement: async () => ok(true),
+    deleteMovement: async ({ spaceId, movementId }) => {
+      deleted.push(`${spaceId}/${movementId}`);
+      return ok(true);
+    },
+    openDirectSpaceWithGuest: async ({ guestName }) => {
+      const spaceId = randomUUID();
+      opened.push(`${guestName}:${spaceId}`);
+      return ok({ spaceId });
+    },
+    recordPersonSettlement: async (input) => {
+      const account = input.accountId === null ? "no account" : "account";
+      recorded.push(
+        `settlement ${input.direction} ${account} ${input.amount.minor} ${input.description ?? ""}`,
+      );
+      return id();
+    },
     archiveAccount: async () => ok(undefined),
     restoreAccount: async () => ok(undefined),
     archiveCategory: async () => ok(undefined),
@@ -88,8 +112,12 @@ const depsWith = (overrides: Partial<ImportDeps> = {}): ImportDeps => ({
   ...overrides,
 });
 
-const draftIn = async (space: SpaceFixture, deps = depsWith()): Promise<string> => {
-  const started = await createStartImport(deps)({ ...space, bytes: moneyManagerBackup() });
+const draftIn = async (
+  space: SpaceFixture,
+  deps = depsWith(),
+  bytes = moneyManagerBackup(),
+): Promise<string> => {
+  const started = await createStartImport(deps)({ ...space, bytes });
   if (!started.ok) throw new Error(started.error.code);
   return started.value.id;
 };
@@ -244,6 +272,9 @@ describe("DrizzleImportLinks (D28, design §3.3)", () => {
   });
 });
 
+/** Who confirms: a Persona's direct space is named and seeded as theirs (P337). */
+const requester = { userName: "Ana", locale: "es" };
+
 /** The real batches repository, but the save of a confirmed batch stops in `h.hold()` once it is written. */
 class HoldingConfirm extends DrizzleImportBatches {
   constructor(private readonly h: ReturnType<typeof holder>) {
@@ -264,11 +295,14 @@ describe("two confirms of one draft (D28, design §3.2)", () => {
     const h = holder(tm, pool);
     const first = createConfirmImport(depsWith({ writer, batches: new HoldingConfirm(h) }))({
       ...ana,
+      ...requester,
       importId,
     });
     // The first confirm has written everything, not committed: the second queues behind its lock on the batch row.
     await heldBy(h, first);
-    const second = createConfirmImport(depsWith({ writer }))({ ...ana, importId }).finally(h.release);
+    const second = createConfirmImport(depsWith({ writer }))({ ...ana, ...requester, importId }).finally(
+      h.release,
+    );
 
     expect(await outcomesOf(first, second)).toEqual(["ImportNotDraft", "ok"]);
     // m6 is recorded too: this writer converts nothing, so no row fails for want of a rate. adj1, the bank's later
@@ -296,7 +330,11 @@ describe("a confirm the accounts module refuses (D28, design §3.2)", () => {
         input.name === "Banco Uno" ? err(domainError("InvalidAccountName")) : ok(randomUUID()),
     };
 
-    const confirmed = await createConfirmImport(depsWith({ writer: refusing }))({ ...ana, importId });
+    const confirmed = await createConfirmImport(depsWith({ writer: refusing }))({
+      ...ana,
+      ...requester,
+      importId,
+    });
 
     expect(confirmed).toEqual({
       ok: false,
@@ -304,5 +342,188 @@ describe("a confirm the accounts module refuses (D28, design §3.2)", () => {
     });
     expect(writer.recorded).toEqual([]);
     expect((await new DrizzleImportBatches(tm).find(ana.spaceId, importId))?.status).toBe("DRAFT");
+  });
+});
+
+describe("a confirm with a Persona (P337, P334)", () => {
+  const leg = { zdate: 0, currency: 1 as const };
+  /** Ana lent Mom 100,000, Mom paid 30,000 back into the bank, and four more movements on Mom's loan account. */
+  const lending: BackupMovement[] = [
+    {
+      ...leg,
+      uid: "l1",
+      doType: 3,
+      wdate: "2025-01-05",
+      asset: "a-bank",
+      toAsset: "a-mom",
+      entered: "100000.0",
+      inAccount: 100000,
+      txUidTrans: "lend",
+    },
+    {
+      ...leg,
+      uid: "l2",
+      doType: 4,
+      wdate: "2025-01-05",
+      asset: "a-mom",
+      toAsset: "a-bank",
+      entered: "100000.0",
+      inAccount: 100000,
+      txUidTrans: "lend",
+    },
+    {
+      ...leg,
+      uid: "l3",
+      doType: 3,
+      wdate: "2025-02-05",
+      asset: "a-mom",
+      toAsset: "a-bank",
+      entered: "30000.0",
+      inAccount: 30000,
+      txUidTrans: "back",
+    },
+    {
+      ...leg,
+      uid: "l4",
+      doType: 4,
+      wdate: "2025-02-05",
+      asset: "a-bank",
+      toAsset: "a-mom",
+      entered: "30000.0",
+      inAccount: 30000,
+      txUidTrans: "back",
+    },
+    {
+      ...leg,
+      uid: "inc",
+      doType: 0,
+      wdate: "2025-02-10",
+      asset: "a-mom",
+      category: "c-salary",
+      entered: "5000.0",
+      inAccount: 5000,
+      note: "Interés",
+    },
+    {
+      ...leg,
+      uid: "exp",
+      doType: 1,
+      wdate: "2025-02-11",
+      asset: "a-mom",
+      category: "c-food",
+      entered: "2000.0",
+      inAccount: 2000,
+    },
+    {
+      ...leg,
+      uid: "adjp",
+      doType: 7,
+      wdate: "2025-01-01",
+      asset: "a-mom",
+      entered: "1000.0",
+      inAccount: 1000,
+    },
+    {
+      ...leg,
+      uid: "adjn",
+      doType: 8,
+      wdate: "2025-03-01",
+      asset: "a-mom",
+      entered: "-500.0",
+      inAccount: -500,
+    },
+  ];
+  const bytes = moneyManagerBackup(lending, [
+    { uid: "a-mom", name: "Mom Loan", group: "g-loan", currency: 1 },
+  ]);
+
+  it("opens Mom's direct space once, records each movement as a settlement by its effect, and its undo deletes them there", async () => {
+    const ana = await personalSpaceFixture(db, pool, "Ana");
+    const writer = countingWriter();
+    const deps = depsWith({ writer });
+    const importId = await draftIn(ana, deps, bytes);
+
+    const confirmed = await createConfirmImport(deps)({ ...ana, ...requester, importId });
+
+    expect(confirmed.ok && confirmed.value.counts).toMatchObject({ peopleCreated: 1, movementsImported: 0 });
+    expect(writer.opened).toEqual([expect.stringMatching(/^Mom:/)]);
+    // Money into Mom (a loan from the bank, an income, a positive adjustment) is TO her; money out of her is FROM.
+    expect(writer.recorded).toEqual([
+      "settlement TO no account 100000 ",
+      "settlement TO account 10000000 ",
+      "settlement FROM account 3000000 ",
+      "settlement TO no account 500000 Interés",
+      "settlement FROM no account 200000 ",
+      "settlement FROM no account 50000 ",
+    ]);
+    const space = writer.opened[0]!.slice("Mom:".length);
+    const personLinks = await pool.query(
+      "SELECT source_key, entity_id FROM import_links WHERE import_id = $1 AND entity_type = 'PERSON'",
+      [importId],
+    );
+    expect(personLinks.rows).toEqual([{ source_key: "a-mom", entity_id: space }]);
+
+    expect((await createUndoImport(deps)({ ...ana, importId })).ok).toBe(true);
+    expect(writer.deleted).toHaveLength(6);
+    expect(writer.deleted.every((d) => d.startsWith(`${space}/`))).toBe(true);
+  });
+
+  it("reuses the direct space an undone import of the same file opened for Mom", async () => {
+    const ana = await personalSpaceFixture(db, pool, "Ana");
+    const writer = countingWriter();
+    const deps = depsWith({ writer });
+    const first = await draftIn(ana, deps, bytes);
+    expect((await createConfirmImport(deps)({ ...ana, ...requester, importId: first })).ok).toBe(true);
+    expect((await createUndoImport(deps)({ ...ana, importId: first })).ok).toBe(true);
+
+    const again = await draftIn(ana, deps, bytes);
+    const confirmed = await createConfirmImport(deps)({ ...ana, ...requester, importId: again });
+
+    expect(confirmed.ok && confirmed.value.counts?.peopleCreated).toBe(0);
+    expect(writer.opened).toHaveLength(1);
+  });
+
+  it("refuses a transfer between two people as that row's error, TransferBetweenPeople", async () => {
+    const ana = await personalSpaceFixture(db, pool, "Ana");
+    const writer = countingWriter();
+    const deps = depsWith({ writer });
+    const between = moneyManagerBackup(
+      [
+        {
+          ...leg,
+          uid: "p1",
+          doType: 3,
+          wdate: "2025-01-05",
+          asset: "a-mom",
+          toAsset: "a-dad",
+          entered: "100.0",
+          inAccount: 100,
+          txUidTrans: "pp",
+        },
+        {
+          ...leg,
+          uid: "p2",
+          doType: 4,
+          wdate: "2025-01-05",
+          asset: "a-dad",
+          toAsset: "a-mom",
+          entered: "100.0",
+          inAccount: 100,
+          txUidTrans: "pp",
+        },
+      ],
+      [
+        { uid: "a-mom", name: "Mom Loan", group: "g-loan", currency: 1 },
+        { uid: "a-dad", name: "Dad Loan", group: "g-loan", currency: 1, order: 1 },
+      ],
+    );
+    const importId = await draftIn(ana, deps, between);
+
+    const confirmed = await createConfirmImport(deps)({ ...ana, ...requester, importId });
+
+    expect(confirmed.ok && confirmed.value.rowErrors).toEqual([
+      { code: "TransferBetweenPeople", sourceKey: "pp" },
+    ]);
+    expect(writer.recorded).toEqual([]);
   });
 });

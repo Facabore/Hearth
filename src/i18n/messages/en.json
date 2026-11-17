@@ -103,6 +103,7 @@
     "CurrencyUnchanged": "The account is already in that currency.",
     "ConvertedAmountTooSmall": "At that rate some movement of the account would become zero. Check the rate.",
     "ExchangeRateRequired": "There's no exchange rate between these currencies for that date. Enter how much it was in the space's currency.",
+    "TransferBetweenPeople": "A transfer between two people can't be imported: record it with each of them on its own.",
     "FieldNotEditable": "This detail cannot be changed for this kind of transaction.",
     "GuestAlreadyClaimed": "This guest place has already been claimed.",
     "GuestHasNoAccounts": "A guest has no accounts: remove the account from their payment.",

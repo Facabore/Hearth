@@ -1,9 +1,11 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, localDateIn, Money, ok, type DomainError, type Result } from "@/shared/kernel";
+import { personNameOf } from "../domain/account-dispositions";
 import {
   confirmBatch,
   draftSnapshot,
   IMPORT_GROUP_NAME,
+  targetAccountOf,
   type CreatedEntities,
   type ImportBatch,
   type ImportCounts,
@@ -11,9 +13,9 @@ import {
 } from "../domain/import-batch";
 import { openingKeyOf, planImport } from "../domain/import-plan";
 import { checkMappings, importGroupOf, type HearthTargets } from "../domain/mapping-proposals";
-import type { SourceIssue, SourceMovement, SourceSnapshot } from "../domain/source-snapshot";
+import type { SourceAccount, SourceIssue, SourceMovement, SourceSnapshot } from "../domain/source-snapshot";
 import { authorizeImporter, ownBatch, priorLinksFor } from "./import-access";
-import type { ImportDeps, ImportLink, MovementTime } from "./import-ports";
+import type { ImportDeps, ImportLink, ImportWriter, MovementTime } from "./import-ports";
 import { knownFor } from "./import-view";
 
 /** What a confirm or an undo answers, and the history lists (design §3.2). */
@@ -35,6 +37,9 @@ export type ConfirmImport = (input: {
   readonly spaceId: string;
   readonly userId: string;
   readonly importId: string;
+  /** P337: the importer's name and locale, for a Persona's new direct space (named and seeded as a split's). */
+  readonly userName: string;
+  readonly locale: string;
 }) => Promise<Result<ImportResult>>;
 
 /** A row's issue from the ledger's refusal, in the snapshot's own shape (design §3.2). */
@@ -84,6 +89,8 @@ const amountsOf = (movement: SourceMovement, accountCurrency: string, base: stri
 interface Resolved {
   readonly accounts: Map<string, { readonly id: string; readonly currency: string }>;
   readonly categories: Map<string, string>;
+  /** P337: each Persona's direct space, by its source account. */
+  readonly people: Map<string, string>;
 }
 
 /** What a confirm created and what it restored (design §3.3), which its undo archives again. */
@@ -92,33 +99,49 @@ interface Brought {
   readonly restored: string[];
 }
 
+/** P337: the source's accounts in its own order (a snapshot stored before P337 keeps its list order). */
+const inSourceOrder = (accounts: readonly SourceAccount[]): SourceAccount[] =>
+  accounts
+    .map((account, index) => ({ account, rank: account.order ?? index }))
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ account }) => account);
+
 /**
- * The accounts the import creates, with their opening balance (gap G1) and their settled names, those it restores
- * (archived by an undone import of this source) and those it maps to; all or nothing.
+ * The accounts the import creates, in the source's order, with their opening balance (gap G1) and their settled
+ * names, those it restores (archived by an undone import of this source) and those it maps to; all or nothing. P337:
+ * a Persona gets no account. An Archivar's account the import creates, or restores for movements to record in it, is
+ * listed in `toArchive` for the end of the confirm; one it merges into (the person's own) never is, and an archived
+ * one no movement touches is left archived.
  */
 const resolveAccounts = async (
   deps: Pick<ImportDeps, "writer">,
   input: { spaceId: string; userId: string },
-  snapshot: SourceSnapshot,
+  accountsInOrder: readonly SourceAccount[],
   mappings: ImportMappings,
   targets: HearthTargets,
-  openingBalances: ReadonlyMap<string, bigint>,
+  plan: { readonly openingBalances: ReadonlyMap<string, bigint>; readonly touched: ReadonlySet<string> },
   brought: Brought,
+  toArchive: { sourceId: string; accountId: string }[],
 ): Promise<Result<Resolved["accounts"]>> => {
   const accounts: Resolved["accounts"] = new Map();
-  for (const account of snapshot.accounts) {
+  for (const account of accountsInOrder) {
     const mapping = mappings.accounts[account.sourceId]!;
-    if (mapping.kind === "existing") {
-      const target = targets.accounts.find((a) => a.id === mapping.accountId)!;
-      if (target.archived) {
+    if (mapping.kind === "person") continue;
+    const archive = mapping.kind === "archive";
+    const accountId = targetAccountOf(mapping);
+    if (accountId !== null) {
+      const target = targets.accounts.find((a) => a.id === accountId)!;
+      if (target.archived && (!archive || plan.touched.has(account.sourceId))) {
         const restored = await deps.writer.restoreAccount({ ...input, accountId: target.id });
         if (!restored.ok) return about(account.sourceId, restored.error);
         brought.restored.push(target.id);
+        if (archive) toArchive.push({ sourceId: account.sourceId, accountId: target.id });
       }
       accounts.set(account.sourceId, { id: target.id, currency: target.currency });
       continue;
     }
-    const opening = Money.ofMinor(openingBalances.get(account.sourceId) ?? 0n, mapping.currency);
+    if (mapping.kind === "existing") continue;
+    const opening = Money.ofMinor(plan.openingBalances.get(account.sourceId) ?? 0n, mapping.currency);
     if (!opening.ok) return about(account.sourceId, opening.error);
     const id = await deps.writer.createAccount({
       ...input,
@@ -130,10 +153,96 @@ const resolveAccounts = async (
     });
     if (!id.ok) return about(account.sourceId, id.error);
     brought.created.push(id.value);
+    if (archive) toArchive.push({ sourceId: account.sourceId, accountId: id.value });
     accounts.set(account.sourceId, { id: id.value, currency: mapping.currency });
   }
   return ok(accounts);
 };
+
+/**
+ * P337, P338: each Persona's direct space, in the source's order: the one an earlier import of this source opened
+ * for it (standing or undone), else a new one with a guest under the Persona's name; all or nothing.
+ */
+const resolvePeople = async (
+  deps: Pick<ImportDeps, "writer">,
+  requester: { userId: string; userName: string; locale: string },
+  accountsInOrder: readonly SourceAccount[],
+  mappings: ImportMappings,
+  linked: ReadonlyMap<string, string>,
+  opened: string[],
+): Promise<Result<Resolved["people"]>> => {
+  const people: Resolved["people"] = new Map();
+  for (const account of accountsInOrder) {
+    const mapping = mappings.accounts[account.sourceId]!;
+    if (mapping.kind !== "person") continue;
+    const known = linked.get(account.sourceId);
+    if (known !== undefined) {
+      people.set(account.sourceId, known);
+      continue;
+    }
+    const space = await deps.writer.openDirectSpaceWithGuest({
+      ...requester,
+      guestName: mapping.name ?? personNameOf(account.name),
+    });
+    if (!space.ok) return about(account.sourceId, space.error);
+    opened.push(space.value.spaceId);
+    people.set(account.sourceId, space.value.spaceId);
+  }
+  return ok(people);
+};
+
+type PersonSettlement = Parameters<ImportWriter["recordPersonSettlement"]>[0];
+
+/** A movement's amount without its sign, for a settlement (always positive). */
+const absolute = (amount: Money): Result<Money> =>
+  Money.ofMinor(amount.minor < 0n ? -amount.minor : amount.minor, amount.currency.code);
+
+/**
+ * P337, P334: a movement that touches a Persona, as a settlement with that person by its effect on the source
+ * account's balance (positive: the person owes the importer). Money into the Persona (a transfer from one of the
+ * importer's accounts, an income, a positive adjustment) is TO them; money out of it (a transfer into an account, an
+ * expense, a negative adjustment) is FROM them. Only a transfer has an account side; a transfer between two people is
+ * refused (`TransferBetweenPeople`). Null for a movement no Persona has.
+ */
+const settlementOf = (
+  movement: SourceMovement,
+  resolved: Resolved,
+  base: { userId: string; description?: string; time: MovementTime },
+): Result<PersonSettlement> | null => {
+  const from = resolved.people.get(movement.accountSourceId);
+  const to =
+    movement.kind === "TRANSFER" && movement.toAccountSourceId !== null
+      ? resolved.people.get(movement.toAccountSourceId)
+      : undefined;
+  if (from === undefined && to === undefined) return null;
+  if (from !== undefined && to !== undefined) return err(domainError("TransferBetweenPeople"));
+  if (to !== undefined) {
+    const account = resolved.accounts.get(movement.accountSourceId);
+    if (account === undefined) return err(domainError("AccountNotFound"));
+    const amount = movement.toAmount ?? movement.amount;
+    return ok({ ...base, spaceId: to, direction: "TO", accountId: account.id, amount });
+  }
+  const spaceId = from!;
+  if (movement.kind === "TRANSFER") {
+    const account =
+      movement.toAccountSourceId === null ? undefined : resolved.accounts.get(movement.toAccountSourceId);
+    if (account === undefined) return err(domainError("AccountNotFound"));
+    return ok({ ...base, spaceId, direction: "FROM", accountId: account.id, amount: movement.amount });
+  }
+  const amount = absolute(movement.amount);
+  if (!amount.ok) return amount;
+  const into = movement.kind === "INCOME" || (movement.kind === "ADJUSTMENT" && movement.amount.minor > 0n);
+  return ok({ ...base, spaceId, direction: into ? "TO" : "FROM", accountId: null, amount: amount.value });
+};
+
+/** The source accounts each movement touches, as its source or its destination. */
+const touchedBy = (movements: readonly SourceMovement[]): Set<string> =>
+  new Set(
+    movements.flatMap((m) => [
+      m.accountSourceId,
+      ...(m.toAccountSourceId === null ? [] : [m.toAccountSourceId]),
+    ]),
+  );
 
 /**
  * The categories the import creates (under their settled names), restores and maps to (design §2.2), parents first;
@@ -252,6 +361,10 @@ const record = async (
  * ledger refuses (no rate for its date, a closed period) is a row error and the rest still imports; a refused account or
  * category stops everything (`ImportTargetRefused`, naming it), since its movements could not go anywhere. Accounts and
  * categories an undone import of this source created are restored rather than created again (design §3.3).
+ *
+ * P337: accounts are created in the source's order. A Persona's movements are settlements in its direct space
+ * (`settlementOf`), opened with a guest on first use, each its own row as any other movement. An Archivar's account the
+ * import created or restored is archived once every movement is in, its history kept.
  */
 export const createConfirmImport =
   (deps: ImportDeps): ConfirmImport =>
@@ -273,6 +386,7 @@ export const createConfirmImport =
         batch.value.mappings,
         targets.value,
         await priorLinksFor(deps, space.spaceId, snapshot.value.sourceApp),
+        space.currency,
       );
       if (!mappings.ok) return mappings;
       const known = await knownFor(deps, space.spaceId, snapshot.value, mappings.value);
@@ -282,17 +396,37 @@ export const createConfirmImport =
       const who = { spaceId: space.spaceId, userId: input.userId };
       const accountsBrought: Brought = { created: [], restored: [] };
       const categoriesBrought: Brought = { created: [], restored: [] };
+      const toArchive: { sourceId: string; accountId: string }[] = [];
+      const opened: string[] = [];
       const movements: string[] = [];
+      const settlements: { spaceId: string; movementId: string }[] = [];
+      const ordered = inSourceOrder(snapshot.value.accounts);
       const accounts = await resolveAccounts(
         deps,
         who,
-        snapshot.value,
+        ordered,
         mappings.value,
         targets.value,
-        plan.openingBalances,
+        { openingBalances: plan.openingBalances, touched: touchedBy(plan.toRecord) },
         accountsBrought,
+        toArchive,
       );
       if (!accounts.ok) return accounts;
+      // P337: a Persona keeps the direct space an earlier import of this source opened for it, standing or undone.
+      const personLinks = new Map(
+        [...(await deps.links.undoneLinksOf(space.spaceId, snapshot.value.sourceApp)), ...known.value.links]
+          .filter((l) => l.entityType === "PERSON")
+          .map((l) => [l.sourceKey, l.entityId] as const),
+      );
+      const people = await resolvePeople(
+        deps,
+        { userId: input.userId, userName: input.userName, locale: input.locale },
+        ordered,
+        mappings.value,
+        personLinks,
+        opened,
+      );
+      if (!people.ok) return people;
       const categories = await resolveCategories(
         deps,
         who,
@@ -302,7 +436,11 @@ export const createConfirmImport =
         categoriesBrought,
       );
       if (!categories.ok) return categories;
-      const resolved: Resolved = { accounts: accounts.value, categories: categories.value };
+      const resolved: Resolved = {
+        accounts: accounts.value,
+        categories: categories.value,
+        people: people.value,
+      };
 
       const { sourceApp } = snapshot.value;
       const link = (
@@ -320,6 +458,7 @@ export const createConfirmImport =
       const links: ImportLink[] = [
         ...[...resolved.accounts].map(([sourceId, a]) => link(sourceId, "ACCOUNT", a.id)),
         ...[...resolved.categories].map(([sourceId, id]) => link(sourceId, "CATEGORY", id)),
+        ...[...resolved.people].map(([sourceId, spaceId]) => link(sourceId, "PERSON", spaceId)),
         ...plan.folded.map((m) =>
           link(openingKeyOf(m.sourceKey), "ACCOUNT", resolved.accounts.get(m.accountSourceId)!.id),
         ),
@@ -327,14 +466,30 @@ export const createConfirmImport =
       const rowErrors: SourceIssue[] = [];
       let adjustmentsRefused = 0;
       for (const movement of plan.toRecord) {
-        const id = await record(deps, space, input.userId, movement, resolved, mappings.value.timeZone);
+        const settlement = settlementOf(movement, resolved, {
+          userId: input.userId,
+          ...(movement.note === null ? {} : { description: movement.note }),
+          time: timeOf(movement, mappings.value.timeZone),
+        });
+        const id =
+          settlement === null
+            ? await record(deps, space, input.userId, movement, resolved, mappings.value.timeZone)
+            : settlement.ok
+              ? await deps.writer.recordPersonSettlement(settlement.value)
+              : settlement;
         if (!id.ok) {
           rowErrors.push(rowError(movement.sourceKey, id.error));
           if (movement.kind === "ADJUSTMENT") adjustmentsRefused += 1;
           continue;
         }
-        movements.push(id.value);
+        if (settlement?.ok) settlements.push({ spaceId: settlement.value.spaceId, movementId: id.value });
+        else movements.push(id.value);
         links.push(link(movement.sourceKey, "MOVEMENT", id.value));
+      }
+      // P337: an Archivar's account leaves the pickers and totals once its movements are in, its history kept.
+      for (const { sourceId, accountId } of toArchive) {
+        const archived = await deps.writer.archiveAccount({ ...who, accountId });
+        if (!archived.ok) return about(sourceId, archived.error);
       }
 
       // Design §2.2: a deleted source category still used by a movement is imported, then archived; only one the
@@ -360,12 +515,16 @@ export const createConfirmImport =
         // Design Q4 (#329): the adjustments the ledger refused (each a row error too); every other one was imported.
         adjustmentsNotImported: adjustmentsRefused,
         rowErrors: rowErrors.length,
+        peopleCreated: opened.length,
+        accountsArchived: toArchive.length,
       };
       // What the undo reverts: every movement it recorded, and every account and category it created or restored.
       const created: CreatedEntities = {
         accounts: [...accountsBrought.created, ...accountsBrought.restored],
         categories: [...categoriesBrought.created, ...categoriesBrought.restored],
         movements,
+        settlements,
+        people: opened,
       };
       const outcome = { counts, rowErrors, created };
       const confirmed = confirmBatch(batch.value, outcome, deps.clock.now());

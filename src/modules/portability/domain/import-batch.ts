@@ -5,9 +5,17 @@ import type { SourceAccountType, SourceIssue, SourceSnapshot } from "./source-sn
 export type ImportStatus = "DRAFT" | "CONFIRMED" | "UNDONE";
 
 /**
- * Where a source account's movements go: one of the person's accounts in the space, or a new one (design §2.1). An
- * existing account may be an archived one only when an undone import of this source created it: the confirm restores
- * it. A new account's `name` is one no account of the space holds, archived ones included (`checkMappings` settles it).
+ * What a source account is (P337) and where its movements go (design §2.1):
+ *
+ * - **Cuenta**: one of the person's accounts in the space (`existing`), or a new one (`new`). An existing account may be
+ *   an archived one only when an undone import of this source created it: the confirm restores it. A new account's
+ *   `name` is one no account of the space holds, archived ones included (`checkMappings` settles it).
+ * - **Archivar** (`archive`): its movements go to `accountId` and it leaves the pickers and totals. `accountId` is
+ *   either an account of the person's this one duplicates (a starter "Efectivo" for "Cash"), never archived itself, or
+ *   an archived account an earlier import of this source created, restored for its movements and archived again; null
+ *   creates a new account, under a settled `name`, records its movements and archives it (history kept).
+ * - **Persona** (`person`): someone who owes the person or whom they owe. A guest named `name` in the pair's direct
+ *   space (P338), whose movements are recorded there as P334's settlements, never as an account.
  */
 export type AccountMapping =
   | { readonly kind: "existing"; readonly accountId: string }
@@ -16,7 +24,23 @@ export type AccountMapping =
       readonly type: SourceAccountType;
       readonly currency: string;
       readonly name?: string;
-    };
+    }
+  | {
+      readonly kind: "archive";
+      readonly accountId: string | null;
+      readonly type: SourceAccountType;
+      readonly currency: string;
+      readonly name?: string;
+    }
+  | { readonly kind: "person"; readonly name?: string };
+
+/** P337: whether the confirm creates an account for this mapping (a new one, or a new one it then archives). */
+export const createsAccount = (mapping: AccountMapping): boolean =>
+  mapping.kind === "new" || (mapping.kind === "archive" && mapping.accountId === null);
+
+/** P337: the person's account the movements go to, for a mapping that uses one rather than creating it. */
+export const targetAccountOf = (mapping: AccountMapping): string | null =>
+  mapping.kind === "existing" || mapping.kind === "archive" ? mapping.accountId : null;
 
 /**
  * Where a source category's movements go (design §2.2): an existing category (an archived one only when an undone
@@ -56,6 +80,10 @@ export interface ImportCounts {
   /** Gap G1, Q4: later adjustments wait for the ADJUSTMENT movement type; none is written. */
   readonly adjustmentsNotImported: number;
   readonly rowErrors: number;
+  /** P337: guests (Persona) this confirm added, each in a new direct space; 0 in a batch confirmed before P337. */
+  readonly peopleCreated: number;
+  /** P337: accounts it created or restored for Archivar and archived at its end; 0 before P337. */
+  readonly accountsArchived: number;
 }
 
 /** The ids a confirm created, which its undo reverts (design §3.2). */
@@ -63,6 +91,10 @@ export interface CreatedEntities {
   readonly accounts: readonly string[];
   readonly categories: readonly string[];
   readonly movements: readonly string[];
+  /** P337: the settlements it recorded for a Persona, each in its direct space (not the batch's own space). */
+  readonly settlements: readonly { readonly spaceId: string; readonly movementId: string }[];
+  /** P337: the direct spaces it opened for a Persona; an undo leaves them and their guests (no hard deletes). */
+  readonly people: readonly string[];
 }
 
 export interface ImportBatch {
@@ -88,7 +120,13 @@ export interface ImportBatch {
 /** Design §3.5: the snapshot is technical data, kept this long after the batch is settled or abandoned. */
 export const SNAPSHOT_RETENTION_DAYS = 7;
 
-export const NOTHING_CREATED: CreatedEntities = { accounts: [], categories: [], movements: [] };
+export const NOTHING_CREATED: CreatedEntities = {
+  accounts: [],
+  categories: [],
+  movements: [],
+  settlements: [],
+  people: [],
+};
 
 /** A batch that still takes mapping changes and a confirm: a draft whose snapshot is still kept. */
 export const draftSnapshot = (batch: ImportBatch): Result<SourceSnapshot> => {

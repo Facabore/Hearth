@@ -36,6 +36,8 @@ export const createAdjustImport =
       if (!targets.ok) return targets;
       const current = batch.value.mappings;
       const { changes } = input;
+      const links = await priorLinksFor(deps, input.spaceId, snapshot.value.sourceApp);
+      const spaceCurrency = importer.value.currency;
       const mappings = checkMappings(
         snapshot.value,
         {
@@ -45,10 +47,11 @@ export const createAdjustImport =
           includeDuplicates: changes.includeDuplicates ?? current.includeDuplicates,
         },
         targets.value,
-        await priorLinksFor(deps, input.spaceId, snapshot.value.sourceApp),
+        links,
+        spaceCurrency,
       );
       if (!mappings.ok) return mappings;
       const adjusted = { ...batch.value, mappings: mappings.value };
       await deps.batches.save(adjusted);
-      return viewOf(deps, adjusted, snapshot.value);
+      return viewOf(deps, adjusted, snapshot.value, { targets: targets.value, links, spaceCurrency });
     });

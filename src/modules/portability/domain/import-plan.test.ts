@@ -145,6 +145,37 @@ describe("planImport (design §3.2, §3.3, gap G1)", () => {
     expect(plan.folded).toEqual([]);
   });
 
+  it("folds an Archivar's adjustments into the account it creates, and keeps an undone fold in the one it merges into (P337)", () => {
+    const snapshot = snapshotOf([
+      movement("adj1", "ADJUSTMENT", "2025-01-01", 1000n),
+      movement("m1", "EXPENSE", "2025-01-10", 500n),
+    ]);
+    const archived = (accountId: string | null): ImportMappings => ({
+      ...mappings("new"),
+      accounts: { "a-bank": { kind: "archive", accountId, type: "BANK", currency: "COP" } },
+    });
+    const created = planImport(snapshot, archived(null), none);
+    expect(created.openingBalances.get("a-bank")).toBe(1000n);
+    expect(created.toRecord.map((m) => m.sourceKey)).toEqual(["m1"]);
+
+    const merged = planImport(snapshot, archived("acc-1"), none);
+    expect(merged.openingBalances.size).toBe(0);
+    expect(merged.toRecord.map((m) => m.sourceKey)).toEqual(["adj1", "m1"]);
+    const undone = { ...none, undoneOpenings: new Map([[openingKeyOf("adj1"), "acc-1"]]) };
+    expect(planImport(snapshot, archived("acc-1"), undone).folded.map((m) => m.sourceKey)).toEqual(["adj1"]);
+  });
+
+  it("never folds a Persona's adjustment: it is recorded, as a settlement with that person (P337)", () => {
+    const plan = planImport(
+      snapshotOf([movement("adj1", "ADJUSTMENT", "2025-01-01", 1000n)]),
+      { ...mappings("new"), accounts: { "a-bank": { kind: "person", name: "Mom" } } },
+      none,
+    );
+    expect(plan.openingBalances.size).toBe(0);
+    expect(plan.folded).toEqual([]);
+    expect(plan.toRecord.map((m) => m.sourceKey)).toEqual(["adj1"]);
+  });
+
   it("skips a recorded adjustment an earlier import linked by its own key, and a likely duplicate one", () => {
     const snapshot = snapshotOf([
       movement("m1", "EXPENSE", "2025-01-10", 500n),
