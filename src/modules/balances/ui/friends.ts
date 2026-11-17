@@ -5,6 +5,13 @@ import type { MoneyDto } from "@/shared/ui/api/dto";
 export type FriendDto =
   paths["/api/v1/me/friends"]["get"]["responses"][200]["content"]["application/json"]["items"][number];
 
+/** Ruling P339 (S4): the friend requests the viewer received and sent, as the API answers them. */
+export type FriendRequestsDto =
+  paths["/api/v1/me/friend-requests"]["get"]["responses"][200]["content"]["application/json"];
+
+/** One friend request: the other person's name and @ (null when they have none any more). */
+export type FriendRequestDto = FriendRequestsDto["incoming"][number];
+
 /** Ruling P338: what the person owes the viewer and what the viewer owes, one sum per currency (amounts never mix). */
 export interface FriendTotals {
   readonly owed: readonly MoneyDto[];
@@ -40,3 +47,14 @@ export const initialsOf = (name: string): string =>
     .slice(0, 2)
     .map((word) => word.charAt(0).toUpperCase())
     .join("");
+
+/**
+ * Ruling P339: an @ as the API reads it: trimmed, without one leading "@" and in lower case ("@Fabian" is "fabian").
+ */
+export const handleOf = (typed: string): string => typed.trim().replace(/^@/, "").toLowerCase();
+
+/** Ruling P339 (S2): whether an @ can be someone's: 3–20 lower-case letters a–z, digits and underscores. */
+export const isHandle = (handle: string): boolean => /^[a-z0-9_]{3,20}$/.test(handle);
+
+/** Ruling P339 (S6): the link that opens Agregar amigo with this @ filled in. */
+export const friendLinkOf = (handle: string): string => `/f/${encodeURIComponent(handle)}`;

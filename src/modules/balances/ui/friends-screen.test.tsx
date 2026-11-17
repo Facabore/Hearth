@@ -1,11 +1,17 @@
 import { screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { cop, friendDto, normalized } from "../../../../tests/support/ui/dto";
+import { fakeApi, jsonResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { FriendsLine } from "./friends-line";
 import { FriendsScreen } from "./friends-screen";
+
+const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
+beforeEach(() => vi.clearAllMocks());
 
 const TODAY = "2026-11-16";
 
@@ -130,5 +136,75 @@ describe('Inicio\'s line to Amigos (ruling P338, board "Inicio · Personal: Amig
   it("draws nothing while everyone is al día", () => {
     const { container } = line([friendDto({ net: cop(0) })]);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe("Amigos' requests and Agregar amigo (ruling P339, board 'Amigos · solicitudes y eliminar')", () => {
+  const CARLOS = {
+    id: "fr-carlos",
+    handle: "carlosr",
+    displayName: "Carlos Ruiz",
+    createdAt: "2026-11-17T10:00:00.000Z",
+  };
+  const LUCIA = {
+    id: "fr-lucia",
+    handle: "lucia",
+    displayName: "Lucía",
+    createdAt: "2026-11-16T10:00:00.000Z",
+  };
+  const requests = { incoming: [CARLOS], outgoing: [LUCIA] };
+
+  it("lists the requests received first, with Aceptar and Rechazar, then the ones sent, before the friends", async () => {
+    const { container } = view({ requests });
+    const section = screen.getByRole("region", { name: "Solicitudes · 2" });
+    const items = within(section).getAllByRole("listitem");
+    expect(items.map((item) => normalized(item.textContent))).toEqual([
+      "CRCarlos Ruiz@carlosrAceptarRechazar",
+      "LLucía@lucia · Solicitud enviada",
+    ]);
+    expect(within(items[1]!).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("Tus amigos · 4")).toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("accepts a request and reads Amigos again", async () => {
+    const { api, requests: sent } = fakeApi({
+      "POST /api/v1/me/friend-requests/{requestId}/accept": () => jsonResponse({ spaceId: "sp-carlos" }),
+    });
+    view({ requests, api });
+    await userEvent.click(screen.getByRole("button", { name: "Aceptar a Carlos Ruiz" }));
+    await vi.waitFor(() => expect(router.refresh).toHaveBeenCalled());
+    expect(sent.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual([
+      "POST /api/v1/me/friend-requests/fr-carlos/accept",
+    ]);
+  });
+
+  it("rejects a request and reads Amigos again", async () => {
+    const { api, requests: sent } = fakeApi({
+      "POST /api/v1/me/friend-requests/{requestId}/reject": () => new Response(null, { status: 204 }),
+    });
+    view({ requests, api });
+    await userEvent.click(screen.getByRole("button", { name: "Rechazar a Carlos Ruiz" }));
+    await vi.waitFor(() => expect(router.refresh).toHaveBeenCalled());
+    expect(sent.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual([
+      "POST /api/v1/me/friend-requests/fr-carlos/reject",
+    ]);
+  });
+
+  it("opens Agregar amigo from the header's +, and at once with the @ a friend link carried", async () => {
+    const { unmount } = view();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Agregar amigo" }));
+    expect(await screen.findByRole("dialog", { name: "Agregar amigo" })).toBeInTheDocument();
+    unmount();
+    view({ addHandle: "analopez", api: fakeApi({}).api });
+    const dialog = await screen.findByRole("dialog", { name: "Agregar amigo" });
+    expect(within(dialog).getByRole("textbox", { name: "Usa Hearth" })).toHaveValue("analopez");
+  });
+
+  it("keeps the friends' list as it was without requests", () => {
+    view();
+    expect(screen.queryByRole("region", { name: /Solicitudes/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tus amigos/)).not.toBeInTheDocument();
   });
 });

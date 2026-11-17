@@ -11,7 +11,7 @@ import {
   normalized,
   spaceDto,
 } from "../../../../tests/support/ui/dto";
-import { fakeApi, jsonResponse } from "../../../../tests/support/ui/fake-api";
+import { fakeApi, jsonResponse, problemResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import type { BalanceHistoryDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
@@ -224,5 +224,66 @@ describe('a person of Amigos (ruling P338, board "Amigo · Mom")', () => {
     expect(screen.getByText("Not on Hearth")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Mamá owes you" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Record with Mamá" })).toBeInTheDocument();
+  });
+});
+
+describe('removing a person from Amigos (ruling P339, board "Amigos · solicitudes y eliminar")', () => {
+  const EVEN = {
+    friend: friendDto({ net: cop(0) }),
+    balances: [
+      { memberId: "m-ana-mama", net: cop(0) },
+      { memberId: "m-mama", net: cop(0) },
+    ],
+    suggestions: [],
+  };
+
+  it("removes someone the viewer is even with and goes back to Amigos", async () => {
+    const { api, requests } = fakeApi({
+      "DELETE /api/v1/me/friends/{spaceId}": () => new Response(null, { status: 204 }),
+    });
+    view({ ...EVEN, api });
+    await userEvent.click(screen.getByRole("button", { name: "Eliminar de Amigos" }));
+    const sheet = await screen.findByRole("dialog", { name: "Eliminar a Mamá" });
+    expect(
+      within(sheet).getByText(
+        "Están al día. Mamá deja de estar en tus amigos y lo que registraron juntos queda en tu historial.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(sheet).getByText("Con saldo pendiente, primero se salda.")).toBeInTheDocument();
+    expect(await axeViolations(document.body)).toEqual([]);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Eliminar de Amigos" }));
+    await vi.waitFor(() => expect(router.replace).toHaveBeenCalledWith("/spaces/sp-personal/balances"));
+    expect(requests.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual([
+      "DELETE /api/v1/me/friends/sp-mama",
+    ]);
+  });
+
+  it("says to settle first when the API finds a balance, with Saldar at hand", async () => {
+    const { api } = fakeApi({
+      "DELETE /api/v1/me/friends/{spaceId}": () =>
+        problemResponse(409, "FriendHasBalance", { outstanding: cop(1_000) }),
+    });
+    view({ ...EVEN, api });
+    await userEvent.click(screen.getByRole("button", { name: "Eliminar de Amigos" }));
+    const sheet = await screen.findByRole("dialog", { name: "Eliminar a Mamá" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Eliminar de Amigos" }));
+    expect(await within(sheet).findByRole("status")).toHaveTextContent(
+      "Con saldo pendiente, primero se salda.",
+    );
+    expect(within(sheet).queryByRole("button", { name: "Eliminar de Amigos" })).not.toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Saldar" }));
+    expect(await screen.findByRole("dialog", { name: "Saldar" })).toBeInTheDocument();
+  });
+
+  it("offers only Saldar while the screen already shows a balance", async () => {
+    const { api, requests } = fakeApi({});
+    view({ api });
+    await userEvent.click(screen.getByRole("button", { name: "Eliminar de Amigos" }));
+    const sheet = await screen.findByRole("dialog", { name: "Eliminar a Mamá" });
+    expect(within(sheet).getByRole("status")).toHaveTextContent("Con saldo pendiente, primero se salda.");
+    expect(within(sheet).queryByRole("button", { name: "Eliminar de Amigos" })).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Saldar" })).toBeInTheDocument();
+    expect(requests).toEqual([]);
   });
 });

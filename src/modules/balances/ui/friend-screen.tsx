@@ -20,7 +20,8 @@ import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/share
 import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
-import { FRIEND_TONE, FriendAvatar, useDayLabel } from "./friends-screen";
+import { useDayLabel } from "./day-label";
+import { FRIEND_TONE, FriendAvatar } from "./friend-avatar";
 import type { FriendDto } from "./friends";
 import { absolute, netState } from "./net-state";
 import { NicknameSheet } from "./nickname-sheet";
@@ -30,6 +31,12 @@ import { prefillOf, type SettlementDraft } from "./settlement-prefill";
 const SettleUpSheet = dynamic(() => import("./settle-up-sheet").then((module) => module.SettleUpSheet), {
   ssr: false,
 });
+
+// Removing a friend's sheet loads only when it opens (ADR 0004).
+const RemoveFriendSheet = dynamic(
+  () => import("./remove-friend-sheet").then((module) => module.RemoveFriendSheet),
+  { ssr: false },
+);
 
 /** How many movements show at first, and how many more each "Cargar más" shows. */
 const PAGE = 20;
@@ -49,6 +56,7 @@ interface Settling {
  * settle-up sheet for their direct space, and "Registrar con …", the record form in that space, which comes back here.
  * "Entre tú y …" lists every movement that moved the balance between the two, newest first, each signed by what it did
  * to the viewer's balance, with "Cargar más"; then that nobody else sees it, and for a guest the invitation to Hearth.
+ * Ruling P339 (S7): last, "Eliminar de Amigos", which removes the person once the two are even.
  */
 export function FriendScreen({
   personalSpaceId,
@@ -93,6 +101,7 @@ export function FriendScreen({
   const guest = friend.other.kind === "GUEST";
   const subtitle = guest ? t("person.guest") : friend.other.nickname ? friend.other.displayName : undefined;
   const [naming, setNaming] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [settling, setSettling] = useState<Settling | null>(null);
   const [shown, setShown] = useState(PAGE);
   const entries = [...history.entries].reverse();
@@ -226,7 +235,21 @@ export function FriendScreen({
           api={api}
         />
       ) : null}
+      <Button variant="dangerGhost" size="compact" className="self-start" onClick={() => setRemoving(true)}>
+        {t("remove.action")}
+      </Button>
       {naming ? <NicknameSheet open onOpenChange={setNaming} friend={friend} api={api} /> : null}
+      {removing ? (
+        <RemoveFriendSheet
+          open
+          onOpenChange={setRemoving}
+          friend={friend}
+          even={state === "settled"}
+          personalSpaceId={personalSpaceId}
+          onSettle={canSettle ? settle : undefined}
+          api={api}
+        />
+      ) : null}
       {canSettle && settling ? (
         <SettleUpSheet
           open

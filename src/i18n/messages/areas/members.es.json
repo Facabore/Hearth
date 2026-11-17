@@ -212,6 +212,46 @@
       "userNote": "Solo tú lo ves. Si lo dejas vacío, vuelve a llamarse {name}.",
       "guestNote": "Es su nombre en Hearth mientras no use la app.",
       "save": "Guardar"
+    },
+    "add": {
+      "open": "Agregar amigo",
+      "title": "Agregar amigo",
+      "hearth": "Usa Hearth",
+      "handlePlaceholder": "usuario",
+      "note": "Solo encuentras a alguien por su @ exacto. Verá tu nombre y decidirá si acepta.",
+      "searching": "Buscando…",
+      "notFound": "No encontramos a @{handle}.",
+      "tooMany": "Hiciste muchas búsquedas seguidas. Espera un minuto y vuelve a intentarlo.",
+      "send": "Enviar solicitud",
+      "sent": "Solicitud enviada",
+      "already": "Ya son amigos",
+      "guest": "No usa Hearth",
+      "namePlaceholder": "Su nombre, por ejemplo Mamá",
+      "guestNote": "Queda como invitado. Si un día se une a Hearth, su historial contigo se mantiene.",
+      "addGuest": "Agregar",
+      "you": "Tú eres @{handle}",
+      "share": "Compartir",
+      "shareText": "Agrégame en Amigos de Hearth",
+      "pickHandle": "Elige tu @usuario",
+      "pickHandleNote": "Con tu @, tus amigos te encuentran y puedes compartirles tu enlace."
+    },
+    "requests": {
+      "title": "Solicitudes · {count}",
+      "accept": "Aceptar",
+      "reject": "Rechazar",
+      "acceptOf": "Aceptar a {name}",
+      "rejectOf": "Rechazar a {name}",
+      "sent": "Solicitud enviada"
+    },
+    "mine": "Tus amigos · {count}",
+    "remove": {
+      "action": "Eliminar de Amigos",
+      "title": "Eliminar a {name}",
+      "even": "Están al día. {name} deja de estar en tus amigos y lo que registraron juntos queda en tu historial.",
+      "confirm": "Eliminar de Amigos",
+      "cancel": "Cancelar",
+      "pending": "Con saldo pendiente, primero se salda.",
+      "settle": "Saldar"
     }
   }
 }

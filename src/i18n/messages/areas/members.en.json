@@ -212,6 +212,46 @@
       "userNote": "Only you see it. Leave it empty to call them {name} again.",
       "guestNote": "It's their name on Hearth while they don't use the app.",
       "save": "Save"
+    },
+    "add": {
+      "open": "Add a friend",
+      "title": "Add a friend",
+      "hearth": "Uses Hearth",
+      "handlePlaceholder": "username",
+      "note": "You find someone only by their exact @. They will see your name and decide whether to accept.",
+      "searching": "Searching…",
+      "notFound": "We didn't find @{handle}.",
+      "tooMany": "You searched many times in a row. Wait a minute and try again.",
+      "send": "Send request",
+      "sent": "Request sent",
+      "already": "You are already friends",
+      "guest": "Doesn't use Hearth",
+      "namePlaceholder": "Their name, for example Mom",
+      "guestNote": "They stay as a guest. If they join Hearth one day, their history with you stays.",
+      "addGuest": "Add",
+      "you": "You are @{handle}",
+      "share": "Share",
+      "shareText": "Add me to your Friends on Hearth",
+      "pickHandle": "Pick your @username",
+      "pickHandleNote": "With your @, your friends find you and you can share your link with them."
+    },
+    "requests": {
+      "title": "Requests · {count}",
+      "accept": "Accept",
+      "reject": "Decline",
+      "acceptOf": "Accept {name}",
+      "rejectOf": "Decline {name}",
+      "sent": "Request sent"
+    },
+    "mine": "Your friends · {count}",
+    "remove": {
+      "action": "Remove from Friends",
+      "title": "Remove {name}",
+      "even": "You are even. {name} leaves your friends, and what you recorded together stays in your history.",
+      "confirm": "Remove from Friends",
+      "cancel": "Cancel",
+      "pending": "With a balance pending, settle up first.",
+      "settle": "Settle up"
     }
   }
 }
