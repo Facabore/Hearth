@@ -113,7 +113,8 @@ describe("changing an account's currency (P336)", () => {
     const w = await dollarsWorld();
     const response = await preview(w.ana, w.dollars, "currency=COP&rate=4100");
     expect(response.status).toBe(200);
-    // US$ 120 + US$ 100 − US$ 75 = US$ 145; at 4.100: $ 492.000 + $ 410.000 − $ 307.500 = $ 594.500.
+    // US$ 120 + US$ 100 − US$ 75 = US$ 145. At 4.100 the opening and the USD income convert ($ 492.000 + $ 410.000),
+    // while the $ 300.000 market, already in pesos, moves exactly that (P342, owner 2026-11-18): $ 602.000.
     expect(await response.json()).toEqual({
       from: "USD",
       to: "COP",
@@ -121,7 +122,7 @@ describe("changing an account's currency (P336)", () => {
       rateDate: null,
       movements: 2,
       balanceBefore: usd(145),
-      balanceAfter: cop(594_500),
+      balanceAfter: cop(602_000),
     });
   });
 
@@ -143,33 +144,37 @@ describe("changing an account's currency (P336)", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       openingBalance: cop(492_000),
-      balance: cop(594_500),
+      balance: cop(602_000),
     });
     // P342 (S3): her own income keeps its US$ 100; what the account received, at the rate, becomes its COP leg.
     const income = await transaction(w.ana, w.income);
     expect(income.amount).toEqual(usd(100));
     expect(income.destinationAmount).toEqual(cop(410_000));
     expect(income.originalAmount).toBeUndefined();
-    // The household's market keeps its $ 300.000 and its halves; only what her account paid converts.
+    // The household's market keeps its $ 300.000 and its halves; her account, now in pesos, paid exactly that: no leg.
     const market = await transaction(w.h.ana, w.market);
     expect(market.amount).toEqual(cop(300_000));
     expect(market.shares.map((s) => s.amount)).toEqual([cop(150_000), cop(150_000)]);
-    expect(market.payments[0]).toMatchObject({ amount: cop(300_000), accountAmount: cop(307_500) });
+    expect(market.payments[0]).toMatchObject({ amount: cop(300_000) });
+    expect(market.payments[0]?.accountAmount).toBeUndefined();
     // D8: each changed movement keeps its audit.
     expect([await auditCount(w.income), await auditCount(w.market)]).toEqual([1, 1]);
     const account = await call(getAccount, "GET", inSpace(w.ana, `accounts/${w.dollars}`), {
       user: w.ana,
       params: { spaceId: w.ana.spaceId, accountId: w.dollars },
     });
-    expect(((await account.json()) as { balance: MoneyDto }).balance).toEqual(cop(594_500));
+    expect(((await account.json()) as { balance: MoneyDto }).balance).toEqual(cop(602_000));
   });
 
   it("with a rate of 1 keeps the figures and only changes their currency", async () => {
     const w = await dollarsWorld();
     const response = await change(w.ana, w.dollars, { currency: "COP", rate: "1" });
     expect(response.status).toBe(200);
-    // US$ 145,00 becomes $ 145,00.
-    expect(await response.json()).toMatchObject({ openingBalance: cop(120), balance: cop(145) });
+    // US$ 120 and US$ 100 become $ 120 and $ 100; the $ 300.000 market, already in pesos, moves exactly that.
+    expect(await response.json()).toMatchObject({
+      openingBalance: cop(120),
+      balance: cop(120 + 100 - 300_000),
+    });
   });
 
   it("answers refusals with stable codes and changes nothing", async () => {

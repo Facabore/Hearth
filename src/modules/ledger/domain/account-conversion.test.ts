@@ -68,13 +68,16 @@ describe("an account's movements in a new currency (P336)", () => {
     expect(after.originalCurrency).toBeUndefined();
   });
 
-  it("a movement in a closed period keeps its amount; only the account's leg converts", () => {
+  // P342 (owner, 2026-11-18, "Mueve el monto del gasto"): once the account is in the movement's own currency there is
+  // no exchange left, so it moves exactly the movement's amount and keeps no leg; the rate only converts movements that
+  // stay in another currency and the opening balance.
+  it("a movement in a closed period keeps its amount; the account, now in its currency, moves exactly it", () => {
     const after = convert(income(), usdToCop("4100", false)) as Income;
     expect(after.amount).toBe(40_000_000n);
-    expect([after.destinationAmount, after.destinationCurrency]).toEqual([41_000_000n, "COP"]);
+    expect([after.destinationAmount, after.destinationCurrency]).toEqual([undefined, undefined]);
   });
 
-  it("an expense of another space keeps its amount and parts; the payment's leg converts", () => {
+  it("an expense of another space keeps its amount and parts; its payment, now in its currency, has no leg", () => {
     const expense: Expense = {
       ...base,
       spaceId: SHARED,
@@ -92,11 +95,7 @@ describe("an account's movements in a new currency (P336)", () => {
     const after = convert(expense, usdToCop("4100")) as Expense;
     expect(after.amount).toBe(30_000_000n);
     expect(after.shares).toEqual(expense.shares);
-    expect(after.payments[0]).toMatchObject({
-      amount: 30_000_000n,
-      accountAmount: 30_750_000n,
-      accountCurrency: "COP",
-    });
+    expect(after.payments[0]).toEqual({ memberId: "ana", accountId: X, amount: 30_000_000n });
   });
 
   it("a leg that ends equal to the movement's amount is not stored", () => {
@@ -138,7 +137,7 @@ describe("an account's movements in a new currency (P336)", () => {
     };
     const after = convert(transfer, usdToCop("4100")) as Transfer;
     expect(after.amount).toBe(40_000_000n);
-    expect([after.sourceAmount, after.sourceCurrency]).toEqual([41_000_000n, "COP"]);
+    expect([after.sourceAmount, after.sourceCurrency]).toEqual([undefined, undefined]);
     expect(after.destinationAmount).toBeUndefined();
   });
 
@@ -156,7 +155,7 @@ describe("an account's movements in a new currency (P336)", () => {
     expect([after.destinationAmount, after.destinationCurrency]).toEqual([10_250n, "USD"]);
   });
 
-  it("a settlement never changes what was settled; the account's leg converts", () => {
+  it("a settlement never changes what was settled; the account, now in its currency, moves exactly it", () => {
     const settlement: Settlement = {
       ...base,
       type: "SETTLEMENT",
@@ -174,7 +173,7 @@ describe("an account's movements in a new currency (P336)", () => {
     };
     const after = convert(settlement, usdToCop("4100")) as Settlement;
     expect(after.amount).toBe(40_000_000n);
-    expect([after.sourceAmount, after.sourceCurrency]).toEqual([41_000_000n, "COP"]);
+    expect([after.sourceAmount, after.sourceCurrency]).toEqual([undefined, undefined]);
   });
 
   it("refuses a rate that turns a movement into nothing", () => {

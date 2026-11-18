@@ -30,9 +30,13 @@ const converted = (minor: bigint, conversion: AccountConversion): Result<bigint>
     : err(domainError("ConvertedAmountTooSmall", { amount: String(minor), currency: conversion.from }));
 };
 
-/** The account's side of a movement after the change: its leg, or none when it equals the movement's amount. */
-const legFor = (amount: bigint, part: bigint, tx: Transaction, to: string) =>
-  to === tx.currency && amount === part ? null : { amount, currency: to };
+/**
+ * The account's side of a movement after the change: a leg in the account's new currency, or none once that currency is
+ * the movement's own. P342: a leg is only ever stored in another currency (migration 0045's CHECKs), so an account in
+ * the movement's currency moves exactly its part, and the rate's rounding never leaves a same-currency leg behind.
+ */
+const legFor = (amount: bigint, tx: Transaction, to: string) =>
+  to === tx.currency ? null : { amount, currency: to };
 
 /**
  * Ruling P336: a movement keeps its amount in its space's currency, so shares, debts and plans never change, unless it
@@ -94,7 +98,7 @@ export const convertedForAccount = (tx: Transaction, conversion: AccountConversi
     if (follow) {
       next.amount = amount.value;
     } else {
-      const kept = legFor(amount.value, tx.amount, tx, conversion.to);
+      const kept = legFor(amount.value, tx, conversion.to);
       if (kept !== null) next = { ...next, [side.amount]: kept.amount, [side.currency]: kept.currency };
     }
   }
@@ -122,7 +126,7 @@ const convertedExpense = (
       payments.push({ ...plain, amount: moved.value });
       continue;
     }
-    const leg = legFor(moved.value, payment.amount, tx, conversion.to);
+    const leg = legFor(moved.value, tx, conversion.to);
     payments.push(
       leg === null ? plain : { ...plain, accountAmount: leg.amount, accountCurrency: leg.currency },
     );
