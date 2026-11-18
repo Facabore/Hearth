@@ -66,6 +66,24 @@ const ledgerApi = (overrides: Record<string, FakeHandler> = {}) => {
     "GET /api/v1/spaces/{spaceId}/accounts": () =>
       jsonResponse({ items: [accountDto({ id: "a-bank", name: "Bancolombia" })] }),
     "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: rowContext.groups }),
+    // #338: every space's categories and accounts of the person, for the personal Movimientos' filters.
+    "GET /api/v1/me/categories": () =>
+      jsonResponse({
+        items: [
+          { spaceId: "sp-personal", groups: rowContext.groups },
+          { spaceId: "sp-household", groups: rowContext.groups },
+        ],
+      }),
+    "GET /api/v1/me/accounts": () =>
+      jsonResponse({
+        items: [
+          { spaceId: "sp-personal", accounts: [accountDto({ id: "a-bank", name: "Bancolombia" })] },
+          {
+            spaceId: "sp-household",
+            accounts: [accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND" })],
+          },
+        ],
+      }),
     "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: [memberDto()] }),
     "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
     ...overrides,
@@ -611,9 +629,59 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
       1,
     );
     expect(calls(spa.requests, "GET", /\/spaces\/[^/]+\/transactions\?/)).toHaveLength(0);
-    // The filters offer the other spaces' categories and accounts too.
-    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/categories\?archived=true$/)).toHaveLength(1);
-    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/accounts\?archived=true$/)).toHaveLength(1);
+    // The filters offer the other spaces' categories and accounts too, read once for every space (#338).
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /^\/api\/v1\/me\/categories\?archived=true$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /^\/api\/v1\/me\/accounts\?archived=true$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/(categories|accounts)/)).toHaveLength(0);
+  });
+
+  it("still offers the other spaces' accounts in Cuenta, from the read of every space's accounts (#338)", async () => {
+    renderSpa("/spaces/sp-personal/transactions?period=2026-10", everySpace().routes);
+    await screen.findByRole("link", { name: /Mercado del mes/ });
+    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.filters }));
+    const filters = await screen.findByRole("dialog", { name: es.ledger.list.filters });
+    await userEvent.click(
+      within(filters).getByRole("button", { name: new RegExp(es.ledger.list.filterAccount) }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.list.accountTitle });
+    await waitFor(() =>
+      expect(
+        within(within(sheet).getByRole("list"))
+          .getAllByRole("button")
+          .map((b) => b.textContent),
+      ).toEqual(["Bancolombia", "Fondo Hogar"]),
+    );
+  });
+
+  it("costs as many reads with 13 friends as with one, and reads no space's categories or accounts but the personal one's (#338)", async () => {
+    const friends = (count: number) =>
+      Array.from({ length: count }, (_, i) =>
+        spaceDto({ id: `sp-friend-${i}`, name: `Amigo ${i}`, kind: "DIRECT", role: "OWNER" }),
+      );
+    const visit = async (count: number) => {
+      const { routes } = ledgerApi({
+        "GET /api/v1/spaces": () =>
+          jsonResponse({ items: [spaceDto(), householdSpace(), ...friends(count)] }),
+        "GET /api/v1/me/transactions": () =>
+          jsonResponse({ ...myOctober, items: [market, ...myOctober.items] }),
+      });
+      const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", routes);
+      // A cold first render loads the lazy screens: it may take longer than findBy's default second.
+      await screen.findByRole("link", { name: /Mercado del mes/ }, { timeout: 5_000 });
+      await settled(spa);
+      const gets = calls(spa.requests, "GET", /^\/api\/v1\//);
+      spa.unmount();
+      return gets;
+    };
+    // The first render in a file loads the lazy screens, and reads the shell again meanwhile: only warm visits compare.
+    await visit(1);
+    const one = await visit(1);
+    const thirteen = await visit(13);
+    expect(calls(thirteen, "GET", /^\/api\/v1\/me\/categories\?archived=true$/)).toHaveLength(1);
+    expect(calls(thirteen, "GET", /^\/api\/v1\/me\/accounts\?archived=true$/)).toHaveLength(1);
+    expect(calls(thirteen, "GET", /\/spaces\/(?!sp-personal\/)[^/]+\/(categories|accounts)/)).toHaveLength(0);
+    expect(thirteen).toHaveLength(one.length);
   });
 
   it("narrows the list to the space chosen in its sheet, in the address and in what it asks", async () => {

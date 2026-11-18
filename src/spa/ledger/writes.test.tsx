@@ -82,6 +82,10 @@ const ledgerServer = (writes: Record<string, FakeHandler> = {}) => {
         ],
       }),
     "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: rowContext.groups }),
+    // #338: every space's categories and accounts of the person, for the personal Movimientos' filters.
+    "GET /api/v1/me/categories": () =>
+      jsonResponse({ items: [{ spaceId: "sp-household", groups: rowContext.groups }] }),
+    "GET /api/v1/me/accounts": () => jsonResponse({ items: [{ spaceId: "sp-household", accounts: [] }] }),
     "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: [] }),
     "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
     ...writes,

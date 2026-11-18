@@ -8,6 +8,7 @@ import {
   type CategoryView,
   type CountedCategoryView,
   type GroupAnchor,
+  type MyCategories,
 } from "../application";
 
 /** HU-E3-05: a symbol of the fixed set or exactly one emoji, judged by the domain (InvalidCategoryIcon). */
@@ -58,6 +59,10 @@ export const CategoryGroupSchema = CategoryGroupSummarySchema.extend({
 
 export const ListCategoriesQuerySchema = z.object({ archived: z.enum(["true", "false"]).optional() });
 export const ListCategoriesResponseSchema = z.object({ items: z.array(CategoryGroupSchema) });
+/** #338: each of the viewer's active spaces, personal included, with the tree that space's list answers. */
+export const MyCategoriesResponseSchema = z.object({
+  items: z.array(z.object({ spaceId: z.string(), groups: z.array(CategoryGroupSchema) })),
+});
 
 // Length rules live in the domain (InvalidCategoryName); the cap only bounds payload size.
 const Name = z.string().max(200);
@@ -139,6 +144,12 @@ export const categoryTreeDto = (g: CategoryGroupView): z.infer<typeof CategoryGr
   })),
 });
 
+export const myCategoriesDto = (
+  mine: readonly MyCategories[],
+): z.infer<typeof MyCategoriesResponseSchema> => ({
+  items: mine.map((entry) => ({ spaceId: entry.spaceId, groups: entry.groups.map(categoryTreeDto) })),
+});
+
 const SpacePath = z.object({ spaceId: z.string() });
 
 const CategoryPath = SpacePath.extend({ categoryId: z.string() });
@@ -146,6 +157,24 @@ const GroupPath = SpacePath.extend({ groupId: z.string() });
 const managed = { "401": "Unauthenticated", "403": "InsufficientRole" };
 
 export const categoriesPaths: ZodOpenApiPathsObject = {
+  "/api/v1/me/categories": {
+    get: {
+      operationId: "listMyCategories",
+      summary:
+        "The category tree of each of the signed-in person's active spaces, personal included; archived groups, categories and subcategories only with archived=true",
+      description:
+        "One entry per space whose own list would answer her, each with the tree as that list answers it.",
+      ...securedByUser,
+      requestParams: { query: ListCategoriesQuerySchema },
+      responses: {
+        "200": {
+          description: "One entry per active space, each with its groups in their own order",
+          content: jsonContent(MyCategoriesResponseSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
+      },
+    },
+  },
   "/api/v1/spaces/{spaceId}/categories": {
     get: {
       operationId: "listCategories",

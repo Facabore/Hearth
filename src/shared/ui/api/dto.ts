@@ -15,6 +15,9 @@ export type TransactionPageDto = Json<
 export type TransactionDto = TransactionPageDto["items"][number];
 export type CategoryGroupDto = components["schemas"]["CategoryGroup"];
 export type CategoryDto = components["schemas"]["CategoryOutput"];
+/** #338: each of the person's spaces with its category tree, and with its accounts, in one read each. */
+export type MyCategoriesDto = Json<paths["/api/v1/me/categories"]["get"]["responses"][200]>["items"][number];
+export type MyAccountsDto = Json<paths["/api/v1/me/accounts"]["get"]["responses"][200]>["items"][number];
 export type PeriodDto = Json<
   paths["/api/v1/spaces/{spaceId}/periods"]["get"]["responses"][200]
 >["items"][number];

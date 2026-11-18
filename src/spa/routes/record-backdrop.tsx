@@ -16,7 +16,15 @@ import { recentPeriodsQuery } from "../ledger/list-hooks";
 import { listFilterOf } from "../ledger/list-search";
 import { homeRowsOf, listQueryOf, myListQueryOf, myPageQuery, pageQuery } from "../ledger/queries";
 import { sharedSpace, showsUnifiedMonth, type Viewer } from "../load";
-import { accountListQuery, categoriesQuery, membersQuery, netBalancesQuery, periodQuery } from "../reads";
+import {
+  accountListQuery,
+  categoriesQuery,
+  membersQuery,
+  myAccountsQuery,
+  myCategoriesQuery,
+  netBalancesQuery,
+  periodQuery,
+} from "../reads";
 import { pendingOccurrencesQuery } from "../recurring-pending/queries";
 // Inicio's and Movimientos' own route modules, so their components stay in those routes' chunks: the backdrop loads the
 // chunks its origin screen already loaded, and neither route's script is split anew (ADR 0004).
@@ -115,17 +123,17 @@ function EverySpaceBehind({ viewer, filter }: { readonly viewer: Viewer; readonl
   const { startDate, endDate } = page.period;
   const period = (date: string) => cache.getQueryData(periodQuery(api, space.id, date).queryKey) ?? null;
   const pending = cache.getQueryData(pendingOccurrencesQuery(api, space.id).queryKey) ?? [];
+  // #338: the other spaces' categories and accounts, as the screen read them for every space at once.
+  const otherGroups = cache.getQueryData(myCategoriesQuery(api, "all").queryKey);
+  const otherAccounts = cache.getQueryData(myAccountsQuery(api, "all").queryKey);
   const spaceOf = (s: SpaceDto): ListSpace => ({
     id: s.id,
     name: s.name,
     kind: s.kind,
     color: s.color ?? "GRAPHITE",
-    groups:
-      s.id === space.id ? groups : (cache.getQueryData(categoriesQuery(api, s.id, "all").queryKey) ?? []),
+    groups: s.id === space.id ? groups : (otherGroups?.find((one) => one.spaceId === s.id)?.groups ?? []),
     accounts:
-      s.id === space.id
-        ? accounts
-        : (cache.getQueryData(accountListQuery(api, s.id, "all").queryKey)?.items ?? []),
+      s.id === space.id ? accounts : (otherAccounts?.find((one) => one.spaceId === s.id)?.accounts ?? []),
   });
   return (
     <EverySpaceList

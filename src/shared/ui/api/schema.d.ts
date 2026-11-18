@@ -453,6 +453,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The category tree of each of the signed-in person's active spaces, personal included; archived groups, categories and subcategories only with archived=true
+         * @description One entry per space whose own list would answer her, each with the tree as that list answers it.
+         */
+        get: operations["listMyCategories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/categories": {
         parameters: {
             query?: never;
@@ -602,6 +622,26 @@ export interface paths {
         put?: never;
         /** Restore an archived group with the categories archiving it took (P337) */
         post: operations["restoreCategoryGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The accounts of each of the signed-in person's active spaces, personal included; archived ones only with archived=true
+         * @description One entry per space whose own list would answer her, each with the accounts as that list answers its items (balances computed on read). The spaces' totals are not included.
+         */
+        get: operations["listMyAccounts"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4685,6 +4725,51 @@ export interface operations {
             };
         };
     };
+    listMyCategories: {
+        parameters: {
+            query?: {
+                archived?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per active space, each with its groups in their own order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            spaceId: string;
+                            groups: components["schemas"]["CategoryGroup"][];
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     listCategories: {
         parameters: {
             query?: {
@@ -5441,6 +5526,51 @@ export interface operations {
             };
             /** @description SpaceArchived */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listMyAccounts: {
+        parameters: {
+            query?: {
+                archived?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One entry per active space, each with its accounts sorted by name */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            spaceId: string;
+                            accounts: components["schemas"]["Account"][];
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

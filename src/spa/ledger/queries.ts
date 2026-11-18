@@ -17,7 +17,9 @@ import {
   membersQuery,
   netBalancesQuery,
   periodQuery,
+  myAccountsQuery,
   myActivityQuery,
+  myCategoriesQuery,
   unifiedViewQuery,
 } from "../reads";
 import { ensurer, sharedSpace, showsUnifiedMonth, viewerOf, type Load, type Viewer } from "../load";
@@ -266,22 +268,20 @@ export const loadList = async (load: Load, spaceId: string, filter: ListFilter, 
       ? ensure(myPageQuery(api, spaceId, myListQueryOf(filter)))
       : ensure(pageQuery(api, spaceId, listQueryOf(filter))),
   );
-  const others = viewer.then((v) =>
-    v && showsUnifiedMonth(v) ? v.spaces.filter((s) => s.id !== spaceId) : [],
-  );
   await Promise.all([
     page.then(({ period }) =>
       Promise.all(neighboursOf(api, spaceId, period).map((query) => settled(ensure(query)))),
     ),
     ensure(categoriesQuery(api, spaceId, "all")),
     ensure(accountsQuery(api, spaceId, "all")),
-    others.then((spaces) =>
-      Promise.all(
-        spaces.flatMap((s) => [
-          settled(ensure(categoriesQuery(api, s.id, "all"))),
-          settled(ensure(accountsQuery(api, s.id, "all"))),
-        ]),
-      ),
+    // #338: every space's categories and accounts in one read each, whatever the number of spaces.
+    viewer.then((v) =>
+      v && showsUnifiedMonth(v)
+        ? Promise.all([
+            settled(ensure(myCategoriesQuery(api, "all"))),
+            settled(ensure(myAccountsQuery(api, "all"))),
+          ])
+        : undefined,
     ),
     viewer.then((v) => (v && sharedSpace(v.space) ? ensure(membersQuery(api, spaceId)) : undefined)),
     viewer.then((v) =>

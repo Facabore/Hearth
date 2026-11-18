@@ -6,6 +6,7 @@ import {
   createCreateAccount,
   createGetAccount,
   createListAccounts,
+  createListMyAccounts,
   createRestoreAccount,
   createSeedStarterAccounts,
   createChangeAccountCurrency,
@@ -22,6 +23,7 @@ import {
   type CreateAccount,
   type GetAccount,
   type ListAccounts,
+  type ListMyAccounts,
   type RestoreAccount,
   type SeedStarterAccounts,
   type UpdateAccount,
@@ -200,6 +202,7 @@ import {
   createCreateCategoryGroup,
   createDeleteCategory,
   createListCategories,
+  createListMyCategories,
   createMoveCategoryGroup,
   createRenameCategoryGroup,
   createRestoreCategory,
@@ -216,6 +219,7 @@ import {
   type CreateCategoryGroup,
   type DeleteCategory,
   type ListCategories,
+  type ListMyCategories,
   type MoveCategoryGroup,
   type RenameCategoryGroup,
   type RestoreCategory,
@@ -444,6 +448,8 @@ export interface Container extends RouteDeps {
   };
   readonly categories: {
     readonly listCategories: ListCategories;
+    /** #338: every active space's tree of the caller, for the personal Movimientos across every space. */
+    readonly listMyCategories: ListMyCategories;
     readonly createCategoryGroup: CreateCategoryGroup;
     readonly renameCategoryGroup: RenameCategoryGroup;
     readonly moveCategoryGroup: MoveCategoryGroup;
@@ -466,6 +472,8 @@ export interface Container extends RouteDeps {
     /** Issue 169: the personal space's starter accounts its empty state offers. */
     readonly createStarterAccounts: SeedStarterAccounts;
     readonly listAccounts: ListAccounts;
+    /** #338: every active space's accounts of the caller, for the personal Movimientos across every space. */
+    readonly listMyAccounts: ListMyAccounts;
     readonly getAccount: GetAccount;
   };
   readonly ledger: {
@@ -1361,6 +1369,11 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     categories: {
       listCategories: createListCategories({ ...categoriesDeps, counts: categoryUsageCountsOf(tm) }),
+      listMyCategories: createListMyCategories({
+        ...categoriesDeps,
+        counts: categoryUsageCountsOf(tm),
+        spaces: spaceRepository,
+      }),
       createCategoryGroup: createCreateCategoryGroup(categoriesDeps),
       renameCategoryGroup: createRenameCategoryGroup(categoriesDeps),
       moveCategoryGroup: createMoveCategoryGroup(categoriesDeps),
@@ -1384,6 +1397,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       restoreAccount: createRestoreAccount(accountsDeps),
       createStarterAccounts: seedStarterAccounts,
       listAccounts,
+      listMyAccounts: createListMyAccounts({ ...accountsDeps, spaces: spaceRepository }),
       getAccount,
     },
     ledger: {

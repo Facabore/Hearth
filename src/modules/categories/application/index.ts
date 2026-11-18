@@ -19,6 +19,12 @@ export {
   type CountedCategoryView,
   type ListCategories,
 } from "./list-categories";
+export {
+  createListMyCategories,
+  type ListMyCategories,
+  type ListMyCategoriesDeps,
+  type MyCategories,
+} from "./list-my-categories";
 export { createSeedDefaultCategories, type SeedDefaultCategories } from "./seed-default-categories";
 
 export { createCreateCategory, type CreateCategory } from "./create-category";

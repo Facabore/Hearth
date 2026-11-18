@@ -16,6 +16,8 @@ import type {
   LineTrendDto,
   MemberDto,
   MemberMatrixDto,
+  MyAccountsDto,
+  MyCategoriesDto,
   PeriodDto,
   PersonalSpendingByGroupDto,
   PersonalTrendDto,
@@ -45,6 +47,14 @@ export const moduleKeys = {
   account: (spaceId: string, accountId: string) => ["accounts", spaceId, "account", accountId] as const,
   categoryLists: (spaceId: string) => ["categories", spaceId] as const,
   categories: (spaceId: string, archived: Archived) => ["categories", spaceId, archived] as const,
+  /**
+   * #338: every space's categories and accounts of the person, each in one read. No space id is "mine", so a space's
+   * own keys never name them: a write that changes a space's categories or accounts invalidates these too.
+   */
+  myCategoryLists: ["categories", "mine"] as const,
+  myCategories: (archived: Archived) => ["categories", "mine", archived] as const,
+  myAccountLists: ["accounts", "mine"] as const,
+  myAccounts: (archived: Archived) => ["accounts", "mine", archived] as const,
   members: (spaceId: string) => ["members", spaceId] as const,
   invitations: (spaceId: string) => ["members", spaceId, "invitations"] as const,
   balances: (spaceId: string) => ["balances", spaceId] as const,
@@ -109,6 +119,27 @@ export const categoriesQuery = (api: Api, spaceId: string, archived: Archived) =
           }),
         )
       ).items,
+  });
+
+/**
+ * #338: the category tree of each of the person's spaces in one read, for the filters of the personal Movimientos across
+ * every space (ruling P319).
+ */
+export const myCategoriesQuery = (api: Api, archived: Archived) =>
+  queryOptions<MyCategoriesDto[]>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.myCategories(archived),
+    queryFn: async () =>
+      (await read(api.GET("/api/v1/me/categories", { params: { query: archivedQuery(archived) } }))).items,
+  });
+
+/** #338: the accounts of each of the person's spaces in one read, for the same filters. */
+export const myAccountsQuery = (api: Api, archived: Archived) =>
+  queryOptions<MyAccountsDto[]>({
+    ...LOADER_OWNED,
+    queryKey: moduleKeys.myAccounts(archived),
+    queryFn: async () =>
+      (await read(api.GET("/api/v1/me/accounts", { params: { query: archivedQuery(archived) } }))).items,
   });
 
 export const membersQuery = (api: Api, spaceId: string) =>
