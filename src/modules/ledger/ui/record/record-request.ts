@@ -36,7 +36,15 @@ export interface RecordDraft {
 }
 
 export type RecordField =
-  "amount" | "converted" | "description" | "category" | "account" | "toAccount" | "when" | "payer" | "split";
+  | "amount"
+  | "accountAmount"
+  | "description"
+  | "category"
+  | "account"
+  | "toAccount"
+  | "when"
+  | "payer"
+  | "split";
 
 /** A money value already in minor units, as the contract takes it. */
 interface MoneyBody {
@@ -59,10 +67,10 @@ export const requestOf = (
     /** P333: someone else paid a personal expense with their own money, so it names no account of the recorder's. */
     readonly accountless?: boolean;
     /**
-     * D29, board 9: when `currency` is not the space's base, the real amount the bank charged in the base currency; it
-     * wins over the rate. Sent on an expense or income only when the person typed it.
+     * P342 (board 4): what the paying (or, for an income, the receiving) account moved, in that account's own currency,
+     * when it is not the movement's. Sent on an expense or an income only.
      */
-    readonly convertedAmount?: MoneyBody | null;
+    readonly accountAmount?: MoneyBody | null;
     /** D29, board 10: what arrives at a transfer's destination, in its own currency, when it differs from the source's. */
     readonly destinationAmount?: MoneyBody | null;
   } = {},
@@ -102,15 +110,15 @@ export const requestOf = (
     if (parts.paidForFund) body.paidForFund = parts.paidForFund;
     if (parts.split) body.split = parts.split;
   } else if (!accountless) body.accountId = draft.accountId;
-  // D29, board 9: the bank's real amount in the base currency, when the amount is in another currency and it was typed.
-  if (draft.kind !== "TRANSFER" && options.convertedAmount) body.convertedAmount = options.convertedAmount;
+  // P342 (board 4): what the account moved in its own currency, when it is not the movement's.
+  if (draft.kind !== "TRANSFER" && options.accountAmount) body.accountAmount = options.accountAmount;
   return { ok: true, kind: draft.kind, body };
 };
 
 const BY_CODE: Readonly<Record<string, RecordField>> = {
   InvalidAmount: "amount",
-  // D29, board 9: no rate for the date, so the bank's converted amount is required (HU-E8-06).
-  ExchangeRateRequired: "converted",
+  // P342 (board 4): no rate for the date, so what the account moved must be typed.
+  ExchangeRateRequired: "accountAmount",
   CurrencyMismatch: "amount",
   UnknownCurrency: "amount",
   CategoryRequired: "category",
@@ -138,7 +146,7 @@ const BY_CODE: Readonly<Record<string, RecordField>> = {
 };
 const BY_PATH: Readonly<Record<string, RecordField>> = {
   amount: "amount",
-  convertedAmount: "converted",
+  accountAmount: "accountAmount",
   description: "description",
   categoryId: "category",
   accountId: "account",

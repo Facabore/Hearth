@@ -94,12 +94,14 @@ export function EditTransactionForm({
   // What the untouched form would send: the diff is against this, never against the transaction (P192).
   const [baseline] = useState(() => {
     const memberIds = shared?.members.map((member) => member.id) ?? [];
-    // D29: in the currency the form types the amount in, so an untouched amount is never a change.
+    // D29: in the currency the form types the amount in, so an untouched amount is never a change; P342: with the
+    // account's stored leg, so an untouched leg is never one either.
     const built = requestOf(
       draftOf(initial, zone),
       initial.currency,
       formats.numberFormat,
       initial.split ? { split: initial.split, memberIds } : undefined,
+      initial.accountLeg ? { accountAmount: initial.accountLeg } : {},
     );
     return built.ok ? built.body : {};
   });

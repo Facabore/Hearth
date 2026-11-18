@@ -183,12 +183,17 @@ describe("editBodyOf in another currency (D29, boards 9 and 10)", () => {
   const usd = { amount: "10000", currency: "USD" };
   const foreign = { ...personal, amount: usd };
 
-  it("sends a typed converted amount with the amount it converts, even when the amount is unchanged", () => {
-    const current = { ...foreign, convertedAmount: money(410_000) };
+  it("sends what the account moved with the amount it belongs to, even when the amount is unchanged (P342)", () => {
+    const current = { ...foreign, accountAmount: money(410_000) };
     expect(editBodyOf({ tx: single, baseline: foreign, current, whenChanged: false })).toEqual({
       amount: usd,
-      convertedAmount: money(410_000),
+      accountAmount: money(410_000),
     });
+  });
+
+  it("sends no leg when it is the one the movement already had", () => {
+    const stored = { ...foreign, accountAmount: money(410_000) };
+    expect(editBodyOf({ tx: single, baseline: stored, current: stored, whenChanged: false })).toEqual({});
   });
 
   it("sends a typed arriving amount with the transfer's amount", () => {

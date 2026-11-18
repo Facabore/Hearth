@@ -71,6 +71,7 @@ describe("initialOf (ruling P192)", () => {
       kind: "EXPENSE",
       amount: "85.000",
       currency: "COP",
+      accountLeg: null,
       description: "Market",
       category: { categoryId: "c-groceries", subcategoryId: "c-veg" },
       accountId: "a-bank",
@@ -251,34 +252,48 @@ describe("draftOf", () => {
   });
 });
 
-describe("initialOf in another currency (D29, boards 9 and 10)", () => {
+describe("initialOf in another currency (P342, board 4; D29, board 10)", () => {
   const usd = (dollars: number) => ({ amount: String(dollars * 100), currency: "USD" });
   const accounts = [accountDto({ id: "a-usd", balance: usd(0) }), accountDto({ id: "a-bank" })];
 
-  it("types an expense on a USD account in USD: what was entered, else the account's leg", () => {
-    const entered = transactionDto({
+  it("types an expense in its own currency, with what its COP account paid as the leg", () => {
+    const tx = transactionDto({
       type: "EXPENSE",
-      amount: cop(400_000),
-      originalAmount: usd(100),
-      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(400_000), accountAmount: usd(100) }],
+      amount: usd(50),
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: usd(50), accountAmount: cop(205_000) }],
     });
-    expect(initialOf(entered, { ...base, accounts })).toMatchObject({ amount: "100", currency: "USD" });
-    const converted = transactionDto({
-      type: "EXPENSE",
-      amount: cop(500_000),
-      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(500_000), accountAmount: usd(125) }],
+    expect(initialOf(tx, { ...base, accounts })).toMatchObject({
+      amount: "50",
+      currency: "USD",
+      accountLeg: cop(205_000),
     });
-    expect(initialOf(converted, { ...base, accounts })).toMatchObject({ amount: "125", currency: "USD" });
   });
 
-  it("types an income by its destination leg and a transfer by its Sale", () => {
+  it("keeps the movement's currency, never the account's, and has no leg when the account is in it", () => {
+    const tx = transactionDto({
+      type: "EXPENSE",
+      amount: usd(100),
+      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: usd(100) }],
+    });
+    expect(initialOf(tx, { ...base, accounts })).toMatchObject({
+      amount: "100",
+      currency: "USD",
+      accountLeg: null,
+    });
+  });
+
+  it("types an income in its own currency with its destination leg, and a transfer by its Sale", () => {
     const income = transactionDto({
       type: "INCOME",
-      amount: cop(400_000),
-      destinationAccountId: "a-usd",
-      destinationAmount: usd(100),
+      amount: usd(50),
+      destinationAccountId: "a-bank",
+      destinationAmount: cop(205_000),
     });
-    expect(initialOf(income, { ...base, accounts })).toMatchObject({ amount: "100", currency: "USD" });
+    expect(initialOf(income, { ...base, accounts })).toMatchObject({
+      amount: "50",
+      currency: "USD",
+      accountLeg: cop(205_000),
+    });
     const transfer = transactionDto({
       type: "TRANSFER",
       amount: cop(400_000),
@@ -286,19 +301,24 @@ describe("initialOf in another currency (D29, boards 9 and 10)", () => {
       destinationAccountId: "a-bank",
       sourceAmount: usd(100),
     });
-    expect(initialOf(transfer, { ...base, accounts })).toMatchObject({ amount: "100", currency: "USD" });
+    expect(initialOf(transfer, { ...base, accounts })).toMatchObject({
+      amount: "100",
+      currency: "USD",
+      accountLeg: null,
+    });
   });
 
-  it("keeps a shared expense in the space's base currency", () => {
+  it("keeps a shared expense in its own currency, with the payer's leg", () => {
     const tx = transactionDto({
       type: "EXPENSE",
-      amount: cop(400_000),
-      payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(400_000), accountAmount: usd(100) }],
-      shares: [{ memberId: "m-ana", amount: cop(400_000), splitMethod: "EQUAL" }],
+      amount: usd(100),
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: usd(100), accountAmount: cop(410_000) }],
+      shares: [{ memberId: "m-ana", amount: usd(100), splitMethod: "EQUAL" }],
     });
     expect(initialOf(tx, { ...base, accounts, shared })).toMatchObject({
-      amount: "400.000",
-      currency: "COP",
+      amount: "100",
+      currency: "USD",
+      accountLeg: cop(410_000),
     });
   });
 });

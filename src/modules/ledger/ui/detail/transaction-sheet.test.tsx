@@ -263,23 +263,44 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(terms()).not.toContain("Cuenta");
   });
 
-  it("shows what was charged in its own currency on an expense in another currency (board 9, D29)", () => {
+  it("shows an expense in its own currency and what its account paid in the account's (P342, board 4)", () => {
     open(
       detailOf(
         transactionDto({
           id: "t-usd",
           type: "EXPENSE",
           description: "Figma",
-          amount: cop(205_000),
-          originalAmount: { amount: "5000", currency: "USD" },
+          amount: { amount: "5000", currency: "USD" },
           categoryId: "c-veg",
-          payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(205_000) }],
+          payments: [
+            {
+              memberId: "m-ana",
+              accountId: "a-bank",
+              amount: { amount: "5000", currency: "USD" },
+              accountAmount: cop(205_000),
+            },
+          ],
         }),
       ),
     );
-    // The description is the base-currency amount; the detail adds what was charged in its own currency.
-    expect(described()).toBe("−\u2060205.000 COP");
-    expect(definition("En su moneda")).toBe("50 USD");
+    expect(described()).toBe("−\u206050 USD");
+    expect(definition("Cuenta")).toBe("Bancolombia");
+    expect(definition("Tu cuenta pagó")).toBe("205.000 COP");
+    expect(terms()).not.toContain("En su moneda");
+  });
+
+  it("shows no account leg on an expense its account paid in its own currency", () => {
+    open(
+      detailOf(
+        transactionDto({
+          id: "t-cop",
+          type: "EXPENSE",
+          amount: cop(85_000),
+          payments: [{ memberId: "m-ana", accountId: "a-bank", amount: cop(85_000) }],
+        }),
+      ),
+    );
+    expect(terms()).not.toContain("Tu cuenta pagó");
   });
 
   it("shows each leg in its own currency on a transfer across currencies (board 10, D29)", () => {

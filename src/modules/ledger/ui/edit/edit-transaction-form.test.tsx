@@ -96,40 +96,53 @@ const goToYesterday = async () => {
   await userEvent.click(within(sheet).getByRole("button", { name: /^Usar/ }));
 };
 
-describe("edit a movement on an account in another currency (D29, MC3)", () => {
+describe("edit a movement in another currency than its account's (P342, board 4)", () => {
   const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
-  const withUsd = [...accounts, accountDto({ id: "a-usd", name: "Wallet", balance: usd(0) })];
-  /** US$100.00 from the USD wallet, stored as 400.000 COP with its original and its leg. */
+  /** 50 USD paid from Bancolombia in pesos, which moved 205.000 COP. */
   const usdMarket = transactionDto({
     ...tx,
-    amount: cop(400_000),
-    originalAmount: usd(100),
-    payments: [{ memberId: "m-ana", accountId: "a-usd", amount: cop(400_000), accountAmount: usd(100) }],
-    shares: [{ memberId: "m-ana", amount: cop(400_000), splitMethod: "EQUAL" }],
+    amount: usd(50),
+    payments: [{ memberId: "m-ana", accountId: "a-bank", amount: usd(50), accountAmount: cop(205_000) }],
+    shares: [{ memberId: "m-ana", amount: usd(50), splitMethod: "EQUAL" }],
   });
+  const rate = () => jsonResponse({ rate: "4100", on: "2026-10-31" });
 
-  it("shows the amount in the account's currency", () => {
-    renderForm(fakeApi({}).api, LIST, { tx: usdMarket, accounts: withUsd });
-    expect(screen.getByLabelText("Monto")).toHaveValue("100");
+  it("keeps the movement's currency and shows what the account paid", async () => {
+    renderForm(fakeApi({ "GET /api/v1/exchange-rates": rate }).api, LIST, { tx: usdMarket });
+    expect(screen.getByLabelText("Monto")).toHaveValue("50");
+    expect(screen.getByRole("button", { name: /^Moneda: / })).toHaveAccessibleName(/\(USD\)/);
+    const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
+    expect(within(card).getByText("205.000 COP")).toBeInTheDocument();
   });
 
   it("sends only the description when only the description changes", async () => {
-    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...usdMarket, version: 3 }) });
-    renderForm(api, LIST, { tx: usdMarket, accounts: withUsd });
+    const { api, requests } = fakeApi({
+      "GET /api/v1/exchange-rates": rate,
+      [PATCH]: () => jsonResponse({ ...usdMarket, version: 3 }),
+    });
+    renderForm(api, LIST, { tx: usdMarket });
+    await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
     await userEvent.clear(screen.getByLabelText("Descripción"));
     await userEvent.type(screen.getByLabelText("Descripción"), "Groceries");
     await save();
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
-    expect(await requests[0]!.json()).toEqual({ description: "Groceries" });
+    const patched = requests.find((r) => r.method === "PATCH")!;
+    expect(await patched.json()).toEqual({ description: "Groceries" });
   });
 
-  it("sends a new amount in the account's currency", async () => {
-    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...usdMarket, version: 3 }) });
-    renderForm(api, LIST, { tx: usdMarket, accounts: withUsd });
-    await retype("150");
+  it("sends a new amount in its currency with the account's new suggested leg", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/exchange-rates": rate,
+      [PATCH]: () => jsonResponse({ ...usdMarket, version: 3 }),
+    });
+    renderForm(api, LIST, { tx: usdMarket });
+    await retype("60");
+    const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
+    await waitFor(() => expect(within(card).getByText("246.000 COP")).toBeInTheDocument());
     await save();
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
-    expect(await requests[0]!.json()).toEqual({ amount: usd(150) });
+    const patched = requests.find((r) => r.method === "PATCH")!;
+    expect(await patched.json()).toEqual({ amount: usd(60), accountAmount: cop(246_000) });
   });
 });
 

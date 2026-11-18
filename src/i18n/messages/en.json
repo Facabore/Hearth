@@ -559,7 +559,7 @@
       "noTime": "No time",
       "noDescription": "No description",
       "payerAccount": "{name}'s account",
-      "originalAmount": "In its currency",
+      "yourAccountPaid": "Your account paid",
       "charged": "What the bank charged you",
       "leaves": "Leaves",
       "arrives": "Arrives",
@@ -658,8 +658,31 @@
       "to": "To",
       "arrives": "Arrives",
       "arrivesHint": "What reaches the destination account, in its own currency",
-      "convertedAmount": "What the bank charged you (in {currency})",
-      "convertedHint": "Optional: the real amount you were charged, in the space's currency",
+      "currency": {
+        "value": "{name} ({code})",
+        "chip": "Currency: {currency}. Change",
+        "spaceNote": "default in {space}",
+        "title": {
+          "EXPENSE": "Expense currency",
+          "INCOME": "Income currency"
+        }
+      },
+      "leg": {
+        "title": {
+          "paid": "Your {account} in {currency} paid",
+          "received": "Your {account} in {currency} received"
+        },
+        "suggested": "Suggested at {rate} per {unit} ({date}).",
+        "noRate": "There's no rate for that day: type the amount.",
+        "other": {
+          "paid": "Charged a different amount? Type it",
+          "received": "Did a different amount arrive? Type it"
+        },
+        "field": {
+          "paid": "How much did your {account} pay?",
+          "received": "How much did your {account} receive?"
+        }
+      },
       "chooseAccount": "Choose an account",
       "when": "Date and time: {label}. Change",
       "date": "Date",

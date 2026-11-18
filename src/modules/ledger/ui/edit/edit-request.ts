@@ -28,8 +28,8 @@ export const editBodyOf = (input: {
   const body: Record<string, unknown> = {};
   if (differs("description")) body.description = current.description ?? "";
   if (differs("amount")) body.amount = current.amount;
-  // D29, boards 9 and 10: the bank's converted amount and what arrived travel with the amount they belong to.
-  for (const key of ["convertedAmount", "destinationAmount"] as const)
+  // P342 (board 4), D29 (board 10): what the account moved and what arrived travel with the amount they belong to.
+  for (const key of ["accountAmount", "destinationAmount"] as const)
     if (current[key] !== undefined && differs(key)) {
       body[key] = current[key];
       body.amount = current.amount;

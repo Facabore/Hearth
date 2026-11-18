@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { lazy, Suspense, useDeferredValue, useState } from "react";
 import { useTranslations } from "use-intl";
+import { favoriteCurrenciesOf } from "@/modules/identity/ui";
 import { RecordForm, RecordNotAllowed } from "@/modules/ledger/ui";
 import { controlsFor } from "@/modules/spaces/ui";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
@@ -95,6 +96,11 @@ function RecordFormScreen({
         {...(people ? { people } : {})}
         lineWatch={lineWatch}
         accountUsage={accountUsage}
+        // P342 (S2): the currency sheet lists the person's favorites after the space's currency, the default.
+        favoriteCurrencies={favoriteCurrenciesOf(
+          viewer.me,
+          viewer.spaces.find((space) => space.kind === "PERSONAL")?.currency,
+        )}
         returnTo={returnTo ?? null}
         holdNavigation={holdNavigation}
         api={api}

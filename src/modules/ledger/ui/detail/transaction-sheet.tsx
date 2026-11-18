@@ -151,6 +151,10 @@ export function TransactionSheet({
   const category = tx.categoryId ? categoryPath(groups, tx.categoryId) : null;
   const paid = tx.payments[0];
   const shared = members.length > 0;
+  // P342 (board 4): an expense's paying account that moved another currency than the expense's, and whether it is the
+  // viewer's ("Tu cuenta pagó 205.000 COP").
+  const paidLeg = tx.type === "EXPENSE" && tx.payments.length === 1 ? paid?.accountAmount : undefined;
+  const paidByViewer = !shared || memberOf(paid?.memberId ?? null)?.userId === viewer.userId;
   // The account rows of a type: Cuenta, Cuenta que recibe, or Desde and Hacia (a settlement names its members).
   const accounts: [string, string][] = [];
   const addAccount = (term: string, value: string) => {
@@ -160,7 +164,13 @@ export function TransactionSheet({
   const withLeg = (value: string, leg: TransactionDto["sourceAmount"]) =>
     value && leg ? `${value} · ${formatMoney(leg, formats)}` : value;
   if (tx.type === "EXPENSE")
-    addAccount(t("form.account"), paid ? accountOf(paid.accountId, paid.memberId) : "");
+    addAccount(
+      t("form.account"),
+      paid
+        ? // P342: someone else's account that moved another currency carries its leg beside it, as an income's does.
+          withLeg(accountOf(paid.accountId, paid.memberId), paidByViewer ? undefined : paidLeg)
+        : "",
+    );
   else if (tx.type === "INCOME")
     addAccount(
       t("form.receivingAccount"),
@@ -238,15 +248,15 @@ export function TransactionSheet({
           {formatDate(tx.date, formats)} · {time}
         </Definition>
         {category ? <Definition term={t("form.category")}>{category}</Definition> : null}
-        {/* D29, slice MC3 (board 9): the amount above is in the base currency; this is what was charged in its own. */}
-        {tx.originalAmount ? (
-          <Definition term={t("detail.originalAmount")}>{formatMoney(tx.originalAmount, formats)}</Definition>
-        ) : null}
         {accounts.map(([term, value]) => (
           <Definition key={term} term={term}>
             {value}
           </Definition>
         ))}
+        {/* P342 (board 4): the expense stays in its own currency; this is what the paying account moved in its own. */}
+        {paidLeg && paidByViewer ? (
+          <Definition term={t("detail.yourAccountPaid")}>{formatMoney(paidLeg, formats)}</Definition>
+        ) : null}
         <Definition term={t("form.description")}>{tx.description || t("detail.noDescription")}</Definition>
         {shared && tx.type === "EXPENSE" && paid ? (
           <Definition term={t("split.payer")}>

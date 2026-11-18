@@ -12,8 +12,16 @@ import type { Payer, SplitDraft } from "../split/split-request";
 export interface RecordInitial {
   readonly kind: RecordKind;
   readonly amount: string;
-  /** D29: the currency `amount` is typed in, as the record form picks it (the account's own, or the space's). */
+  /**
+   * P342: the currency `amount` is typed in: an expense's or income's own, which the edit keeps; an own transfer's
+   * source account's (D29, "Sale").
+   */
   readonly currency: string;
+  /**
+   * P342 (board 4): what the one paying (or receiving) account moved in its own currency, when it is not the movement's:
+   * an expense's sole payment's `accountAmount`, an income's `destinationAmount`; null otherwise.
+   */
+  readonly accountLeg?: MoneyDto | null;
   readonly description: string;
   readonly category: CategoryChoice;
   readonly accountId: string | null;
@@ -85,25 +93,25 @@ const contributionSplitOf = (tx: TransactionDto, shared: SharedExpenseContext): 
   };
 };
 
-/**
- * D29, boards 9 and 10: the movement's amount in `currency`: the base amount, what was entered (the original), or the
- * account's own leg; the base when none is in it.
- */
-const amountIn = (tx: TransactionDto, currency: string): MoneyDto => {
-  const candidates = [
-    tx.amount,
-    tx.originalAmount,
-    tx.type === "EXPENSE" && tx.payments.length === 1 ? tx.payments[0]!.accountAmount : undefined,
-    tx.type === "TRANSFER" ? tx.sourceAmount : undefined,
-    tx.type === "INCOME" ? tx.destinationAmount : undefined,
-  ];
-  return candidates.find((amount) => amount?.currency === currency) ?? tx.amount;
+/** D29, board 10: an own transfer's amount as "Sale", in the source account's currency: its own, or its source leg. */
+const leavingIn = (tx: TransactionDto, currency: string | undefined): MoneyDto =>
+  [tx.amount, tx.sourceAmount].find((amount) => amount?.currency === currency) ?? tx.amount;
+
+/** P342 (board 4): the paying or receiving account's leg, when it moved in another currency than the movement's. */
+const accountLegOf = (tx: TransactionDto): MoneyDto | null => {
+  const leg =
+    tx.type === "EXPENSE" && tx.payments.length === 1
+      ? tx.payments[0]!.accountAmount
+      : tx.type === "INCOME"
+        ? tx.destinationAmount
+        : undefined;
+  return leg && leg.currency !== tx.amount.currency ? leg : null;
 };
 
 export const initialOf = (
   tx: TransactionDto,
   input: {
-    /** D29: the person's accounts, whose own currency the amount is typed in when one account alone pays it. */
+    /** D29: the person's accounts; an own transfer's amount is typed in its source account's currency. */
     readonly accounts?: readonly AccountDto[];
     readonly groups: readonly CategoryGroupDto[];
     readonly formats: Formats;
@@ -131,14 +139,15 @@ export const initialOf = (
       : kind === "TRANSFER"
         ? tx.sourceAccountId
         : (tx.payments[0]?.accountId ?? null);
-  // D29, boards 9 and 10: as the record form types it, in the (source) account's own currency when that one account
-  // alone takes part (outside a shared space), else in the space's base currency.
-  const account = input.shared === undefined ? input.accounts?.find((a) => a.id === accountId) : undefined;
-  const amount = amountIn(tx, account?.balance.currency ?? tx.amount.currency);
+  // P342: an expense or an income is typed in its own currency, and the edit keeps it; D29 (board 10): an own
+  // transfer's amount is what left its source account, in that account's currency.
+  const source = kind === "TRANSFER" ? input.accounts?.find((a) => a.id === accountId) : undefined;
+  const amount = kind === "TRANSFER" ? leavingIn(tx, source?.balance.currency) : tx.amount;
   return {
     kind,
     amount: typed(amount.amount, amount.currency, input.formats),
     currency: amount.currency,
+    accountLeg: kind === "TRANSFER" ? null : accountLegOf(tx),
     description: tx.description,
     category: kind === "TRANSFER" ? null : category,
     accountId,

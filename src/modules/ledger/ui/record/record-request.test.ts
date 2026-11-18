@@ -74,17 +74,18 @@ describe("requestOf (HU-E9-03, ruling P118)", () => {
     });
   });
 
-  it("records an expense in another currency with the bank's converted amount (D29, board 9)", () => {
+  it("records an expense in another currency with what its account moved (P342, board 4)", () => {
     const built = requestOf(draft({ amount: "50" }), "USD", "DOT_COMMA", undefined, {
-      convertedAmount: { amount: "20500000", currency: "COP" },
+      accountAmount: { amount: "20500000", currency: "COP" },
     });
     expect(built.ok && built.body.amount).toEqual({ amount: "5000", currency: "USD" });
-    expect(built.ok && built.body.convertedAmount).toEqual({ amount: "20500000", currency: "COP" });
+    expect(built.ok && built.body.accountAmount).toEqual({ amount: "20500000", currency: "COP" });
+    expect(built.ok && "convertedAmount" in built.body).toBe(false);
   });
 
-  it("omits the converted amount when it is not given", () => {
+  it("omits the account's amount when it is not given", () => {
     const built = requestOf(draft({ amount: "50" }), "USD", "DOT_COMMA");
-    expect(built.ok && "convertedAmount" in built.body).toBe(false);
+    expect(built.ok && "accountAmount" in built.body).toBe(false);
   });
 
   it("records a transfer across currencies with what arrives at the destination (D29, board 10)", () => {
@@ -130,7 +131,7 @@ describe("requestOf (HU-E9-03, ruling P118)", () => {
       field: null,
     });
     expect(recordFieldOf(p("InvalidAmount"))).toBe("amount");
-    expect(recordFieldOf(p("ExchangeRateRequired"))).toBe("converted");
+    expect(recordFieldOf(p("ExchangeRateRequired"))).toBe("accountAmount");
     expect(recordFieldOf(p("CategoryArchived"))).toBe("category");
     expect(recordFieldOf(p("AccountArchived"))).toBe("account");
     expect(recordFieldOf(p("SameAccountTransfer"))).toBe("toAccount");

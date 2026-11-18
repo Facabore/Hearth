@@ -559,7 +559,7 @@
       "noTime": "Sin hora",
       "noDescription": "Sin descripción",
       "payerAccount": "Cuenta de {name}",
-      "originalAmount": "En su moneda",
+      "yourAccountPaid": "Tu cuenta pagó",
       "charged": "Lo que te cobró el banco",
       "leaves": "Sale",
       "arrives": "Llega",
@@ -658,8 +658,31 @@
       "to": "Hacia",
       "arrives": "Llega",
       "arrivesHint": "Lo que llega a la cuenta destino, en su moneda",
-      "convertedAmount": "Lo que te cobró el banco (en {currency})",
-      "convertedHint": "Opcional: el monto real que te cobraron en la moneda del espacio",
+      "currency": {
+        "value": "{name} ({code})",
+        "chip": "Moneda: {currency}. Cambiar",
+        "spaceNote": "por defecto en {space}",
+        "title": {
+          "EXPENSE": "Moneda del gasto",
+          "INCOME": "Moneda del ingreso"
+        }
+      },
+      "leg": {
+        "title": {
+          "paid": "Tu {account} en {currency} pagó",
+          "received": "Tu {account} en {currency} recibió"
+        },
+        "suggested": "Sugerido con {rate} por {unit} ({date}).",
+        "noRate": "No hay tasa para ese día: escribe el valor.",
+        "other": {
+          "paid": "¿Cobró otro valor? Escríbelo",
+          "received": "¿Llegó otro valor? Escríbelo"
+        },
+        "field": {
+          "paid": "¿Cuánto pagó tu {account}?",
+          "received": "¿Cuánto recibió tu {account}?"
+        }
+      },
       "chooseAccount": "Elegir cuenta",
       "when": "Fecha y hora: {label}. Cambiar",
       "date": "Fecha",
