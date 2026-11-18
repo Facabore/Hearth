@@ -1,5 +1,6 @@
+import { focusManager } from "@tanstack/react-query";
 import { createBrowserHistory } from "@tanstack/react-router";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { es } from "@/i18n/messages/full";
@@ -1106,6 +1107,7 @@ describe("Registrar's reads do not grow with the person's friends (#338)", () =>
       "GET /api/v1/spaces": () =>
         jsonResponse({ items: [spaceDto(), householdSpace(), ...friends.map((f) => f.space)] }),
       "GET /api/v1/me/friends": () => jsonResponse({ items: friends.map((f) => f.friend) }),
+      "GET /api/v1/spaces/{spaceId}/pending-occurrences": () => jsonResponse({ items: [] }),
       "GET /api/v1/me/account-usage": () =>
         jsonResponse({ since: "2026-07-20", accounts: [], categories: [] }),
       "GET /api/v1/spaces/{spaceId}/members": () =>
@@ -1138,6 +1140,18 @@ describe("Registrar's reads do not grow with the person's friends (#338)", () =>
     const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
     expect(within(sheet).getByRole("checkbox", { name: /^Amigo 12/ })).toBeInTheDocument();
     expect(within(sheet).getByRole("checkbox", { name: /^Juan/ })).toBeInTheDocument();
+  });
+
+  it("reads nothing again when the person comes back to the tab right after a visit (ADR 0006 amendment)", async () => {
+    const spa = await open(13);
+    const before = spa.requests.length;
+    act(() => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+    });
+    await settled(spa);
+    expect(spa.requests.slice(before).map((r) => r.url)).toEqual([]);
+    act(() => focusManager.setFocused(undefined));
   });
 
   it("costs as many requests with 13 friends as with one", async () => {
