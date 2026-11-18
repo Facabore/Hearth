@@ -25,6 +25,7 @@ import {
   type AccountView,
   type AttributeChanges,
   type CurrencyChangePreview,
+  type MyAccounts,
   type TermsInput,
 } from "../application";
 
@@ -214,9 +215,10 @@ export const attributesFromBody = (
 });
 
 export const GetAccountQuerySchema = z.object({ asOf: z.iso.date().optional() });
-export const ListAccountsQuerySchema = GetAccountQuerySchema.extend({
-  archived: z.enum(["true", "false"]).optional(),
-});
+const Archived = z.enum(["true", "false"]).optional();
+export const ListAccountsQuerySchema = GetAccountQuerySchema.extend({ archived: Archived });
+/** #338: the per-person list takes the per-space list's `archived` only. */
+export const MyAccountsQuerySchema = z.object({ archived: Archived });
 /** D29, slice MC4 (board 8): one currency the totals converted, at which rate and from which stored day. */
 const ConversionRateSchema = z.object({
   currency: z.string(),
@@ -279,6 +281,17 @@ export const accountListDto = (list: AccountList): z.infer<typeof ListAccountsRe
     },
   };
 };
+
+/**
+ * #338: each of the viewer's active spaces, personal included, with its accounts as that space's list answers its
+ * items; the spaces' totals are not part of it.
+ */
+export const MyAccountsResponseSchema = z.object({
+  items: z.array(z.object({ spaceId: z.string(), accounts: z.array(AccountSchema) })),
+});
+export const myAccountsDto = (mine: readonly MyAccounts[]): z.infer<typeof MyAccountsResponseSchema> => ({
+  items: mine.map((entry) => ({ spaceId: entry.spaceId, accounts: entry.accounts.map(accountDto) })),
+});
 
 /** Issue 169: the starter accounts one call created; empty when the space already held every starter name. */
 export const StarterAccountsResponseSchema = z.object({ items: z.array(AccountSchema) });
@@ -384,6 +397,24 @@ const AccountPath = SpacePath.extend({ accountId: z.string() });
 const one = (description: string) => ({ description, content: jsonContent(AccountSchema) });
 
 export const accountsPaths: ZodOpenApiPathsObject = {
+  "/api/v1/me/accounts": {
+    get: {
+      operationId: "listMyAccounts",
+      summary:
+        "The accounts of each of the signed-in person's active spaces, personal included; archived ones only with archived=true",
+      description:
+        "One entry per space whose own list would answer her, each with the accounts as that list answers its items (balances computed on read). The spaces' totals are not included.",
+      ...securedByUser,
+      requestParams: { query: MyAccountsQuerySchema },
+      responses: {
+        "200": {
+          description: "One entry per active space, each with its accounts sorted by name",
+          content: jsonContent(MyAccountsResponseSchema),
+        },
+        ...problems({ "401": "Unauthenticated", "422": "ValidationFailed" }),
+      },
+    },
+  },
   "/api/v1/spaces/{spaceId}/accounts": {
     get: {
       operationId: "listAccounts",

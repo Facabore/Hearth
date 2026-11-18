@@ -1,5 +1,6 @@
+import { focusManager } from "@tanstack/react-query";
 import { createBrowserHistory } from "@tanstack/react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { es } from "@/i18n/messages/full";
@@ -8,6 +9,7 @@ import {
   activityItemDto,
   categoryDto,
   cop,
+  friendDto,
   householdSpace,
   meDto,
   memberDto,
@@ -64,6 +66,24 @@ const ledgerApi = (overrides: Record<string, FakeHandler> = {}) => {
     "GET /api/v1/spaces/{spaceId}/accounts": () =>
       jsonResponse({ items: [accountDto({ id: "a-bank", name: "Bancolombia" })] }),
     "GET /api/v1/spaces/{spaceId}/categories": () => jsonResponse({ items: rowContext.groups }),
+    // #338: every space's categories and accounts of the person, for the personal Movimientos' filters.
+    "GET /api/v1/me/categories": () =>
+      jsonResponse({
+        items: [
+          { spaceId: "sp-personal", groups: rowContext.groups },
+          { spaceId: "sp-household", groups: rowContext.groups },
+        ],
+      }),
+    "GET /api/v1/me/accounts": () =>
+      jsonResponse({
+        items: [
+          { spaceId: "sp-personal", accounts: [accountDto({ id: "a-bank", name: "Bancolombia" })] },
+          {
+            spaceId: "sp-household",
+            accounts: [accountDto({ id: "a-fund", name: "Fondo Hogar", type: "SHARED_FUND" })],
+          },
+        ],
+      }),
     "GET /api/v1/spaces/{spaceId}/members": () => jsonResponse({ items: [memberDto()] }),
     "GET /api/v1/spaces/{spaceId}/periods": () => jsonResponse({ items: [] }),
     ...overrides,
@@ -609,9 +629,59 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
       1,
     );
     expect(calls(spa.requests, "GET", /\/spaces\/[^/]+\/transactions\?/)).toHaveLength(0);
-    // The filters offer the other spaces' categories and accounts too.
-    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/categories\?archived=true$/)).toHaveLength(1);
-    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/accounts\?archived=true$/)).toHaveLength(1);
+    // The filters offer the other spaces' categories and accounts too, read once for every space (#338).
+    await settled(spa);
+    expect(calls(spa.requests, "GET", /^\/api\/v1\/me\/categories\?archived=true$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /^\/api\/v1\/me\/accounts\?archived=true$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/(categories|accounts)/)).toHaveLength(0);
+  });
+
+  it("still offers the other spaces' accounts in Cuenta, from the read of every space's accounts (#338)", async () => {
+    renderSpa("/spaces/sp-personal/transactions?period=2026-10", everySpace().routes);
+    await screen.findByRole("link", { name: /Mercado del mes/ });
+    await userEvent.click(await screen.findByRole("button", { name: es.ledger.list.filters }));
+    const filters = await screen.findByRole("dialog", { name: es.ledger.list.filters });
+    await userEvent.click(
+      within(filters).getByRole("button", { name: new RegExp(es.ledger.list.filterAccount) }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.list.accountTitle });
+    await waitFor(() =>
+      expect(
+        within(within(sheet).getByRole("list"))
+          .getAllByRole("button")
+          .map((b) => b.textContent),
+      ).toEqual(["Bancolombia", "Fondo Hogar"]),
+    );
+  });
+
+  it("costs as many reads with 13 friends as with one, and reads no space's categories or accounts but the personal one's (#338)", async () => {
+    const friends = (count: number) =>
+      Array.from({ length: count }, (_, i) =>
+        spaceDto({ id: `sp-friend-${i}`, name: `Amigo ${i}`, kind: "DIRECT", role: "OWNER" }),
+      );
+    const visit = async (count: number) => {
+      const { routes } = ledgerApi({
+        "GET /api/v1/spaces": () =>
+          jsonResponse({ items: [spaceDto(), householdSpace(), ...friends(count)] }),
+        "GET /api/v1/me/transactions": () =>
+          jsonResponse({ ...myOctober, items: [market, ...myOctober.items] }),
+      });
+      const spa = renderSpa("/spaces/sp-personal/transactions?period=2026-10", routes);
+      // A cold first render loads the lazy screens: it may take longer than findBy's default second.
+      await screen.findByRole("link", { name: /Mercado del mes/ }, { timeout: 5_000 });
+      await settled(spa);
+      const gets = calls(spa.requests, "GET", /^\/api\/v1\//);
+      spa.unmount();
+      return gets;
+    };
+    // The first render in a file loads the lazy screens, and reads the shell again meanwhile: only warm visits compare.
+    await visit(1);
+    const one = await visit(1);
+    const thirteen = await visit(13);
+    expect(calls(thirteen, "GET", /^\/api\/v1\/me\/categories\?archived=true$/)).toHaveLength(1);
+    expect(calls(thirteen, "GET", /^\/api\/v1\/me\/accounts\?archived=true$/)).toHaveLength(1);
+    expect(calls(thirteen, "GET", /\/spaces\/(?!sp-personal\/)[^/]+\/(categories|accounts)/)).toHaveLength(0);
+    expect(thirteen).toHaveLength(one.length);
   });
 
   it("narrows the list to the space chosen in its sheet, in the address and in what it asks", async () => {
@@ -1086,5 +1156,80 @@ describe("the record sheet draws the screen it was opened from behind it, from t
     await record();
     await openForm(spa);
     await waitFor(() => expect(region()).toHaveAttribute("data-placement", "top"));
+  });
+});
+
+describe("Registrar's reads do not grow with the person's friends (#338)", () => {
+  /** Ana in Personal with Household and `count` friends, each a direct space (P338). */
+  const withFriends = (count: number) => {
+    const friends = Array.from({ length: count }, (_, i) => ({
+      space: spaceDto({ id: `sp-friend-${i}`, name: `Amigo ${i}`, kind: "DIRECT", role: "OWNER" }),
+      friend: friendDto({
+        spaceId: `sp-friend-${i}`,
+        me: { memberId: `m-ana-${i}` },
+        other: { memberId: `m-friend-${i}`, kind: "GUEST", displayName: `Amigo ${i}`, nickname: null },
+        name: `Amigo ${i}`,
+      }),
+    }));
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () =>
+        jsonResponse({ items: [spaceDto(), householdSpace(), ...friends.map((f) => f.space)] }),
+      "GET /api/v1/me/friends": () => jsonResponse({ items: friends.map((f) => f.friend) }),
+      "GET /api/v1/spaces/{spaceId}/pending-occurrences": () => jsonResponse({ items: [] }),
+      "GET /api/v1/me/account-usage": () =>
+        jsonResponse({ since: "2026-07-20", accounts: [], categories: [] }),
+      "GET /api/v1/spaces/{spaceId}/members": () =>
+        jsonResponse({
+          items: [
+            memberDto(),
+            memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" }),
+          ],
+        }),
+    });
+    return routes;
+  };
+
+  const open = async (count: number) => {
+    const spa = renderSpa("/spaces/sp-personal/new", withFriends(count));
+    expect(
+      await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE }, { timeout: 5_000 }),
+    ).toBeVisible();
+    await settled(spa);
+    return spa;
+  };
+
+  it("reads Amigos once for every friend's direct space, and members only for the group", async () => {
+    const spa = await open(13);
+    expect(calls(spa.requests, "GET", /\/me\/friends$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/members$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-friend-\d+\/members$/)).toHaveLength(0);
+    // "Para quién fue" still offers each friend and the group's member.
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    expect(within(sheet).getByRole("checkbox", { name: /^Amigo 12/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole("checkbox", { name: /^Juan/ })).toBeInTheDocument();
+  });
+
+  it("reads nothing again when the person comes back to the tab right after a visit (ADR 0006 amendment)", async () => {
+    const spa = await open(13);
+    const before = spa.requests.length;
+    try {
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      await settled(spa);
+      expect(spa.requests.slice(before).map((r) => r.url)).toEqual([]);
+    } finally {
+      // The focus state is global: the tests after this one see the browser's own again, whatever happened here.
+      act(() => focusManager.setFocused(undefined));
+    }
+  });
+
+  it("costs as many requests with 13 friends as with one", async () => {
+    const one = (await open(1)).requests.filter((r) => r.method === "GET").length;
+    cleanup();
+    const thirteen = (await open(13)).requests.filter((r) => r.method === "GET").length;
+    expect(thirteen).toBe(one);
   });
 });

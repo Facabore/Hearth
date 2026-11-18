@@ -27,25 +27,45 @@ export interface Person {
 }
 
 /**
+ * #338: the other member of one of the recorder's direct spaces, as Amigos' one read answers it
+ * (`GET /api/v1/me/friends`), so the form never reads each direct space's members.
+ */
+export interface DirectPeer {
+  readonly spaceId: string;
+  readonly me: { readonly memberId: string };
+  readonly other: {
+    readonly memberId: string;
+    readonly kind: "USER" | "GUEST";
+    readonly displayName: string;
+    /** Absent for a guest. */
+    readonly userId?: string;
+  };
+}
+
+/**
  * The people the recorder shares a space with: the other member of each direct space (a guest included, D15: a guest
  * exists only in its own space), then each registered co-member of a shared space once, unless a direct space already
- * holds them. Shared spaces' guests are left out: the API refuses them (InvalidDirectCounterpart).
+ * holds them. Shared spaces' guests are left out: the API refuses them (InvalidDirectCounterpart). The direct spaces'
+ * people come from `friends`, the shared spaces' from `membersBySpace` (#338).
  */
 export const peopleOf = (input: {
   readonly meUserId: string;
   readonly spaces: readonly SpaceDto[];
+  readonly friends: readonly DirectPeer[];
   readonly membersBySpace: Readonly<Record<string, readonly MemberDto[]>>;
 }): Person[] => {
   type Building = Omit<Person, "places"> & { places: Place[] };
   const people: Building[] = [];
   const byUser = new Map<string, Building>();
+  const peerIn = new Map(input.friends.map((friend) => [friend.spaceId, friend]));
   const meIn = (spaceId: string) =>
     (input.membersBySpace[spaceId] ?? []).find((m) => m.userId === input.meUserId)?.id ?? null;
   for (const space of input.spaces.filter((s) => s.kind === "DIRECT")) {
-    const other = (input.membersBySpace[space.id] ?? []).find((m) => m.userId !== input.meUserId);
-    if (!other) continue;
+    const peer = peerIn.get(space.id);
+    if (!peer) continue;
+    const { other } = peer;
     const person: Building = {
-      memberId: other.id,
+      memberId: other.memberId,
       name: other.displayName,
       isGuest: other.kind === "GUEST",
       directSpace: space.name,
@@ -55,8 +75,8 @@ export const peopleOf = (input: {
           name: space.name,
           kind: "DIRECT",
           currency: space.currency,
-          theirMemberId: other.id,
-          myMemberId: meIn(space.id),
+          theirMemberId: other.memberId,
+          myMemberId: peer.me.memberId,
         },
       ],
     };

@@ -1,4 +1,4 @@
-import { queryOptions, useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import type { ListFilter, ListSpace } from "@/modules/ledger/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { Api } from "@/shared/ui/api/client";
@@ -10,6 +10,8 @@ import {
   categoriesQuery,
   LOADER_OWNED,
   membersQuery,
+  myAccountsQuery,
+  myCategoriesQuery,
   netBalancesQuery,
   periodQuery,
 } from "../reads";
@@ -95,7 +97,8 @@ const usePeriods = (viewer: Viewer, period: PeriodDto) => {
 /**
  * Ruling P319: the personal Movimientos of someone with other spaces, across all of them. The page and the personal
  * space's categories and accounts hold the screen; the other spaces' only fill the filters, so one that cannot be read
- * leaves its categories and accounts out, never the list.
+ * leaves its categories and accounts out, never the list. #338: those come in one read each for every space, so the
+ * screen's reads stay as many whatever the number of spaces.
  */
 export const useEverySpaceList = (viewer: Viewer, filter: ListFilter) => {
   const { api } = useApis();
@@ -108,15 +111,16 @@ export const useEverySpaceList = (viewer: Viewer, filter: ListFilter) => {
     ],
   });
   const others = viewer.spaces.filter((s) => s.id !== spaceId);
-  const otherGroups = useQueries({ queries: others.map((s) => categoriesQuery(api, s.id, "all")) });
-  const otherAccounts = useQueries({ queries: others.map((s) => accountsQuery(api, s.id, "all")) });
+  const otherGroups = useQuery(myCategoriesQuery(api, "all")).data;
+  const otherAccounts = useQuery(myAccountsQuery(api, "all")).data;
   const spaceOf = (space: SpaceDto, i: number): ListSpace => ({
     id: space.id,
     name: space.name,
     kind: space.kind,
     color: space.color ?? "GRAPHITE",
-    groups: i < 0 ? groups.data : (otherGroups[i]?.data ?? []),
-    accounts: i < 0 ? accounts.data : (otherAccounts[i]?.data ?? []),
+    groups: i < 0 ? groups.data : (otherGroups?.find((one) => one.spaceId === space.id)?.groups ?? []),
+    accounts:
+      i < 0 ? accounts.data : (otherAccounts?.find((one) => one.spaceId === space.id)?.accounts ?? []),
   });
   return {
     page: page.data,

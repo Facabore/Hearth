@@ -17,11 +17,14 @@ import {
   membersQuery,
   netBalancesQuery,
   periodQuery,
+  myAccountsQuery,
   myActivityQuery,
+  myCategoriesQuery,
   unifiedViewQuery,
 } from "../reads";
 import { ensurer, sharedSpace, showsUnifiedMonth, viewerOf, type Load, type Viewer } from "../load";
 import { read } from "../read";
+import { myFriendsQuery } from "../shell";
 
 /** The home's latest rows and the list's page size, as the Next.js containers read them. */
 export const HOME_ROWS = 3;
@@ -265,22 +268,20 @@ export const loadList = async (load: Load, spaceId: string, filter: ListFilter, 
       ? ensure(myPageQuery(api, spaceId, myListQueryOf(filter)))
       : ensure(pageQuery(api, spaceId, listQueryOf(filter))),
   );
-  const others = viewer.then((v) =>
-    v && showsUnifiedMonth(v) ? v.spaces.filter((s) => s.id !== spaceId) : [],
-  );
   await Promise.all([
     page.then(({ period }) =>
       Promise.all(neighboursOf(api, spaceId, period).map((query) => settled(ensure(query)))),
     ),
     ensure(categoriesQuery(api, spaceId, "all")),
     ensure(accountsQuery(api, spaceId, "all")),
-    others.then((spaces) =>
-      Promise.all(
-        spaces.flatMap((s) => [
-          settled(ensure(categoriesQuery(api, s.id, "all"))),
-          settled(ensure(accountsQuery(api, s.id, "all"))),
-        ]),
-      ),
+    // #338: every space's categories and accounts in one read each, whatever the number of spaces.
+    viewer.then((v) =>
+      v && showsUnifiedMonth(v)
+        ? Promise.all([
+            settled(ensure(myCategoriesQuery(api, "all"))),
+            settled(ensure(myAccountsQuery(api, "all"))),
+          ])
+        : undefined,
     ),
     viewer.then((v) => (v && sharedSpace(v.space) ? ensure(membersQuery(api, spaceId)) : undefined)),
     viewer.then((v) =>
@@ -320,12 +321,19 @@ export const loadRecord = async (load: Load, spaceId: string) => {
     ensure(categoriesQuery(api, spaceId, "active")),
     viewer.then((v) => {
       if (!v) return undefined;
-      // P172: a personal expense can be split with the people of every other space; one that fails is left out.
+      // P172: a personal expense can be split with the people of every other space; a read that fails leaves its
+      // people out. #338: the direct spaces' people are Amigos' one read, so only the groups read their members.
+      const others = v.spaces.filter(sharedSpace);
       const people = sharedSpace(v.space)
         ? loadShared(load, v, "active")
-        : Promise.all(
-            v.spaces.filter(sharedSpace).map((space) => settled(ensure(membersQuery(api, space.id)))),
-          );
+        : Promise.all([
+            others.some((space) => space.kind === "DIRECT")
+              ? settled(ensure(myFriendsQuery(api)))
+              : undefined,
+            ...others
+              .filter((space) => space.kind === "SHARED")
+              .map((space) => settled(ensure(membersQuery(api, space.id)))),
+          ]);
       return Promise.all([people, loadLineWatch(load, v)]);
     }),
   ]);

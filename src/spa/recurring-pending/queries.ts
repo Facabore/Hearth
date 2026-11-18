@@ -23,6 +23,19 @@ export const pendingOccurrencesQuery = (api: Api, spaceId: string) =>
         .items,
   });
 
+/** #338: a pending occurrence of one of the person's spaces, with that space. */
+export type MyPendingOccurrenceDto = OccurrenceDto & { readonly spaceId: string };
+
+/**
+ * #338: the pending occurrences of every current space of the person in one read, space by space, each space's
+ * earliest first, so the personal Inicio costs one request however many friends she has.
+ */
+export const myPendingOccurrencesQuery = (api: Api) =>
+  queryOptions<MyPendingOccurrenceDto[]>({
+    queryKey: recurrenceKeys.minePending(),
+    queryFn: async () => (await read(api.GET("/api/v1/me/pending-occurrences"))).items,
+  });
+
 /**
  * The count of the space's pending occurrences for someone who records money there (MEMBER and above), else 0: a
  * VIEWER is never asked for it. A read that fails shows no count; it never fails the screen around it.

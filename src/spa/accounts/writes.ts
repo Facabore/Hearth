@@ -16,11 +16,13 @@ const WRITES = new Set([
 /**
  * An account changes its space's account lists, balances and totals (computed on read, D7) and the plan's reports,
  * which read its opening balance and its funds. A personal account also pays in shared spaces, whose screens read it
- * from the personal space's lists, under the same key. Rows name accounts from those lists, so the ledger reads nothing.
+ * from the personal space's lists, under the same key; every space's accounts of the person (#338) hold it too. Rows name
+ * accounts from those lists, so the ledger reads nothing.
  */
 const changed = (queryClient: QueryClient, spaceId: string, data: unknown, accountId: string | undefined) => {
   if (accountId) queryClient.setQueryData(moduleKeys.account(spaceId, accountId), data as AccountDto);
   void queryClient.invalidateQueries({ queryKey: moduleKeys.accounts(spaceId) });
+  void queryClient.invalidateQueries({ queryKey: moduleKeys.myAccountLists });
   void queryClient.invalidateQueries({ queryKey: moduleKeys.reports(spaceId) });
 };
 

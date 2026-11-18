@@ -3079,6 +3079,94 @@
         }
       }
     },
+    "/api/v1/me/categories": {
+      "get": {
+        "operationId": "listMyCategories",
+        "summary": "The category tree of each of the signed-in person's active spaces, personal included; archived groups, categories and subcategories only with archived=true",
+        "description": "One entry per space whose own list would answer her, each with the tree as that list answers it.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per active space, each with its groups in their own order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "groups": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/CategoryGroup"
+                            }
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "groups"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/categories": {
       "get": {
         "operationId": "listCategories",
@@ -4386,6 +4474,94 @@
           },
           "409": {
             "description": "SpaceArchived",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/accounts": {
+      "get": {
+        "operationId": "listMyAccounts",
+        "summary": "The accounts of each of the signed-in person's active spaces, personal included; archived ones only with archived=true",
+        "description": "One entry per space whose own list would answer her, each with the accounts as that list answers its items (balances computed on read). The spaces' totals are not included.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "archived",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per active space, each with its accounts sorted by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "spaceId": {
+                            "type": "string"
+                          },
+                          "accounts": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/Account"
+                            }
+                          }
+                        },
+                        "required": [
+                          "spaceId",
+                          "accounts"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -11259,6 +11435,126 @@
         }
       }
     },
+    "/api/v1/me/pending-occurrences": {
+      "get": {
+        "operationId": "listMyPendingOccurrences",
+        "summary": "The signed-in person's pending occurrences in every one of her current spaces, each with its space (#338)",
+        "description": "What each space's pending-occurrences read answers, in one request: space by space in the order of the person's space list, each space's earliest first. Archived spaces are not listed, and a space whose own read refuses the person is left out.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending occurrences of the person's current spaces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "recurrenceId": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "EXPENSE",
+                              "INCOME",
+                              "TRANSFER",
+                              "FUND_CONTRIBUTION"
+                            ]
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "date": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "RECORDED",
+                              "PENDING",
+                              "SKIPPED"
+                            ]
+                          },
+                          "amount": {
+                            "$ref": "#/components/schemas/MoneyOutput"
+                          },
+                          "categoryId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "transactionId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "spaceId": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "recurrenceId",
+                          "type",
+                          "description",
+                          "date",
+                          "status",
+                          "amount",
+                          "categoryId",
+                          "transactionId",
+                          "reason",
+                          "spaceId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/skip": {
       "post": {
         "operationId": "skipOccurrence",
@@ -11645,6 +11941,10 @@
                               "handle": {
                                 "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
                                 "type": "string"
+                              },
+                              "userId": {
+                                "description": "#338: the registered person's user id, so a group's members list can tell them apart; absent for a guest",
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -11816,6 +12116,10 @@
                         },
                         "handle": {
                           "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
+                          "type": "string"
+                        },
+                        "userId": {
+                          "description": "#338: the registered person's user id, so a group's members list can tell them apart; absent for a guest",
                           "type": "string"
                         }
                       },

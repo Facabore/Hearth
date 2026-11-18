@@ -78,25 +78,24 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
             items: [spaceDto(), householdSpace(), { ...householdSpace(), id: "sp-trip", name: "Viaje" }],
           }),
         "GET /api/v1/me/balances": () => jsonResponse({ items: [anaOwesJuan, owedInTrip] }),
-        "GET /api/v1/spaces/{spaceId}/pending-occurrences": (_request, params) =>
+        // #338: the personal home reads every space's bills in one request.
+        "GET /api/v1/me/pending-occurrences": () =>
           jsonResponse({
-            items:
-              params.spaceId === "sp-household"
-                ? [
-                    {
-                      id: "o-energy",
-                      recurrenceId: "r-energy",
-                      type: "EXPENSE",
-                      description: "Energía",
-                      date: "2026-10-20",
-                      status: "PENDING",
-                      amount: cop(180_000),
-                      categoryId: null,
-                      transactionId: null,
-                      reason: null,
-                    },
-                  ]
-                : [],
+            items: [
+              {
+                id: "o-energy",
+                recurrenceId: "r-energy",
+                type: "EXPENSE",
+                description: "Energía",
+                date: "2026-10-20",
+                status: "PENDING",
+                amount: cop(180_000),
+                categoryId: null,
+                transactionId: null,
+                reason: null,
+                spaceId: "sp-household",
+              },
+            ],
           }),
       }),
     );

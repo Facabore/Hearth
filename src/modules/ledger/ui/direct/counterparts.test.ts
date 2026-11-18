@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { guestDto, householdSpace, memberDto, spaceDto } from "../../../../../tests/support/ui/dto";
+import {
+  friendDto,
+  guestDto,
+  householdSpace,
+  memberDto,
+  spaceDto,
+} from "../../../../../tests/support/ui/dto";
 import { peopleOf } from "./counterparts";
 
 const ana = memberDto();
@@ -14,14 +20,33 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
       householdSpace({ id: "sp-ana-juan", name: "Ana & Juan", kind: "DIRECT" }),
       householdSpace({ id: "sp-ana-carlos", name: "Ana & Carlos", kind: "DIRECT" }),
     ];
+    // #338: the direct spaces' people come from Amigos' one read, the groups' from their members.
     const people = peopleOf({
       meUserId: "u-ana",
       spaces,
-      membersBySpace: {
-        "sp-household": [ana, juan("m-juan-h"), luis, guestDto()],
-        "sp-ana-juan": [memberDto({ id: "m-ana-d" }), juan("m-juan-d")],
-        "sp-ana-carlos": [memberDto({ id: "m-ana-c" }), guestDto({ id: "m-carlos", displayName: "Carlos" })],
-      },
+      friends: [
+        friendDto({
+          spaceId: "sp-ana-juan",
+          me: { memberId: "m-ana-d" },
+          other: {
+            memberId: "m-juan-d",
+            kind: "USER",
+            displayName: "Juan",
+            nickname: "Juancho",
+            userId: "u-juan",
+          },
+          name: "Juancho",
+        }),
+        friendDto({
+          spaceId: "sp-ana-carlos",
+          me: { memberId: "m-ana-c" },
+          other: { memberId: "m-carlos", kind: "GUEST", displayName: "Carlos", nickname: null },
+          name: "Carlos",
+        }),
+        // A direct space the switcher no longer lists (archived meanwhile) adds nobody.
+        friendDto({ spaceId: "sp-gone" }),
+      ],
+      membersBySpace: { "sp-household": [ana, juan("m-juan-h"), luis, guestDto()] },
     });
     const direct = (spaceId: string, name: string, theirs: string, mine: string) => ({
       spaceId,
@@ -82,6 +107,7 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
         householdSpace({ id: "sp-trip", name: "Trip" }),
         householdSpace({ id: "sp-unread", name: "Unread" }),
       ],
+      friends: [],
       membersBySpace: {
         "sp-household": [ana, luis],
         "sp-trip": [ana, memberDto({ id: "m-luis-t", userId: "u-luis", displayName: "Luis" })],
@@ -99,6 +125,7 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
         householdSpace({ id: "sp-club", name: "Club", role: "VIEWER" }),
         householdSpace({ id: "sp-trip", name: "Trip", currency: "USD" }),
       ],
+      friends: [],
       membersBySpace: {
         "sp-household": [ana, luis],
         "sp-club": [ana, memberDto({ id: "m-luis-c", userId: "u-luis", displayName: "Luis" })],

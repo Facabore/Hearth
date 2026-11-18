@@ -112,6 +112,12 @@ export const FriendSchema = z.object({
   spaceId: z.string(),
   me: z.object({ memberId: z.string() }),
   ...FriendNameFields,
+  other: FriendNameFields.other.extend({
+    userId: z.string().optional().meta({
+      description:
+        "#338: the registered person's user id, so a group's members list can tell them apart; absent for a guest",
+    }),
+  }),
   net: MoneySchema.meta({
     description:
       "The viewer's net in the space: positive when the other one owes her, negative when she owes them",

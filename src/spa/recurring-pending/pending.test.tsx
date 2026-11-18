@@ -195,6 +195,18 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(calls(spa.requests, "GET", /\/recurrences\/r-energy$/)).toHaveLength(1);
   });
 
+  it("makes the personal Inicio read every space's bills again after a skip (#338)", async () => {
+    const spa = renderSpa("/spaces/sp-household/pending-occurrences", pendingApi());
+    await screen.findByRole("article", { name: "Energía" });
+    spa.queryClient.setQueryData(recurrenceKeys.minePending(), [
+      { ...pendingInternet, spaceId: "sp-household" },
+    ]);
+    expect(spa.queryClient.getQueryState(recurrenceKeys.minePending())?.isInvalidated).toBe(false);
+    await userEvent.click(within(card("Energía")).getByRole("button", { name: "Omitir" }));
+    await screen.findByText("Energía omitida. Sigue el 10/1/2027.");
+    expect(spa.queryClient.getQueryState(recurrenceKeys.minePending())?.isInvalidated).toBe(true);
+  });
+
   it("shows a VIEWER what waits, read from the API, with the role note and no confirm or skip (S6, P271)", async () => {
     const spa = renderSpa("/spaces/sp-household/pending-occurrences", pendingApi("VIEWER"));
     expect(

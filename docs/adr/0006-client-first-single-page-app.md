@@ -112,3 +112,21 @@ The web UI becomes a client-rendered single-page app, and the server leaves the 
   - Another server-rendering framework (SvelteKit, Remix, Nuxt). Loading data on the server at every navigation is the cost itself, whatever the framework.
   - A React Native (Expo) rewrite. It would replace every screen instead of reusing them, while Capacitor wraps the SPA as it is.
 - Amended 2026-11-12 (#302): a tap that lands while its hover's prefetch is still in flight joins that prefetch, so the screen's loader never ran as a visit and the screen kept what the cache held (in CI, a category created just before was missing from Movimientos' filter, 2 runs in 9). `router.tsx` now notes which screens last loaded for a prefetch; once a navigation resolves, such a screen is loaded once more, as the visit it is, which revalidates in the background. A hover alone still reads nothing the cache holds.
+- Amended 2026-11-17 (#338, ruling P341; owner, on staging: "¿Por qué hay tantos llamados a members si sigo en la misma pantalla? revisá bien qué tan óptimos estamos"): a screen's reads no longer grow with the person's friends, and the cache has a fresh window.
+  - **Per-person reads instead of one read per space.** Since P338 every friend is a direct space, and three screens read once per space, both in their loaders and in their hooks.
+    - Registrar in Personal builds "Para quién fue" from `GET /api/v1/me/friends` (already one read, now with an optional `other.userId`) and reads `members` only for groups.
+    - Todos los espacios fills its filters from the new `GET /api/v1/me/categories` and `GET /api/v1/me/accounts`.
+    - Personal Inicio's "Te necesita hoy" reads the new `GET /api/v1/me/pending-occurrences`.
+    - Each new read runs the module's own per-space use case for every space of the person, so it authorizes as that read does, and it adds endpoints without changing any existing answer.
+  - **Measured GETs per visit** in the SPA tests, with 13 friends and one group (with one friend and one group in parentheses):
+
+    | Screen | Before | After |
+    | --- | --- | --- |
+    | Registrar in Personal | 23 (11) | 11 (11) |
+    | Todos los espacios | 38 (14) | 12 (12) |
+    | Personal Inicio | 27 (15) | 14 (14) |
+
+  - **A fresh window of 10 seconds** (`FRESH_FOR_MS`, `src/spa/app.tsx`). A return to the tab or a second component mounting on the same query reads nothing within the window. Coming back to Registrar's tab read 8 queries again before, and 20 before its fan-out was cut; it now reads 0 within the window. Focus refetch stays on, so after the window a return refreshes what is on screen. A visit is unchanged: the loaders' `ensurer` treats the cache as stale on "enter", so every tap still revalidates its screen in the background (the 2026-11-09 amendment and P316). A read that sets its own stale time keeps it, so a catalog or an import's preview (Infinity) is never read again by a visit. Writes still invalidate exactly what they changed, so the person's own changes never wait for the window.
+  - **`router.refresh()`** still reads the screen again only when no write plan settled the last write. An audit of every write the modules send found these without a plan:
+    - P334's transfer to a person (`POST /api/v1/direct-settlements`) now has the direct split's plan, so its refresh reads nothing more.
+    - The rest keep the whole-cache fallback, because what they change is not named anywhere the SPA can see: recurrences (create, edit, pause, resume, end, extend), an account's currency, imports, and sign-in and sign-up, where the person changes. The components cannot name query keys, because they live in the modules' UI, so narrowing further means giving those writes plans.

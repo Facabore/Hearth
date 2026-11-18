@@ -65,13 +65,16 @@ export const usePendingItems = (viewer: Viewer): { items: PendingItem[]; canAct:
  * The two writes of "Por confirmar". A confirmation records the movement the record form would, so the ledger's own
  * plan for a recorded expense writes it into the cached pages and its detail and invalidates every total it changes
  * (ADR 0006: the transaction list and the home included); both writes then read the recurrences and the pending
- * occurrences again, which the shell's badge and the Movimientos banner count.
+ * occurrences again, which the shell's badge and the Movimientos banner count, and the personal Inicio's read of every
+ * space's (#338).
  */
 export const usePendingWrites = (spaceId: string) => {
   const { api } = useApis();
   const queryClient = useQueryClient();
-  const refreshRecurrences = () =>
+  const refreshRecurrences = () => {
     void queryClient.invalidateQueries({ queryKey: recurrenceKeys.space(spaceId) });
+    void queryClient.invalidateQueries({ queryKey: recurrenceKeys.minePending() });
+  };
 
   const confirm = async (item: PendingItem, amount: MoneyDto, key: string): Promise<ConfirmOutcome> => {
     const result = await api.POST("/api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/confirm", {

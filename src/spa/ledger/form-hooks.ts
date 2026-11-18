@@ -9,6 +9,7 @@ import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
 import { read } from "../read";
+import { myFriendsQuery } from "../shell";
 import { ledgerKeys, transactionQuery } from "./queries";
 
 /**
@@ -68,7 +69,12 @@ export const useRecord = (viewer: Viewer) => {
   });
   const { shared } = useShared(viewer, "active");
   const others = sharedSpace(viewer.space) ? [] : viewer.spaces.filter(sharedSpace);
-  const memberReads = useQueries({ queries: others.map((space) => membersQuery(api, space.id)) });
+  // #338: the direct spaces' people come from Amigos' one read, so the form's reads never grow with the person's
+  // friends; only the groups, which do not, read their members. The loader reads both (`loadRecord`); neither holds
+  // the form up.
+  const friends = useQuery({ ...myFriendsQuery(api), enabled: others.some((s) => s.kind === "DIRECT") });
+  const sharedGroups = others.filter((space) => space.kind === "SHARED");
+  const memberReads = useQueries({ queries: sharedGroups.map((space) => membersQuery(api, space.id)) });
   const today = nowIn(new Date(), viewer.me.timezone).date;
   const period = useQuery(periodQuery(api, spaceId, today));
   const label = period.data?.label;
@@ -76,7 +82,7 @@ export const useRecord = (viewer: Viewer) => {
   // Ruling P337: never holds the form up; without it Desde lists by name and starts on the last account used.
   const usage = useQuery(accountUsageQuery(api));
   const membersBySpace: Record<string, readonly MemberDto[]> = {};
-  others.forEach((space, i) => {
+  sharedGroups.forEach((space, i) => {
     const members = memberReads[i]?.data;
     if (members) membersBySpace[space.id] = members;
   });
@@ -84,7 +90,9 @@ export const useRecord = (viewer: Viewer) => {
     accounts: accounts.data,
     groups: groups.data,
     shared,
-    people: shared ? undefined : peopleOf({ meUserId: viewer.me.id, spaces: others, membersBySpace }),
+    people: shared
+      ? undefined
+      : peopleOf({ meUserId: viewer.me.id, spaces: others, friends: friends.data ?? [], membersBySpace }),
     lineWatch: report.data ? lineWatchOf(report.data) : null,
     accountUsage: usage.data ?? null,
   };

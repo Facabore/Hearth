@@ -30,8 +30,12 @@ export interface FriendHandles {
 
 /** Ruling P338: one person in Amigos, the other member of one of the viewer's direct spaces. */
 export interface Friend extends Omit<FriendName, "other"> {
-  /** Ruling P339: `handle` is the registered person's @usuario, absent for a guest or someone who picked none. */
-  readonly other: FriendName["other"] & { readonly handle?: string };
+  /**
+   * Ruling P339: `handle` is the registered person's @usuario, absent for a guest or someone who picked none. #338:
+   * `userId` is the registered person's user, absent for a guest, so a screen that also reads a group's members can
+   * tell the same person apart.
+   */
+  readonly other: FriendName["other"] & { readonly handle?: string; readonly userId?: string };
   readonly spaceId: string;
   readonly currency: string;
   readonly me: { readonly memberId: string };
@@ -104,8 +108,12 @@ export const createListMyFriends = (deps: ListMyFriendsDeps): ListMyFriends => {
         .filter((friend) => friend !== null)
         .map((friend) => {
           const peer = peers.get(friend.spaceId);
-          const handle = peer === undefined ? undefined : handles.get(peer);
-          return handle === undefined ? friend : { ...friend, other: { ...friend.other, handle } };
+          if (peer === undefined) return friend;
+          const handle = handles.get(peer);
+          return {
+            ...friend,
+            other: { ...friend.other, userId: peer, ...(handle === undefined ? {} : { handle }) },
+          };
         })
         .sort(friendOrder),
     );

@@ -1,11 +1,15 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { FriendsLine } from "@/modules/balances/ui";
 import { NeedsToday } from "@/modules/ledger/ui";
 import { controlsFor, type MyBalanceDto } from "@/modules/spaces/ui";
 import type { SpaceDto } from "@/shared/ui/api/dto";
 import type { Formats } from "@/shared/ui/format/formatters";
 import { useApis } from "../api";
-import { pendingOccurrencesQuery } from "../recurring-pending/queries";
+import {
+  myPendingOccurrencesQuery,
+  pendingOccurrencesQuery,
+  type OccurrenceDto,
+} from "../recurring-pending/queries";
 import { myBalancesQuery, myFriendsQuery } from "../shell";
 
 /**
@@ -45,8 +49,8 @@ const owedOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], 
 /**
  * #288 (board "Propuesta · Inicio personal · te necesita hoy", approved 2026-11-09): Inicio's "Te necesita hoy" from the
  * query cache. It reads the person's balances (ruling P278) and the bills that wait for their real amount in every space
- * where she records money on the personal home, in this one on a shared home: the same reads as the bar's badge, so a
- * space already read costs nothing. Inicio loads it in a chunk of its own, so the route keeps its script budget.
+ * where she records money on the personal home, all of them in one read (#338), and in this one on a shared home: the
+ * same read as the bar's badge, so it costs nothing. Inicio loads it in a chunk of its own, so the route keeps its script budget.
  * Ruling P338: the personal Inicio's line to Amigos comes first, read here on its own so Inicio never waits for it.
  */
 export function NeedsTodayHost({
@@ -75,9 +79,17 @@ export function NeedsTodayHost({
   const asked = spaces.filter(
     (s) => (personal || s.id === space.id) && controlsFor(s.role, s.kind).recordMoney,
   );
-  const reads = useQueries({ queries: asked.map((s) => pendingOccurrencesQuery(api, s.id)) });
-  const pending = asked.flatMap((s, i) => {
-    const items = reads[i]?.data ?? [];
+  // #338: the personal home reads every space's bills in one request, so it costs the same with any number of
+  // friends; a shared home reads its own space's, the read the bar's badge already made. Neither ever fails Inicio.
+  const mine = useQuery({ ...myPendingOccurrencesQuery(api), enabled: personal && asked.length > 0 }).data;
+  const here = useQuery({
+    ...pendingOccurrencesQuery(api, space.id),
+    enabled: !personal && asked.length > 0,
+  }).data;
+  const itemsOf = (spaceId: string): readonly OccurrenceDto[] =>
+    (personal ? mine?.filter((occurrence) => occurrence.spaceId === spaceId) : here) ?? [];
+  const pending = asked.flatMap((s) => {
+    const items = itemsOf(s.id);
     const [first] = items;
     return first
       ? [
