@@ -18,8 +18,8 @@ import type { SpaceDto } from "@/shared/ui/api/dto";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalancesScreen } from "./balances-screen";
 
-// Ruling P322, boards B1-B8 (Penpot "E9-07 · Saldos", second row): in Friends, Benekin owes Camilou $ 4.500 and Camilox
-// owes Camilou $ 500; Kamilox, who owes nobody, opens Saldos.
+// Ruling P322, boards B1-B8 (Penpot "E9-07 · Saldos", second row): in Friends, Benekin owes Camilou 4.500 COP and Camilox
+// owes Camilou 500 COP; Kamilox, who owes nobody, opens Saldos.
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 beforeEach(() => {
@@ -91,8 +91,8 @@ beforeAll(async () => {
 
 /** An accessible name whose spaces match the formatters' non-breaking ones. */
 const named = (text: string) => new RegExp(`^${text.replace(/[.()$¿?]/g, "\\$&").replace(/ /g, "\\s")}$`);
-const BENEKIN_PAYS = named("Saldar: Benekin le paga $ 4.500 a Camilou");
-const CAMILOX_PAYS = named("Saldar: Camilox le paga $ 500 a Camilou");
+const BENEKIN_PAYS = named("Saldar: Benekin le paga 4.500 COP a Camilou");
+const CAMILOX_PAYS = named("Saldar: Camilox le paga 500 COP a Camilou");
 const dialog = () => screen.getByRole("dialog", { name: "Saldar" });
 const group = (name: string) => within(dialog()).getByRole("radiogroup", { name });
 const radioNames = (radios: HTMLElement) =>
@@ -117,7 +117,7 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
     );
     expect(within(dialog()).getByLabelText("Monto")).toHaveValue("4.500");
     expect(text()).toContain(
-      "Anotas que Benekin le pagó $ 4.500 a Camilou por fuera de la app. No sale de tus cuentas.",
+      "Anotas que Benekin le pagó 4.500 COP a Camilou por fuera de la app. No sale de tus cuentas.",
     );
     // Both are guests: no account on either side, and nothing asks whether Benekin pays the viewer back.
     expect(within(dialog()).queryByRole("radiogroup", { name: /Sale de/ })).toBeNull();
@@ -143,7 +143,7 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
     // P324: the account is a row naming the one chosen.
     expect(accountRow("Sale de")).toHaveAccessibleName("Sale de: Nu");
     expect(text()).toContain(
-      "Le pagas $ 4.500 a Camilou por Benekin. Camilou queda al día y Benekin pasa a deberte $ 4.500.",
+      "Le pagas 4.500 COP a Camilou por Benekin. Camilou queda al día y Benekin pasa a deberte 4.500 COP.",
     );
     expect(text()).not.toContain("Anotas que");
     expect(within(dialog()).queryByRole("button", { name: "Guardar pago" })).toBeNull();
@@ -169,7 +169,7 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
       within(group("¿Benekin te lo devuelve?")).getByRole("radio", { name: "Se lo regalo" }),
     );
     expect(text()).toContain(
-      "Le pagas $ 4.500 a Camilou por Benekin y se los regalas. Camilou y Benekin quedan al día; nadie te debe.",
+      "Le pagas 4.500 COP a Camilou por Benekin y se los regalas. Camilou y Benekin quedan al día; nadie te debe.",
     );
     await userEvent.click(within(dialog()).getByRole("button", { name: "Pagar y regalar" }));
     expect(await requests[0]!.json()).toEqual({
@@ -190,7 +190,7 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
     await userEvent.click(within(group("Quién paga")).getByRole("radio", { name: "Lo pago yo" }));
     await userEvent.clear(within(dialog()).getByLabelText("Monto"));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "2.000");
-    expect(text()).toContain("Le pagas $ 2.000 a Camilou por Benekin y Benekin pasa a deberte $ 2.000.");
+    expect(text()).toContain("Le pagas 2.000 COP a Camilou por Benekin y Benekin pasa a deberte 2.000 COP.");
     expect(text()).not.toContain("queda al día");
     await userEvent.click(within(dialog()).getByRole("button", { name: "Pagar por Benekin" }));
     expect(await requests[0]!.json()).toMatchObject({ amount: { amount: "200000" }, gift: false });
@@ -229,7 +229,7 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
       suggestions: [{ payerMemberId: "m-benekin", receivingMemberId: "m-leda", amount: cop(4_500) }],
     });
     await userEvent.click(
-      screen.getByRole("button", { name: named("Saldar: Benekin le paga $ 4.500 a Leda") }),
+      screen.getByRole("button", { name: named("Saldar: Benekin le paga 4.500 COP a Leda") }),
     );
     // P324: only Benekin owes Leda, so nothing is chosen: the sheet says who pays whom in a line.
     expect(within(dialog()).queryByRole("radiogroup", { name: "Quién paga" })).toBeNull();
@@ -269,14 +269,14 @@ describe("Saldar from a suggestion between two others (P322, boards B1-B3)", () 
   it("reads B2 in English with no accessibility violations", async () => {
     friendsAs("u-kami", fakeApi({}).api, {}, "en");
     await userEvent.click(
-      screen.getByRole("button", { name: named("Settle: Benekin pays Camilou $ 4.500") }),
+      screen.getByRole("button", { name: named("Settle: Benekin pays Camilou 4.500 COP") }),
     );
     const sheet = screen.getByRole("dialog", { name: "Settle" });
     await userEvent.click(within(sheet).getByRole("radio", { name: "I'll pay" }));
     const back = within(sheet).getByRole("radiogroup", { name: "Does Benekin pay you back?" });
     expect(radioNames(back)).toEqual(["Benekin owes me", "It's a gift"]);
     expect(normalized(sheet.textContent)).toContain(
-      "You pay Camilou $ 4.500 for Benekin. Camilou is settled up and Benekin now owes you $ 4.500.",
+      "You pay Camilou 4.500 COP for Benekin. Camilou is settled up and Benekin now owes you 4.500 COP.",
     );
     expect(within(sheet).getByRole("button", { name: "Pay for Benekin" })).toBeInTheDocument();
     expect(await axeViolations(sheet)).toEqual([]);
@@ -299,7 +299,7 @@ describe("Saldar otro monto: both payer and receiver are chosen (P322, board B4)
     expect(radioNames(group("A quién"))).toEqual(["Tú", "Benekin (invitado)", "Camilou (invitado)"]);
   });
 
-  it("records Camilox paying Camilou $ 500 with no account, and says both end al día", async () => {
+  it("records Camilox paying Camilou 500 COP with no account, and says both end al día", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
     friendsAs("u-kami", api);
     await userEvent.click(screen.getByRole("button", { name: "Saldar otro monto" }));
@@ -307,7 +307,7 @@ describe("Saldar otro monto: both payer and receiver are chosen (P322, board B4)
     await userEvent.click(within(group("A quién")).getByRole("radio", { name: "Camilou (invitado)" }));
     await userEvent.type(within(dialog()).getByLabelText("Monto"), "500");
     expect(text()).toContain(
-      "Anotas que Camilox le pagó $ 500 a Camilou: los dos quedan al día. Quien paga y quien recibe se eligen; nadie queda fijo.",
+      "Anotas que Camilox le pagó 500 COP a Camilou: los dos quedan al día. Quien paga y quien recibe se eligen; nadie queda fijo.",
     );
     expect(within(dialog()).queryByRole("radiogroup", { name: /Sale de/ })).toBeNull();
     expect(within(dialog()).queryByRole("radiogroup", { name: /Llega a/ })).toBeNull();
@@ -368,16 +368,18 @@ describe("Perdonar en vez de cobrar (P322, board B8)", () => {
     await userEvent.click(screen.getByRole("button", { name: BENEKIN_PAYS }));
     await userEvent.click(within(dialog()).getByRole("button", { name: "Perdonar en vez de cobrar" }));
     const sheet = forgiving();
-    expect(within(sheet).getByText(named("Friends · Benekin le debe $ 4.500 a Camilou"))).toBeInTheDocument();
+    expect(
+      within(sheet).getByText(named("Friends · Benekin le debe 4.500 COP a Camilou")),
+    ).toBeInTheDocument();
     expect(normalized(within(sheet).getByTestId("forgive-receiver").textContent)).toBe(
       "Quien cobra Camilou (invitado)",
     );
     expect(within(sheet).getByLabelText("Monto")).toHaveValue("4.500");
     expect(normalized(sheet.textContent)).toContain(
-      "Benekin queda al día y Camilou deja de recibir $ 4.500. No se mueve dinero. Perdona solo quien cobra; como Camilou es invitado, lo hace quien administra Friends.",
+      "Benekin queda al día y Camilou deja de recibir 4.500 COP. No se mueve dinero. Perdona solo quien cobra; como Camilou es invitado, lo hace quien administra Friends.",
     );
     expect(within(sheet).queryByRole("radiogroup")).toBeNull();
-    await userEvent.click(within(sheet).getByRole("button", { name: named("Perdonar $ 4.500") }));
+    await userEvent.click(within(sheet).getByRole("button", { name: named("Perdonar 4.500 COP") }));
     expect(await requests[0]!.json()).toEqual({
       ...TODAY,
       amount: { amount: "450000", currency: "COP" },
@@ -415,7 +417,7 @@ describe("Perdonar en vez de cobrar (P322, board B8)", () => {
       suggestions: [{ payerMemberId: "m-benekin", receivingMemberId: "m-leda", amount: cop(4_500) }],
     });
     await userEvent.click(
-      screen.getByRole("button", { name: named("Saldar: Benekin le paga $ 4.500 a Leda") }),
+      screen.getByRole("button", { name: named("Saldar: Benekin le paga 4.500 COP a Leda") }),
     );
     await userEvent.click(within(dialog()).getByRole("button", { name: "Perdonar en vez de cobrar" }));
     const sheet = forgiving();
@@ -423,9 +425,9 @@ describe("Perdonar en vez de cobrar (P322, board B8)", () => {
       "Quien cobra Leda (tú)",
     );
     expect(normalized(sheet.textContent)).toContain(
-      "Benekin queda al día y dejas de recibir $ 4.500. No se mueve dinero. Perdona solo quien cobra.",
+      "Benekin queda al día y dejas de recibir 4.500 COP. No se mueve dinero. Perdona solo quien cobra.",
     );
-    await userEvent.click(within(sheet).getByRole("button", { name: named("Perdonar $ 4.500") }));
+    await userEvent.click(within(sheet).getByRole("button", { name: named("Perdonar 4.500 COP") }));
     const body = await requests[0]!.json();
     expect(body).toEqual({
       ...TODAY,
@@ -443,7 +445,7 @@ describe("Perdonar en vez de cobrar (P322, board B8)", () => {
     friendsAs("u-kami", api, managing("ADMIN"));
     await userEvent.click(screen.getByRole("button", { name: BENEKIN_PAYS }));
     await userEvent.click(within(dialog()).getByRole("button", { name: "Perdonar en vez de cobrar" }));
-    await userEvent.click(within(forgiving()).getByRole("button", { name: named("Perdonar $ 4.500") }));
+    await userEvent.click(within(forgiving()).getByRole("button", { name: named("Perdonar 4.500 COP") }));
     expect(await within(forgiving()).findByRole("alert")).toHaveTextContent(
       "Solo quien cobra puede perdonar la deuda; si es invitado, quien administra el espacio.",
     );
@@ -453,11 +455,11 @@ describe("Perdonar en vez de cobrar (P322, board B8)", () => {
   it("reads in English", async () => {
     friendsAs("u-kami", fakeApi({}).api, managing("ADMIN"), "en");
     await userEvent.click(
-      screen.getByRole("button", { name: named("Settle: Benekin pays Camilou $ 4.500") }),
+      screen.getByRole("button", { name: named("Settle: Benekin pays Camilou 4.500 COP") }),
     );
     await userEvent.click(screen.getByRole("button", { name: "Forgive instead of collecting" }));
     const sheet = screen.getByRole("dialog", { name: "Forgive Benekin's debt?" });
-    expect(within(sheet).getByRole("button", { name: named("Forgive $ 4.500") })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: named("Forgive 4.500 COP") })).toBeInTheDocument();
     expect(await axeViolations(sheet)).toEqual([]);
   });
 });

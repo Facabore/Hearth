@@ -82,7 +82,7 @@ export function AccountAttributeFields({
         {...number}
         numberFormat={formats.numberFormat}
         decimals={number.kind === "money" ? currency.exponent : number.decimals}
-        symbol={number.kind === "money" ? currency.symbol : undefined}
+        currency={number.kind === "money" ? code : undefined}
         hint={field === "lastFour" ? t("field.lastFourHint") : undefined}
         value={values[field] ?? ""}
         onChange={(next) => onChange(field, next)}

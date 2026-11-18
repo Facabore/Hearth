@@ -515,7 +515,7 @@ describe("app shell (HU-E9-01)", () => {
       const sheet = await open({ myBalances: balances });
       const household = within(sheet).getByRole("link", { name: /Household/ });
       expect(household).toHaveTextContent("Ana, Juan, Sofi y Pedro");
-      expect(household.textContent?.replace(/\s/g, " ")).toContain("Te toca poner$ 120.000");
+      expect(household.textContent?.replace(/\s/g, " ")).toContain("Te toca poner120.000 COP");
       expect(household).not.toHaveTextContent("Miembro");
     });
 
@@ -526,7 +526,7 @@ describe("app shell (HU-E9-01)", () => {
         within(sheet)
           .getByRole("link", { name: /Household/ })
           .textContent?.replace(/\s/g, " "),
-      ).toContain("Te toca recibir$ 50.000");
+      ).toContain("Te toca recibir50.000 COP");
     });
 
     it("says nothing about money for a space where the person is al día", async () => {

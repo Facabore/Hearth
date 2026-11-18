@@ -205,12 +205,12 @@ describe("the guest sheet (E9-05 · 06)", () => {
     const sheet = screen.getByRole("dialog", { name: "Pedro (invitado)" });
     const balance = within(sheet).getByText(/En Household/);
     // The direction is a word ("le toca poner"), never the colour alone.
-    expect(normalized(balance.textContent)).toBe("En Household · le toca poner $ 100.000");
-    expect(normalized(within(balance).getByText(/100\.000/).textContent)).toBe("$ 100.000");
+    expect(normalized(balance.textContent)).toBe("En Household · le toca poner 100.000 COP");
+    expect(normalized(within(balance).getByText(/100\.000/).textContent)).toBe("100.000 COP");
     expect(within(balance).getByText(/100\.000/).tagName).toBe("STRONG");
     const blocked = within(sheet).getByRole("note");
     expect(normalized(blocked.textContent)).toContain(
-      "No puedes quitar a Pedro: tiene un saldo pendiente de $ 100.000. Primero registren el pago.",
+      "No puedes quitar a Pedro: tiene un saldo pendiente de 100.000 COP. Primero registren el pago.",
     );
     expect(within(blocked).getByRole("link", { name: "Saldar" })).toHaveAttribute(
       "href",
@@ -231,7 +231,7 @@ describe("the guest sheet (E9-05 · 06)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Quitar de Household" }));
     const confirm = screen.getByRole("dialog", { name: "¿Quitar a Pedro (invitado) de Household?" });
     expect(normalized(within(confirm).getByText(/Su saldo está en/).textContent)).toBe(
-      "Su saldo está en $ 0. Su historial queda en los movimientos con su nombre.",
+      "Su saldo está en 0 COP. Su historial queda en los movimientos con su nombre.",
     );
     const cancel = within(confirm).getByRole("button", { name: "Cancelar" });
     const remove = within(confirm).getByRole("button", { name: "Quitar de Household" });

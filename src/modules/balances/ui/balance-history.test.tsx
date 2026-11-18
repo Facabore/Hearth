@@ -76,16 +76,16 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     expect(screen.queryByRole("link", { name: "Período siguiente" })).not.toBeInTheDocument();
     const summary = screen.getByRole("region", { name: "Saldo al inicio y al final" });
     // Board 04: a large neutral amount, then its state in words; a start at zero is the bare amount.
-    expect(normalized(summary.textContent)).toBe("Al empezar$ 0Al terminar$ 0al día");
-    expect(within(summary).getAllByText("$ 0")[0]).toHaveClass("text-ink");
+    expect(normalized(summary.textContent)).toBe("Al empezar0 COPAl terminar0 COPal día");
+    expect(within(summary).getAllByText("0 COP")[0]).toHaveClass("text-ink");
     const rows = within(
       screen.getByRole("region", { name: "Movimientos que cambian su saldo" }),
     ).getAllByRole("listitem");
     // Board 04: a date column, the day over the short month.
     expect(rows.map((r) => normalized(r.textContent))).toEqual([
-      "3octMercadole toca poner $ 150.000−$ 150.000",
-      "10octCenale toca poner $ 100.000+$ 50.000",
-      "30octPago entre miembrosal día+$ 100.000",
+      "3octMercadole toca poner 150.000 COP−\u2060150.000 COP",
+      "10octCenale toca poner 100.000 COP+50.000 COP",
+      "30octPago entre miembrosal día+100.000 COP",
     ]);
     expect(within(rows[0]!).getByText("3")).toHaveClass("text-lg");
     // No extra row between the summary and the movements: the board has none (P272).
@@ -109,7 +109,7 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
       "/spaces/sp-household/members/m-juan/history?from=2026-11-01",
     );
     const summary = screen.getByRole("region", { name: "Balance at the start and at the end" });
-    expect(normalized(summary.textContent)).toBe("At the start$ 150.000owesAt the end$ 20.000is owed");
+    expect(normalized(summary.textContent)).toBe("At the start150.000 COPowesAt the end20.000 COPis owed");
     expect(screen.getByRole("link", { name: "Back" })).toBeInTheDocument();
     expect(normalized(screen.getAllByRole("listitem")[0]!.textContent)).toMatch(/^3Oct/);
   });
@@ -118,7 +118,7 @@ describe("balance history (HU-E9-07, ruling P176)", () => {
     view({ history: { ...HISTORY, opening: cop(-150_000), closing: cop(20_000) } });
     const summary = screen.getByRole("region", { name: "Saldo al inicio y al final" });
     expect(normalized(summary.textContent)).toBe(
-      "Al empezar$ 150.000le toca ponerAl terminar$ 20.000le toca recibir",
+      "Al empezar150.000 COPle toca ponerAl terminar20.000 COPle toca recibir",
     );
     expect(within(summary).getByText("le toca poner")).toHaveClass("text-owe");
     expect(within(summary).getByText("le toca recibir")).toHaveClass("text-accent");
@@ -210,12 +210,12 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
 
   it("B6: a payment Kamilox made for Benekin reads as lent to him, with a change of 0", () => {
     benekinsView([PAID_FOR_BENEKIN]);
-    expect(rows()).toEqual(["12novKamilox pagó por tiA Camilou · se lo debesle toca poner $ 4.500$ 0"]);
+    expect(rows()).toEqual(["12novKamilox pagó por tiA Camilou · se lo debesle toca poner 4.500 COP0 COP"]);
   });
 
   it("B7: a gift reads as given, in one row with its payment, and leaves Benekin al día", () => {
     benekinsView([PAID_FOR_BENEKIN, GIFT_TO_BENEKIN]);
-    expect(rows()).toEqual(["12novKamilox pagó por tiA Camilou · te lo regalóal día+$ 4.500"]);
+    expect(rows()).toEqual(["12novKamilox pagó por tiA Camilou · te lo regalóal día+4.500 COP"]);
   });
 
   it("pairs a gift with its linked payment, even beside another payment for Benekin that day", () => {
@@ -227,8 +227,8 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
     // The gift sits next to the payment to Camilou, which the same-day guess would take; its link names the other one.
     benekinsView([TO_CAMILOX, PAID_FOR_BENEKIN, { ...GIFT_TO_BENEKIN, linkedTransactionId: "t-p2" }]);
     expect(rows()).toEqual([
-      "12novKamilox pagó por tiA Camilou · se lo debesle toca poner $ 4.500$ 0",
-      "12novKamilox pagó por tiA Camilox · te lo regalóal día+$ 4.500",
+      "12novKamilox pagó por tiA Camilou · se lo debesle toca poner 4.500 COP0 COP",
+      "12novKamilox pagó por tiA Camilox · te lo regalóal día+4.500 COP",
     ]);
   });
 
@@ -243,8 +243,8 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
       ]),
     });
     expect(rows()).toEqual([
-      "12novPago por BenekinA Camiloule toca recibir $ 4.500+$ 4.500",
-      "12novPago por Benekin · se lo regalóal día−$ 4.500",
+      "12novPago por BenekinA Camiloule toca recibir 4.500 COP+4.500 COP",
+      "12novPago por Benekin · se lo regalóal día−\u20604.500 COP",
     ]);
   });
 
@@ -259,7 +259,7 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
         onBehalfOfMemberId: null,
       }),
     ]);
-    expect(rows()).toEqual(["12novDeuda perdonadaCamilou te la perdonóal día+$ 4.500"]);
+    expect(rows()).toEqual(["12novDeuda perdonadaCamilou te la perdonóal día+4.500 COP"]);
   });
 
   it("keeps an ordinary settlement as it was", () => {
@@ -273,7 +273,7 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
         onBehalfOfMemberId: null,
       }),
     ]);
-    expect(rows()).toEqual(["12novPago entre miembrosal día+$ 4.500"]);
+    expect(rows()).toEqual(["12novPago entre miembrosal día+4.500 COP"]);
   });
 
   it("reads B6 and B7 in English", () => {

@@ -17,7 +17,7 @@ import type { SpaceLifecycle } from "./space-lifecycle-sheet";
 
 /** What a row of the list says on its right, as the app reads it; nothing while it has not. */
 export interface SpaceSettingsStatus {
-  /** "Quedan $ 380.000" or "Sin plan": the period's plan. */
+  /** "Quedan 380.000 COP" or "Sin plan": the period's plan. */
   readonly plan?: ReactNode;
   /** "4 personas": the space's current members. */
   readonly members?: ReactNode;

@@ -47,7 +47,7 @@ describe("an account's own screen (ruling P327, boards #315)", () => {
     );
     expect(screen.getByRole("link", { name: "Configurar" })).toHaveAttribute("href", `${BASE}/edit`);
     const balance = screen.getByRole("region", { name: "Saldo de hoy" });
-    expect(normalized(balance.textContent)).toBe("Saldo de hoy$ 1.469.600");
+    expect(normalized(balance.textContent)).toBe("Saldo de hoy1.469.600 COP");
     const views = screen.getByRole("navigation", { name: "Vistas de la cuenta" });
     expect(within(views).getByRole("link", { name: "Movimientos" })).toHaveAttribute("aria-current", "page");
     expect(within(views).getByRole("link", { name: "Estadísticas" })).toHaveAttribute(
@@ -62,7 +62,7 @@ describe("an account's own screen (ruling P327, boards #315)", () => {
     // The current period has no step past it.
     expect(screen.queryByRole("link", { name: "Período siguiente" })).toBeNull();
     expect(normalized(container.querySelector("[data-account-figures]")!.textContent)).toBe(
-      "entró +$ 3.200.000 · salió −$ 2.804.000",
+      "entró +3.200.000 COP · salió −\u20602.804.000 COP",
     );
     expect(screen.getByText("Rows")).toBeVisible();
     expect(await axeViolations(container)).toEqual([]);
@@ -78,12 +78,12 @@ describe("an account's own screen (ruling P327, boards #315)", () => {
     const views = screen.getByRole("navigation", { name: "Vistas de la cuenta" });
     expect(within(views).getByRole("link", { name: "Estadísticas" })).toHaveAttribute("aria-current", "page");
     expect(normalized(container.querySelector("[data-account-figures]")!.textContent)).toBe(
-      "gastó $ 2.304.000 · movió $ 500.000 a tus cuentas",
+      "gastó 2.304.000 COP · movió 500.000 COP a tus cuentas",
     );
     unmount();
     const fund = renderScreen({ view: "stats", figures: { ...figures, movedToOwnAccounts: cop(0) } });
     expect(normalized(fund.container.querySelector("[data-account-figures]")!.textContent)).toBe(
-      "gastó $ 2.304.000",
+      "gastó 2.304.000 COP",
     );
   });
 
@@ -135,9 +135,9 @@ describe("an account's statistics (ruling P327, board 'Cuenta · Estadísticas �
     );
     const rows = within(screen.getByRole("list", { name: "En qué se gastó" })).getAllByRole("listitem");
     expect(rows.map((row) => normalized(row.textContent))).toEqual([
-      "Vivienda87 % · Arriendo · 1 movimiento$ 2.000.000",
-      "Servicios10 % · Luz, agua y gas · 1 movimiento$ 240.000",
-      "Restaurantes3 % · Domicilios · 2 movimientos$ 64.000",
+      "Vivienda87 % · Arriendo · 1 movimiento2.000.000 COP",
+      "Servicios10 % · Luz, agua y gas · 1 movimiento240.000 COP",
+      "Restaurantes3 % · Domicilios · 2 movimientos64.000 COP",
     ]);
     expect([...container.querySelectorAll<HTMLElement>("[data-bar]")].map((bar) => bar.style.width)).toEqual([
       "86.81%",

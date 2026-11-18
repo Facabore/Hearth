@@ -21,7 +21,7 @@ export function AccountRow({
 }: {
   readonly account: AccountDto;
   readonly formats: Formats;
-  /** D29, slice MC4 (board 8): an account in another currency's balance as the totals counted it ("≈ $ 2.100.840"). */
+  /** D29, slice MC4 (board 8): an account in another currency's balance as the totals counted it ("≈ 2.100.840 COP"). */
   readonly converted?: string;
   readonly actions?: ReactNode;
   readonly href?: string;

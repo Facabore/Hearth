@@ -58,7 +58,7 @@ describe("capacities (HU-E9-08)", () => {
     const { container } = show({ viewer: "u-ana", suggestion: suggestion("m-ana", 1_650_000), api });
     const ana = rowOf("Ana (tú)");
     expect(normalized(ana.textContent)).toContain(
-      "Sugerido $ 1.650.000: tus ingresos de octubre 2026 en Personal. Solo tú lo ves.",
+      "Sugerido 1.650.000 COP: tus ingresos de octubre 2026 en Personal. Solo tú lo ves.",
     );
     await userEvent.click(within(ana).getByRole("button", { name: "Usar sugerencia" }));
     expect(screen.getByLabelText("Aporte de Ana")).toHaveValue("1.650.000");
@@ -80,7 +80,7 @@ describe("capacities (HU-E9-08)", () => {
   it("never shows Juan Ana's suggestion, even when an answer names her (ruling P208)", () => {
     const member = householdDto({ role: "MEMBER" });
     const juan = show({ viewer: "u-juan", space: member, suggestion: suggestion("m-juan", 2_000_000) });
-    expect(normalized(rowOf("Juan (tú)").textContent)).toContain("Sugerido $ 2.000.000");
+    expect(normalized(rowOf("Juan (tú)").textContent)).toContain("Sugerido 2.000.000 COP");
     expect(within(rowOf("Ana")).queryByText(/Sugerido/)).toBeNull();
     juan.unmount();
     show({ viewer: "u-juan", space: member, suggestion: suggestion("m-ana", 1_650_000) });
@@ -100,7 +100,7 @@ describe("capacities (HU-E9-08)", () => {
     });
     show({ viewer: "u-juan", space: householdDto({ role: "MEMBER" }), api });
     expect(screen.queryByLabelText("Aporte de Ana")).toBeNull();
-    expect(normalized(rowOf("Ana").textContent)).toContain("$ 1.600.000");
+    expect(normalized(rowOf("Ana").textContent)).toContain("1.600.000 COP");
     await userEvent.clear(screen.getByLabelText("Aporte de Juan"));
     await userEvent.type(screen.getByLabelText("Aporte de Juan"), "2.500.000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
@@ -126,7 +126,7 @@ describe("capacities (HU-E9-08)", () => {
 
   it("never breaks a stored capacity across lines (AGENTS.md)", () => {
     show({ viewer: "u-juan", space: householdDto({ role: "VIEWER" }) });
-    const amount = within(rowOf("Juan (tú)")).getByText("$ 2.400.000");
+    const amount = within(rowOf("Juan (tú)")).getByText("2.400.000 COP");
     expect(amount).toHaveClass("whitespace-nowrap", "tabular-nums");
     expect(amount.className).not.toContain("overflow-wrap");
   });
@@ -135,12 +135,12 @@ describe("capacities (HU-E9-08)", () => {
     const viewer = show({ viewer: "u-juan", space: householdDto({ role: "VIEWER" }) });
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Guardar aportes" })).toBeNull();
-    expect(normalized(rowOf("Juan (tú)").textContent)).toContain("$ 2.400.000");
+    expect(normalized(rowOf("Juan (tú)").textContent)).toContain("2.400.000 COP");
     viewer.unmount();
     show({ viewer: "u-ana", plan: referencePlanDto({ status: "CLOSED" }) });
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button", { name: "Guardar aportes" })).toBeNull();
-    expect(normalized(rowOf("Ana (tú)").textContent)).toContain("$ 1.600.000");
+    expect(normalized(rowOf("Ana (tú)").textContent)).toContain("1.600.000 COP");
   });
 
   it("shows the stored total and shares until the save answers, never a sum of the fields (ruling P208)", async () => {
@@ -149,16 +149,16 @@ describe("capacities (HU-E9-08)", () => {
     const bar = () => screen.getByText("Total").closest("div")!;
     const summary = () => normalized(bar().textContent);
     expect(bar()).toHaveClass("bg-track", "rounded-xl");
-    expect(summary()).toBe("Total $ 4.000.000Ana 40,00 % · Juan 60,00 %");
+    expect(summary()).toBe("Total 4.000.000 COPAna 40,00 % · Juan 60,00 %");
     await userEvent.clear(screen.getByLabelText("Aporte de Ana"));
     await userEvent.type(screen.getByLabelText("Aporte de Ana"), "9.000.000");
-    expect(summary()).toBe("Total $ 4.000.000Ana 40,00 % · Juan 60,00 %");
+    expect(summary()).toBe("Total 4.000.000 COPAna 40,00 % · Juan 60,00 %");
     expect(summary()).not.toContain("11.400.000");
   });
 
   it("explains the zero rule and who may change what, in one paragraph", () => {
     show({ viewer: "u-ana" });
-    const zero = screen.getByText("Quien no aporta cuenta como $ 0.");
+    const zero = screen.getByText("Quien no aporta cuenta como 0 COP.");
     const roles = screen.getByText(
       "Un Miembro solo cambia el suyo; Propietario y Administrador, el de todos.",
     );

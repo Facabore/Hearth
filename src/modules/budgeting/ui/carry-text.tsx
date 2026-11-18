@@ -6,7 +6,7 @@ import { formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 
 /**
  * #143, rulings P231 and P243: what a line carries from the previous period and where it comes from. A closed source
- * reads "+$ 170.000 de septiembre 2026"; a source that is not closed yet says which plan the line waits for, because
+ * reads "+170.000 COP de septiembre 2026"; a source that is not closed yet says which plan the line waits for, because
  * until then it carries nothing. The sign is part of the text, so the carry never relies on colour. Nothing without an
  * origin in the source (`carryOverFrom` null): no text at all.
  */

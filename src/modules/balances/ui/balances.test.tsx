@@ -35,15 +35,17 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
   it("shows Juan that he owes Ana 150,000 COP", async () => {
     const { container } = view();
     expect(screen.getByRole("heading", { level: 1, name: "Saldos" })).toBeInTheDocument();
-    expect(heroText()).toEqual(["Tu saldo en Household", "$ 150.000", "te toca poner"]);
+    expect(heroText()).toEqual(["Tu saldo en Household", "150.000 COP", "te toca poner"]);
     const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
-    expect(normalized(suggestions.textContent)).toContain("Juan le paga $ 150.000 a Ana");
+    expect(normalized(suggestions.textContent)).toContain("Juan le paga 150.000 COP a Ana");
     const members = screen.getByRole("region", { name: "Por persona" });
     expect(
-      within(members).getByRole("link", { name: named("Ana: le toca recibir $ 150.000. Ver historial") }),
+      within(members).getByRole("link", { name: named("Ana: le toca recibir 150.000 COP. Ver historial") }),
     ).toHaveAttribute("href", "/spaces/sp-household/members/m-ana/history");
     expect(
-      within(members).getByRole("link", { name: named("Juan (tú): le toca poner $ 150.000. Ver historial") }),
+      within(members).getByRole("link", {
+        name: named("Juan (tú): le toca poner 150.000 COP. Ver historial"),
+      }),
     ).toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -57,7 +59,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       suggestions: [],
     });
     expect(screen.getByRole("heading", { level: 1, name: "Saldos" })).toBeInTheDocument();
-    expect(heroText("Tu saldo en Personal")).toEqual(["Tu saldo en Personal", "$ 0", "estás al día"]);
+    expect(heroText("Tu saldo en Personal")).toEqual(["Tu saldo en Personal", "0 COP", "estás al día"]);
     expect(screen.getByText("Personal es solo tuyo: aquí no hay nada que saldar.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Para quedar al día" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Por persona" })).toBeNull();
@@ -72,8 +74,8 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(screen.getByTestId("balances-hero-amount")).toHaveClass("text-ink");
     const members = screen.getByRole("region", { name: "Por persona" });
     // On the page background --owe is 4.4:1, short of AA for small text (a11y-shared, P324): its ink tone is 6.1:1.
-    expect(within(members).getByText(named("−$ 150.000"))).toHaveClass("text-owe-ink");
-    expect(within(members).getByText(named("+$ 150.000"))).toHaveClass("text-accent");
+    expect(within(members).getByText(named("−\u2060150.000 COP"))).toHaveClass("text-owe-ink");
+    expect(within(members).getByText(named("+150.000 COP"))).toHaveClass("text-accent");
   });
 
   it("states the viewer's figure once, in the hero, with its direction in words under it (P324)", () => {
@@ -84,7 +86,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       suggestions: [{ payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(947_000) }],
     });
     const hero = screen.getByRole("region", { name: "Tu saldo en Household" });
-    expect(heroText()).toEqual(["Tu saldo en Household", "$ 947.000", "te toca recibir"]);
+    expect(heroText()).toEqual(["Tu saldo en Household", "947.000 COP", "te toca recibir"]);
     expect(within(hero).getAllByText(/947\.000/)).toHaveLength(1);
     expect(screen.getByTestId("balances-hero-amount")).toHaveClass("font-semibold");
     // The hero is no card and no sentence: the figure stands alone.
@@ -107,8 +109,8 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
     expect(list).toHaveClass("divide-y", "divide-line", "border-y");
     const lines = within(list).getAllByRole("listitem");
     expect(lines.map((line) => normalized(line.textContent))).toEqual([
-      "Juan le paga $ 100.000 a AnaSaldar",
-      "Luis le paga $ 50.000 a AnaSaldar",
+      "Juan le paga 100.000 COP a AnaSaldar",
+      "Luis le paga 50.000 COP a AnaSaldar",
     ]);
     for (const line of lines) {
       expect(line).not.toHaveClass("rounded-2xl");
@@ -138,26 +140,26 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       within(members)
         .getAllByRole("link")
         .map((link) => normalized(link.textContent)),
-    ).toEqual(["Ana (tú)recibe+$ 947.000", "Juanpaga−$ 947.000", "Pedro (invitado)al día$ 0"]);
+    ).toEqual(["Ana (tú)recibe+947.000 COP", "Juanpaga−\u2060947.000 COP", "Pedro (invitado)al día0 COP"]);
     // An amount never breaks across lines.
-    expect(within(members).getByText(named("−$ 947.000"))).toHaveClass("whitespace-nowrap");
-    expect(within(members).getByText(named("$ 0"))).toHaveClass("text-muted");
+    expect(within(members).getByText(named("−\u2060947.000 COP"))).toHaveClass("whitespace-nowrap");
+    expect(within(members).getByText(named("0 COP"))).toHaveClass("text-muted");
   });
 
   it("reads the same sentences in English", () => {
     view({}, "en");
     expect(heroText("Your balance in Household")).toEqual([
       "Your balance in Household",
-      "$ 150.000",
+      "150.000 COP",
       "you owe",
     ]);
     expect(normalized(screen.getByRole("region", { name: "To settle up" }).textContent)).toContain(
-      "Juan owes Ana $ 150.000",
+      "Juan owes Ana 150.000 COP",
     );
     const members = within(screen.getByRole("region", { name: "Per person" }));
     expect(members.getAllByRole("link").map((link) => normalized(link.textContent))).toEqual([
-      "Anareceives+$ 150.000",
-      "Juan (you)pays−$ 150.000",
+      "Anareceives+150.000 COP",
+      "Juan (you)pays−\u2060150.000 COP",
     ]);
   });
 
@@ -171,13 +173,13 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
         { payerMemberId: "m-luis", receivingMemberId: "m-ana", amount: cop(50_000) },
       ],
     });
-    expect(heroText()).toEqual(["Tu saldo en Household", "$ 150.000", "te toca recibir"]);
+    expect(heroText()).toEqual(["Tu saldo en Household", "150.000 COP", "te toca recibir"]);
     const suggestions = within(screen.getByRole("region", { name: "Para quedar al día" })).getAllByRole(
       "listitem",
     );
     expect(suggestions).toHaveLength(2);
-    expect(normalized(suggestions[0]!.textContent)).toContain("Juan le paga $ 100.000 a Ana");
-    expect(normalized(suggestions[1]!.textContent)).toContain("Luis le paga $ 50.000 a Ana");
+    expect(normalized(suggestions[0]!.textContent)).toContain("Juan le paga 100.000 COP a Ana");
+    expect(normalized(suggestions[1]!.textContent)).toContain("Luis le paga 50.000 COP a Ana");
     expect(
       screen.getByRole("link", { name: named("Pedro (invitado): al día. Ver historial") }),
     ).toBeInTheDocument();
@@ -231,7 +233,7 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
 
   it("says when nobody owes anybody", () => {
     view({ balances: [net("m-ana", 0), net("m-juan", 0)], suggestions: [] });
-    expect(heroText()).toEqual(["Tu saldo en Household", "$ 0", "estás al día"]);
+    expect(heroText()).toEqual(["Tu saldo en Household", "0 COP", "estás al día"]);
     expect(screen.getByText("Todos están al día en Household.")).toBeInTheDocument();
     const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
     expect(within(suggestions).queryAllByRole("listitem")).toHaveLength(0);
@@ -255,12 +257,12 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
       "listitem",
     );
     expect(suggestion).toHaveClass("flex-wrap");
-    expect(normalized(suggestion.querySelector("[data-amount]")?.textContent)).toBe("$ 1.234.567.890.124");
+    expect(normalized(suggestion.querySelector("[data-amount]")?.textContent)).toBe("1.234.567.890.124 COP");
     expect(suggestion.querySelector("[data-amount]")).toHaveClass("whitespace-nowrap");
     // A member's amount moves whole under the name when they do not fit side by side.
     const member = within(screen.getByRole("region", { name: "Por persona" })).getAllByRole("link")[1]!;
     const amount = member.querySelector("[data-amount]")!;
-    expect(normalized(amount.textContent)).toBe("−$ 1.234.567.890.124");
+    expect(normalized(amount.textContent)).toBe("−\u20601.234.567.890.124 COP");
     expect(amount).toHaveClass("whitespace-nowrap", "ml-auto");
     expect(amount.parentElement).toHaveClass("flex-wrap");
   });

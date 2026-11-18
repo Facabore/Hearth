@@ -172,7 +172,7 @@ describe("edit account form (issue 169)", () => {
       <EditAccountForm space={spaceDto()} account={card} formats={BUILT_IN_FORMATS} api={fakeApi({}).api} />,
     );
     const available = screen.getByText("Disponible").closest("[data-available]");
-    expect(available?.textContent?.replace(/\s/g, " ")).toBe("Disponible$ 4.650.000");
+    expect(available?.textContent?.replace(/\s/g, " ")).toBe("Disponible4.650.000 COP");
     expect(screen.getByLabelText("Entidad")).toHaveValue("Bancolombia");
   });
 

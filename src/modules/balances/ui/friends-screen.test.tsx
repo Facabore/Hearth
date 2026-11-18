@@ -76,15 +76,18 @@ describe('Amigos (ruling P338, board "Amigos · cada persona con su saldo")', ()
     const { container } = view();
     expect(screen.getByRole("heading", { level: 1, name: "Amigos" })).toBeInTheDocument();
     expect(normalized(screen.getByText(/^Te deben/).textContent)).toBe(
-      "Te deben $ 525.000 · Debes $ 120.000",
+      "Te deben 525.000 COP · Debes 120.000 COP",
     );
     expect(rows()).toEqual([
       {
-        text: "MMamáNo usa Hearth · Préstamo · 12 mar 2025Te debe$ 500.000",
+        text: "MMamáNo usa Hearth · Préstamo · 12 mar 2025Te debe500.000 COP",
         href: "/spaces/sp-personal/friends/sp-mama",
       },
-      { text: "JJuan@juanp · Almuerzo · AyerTe debe$ 25.000", href: "/spaces/sp-personal/friends/sp-juan" },
-      { text: "JLJhon LópezPréstamo · 3 octLe debes$ 120.000", href: "/spaces/sp-personal/friends/sp-jhon" },
+      { text: "JJuan@juanp · Almuerzo · AyerTe debe25.000 COP", href: "/spaces/sp-personal/friends/sp-juan" },
+      {
+        text: "JLJhon LópezPréstamo · 3 octLe debes120.000 COP",
+        href: "/spaces/sp-personal/friends/sp-jhon",
+      },
       { text: "SSaraSin movimientosAl día", href: "/spaces/sp-personal/friends/sp-sara" },
     ]);
     expect(await axeViolations(container)).toEqual([]);
@@ -110,7 +113,7 @@ describe('Amigos (ruling P338, board "Amigos · cada persona con su saldo")', ()
     view({}, "en");
     expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
     expect(normalized(screen.getByText(/^You're owed/).textContent)).toBe(
-      "You're owed $ 525.000 · You owe $ 120.000",
+      "You're owed 525.000 COP · You owe 120.000 COP",
     );
   });
 });
@@ -125,21 +128,21 @@ describe('Inicio\'s line to Amigos (ruling P338, board "Inicio · Personal: Amig
   it("says what the people owe the person and opens Amigos", () => {
     line([friendDto(), friendDto({ spaceId: "sp-juan", net: cop(475_000) })]);
     const link = screen.getByRole("link");
-    expect(normalized(link.textContent)).toBe("Amigos · te deben $ 975.000›");
+    expect(normalized(link.textContent)).toBe("Amigos · te deben 975.000 COP›");
     expect(link).toHaveAttribute("href", "/spaces/sp-personal/balances");
   });
 
   it("says what she owes, both ways when both, and in English", () => {
     const { unmount } = line([friendDto({ net: cop(-120_000) })]);
-    expect(normalized(screen.getByRole("link").textContent)).toBe("Amigos · debes $ 120.000›");
+    expect(normalized(screen.getByRole("link").textContent)).toBe("Amigos · debes 120.000 COP›");
     unmount();
     const both = line([friendDto(), friendDto({ spaceId: "sp-jhon", net: cop(-120_000) })]);
     expect(normalized(screen.getByRole("link").textContent)).toBe(
-      "Amigos · te deben $ 500.000 · debes $ 120.000›",
+      "Amigos · te deben 500.000 COP · debes 120.000 COP›",
     );
     both.unmount();
     line([friendDto()], "en");
-    expect(normalized(screen.getByRole("link").textContent)).toBe("Friends · you're owed $ 500.000›");
+    expect(normalized(screen.getByRole("link").textContent)).toBe("Friends · you're owed 500.000 COP›");
   });
 
   it("draws nothing while everyone is al día", () => {

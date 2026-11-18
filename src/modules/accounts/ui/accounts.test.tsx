@@ -78,7 +78,7 @@ describe("accounts screen (HU-E9-03)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const totals = screen.getByRole("region", { name: "Totales" });
     expect(totals).toHaveClass("flex-wrap");
-    expect(within(totals).getByText("$ 4.915.000")).toHaveClass("whitespace-nowrap");
+    expect(within(totals).getByText("4.915.000 COP")).toHaveClass("whitespace-nowrap");
   });
 
   it("says what each total means, and asks about a cash or bank account below zero (#289)", () => {
@@ -112,18 +112,18 @@ describe("accounts screen (HU-E9-03)", () => {
       <AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />,
     );
     const totals = screen.getByRole("region", { name: "Totales" });
-    expect(norm(totals.textContent)).toContain("Disponible$ 4.915.000");
-    expect(norm(totals.textContent)).toContain("Patrimonio neto$ 4.565.000");
+    expect(norm(totals.textContent)).toContain("Disponible4.915.000 COP");
+    expect(norm(totals.textContent)).toContain("Patrimonio neto4.565.000 COP");
     const bank = screen.getByRole("listitem", { name: /Bancolombia/ });
-    expect(norm(bank.textContent)).toContain("$ 4.415.000");
+    expect(norm(bank.textContent)).toContain("4.415.000 COP");
     expect(norm(bank.textContent)).toContain("Bancolombia ···1203");
     expect(bank.querySelector("[data-icon='bank'][data-color='STEEL']")).not.toBeNull();
     expect(norm(bank.textContent)).not.toContain("fuera del disponible");
     const visa = screen.getByRole("listitem", { name: /Visa/ });
-    expect(norm(visa.textContent)).toContain("−$ 350.000");
+    expect(norm(visa.textContent)).toContain("−\u2060350.000 COP");
     // Board B1 · 07 (P298): the card's last four, limit and payment date, one lower-case line; the available credit
     // and the institution live on the card's own screen.
-    expect(norm(visa.textContent)).toContain("···4821 · cupo $ 5.000.000 · paga antes del 15/11/2026");
+    expect(norm(visa.textContent)).toContain("···4821 · cupo 5.000.000 COP · paga antes del 15/11/2026");
     expect(norm(visa.textContent)).not.toContain("disponible $");
     expect(norm(visa.textContent)).not.toContain("Bancolombia");
     expect(norm(visa.textContent)).toContain("fuera del disponible");
@@ -173,14 +173,14 @@ describe("accounts screen (HU-E9-03)", () => {
       />,
     );
     const totals = screen.getByRole("region", { name: "Totales" });
-    expect(norm(totals.textContent)).toContain("Disponible≈ $ 3.570.440");
-    expect(norm(screen.getByTestId("totals-rates").textContent)).toBe("USD a $ 4.100 · tasa del 15 nov");
+    expect(norm(totals.textContent)).toContain("Disponible≈ 3.570.440 COP");
+    expect(norm(screen.getByTestId("totals-rates").textContent)).toBe("USD a 4.100 COP · tasa del 15 nov");
     const other = screen.getByRole("region", { name: "En otras monedas" });
     expect(norm(other.textContent)).toContain("El total la convierte con la tasa del día");
     const row = within(other).getByRole("listitem", { name: /Cuenta en dólares/ });
-    expect(norm(row.textContent)).toContain("US$ 512,40≈ $ 2.100.840");
+    expect(norm(row.textContent)).toContain("512,40 USD≈ 2.100.840 COP");
     // The ≈ and its amount never break apart.
-    expect(within(row).getByTestId("converted-balance").textContent).toBe("≈\u00a0$\u00a02.100.840");
+    expect(within(row).getByTestId("converted-balance").textContent).toBe("≈\u00a02.100.840\u00a0COP");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -202,7 +202,7 @@ describe("accounts screen (HU-E9-03)", () => {
       />,
     );
     expect(norm(screen.getByTestId("totals-rates").textContent)).toBe(
-      "USD a $ 4.100 · tasa del 5 nov, de hace más de una semana",
+      "USD a 4.100 COP · tasa del 5 nov, de hace más de una semana",
     );
   });
 
@@ -218,12 +218,12 @@ describe("accounts screen (HU-E9-03)", () => {
       />,
     );
     const totals = screen.getByRole("region", { name: "Totales" });
-    expect(norm(totals.textContent)).toContain("Disponible$ 1.469.600");
+    expect(norm(totals.textContent)).toContain("Disponible1.469.600 COP");
     expect(screen.queryByTestId("totals-rates")).toBeNull();
     const other = screen.getByRole("region", { name: "En otras monedas" });
     expect(norm(other.textContent)).toContain("Las que aún no tienen tasa de cambio no entran en el total.");
     const usdSection = within(other).getByRole("region", { name: "USD" });
-    expect(within(usdSection).getByTestId("currency-total")).toHaveTextContent("US$ 512,40");
+    expect(within(usdSection).getByTestId("currency-total")).toHaveTextContent("512,40 USD");
     expect(
       norm(within(usdSection).getByRole("listitem", { name: /Cuenta en dólares/ }).textContent),
     ).toContain("Sin tasa: fuera del total");
@@ -234,9 +234,9 @@ describe("accounts screen (HU-E9-03)", () => {
   it("totals each section from its accounts' balances, the sign carrying the direction (board B1 · 07, P292)", () => {
     renderWithIntl(<AccountsScreen spaceId="sp-personal" list={list} formats={BUILT_IN_FORMATS} />);
     const everyday = screen.getByRole("region", { name: "Bancos, billeteras y efectivo" });
-    expect(within(everyday).getByTestId("section-total")).toHaveTextContent("$ 4.915.000");
+    expect(within(everyday).getByTestId("section-total")).toHaveTextContent("4.915.000 COP");
     const cards = screen.getByRole("region", { name: "Tarjetas de crédito" });
-    expect(within(cards).getByTestId("section-total")).toHaveTextContent("−$ 350.000");
+    expect(within(cards).getByTestId("section-total")).toHaveTextContent("−\u2060350.000 COP");
     expect(within(cards).getByTestId("section-total")).toHaveClass("whitespace-nowrap");
     // The hidden accounts have no total.
     expect(within(screen.getByRole("region", { name: "Ocultas" })).queryByTestId("section-total")).toBeNull();

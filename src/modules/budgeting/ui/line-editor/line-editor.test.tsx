@@ -71,7 +71,7 @@ describe("line editor (HU-E9-08)", () => {
       active(),
     );
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
-    expect(figures).toContain("Arrastrado+$ 200.000 de octubre 2026");
+    expect(figures).toContain("Arrastrado+200.000 COP de octubre 2026");
     await more();
     await userEvent.click(screen.getByRole("radio", { name: "Empieza de cero" }));
     const modes = screen.getByRole("radiogroup", { name: "Al cambiar de mes" });
@@ -161,7 +161,7 @@ describe("line editor (HU-E9-08)", () => {
         }),
       );
       expect(screen.getByRole("button", { name: "Más opciones" })).toHaveAccessibleDescription(
-        "Empieza de cero · $\u00a0300.000 / $\u00a0430.000",
+        "Empieza de cero · 300.000\u00a0COP / 430.000\u00a0COP",
       );
     });
 
@@ -242,7 +242,7 @@ describe("line editor (HU-E9-08)", () => {
     const row = name.closest(".grid")!;
     expect(row).toHaveClass("grid-cols-2");
     expect(row).toContainElement(planned);
-    expect(planned).toHaveAccessibleDescription("36,75 % de lo aportado · por repartir $ 0");
+    expect(planned).toHaveAccessibleDescription("36,75 % de lo aportado · por repartir 0 COP");
     // P328: the funding is a row that says it and opens the sheet.
     const funding = screen.getByRole("button", { name: /Se paga desde/ });
     expect(funding).toHaveAttribute("aria-haspopup", "dialog");
@@ -352,7 +352,7 @@ describe("line editor (HU-E9-08)", () => {
     const { api, requests } = fakeApi({ [ADD]: added });
     show(null, api);
     const planned = screen.getByLabelText("Planeado");
-    expect(planned).toHaveAccessibleDescription("Por repartir: $ 4.000.000");
+    expect(planned).toHaveAccessibleDescription("Por repartir: 4.000.000 COP");
     await userEvent.type(screen.getByLabelText("Nombre"), "Rent");
     await userEvent.type(planned, "1200b000");
     expect(planned).toHaveValue("1.200.000");
@@ -406,9 +406,9 @@ describe("line editor (HU-E9-08)", () => {
     expect([...figures.children].every((figure) => figure.classList.contains("flex-1"))).toBe(true);
     const amounts = [...figures.querySelectorAll("dd")];
     expect(amounts.map((amount) => normalized(amount.textContent))).toEqual([
-      "$ 1.234.567.890",
-      "$ 1.000.000.000",
-      "$ 234.567.890",
+      "1.234.567.890 COP",
+      "1.000.000.000 COP",
+      "234.567.890 COP",
     ]);
     for (const amount of amounts) {
       expect(amount).toHaveClass("whitespace-nowrap", "tabular-nums");
@@ -423,12 +423,12 @@ describe("line editor (HU-E9-08)", () => {
     });
     show(planLineDto({ spent: cop(1_300_000), available: cop(170_000) }), api, active());
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
-    expect(figures).toContain("Planeado$ 1.470.000");
-    expect(figures).toContain("Gastado$ 1.300.000");
-    expect(figures).toContain("Disponible$ 170.000");
+    expect(figures).toContain("Planeado1.470.000 COP");
+    expect(figures).toContain("Gastado1.300.000 COP");
+    expect(figures).toContain("Disponible170.000 COP");
     // P335: the note's amount is its own whole element, so the note reads as one text.
     expect(normalized(screen.getByText(/de lo aportado/).textContent)).toBe(
-      "36,75 % de lo aportado · por repartir $ 0",
+      "36,75 % de lo aportado · por repartir 0 COP",
     );
     await userEvent.clear(screen.getByLabelText("Planeado"));
     await userEvent.type(screen.getByLabelText("Planeado"), "1.500.000");
@@ -610,7 +610,7 @@ describe("line editor (HU-E9-08)", () => {
     await more();
     expect(screen.queryByRole("button", { name: "Quitar rubro" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Cifras del rubro" })).toBeNull();
-    expect(normalized(screen.getByText(/^Por repartir:/).textContent)).toBe("Por repartir: $ 0");
+    expect(normalized(screen.getByText(/^Por repartir:/).textContent)).toBe("Por repartir: 0 COP");
     expect(screen.getByRole("link", { name: "Volver" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plans/p-nov",
@@ -638,9 +638,9 @@ describe("line editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
     expect(screen.queryByRole("group", { name: "Ana" })).toBeNull();
     const figures = normalized(screen.getByRole("region", { name: "Cifras del rubro" }).textContent);
-    expect(figures).toContain("Planeado$ 730.000");
-    expect(figures).toContain("Gastado$ 250.000");
-    expect(figures).toContain("Disponible$ 480.000");
+    expect(figures).toContain("Planeado730.000 COP");
+    expect(figures).toContain("Gastado250.000 COP");
+    expect(figures).toContain("Disponible480.000 COP");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(requests.map((r) => new URL(r.url).pathname)).toEqual([
       "/api/v1/spaces/sp-household/plans/p-nov/lines/l-free/allocation",

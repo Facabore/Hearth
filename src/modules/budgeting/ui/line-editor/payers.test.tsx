@@ -111,7 +111,7 @@ describe("who pays a line (D26, P328)", () => {
     show(rent({ payerMemberIds: ["m-ana"], payersScope: "EVERY_PERIOD" }), fakeApi({}).api, true);
     expect(row()).toHaveTextContent("Lo paga AnaSe paga desde · todos los meses");
     expect(row()).toHaveAccessibleDescription(
-      "Ana paga Arriendo. Lo que pague cuenta como su aporte del mes. Juan pone su parte, $ 720.000, en el fondo.",
+      "Ana paga Arriendo. Lo que pague cuenta como su aporte del mes. Juan pone su parte, 720.000 COP, en el fondo.",
     );
   });
 

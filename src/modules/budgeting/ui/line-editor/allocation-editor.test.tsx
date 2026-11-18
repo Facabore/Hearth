@@ -40,8 +40,8 @@ describe("allocation editor (HU-E9-08)", () => {
     await userEvent.click(screen.getByRole("radio", { name: "Porcentaje" }));
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "42");
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "58");
-    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("$ 306.600");
-    expect(normalized(screen.getByRole("group", { name: "Juan" }).textContent)).toContain("$ 423.400");
+    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("306.600 COP");
+    expect(normalized(screen.getByRole("group", { name: "Juan" }).textContent)).toContain("423.400 COP");
     expect(screen.queryByRole("alert")).toBeNull();
     await userEvent.clear(screen.getByLabelText("Valor de Juan"));
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "57");
@@ -59,14 +59,14 @@ describe("allocation editor (HU-E9-08)", () => {
     await userEvent.type(ana, "4x2.505");
     expect(ana).toHaveValue("42,50");
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "57,5");
-    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("$ 310.250");
+    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("310.250 COP");
     await userEvent.click(screen.getByRole("radio", { name: "Monto fijo" }));
     expect(screen.getByLabelText("Valor de Ana")).toHaveAccessibleDescription("Ej: 300.000");
   });
 
   it("shows no member rows when the line is left unallocated", async () => {
     renderWithIntl(<Harness />);
-    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("$ 292.000");
+    expect(normalized(screen.getByRole("group", { name: "Ana" }).textContent)).toContain("292.000 COP");
     await userEvent.click(screen.getByRole("radio", { name: "Sin asignar" }));
     expect(screen.queryByRole("group", { name: "Ana" })).toBeNull();
     expect(

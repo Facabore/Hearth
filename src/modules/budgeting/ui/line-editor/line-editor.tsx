@@ -464,7 +464,7 @@ export function LineEditor({
               kind="money"
               numberFormat={formats.numberFormat}
               decimals={currencyOf(currency).exponent}
-              symbol={currencyOf(currency).symbol}
+              currency={currency}
               example={false}
               className="font-semibold"
               aria-describedby={[`${ids}-planned-note`, planned ? `${ids}-planned-error` : null]

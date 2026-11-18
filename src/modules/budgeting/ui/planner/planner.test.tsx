@@ -70,12 +70,12 @@ describe("planner (HU-E9-08)", () => {
     const capacity = normalized(
       screen.getByRole("region", { name: "Lo que aportan entre todos" }).textContent,
     );
-    expect(capacity).toContain("$ 4.000.000");
-    expect(capacity).toContain("Por repartir $ 0");
-    expect(capacity).toContain("Ana $ 1.600.000 · 40,00 %");
-    expect(capacity).toContain("Juan $ 2.400.000 · 60,00 %");
+    expect(capacity).toContain("4.000.000 COP");
+    expect(capacity).toContain("Por repartir 0 COP");
+    expect(capacity).toContain("Ana 1.600.000 COP · 40,00 %");
+    expect(capacity).toContain("Juan 2.400.000 COP · 60,00 %");
     const home = normalized(screen.getByRole("listitem", { name: "Home" }).textContent);
-    expect(home).toContain("$ 1.470.000");
+    expect(home).toContain("1.470.000 COP");
     expect(home).toContain("36,75 % de lo aportado");
     expect(home).toContain("Cada uno paga · Según aportes · Empieza de cero");
     expect(
@@ -127,7 +127,9 @@ describe("planner (HU-E9-08)", () => {
     const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
     expect(card).toHaveClass("rounded-2xl", "border", "bg-surface");
     const heading = within(card).getByRole("heading", { name: "Lo que aportan entre todos" });
-    expect(normalized(heading.parentElement!.textContent)).toBe("Lo que aportan entre todosPor repartir $ 0");
+    expect(normalized(heading.parentElement!.textContent)).toBe(
+      "Lo que aportan entre todosPor repartir 0 COP",
+    );
     const bar = card.querySelector("[data-share-bar]")!;
     expect(bar).toHaveAttribute("aria-hidden", "true");
     const parts = [...bar.children] as HTMLElement[];
@@ -135,7 +137,7 @@ describe("planner (HU-E9-08)", () => {
     expect(parts[0]!.className).not.toBe(parts[1]!.className);
     // The shares sit on one line, each percentage in bold: the bar is never the only way to read them.
     // The innermost element holding both shares, whatever wraps each sentence (P335's AmountText).
-    const both = "Ana $ 1.600.000 · 40,00 %Juan $ 2.400.000 · 60,00 %";
+    const both = "Ana 1.600.000 COP · 40,00 %Juan 2.400.000 COP · 60,00 %";
     const shares = within(card)
       .getAllByText((_, element) => normalized(element?.textContent ?? "") === both)
       .at(-1)!;
@@ -146,7 +148,7 @@ describe("planner (HU-E9-08)", () => {
   it("never breaks the capacity's total across lines, and scales it to the card's width (AGENTS.md, P335)", () => {
     show();
     const card = screen.getByRole("region", { name: "Lo que aportan entre todos" });
-    const total = within(card).getByText("$ 4.000.000");
+    const total = within(card).getByText("4.000.000 COP");
     expect(total).toHaveClass("whitespace-nowrap");
     expect(total.className).toContain("cqi");
     expect(total.style.getPropertyValue("--amount-size")).toBe("1.875rem");
@@ -168,7 +170,7 @@ describe("planner (HU-E9-08)", () => {
     // The amount and its share are the row's right column.
     const figures = home.lastElementChild as HTMLElement;
     expect(figures).toHaveClass("text-right");
-    expect(normalized(figures.textContent)).toBe("$ 1.470.00036,75 % de lo aportado");
+    expect(normalized(figures.textContent)).toBe("1.470.000 COP36,75 % de lo aportado");
   });
 
   it("writes a percentage split with its ratio, and names the sum of one that does not hold (boards 01 and 02)", () => {
@@ -378,7 +380,7 @@ describe("planner (HU-E9-08)", () => {
     show({ plan });
     const homeText = normalized(screen.getByRole("listitem", { name: "Home" }).textContent);
     expect(homeText).toContain("Cada uno paga · Según aportes · Acumula");
-    expect(homeText).toContain("+$ 200.000 de octubre 2026");
+    expect(homeText).toContain("+200.000 COP de octubre 2026");
     expect(normalized(screen.getByRole("listitem", { name: "Free" }).textContent)).toContain(
       "Se arrastra de octubre 2026 cuando ese plan se cierre.",
     );
@@ -505,7 +507,7 @@ describe("the planner of a personal space", () => {
     );
     // #286 (audit pass 3, A11): alone in her space, the person reads her own words, not a household's.
     const card = screen.getByRole("region", { name: "Lo que tienes para el período" });
-    expect(normalized(card.textContent)).toContain("Te falta asignar $ 1.900.000");
+    expect(normalized(card.textContent)).toContain("Te falta asignar 1.900.000 COP");
     expect(screen.queryByText(/aportan entre todos|Según aportes|Cada uno paga/)).toBeNull();
     const parts = [...card.querySelector("[data-share-bar]")!.children] as HTMLElement[];
     expect(parts.map((part) => part.style.flexBasis)).toEqual(["100%"]);
@@ -545,9 +547,9 @@ describe("a viewer in the capacity summary (#217)", () => {
       screen.getByRole("region", { name: "Lo que aportan entre todos" }).textContent,
     );
     expect(capacity).not.toContain("Sofi");
-    expect(capacity).toContain("Tomás $ 100.000 · 2,44 %");
-    expect(capacity).toContain("Lía $ 0 · 0,00 %");
-    expect(capacity).toContain("Ana $ 1.600.000 · 40,00 %");
+    expect(capacity).toContain("Tomás 100.000 COP · 2,44 %");
+    expect(capacity).toContain("Lía 0 COP · 0,00 %");
+    expect(capacity).toContain("Ana 1.600.000 COP · 40,00 %");
   });
 });
 

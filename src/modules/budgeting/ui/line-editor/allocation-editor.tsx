@@ -101,7 +101,7 @@ export function AllocationEditor({
                   {...rule}
                   example={sample}
                   unit={draft.rule === "PERCENT" ? "%" : undefined}
-                  symbol={draft.rule === "PERCENT" ? undefined : currencyOf(currency).symbol}
+                  currency={draft.rule === "PERCENT" ? undefined : currency}
                   value={draft.values[member.id] ?? ""}
                   onChange={(value) =>
                     onChange({ rule: draft.rule, values: { ...draft.values, [member.id]: value } })

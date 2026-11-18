@@ -54,7 +54,7 @@ const giftPairs = (entries: readonly Entry[], memberId: string): Map<string, Ent
  * HU-E9-07, the BalanceHistory artboard as `/spaces/{spaceId}/members/{memberId}/history` (ruling P176): the member's
  * net at the start and at the end of a period of the space, and each movement that changed it as the running balance
  * after it (a sentence, ruling P173) over how much it changed it. The API's entries carry no payer or amount, so an
- * entry is titled by its description or the name of its type, not by the artboard's "Ana pagó $ 300.000", and has no
+ * entry is titled by its description or the name of its type, not by the artboard's "Ana pagó 300.000 COP", and has no
  * split line under it.
  *
  * Ruling P272 (board 04): the period is a chip, each summary is a neutral amount followed by its state in words, and
@@ -93,7 +93,7 @@ export function BalanceHistory({
   const hrefOf = (target: PeriodDto) =>
     `/spaces/${spaceId}/members/${member.id}/history?from=${target.startDate}`;
   const step = "flex size-11 items-center justify-center rounded-xl text-ink";
-  // A positive change reads "+$ 50.000"; a negative one is written by `formatMoney` with the typographic minus.
+  // A positive change reads "+50.000 COP"; a negative one is written by `formatMoney` with the typographic minus.
   const changeOf = (change: MoneyDto) =>
     `${BigInt(change.amount) > 0n ? "+" : ""}${formatMoney(change, formats)}`;
   const nameOf = (id: string | null | undefined) => members.find((one) => one.id === id)?.displayName ?? "";

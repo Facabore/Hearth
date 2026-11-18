@@ -100,11 +100,11 @@ describe('a person of Amigos (ruling P338, board "Amigo · Mom")', () => {
     expect(screen.getByRole("heading", { level: 2, name: "Mamá" })).toBeInTheDocument();
     expect(screen.getByText("No usa Hearth")).toBeInTheDocument();
     const balance = screen.getByRole("region", { name: "Mamá te debe" });
-    expect(plain(balance.textContent)).toBe("Mamá te debe$ 500.000");
+    expect(plain(balance.textContent)).toBe("Mamá te debe500.000 COP");
     expect(rows()).toEqual([
-      "Abono2 nov · Mamá te pagó−$ 100.000",
-      "Mercado14 ago · tú pagaste · su parte+$ 100.000",
-      "Préstamo12 mar 2025 · tú pagaste · su parte+$ 500.000",
+      "Abono2 nov · Mamá te pagó−100.000 COP",
+      "Mercado14 ago · tú pagaste · su parte+100.000 COP",
+      "Préstamo12 mar 2025 · tú pagaste · su parte+500.000 COP",
     ]);
     expect(
       screen.getByText("Solo ustedes dos ven esto. No se mezcla con tus grupos ni con tus gastos."),
@@ -312,9 +312,9 @@ describe('removing a person from Amigos (ruling P339, board "Amigos · solicitud
         ],
       },
     });
-    expect(rows().map((row) => row.replace(/^Pago\d+ oct · /, "").replace(/[−+]\$ [\d.]+$/, ""))).toEqual([
+    expect(rows().map((row) => row.replace(/^Pago\d+ oct · /, "").replace(/[−+][\d.]+ COP$/, ""))).toEqual([
       "le pagaste",
-      "Mamá te pagó $ 300.000 y te prestó $ 200.000",
+      "Mamá te pagó 300.000 COP y te prestó 200.000 COP",
       "Mamá te pagó",
       "le prestaste",
     ]);

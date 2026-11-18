@@ -117,8 +117,8 @@ const accountGroup = async (term: "Sale de" | "Llega a") => {
   await userEvent.click(accountRow(term));
   return within(dialog()).getByRole("radiogroup", { name: `${term} (opcional)` });
 };
-const JUAN_PAYS = named("Saldar: Juan le paga $ 100.000 a Ana");
-const LUIS_PAYS = named("Saldar: Luis le paga $ 50.000 a Ana");
+const JUAN_PAYS = named("Saldar: Juan le paga 100.000 COP a Ana");
+const LUIS_PAYS = named("Saldar: Luis le paga 50.000 COP a Ana");
 
 describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
   it("prefills the form from Juan's suggestion and records 100,000 COP from Juan to Ana once", async () => {
@@ -143,7 +143,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
     // A prefilled amount needs no example of how to write one.
     expect(within(dialog()).getByLabelText("Monto")).not.toHaveAccessibleDescription(/Ej:/);
     expect(normalized(within(dialog()).getByText(/le paga/).textContent)).toContain(
-      "Para quedar al día, Juan le paga $ 100.000 a Ana. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
+      "Para quedar al día, Juan le paga 100.000 COP a Ana. Puedes registrar un pago parcial; si pagas de más, el saldo cambia de lado.",
     );
     // Prefilling records nothing by itself.
     expect(requests).toHaveLength(0);
@@ -550,7 +550,7 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
         balances: [net("m-ana", 947_000), net("m-juan", -947_000)],
         suggestions: [{ payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(947_000) }],
       });
-    const JUAN_PAYS_ALL = named("Saldar: Juan le paga $ 947.000 a Ana");
+    const JUAN_PAYS_ALL = named("Saldar: Juan le paga 947.000 COP a Ana");
 
     it("says who pays whom in a line over the amount, with no chips, and records the same payment", async () => {
       const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/settlements": settled });
@@ -616,12 +616,12 @@ describe("settle up (HU-E9-07, rulings P174 and P175)", () => {
 
   it("reads in English with no accessibility violations", async () => {
     screenAs("u-juan", fakeApi({}).api, undefined, {}, "en");
-    await userEvent.click(screen.getByRole("button", { name: named("Settle: Juan pays Ana $ 100.000") }));
+    await userEvent.click(screen.getByRole("button", { name: named("Settle: Juan pays Ana 100.000 COP") }));
     const sheet = screen.getByRole("dialog", { name: "Settle" });
     expect(within(sheet).getByRole("radiogroup", { name: "Who pays" })).toBeInTheDocument();
     expect(within(sheet).getByRole("button", { name: "Save payment" })).toBeInTheDocument();
     expect(normalized(within(sheet).getByText(/owes/).textContent)).toBe(
-      "Juan owes Ana $ 100.000. You can record a partial payment; paying more turns the debt around.",
+      "Juan owes Ana 100.000 COP. You can record a partial payment; paying more turns the debt around.",
     );
     expect(await axeViolations(sheet)).toEqual([]);
   });

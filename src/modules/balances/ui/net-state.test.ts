@@ -19,8 +19,8 @@ describe("net balances as sentences (HU-E9-07, ruling P173)", () => {
       "settled",
     ]);
     expect(absolute(cop(-100_000))).toEqual(cop(100_000));
-    expect(norm(memberSentence(cop(-100_000), BUILT_IN_FORMATS, t))).toBe("debe $ 100.000");
-    expect(norm(memberSentence(cop(150_000), BUILT_IN_FORMATS, t))).toBe("le deben $ 150.000");
+    expect(norm(memberSentence(cop(-100_000), BUILT_IN_FORMATS, t))).toBe("debe 100.000 COP");
+    expect(norm(memberSentence(cop(150_000), BUILT_IN_FORMATS, t))).toBe("le deben 150.000 COP");
     expect(memberSentence(cop(0), BUILT_IN_FORMATS, t)).toBe("al día");
   });
 });

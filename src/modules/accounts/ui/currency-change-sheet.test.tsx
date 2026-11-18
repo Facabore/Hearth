@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 const usd = (amount: number) => ({ amount: String(amount), currency: "USD" });
-/** Board "Cambiar moneda · tasa · hoja": "Cuenta en dólares", US$ 512,40 today. */
+/** Board "Cambiar moneda · tasa · hoja": "Cuenta en dólares", 512,40 USD today. */
 const dollars = accountDto({
   id: "a-usd",
   name: "Cuenta en dólares",
@@ -27,7 +27,7 @@ const dollars = accountDto({
 });
 const PREVIEW = "GET /api/v1/spaces/{spaceId}/accounts/{accountId}/currency";
 const CHANGE = "PUT /api/v1/spaces/{spaceId}/accounts/{accountId}/currency";
-/** What the server answers for a rate: US$ 512,40 at it, in COP minor units. */
+/** What the server answers for a rate: 512,40 USD at it, in COP minor units. */
 const previewAt = (rate: string | null, rateDate: string | null = null) => ({
   from: "USD",
   to: "COP",
@@ -59,7 +59,7 @@ describe("changing an account's currency (P336)", () => {
     expect(await screen.findByLabelText("Tasa")).toHaveValue("4.000");
     expect(screen.getByRole("dialog", { name: "Nueva moneda: Peso colombiano (COP)" })).toBeInTheDocument();
     expect(screen.getByText(/La tasa del 15 nov 2026\. Puedes cambiarla/)).toBeInTheDocument();
-    expect(screen.getByText("Saldo hoy: US$ 512,40 → $ 2.049.600")).toBeInTheDocument();
+    expect(screen.getByText("Saldo hoy: 512,40 USD → 2.049.600 COP")).toBeInTheDocument();
     expect(
       screen.getByText("Sus 48 movimientos y el saldo inicial se convierten con esta tasa."),
     ).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("changing an account's currency (P336)", () => {
     const field = await screen.findByLabelText("Tasa");
     await userEvent.clear(field);
     await userEvent.type(field, "4020,5");
-    expect(await screen.findByText("Saldo hoy: US$ 512,40 → $ 2.060.104")).toBeInTheDocument();
+    expect(await screen.findByText("Saldo hoy: 512,40 USD → 2.060.104 COP")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cambiar a COP" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     const put = requests.find((r) => r.method === "PUT")!;
@@ -99,8 +99,8 @@ describe("changing an account's currency (P336)", () => {
     expect(screen.getByText(/Escribe la tasa para ver el saldo en COP/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cambiar a COP" })).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Tasa"), "1");
-    // A rate of 1 only changes the currency: US$ 512,40 becomes $ 512.
-    expect(await screen.findByText("Saldo hoy: US$ 512,40 → $ 512")).toBeInTheDocument();
+    // A rate of 1 only changes the currency: 512,40 USD becomes 512 COP.
+    expect(await screen.findByText("Saldo hoy: 512,40 USD → 512 COP")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cambiar a COP" })).toBeEnabled();
   });
 

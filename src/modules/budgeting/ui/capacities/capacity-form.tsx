@@ -169,7 +169,7 @@ export function CapacityForm({
                     kind="money"
                     numberFormat={formats.numberFormat}
                     decimals={exponent}
-                    symbol={currencyOf(currency).symbol}
+                    currency={currency}
                     example={false}
                     large
                     value={drafts[member.id] ?? ""}

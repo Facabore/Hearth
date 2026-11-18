@@ -221,7 +221,7 @@ export function NewAccountForm({
                 kind="money"
                 numberFormat={formats.numberFormat}
                 decimals={currency.exponent}
-                symbol={currency.symbol}
+                currency={accountCurrency}
                 value={opening}
                 onChange={(next) => {
                   setOpening(next);

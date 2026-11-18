@@ -64,9 +64,9 @@ describe("a space's Configuración (ruling P311, amends P309)", () => {
   });
 
   it("shows each row's status on its right: what the plan has left, the people and what waits to be confirmed", () => {
-    render({ status: { plan: "Quedan $ 380.000", members: "4 personas", recurring: "2 por confirmar" } });
+    render({ status: { plan: "Quedan 380.000 COP", members: "4 personas", recurring: "2 por confirmar" } });
     const nav = screen.getByRole("navigation");
-    expect(within(nav).getByRole("link", { name: /Plan del mes/ })).toHaveTextContent("Quedan $ 380.000");
+    expect(within(nav).getByRole("link", { name: /Plan del mes/ })).toHaveTextContent("Quedan 380.000 COP");
     expect(within(nav).getByRole("link", { name: /Miembros e invitados/ })).toHaveTextContent("4 personas");
     expect(within(nav).getByRole("link", { name: /Recurrentes/ })).toHaveTextContent("2 por confirmar");
   });

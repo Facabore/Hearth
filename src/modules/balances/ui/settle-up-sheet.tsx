@@ -380,7 +380,7 @@ export function SettleUpSheet({
       kind="money"
       numberFormat={formats.numberFormat}
       decimals={currency.exponent}
-      symbol={currency.symbol}
+      currency={space.currency}
       value={draft.amount}
       // Board 02: a prefilled amount needs no example; an empty one shows how to write one (#164).
       example={draft.amount === "" ? undefined : false}

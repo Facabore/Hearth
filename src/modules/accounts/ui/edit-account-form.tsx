@@ -196,7 +196,7 @@ export function EditAccountForm({
           kind="money"
           numberFormat={formats.numberFormat}
           decimals={currency.exponent}
-          symbol={currency.symbol}
+          currency={accountCurrency}
           value={edit.opening}
           onChange={(next) => {
             setEdit((all) => ({ ...all, opening: next }));

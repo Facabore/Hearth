@@ -8,7 +8,6 @@ import type { AccountDto } from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { AmountText } from "@/shared/ui/atoms/amount";
 import { parseDecimal } from "@/shared/ui/format/amount-input";
-import { currencyOf } from "@/shared/ui/format/currencies";
 import { currencyTitle } from "@/shared/ui/format/currency-names";
 import { formatDayMonthYear } from "@/shared/ui/format/day-month";
 import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
@@ -35,7 +34,7 @@ const sameRate = (a: string | null, b: string | null): boolean => {
 const NO_YEAR = "0000-00-00";
 
 /**
- * Ruling P336 (board "Cambiar moneda · tasa · hoja"): "Nueva moneda: Peso colombiano (COP)", the rate `1 US$ = [x] COP` filled
+ * Ruling P336 (board "Cambiar moneda · tasa · hoja"): "Nueva moneda: Peso colombiano (COP)", the rate `1 USD = [x] COP` filled
  * with the latest stored rate when there is one, what the balance becomes and how many movements convert, and
  * "Cambiar a COP". The preview follows the rate as it is typed; confirming converts the account and its movements.
  */
@@ -162,7 +161,7 @@ export function CurrencyChangeSheet({
       <div className="flex flex-col gap-3">
         <div className="flex items-end gap-3">
           <span aria-hidden="true" className="flex h-[52px] shrink-0 items-center font-medium text-ink">
-            {t("rateFrom", { symbol: currencyOf(from).symbol })}
+            {t("rateFrom", { code: from })}
           </span>
           <div className="min-w-0 flex-1">
             <NumberField
