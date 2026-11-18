@@ -58,8 +58,7 @@ export function FavoriteCurrenciesSection({
             search: t("favoriteCurrencies.search"),
             favorites: t("favoriteCurrencies.chosen"),
             others: t("favoriteCurrencies.all"),
-            star: (code, favorite) =>
-              t(favorite ? "favoriteCurrencies.remove" : "favoriteCurrencies.add", { code }),
+            star: (code) => t("favoriteCurrencies.star", { code }),
           }}
           favorites={favorites}
           noteOf={(code) =>

@@ -56,7 +56,7 @@ describe("settings: favorite currencies (P342, board 6)", () => {
     );
     expect(normalized(row().textContent)).toBe("Monedas favoritasCOP");
     const sheet = await openSheet();
-    expect(starsIn(sheet, FAVORITES)).toEqual(["Quitar COP de favoritas"]);
+    expect(starsIn(sheet, FAVORITES)).toEqual(["Moneda favorita: COP"]);
   });
 
   it("lists the favorites with a filled star, in their order, then every other currency with an empty one", async () => {
@@ -73,10 +73,10 @@ describe("settings: favorite currencies (P342, board 6)", () => {
     const search = within(sheet).getByLabelText("Agregar una moneda");
     expect(search).toHaveAttribute("placeholder", "Busca por nombre o código");
     expect(starsIn(sheet, FAVORITES)).toEqual([
-      "Quitar COP de favoritas",
-      "Quitar USD de favoritas",
-      "Quitar EUR de favoritas",
-      "Quitar MXN de favoritas",
+      "Moneda favorita: COP",
+      "Moneda favorita: USD",
+      "Moneda favorita: EUR",
+      "Moneda favorita: MXN",
     ]);
     const favorites = within(sheet).getByRole("region", { name: FAVORITES });
     const first = within(favorites).getAllByRole("listitem")[0]!;
@@ -89,10 +89,10 @@ describe("settings: favorite currencies (P342, board 6)", () => {
       expect(star.querySelector("svg")).toHaveClass("fill-current");
     }
     const all = starsIn(sheet, ALL);
-    expect(all).toContain("Agregar BRL a favoritas");
-    expect(all).not.toContain("Agregar USD a favoritas");
+    expect(all).toContain("Moneda favorita: BRL");
+    expect(all).not.toContain("Moneda favorita: USD");
     const jpy = within(within(sheet).getByRole("region", { name: ALL })).getByRole("button", {
-      name: "Agregar JPY a favoritas",
+      name: "Moneda favorita: JPY",
     });
     expect(jpy).toHaveAttribute("aria-pressed", "false");
     expect(jpy.querySelector("svg")).not.toHaveClass("fill-current");
@@ -110,13 +110,18 @@ describe("settings: favorite currencies (P342, board 6)", () => {
       />,
     );
     const sheet = await openSheet();
-    await userEvent.click(within(sheet).getByRole("button", { name: "Agregar BRL a favoritas" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Moneda favorita: BRL" }));
     // Optimistic: the currency moves at once.
     expect(starsIn(sheet, FAVORITES)).toEqual([
-      "Quitar COP de favoritas",
-      "Quitar USD de favoritas",
-      "Quitar BRL de favoritas",
+      "Moneda favorita: COP",
+      "Moneda favorita: USD",
+      "Moneda favorita: BRL",
     ]);
+    // A toggle keeps its name; only its pressed state says it is now a favorite.
+    expect(within(sheet).getByRole("button", { name: "Moneda favorita: BRL" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await waitFor(() => expect(bodies).toEqual([{ favoriteCurrencies: ["COP", "USD", "BRL"] }]));
     await waitFor(() => expect(normalized(row().textContent)).toBe("Monedas favoritasCOP · USD · BRL"));
   });
@@ -127,12 +132,12 @@ describe("settings: favorite currencies (P342, board 6)", () => {
       <SettingsForm backHref="/spaces/sp-personal" me={meDto()} personalSpace={personal} api={api} />,
     );
     const sheet = await openSheet();
-    await userEvent.click(within(sheet).getByRole("button", { name: "Agregar USD a favoritas" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Moneda favorita: USD" }));
     await waitFor(() => expect(bodies).toEqual([{ favoriteCurrencies: ["COP", "USD"] }]));
-    await userEvent.click(within(sheet).getByRole("button", { name: "Quitar COP de favoritas" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Moneda favorita: COP" }));
     await waitFor(() => expect(bodies.at(-1)).toEqual({ favoriteCurrencies: ["USD"] }));
-    expect(starsIn(sheet, FAVORITES)).toEqual(["Quitar USD de favoritas"]);
-    expect(starsIn(sheet, ALL)).toContain("Agregar COP a favoritas");
+    expect(starsIn(sheet, FAVORITES)).toEqual(["Moneda favorita: USD"]);
+    expect(starsIn(sheet, ALL)).toContain("Moneda favorita: COP");
   });
 
   it("rolls the star back and says why when the change is refused", async () => {
@@ -146,9 +151,9 @@ describe("settings: favorite currencies (P342, board 6)", () => {
       />,
     );
     const sheet = await openSheet();
-    await userEvent.click(within(sheet).getByRole("button", { name: "Agregar EUR a favoritas" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Moneda favorita: EUR" }));
     expect(await within(sheet).findByText("Esa moneda no está disponible.")).toBeInTheDocument();
-    expect(starsIn(sheet, FAVORITES)).toEqual(["Quitar COP de favoritas"]);
+    expect(starsIn(sheet, FAVORITES)).toEqual(["Moneda favorita: COP"]);
     expect(normalized(row().textContent)).toBe("Monedas favoritasCOP");
   });
 
@@ -165,10 +170,10 @@ describe("settings: favorite currencies (P342, board 6)", () => {
     const search = within(sheet).getByLabelText("Agregar una moneda");
     await userEvent.type(search, "japones");
     expect(within(sheet).queryByRole("region", { name: FAVORITES })).toBeNull();
-    expect(starsIn(sheet, ALL)).toEqual(["Agregar JPY a favoritas"]);
+    expect(starsIn(sheet, ALL)).toEqual(["Moneda favorita: JPY"]);
     await userEvent.clear(search);
     await userEvent.type(search, "usd");
-    expect(starsIn(sheet, FAVORITES)).toEqual(["Quitar USD de favoritas"]);
+    expect(starsIn(sheet, FAVORITES)).toEqual(["Moneda favorita: USD"]);
     expect(within(sheet).queryByRole("region", { name: ALL })).toBeNull();
   });
 
@@ -205,7 +210,13 @@ describe("settings: favorite currencies (P342, board 6)", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /^Favorite currencies/ }));
     const sheet = await screen.findByRole("dialog", { name: "Favorite currencies" }, { timeout: 10_000 });
-    expect(within(sheet).getByRole("button", { name: "Remove USD from favorites" })).toBeInTheDocument();
-    expect(within(sheet).getByRole("button", { name: "Add EUR to favorites" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Favorite currency: USD" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(sheet).getByRole("button", { name: "Favorite currency: EUR" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });

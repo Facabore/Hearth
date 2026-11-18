@@ -64,8 +64,7 @@
       "search": "Agregar una moneda",
       "chosen": "Favoritas · salen primero",
       "all": "Todas · toca la estrella para agregar",
-      "add": "Agregar {code} a favoritas",
-      "remove": "Quitar {code} de favoritas"
+      "star": "Moneda favorita: {code}"
     }
   }
 }

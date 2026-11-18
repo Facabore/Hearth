@@ -64,8 +64,7 @@
       "search": "Add a currency",
       "chosen": "Favorites · shown first",
       "all": "All · tap the star to add",
-      "add": "Add {code} to favorites",
-      "remove": "Remove {code} from favorites"
+      "star": "Favorite currency: {code}"
     }
   }
 }

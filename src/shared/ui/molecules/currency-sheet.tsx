@@ -222,7 +222,8 @@ export function FavoriteCurrenciesSheet({
     readonly favorites: string;
     readonly others: string;
     /** The star's accessible name: "Agregar USD a favoritas" or "Quitar USD de favoritas". */
-    readonly star: (code: string, favorite: boolean) => string;
+    /** The star's fixed name; whether it is a favorite is `aria-pressed`, never the name (WAI-ARIA toggle buttons). */
+    readonly star: (code: string) => string;
   };
   readonly favorites: readonly string[];
   readonly noteOf?: (code: string) => string | undefined;
@@ -243,7 +244,7 @@ export function FavoriteCurrenciesSheet({
         <button
           type="button"
           aria-pressed={favorite}
-          aria-label={labels.star(code, favorite)}
+          aria-label={labels.star(code)}
           onClick={() => onChange(favorite ? favorites.filter((c) => c !== code) : [...favorites, code])}
           className={cn(
             "flex size-11 shrink-0 items-center justify-center rounded-full",
