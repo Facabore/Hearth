@@ -1,7 +1,7 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, map, ok, type Money, type Result } from "@/shared/kernel";
 import type { Payment } from "../domain/transaction";
-import { fundAccount, inSpaceCurrency, partyAccount } from "./checks";
+import { fundAccount, inCurrency, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
 
 /** One requested payment (spec 5.2). */
@@ -28,8 +28,9 @@ const paymentOf = async (
   members: readonly SpaceMember[],
   requested: PaymentInput,
   userId: string,
+  movementCurrency: string,
 ): Promise<Result<Payment>> => {
-  const currency = inSpaceCurrency(space, requested.amount);
+  const currency = inCurrency(movementCurrency, requested.amount);
   if (!currency.ok) return currency;
   const { memberId, accountId } = requested;
   const amount = requested.amount.minor;
@@ -55,20 +56,24 @@ const paymentOf = async (
   }));
 };
 
-/** Spec 5.2, D9: each requested payment resolved; each member pays at most once (fund payments are MixedFundPayment's). */
+/**
+ * Spec 5.2, D9: each requested payment resolved; each member pays at most once (fund payments are MixedFundPayment's).
+ * P342: every payment is in the movement's currency, `currency` (the space's when absent), else CurrencyMismatch.
+ */
 export const resolvePayments = async (
   deps: Pick<LedgerDeps, "accounts">,
   space: SpaceMembership,
   members: readonly SpaceMember[],
   requested: readonly PaymentInput[],
   userId: string,
+  currency: string = space.currency,
 ): Promise<Result<Payment[]>> => {
   const payers = requested.flatMap((payment) => (payment.memberId === null ? [] : [payment.memberId]));
   if (new Set(payers).size !== payers.length)
     return err(domainError("InvalidSplit", { reason: "duplicatePayer" }));
   const payments: Payment[] = [];
   for (const payment of requested) {
-    const resolved = await paymentOf(deps, space, members, payment, userId);
+    const resolved = await paymentOf(deps, space, members, payment, userId, currency);
     if (!resolved.ok) return resolved;
     payments.push(resolved.value);
   }

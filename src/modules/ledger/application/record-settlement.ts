@@ -1,22 +1,32 @@
-import type { Money, Result } from "@/shared/kernel";
+import type { LocalDate, Money, Result } from "@/shared/kernel";
 import { domainError, err, ok } from "@/shared/kernel";
 import {
   giveAway,
   mayForgive,
   positiveAmount,
   recordSettlement,
+  withLegs,
+  type AccountLeg,
   type Settlement,
 } from "../domain/transaction";
-import { authorizeWriter, inSpaceCurrency, openPeriod, partyAccount } from "./checks";
+import { authorizeWriter, openPeriod, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { withAccountLegs } from "./foreign-amount";
+import { recordedLegOf } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
 
 export interface RecordSettlementInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
   readonly userId: string;
   readonly description?: string;
+  /** P342 (S5): in any currency, the debt's by default; the settlement is stored in it and settles that currency. */
   readonly amount: Money;
+  /**
+   * P342 (S5): what the source account really moved, in its own currency, when it is not the settlement's: the explicit
+   * exchange ("Saldar 50 USD con 205.000 COP"). Suggested from the date's rate when absent.
+   */
+  readonly sourceAmount?: Money;
+  /** P342 (S5): what really reached the destination account, in its own currency, when it is not the settlement's. */
+  readonly destinationAmount?: Money;
   /** The member who paid, registered or guest. */
   readonly payerMemberId: string;
   /** The member who received the money. */
@@ -36,8 +46,34 @@ export interface RecordSettlementInput extends Omit<WhenInput, "userId"> {
 export type RecordSettlement = (input: RecordSettlementInput) => Promise<Result<Settlement>>;
 
 /**
+ * P342 (S5), owner 2026-11-18 ("Pedir una cuenta en esa moneda"): a settlement paid in another currency than its own is
+ * an explicit exchange, recorded as the leg of one of the recorder's accounts in that other currency. A leg given in
+ * another currency with no account on its side, on an account in a third currency, or on an account that is not the
+ * recorder's is ExchangeAccountRequired (`currency`: the leg's). Anything else is `recordedLegOf`'s: no leg on an account
+ * in the settlement's currency, the given leg, or the date's rate as the suggestion (ExchangeRateRequired without one).
+ */
+const settlementLegOf = async (
+  deps: Pick<LedgerDeps, "accounts" | "rates">,
+  userId: string,
+  accountId: string | null,
+  amount: Money,
+  accountAmount: Money | undefined,
+  date: LocalDate,
+): Promise<Result<AccountLeg | null>> => {
+  if (accountAmount !== undefined && accountAmount.currency.code !== amount.currency.code) {
+    const currency = accountAmount.currency.code;
+    const account = accountId === null ? null : await deps.accounts.find(accountId);
+    if (account === null || account.currency !== currency || account.ownerUserId !== userId) {
+      return err(domainError("ExchangeAccountRequired", { currency }));
+    }
+  }
+  return recordedLegOf(deps, accountId, amount, accountAmount, date);
+};
+
+/**
  * HU-E5-02: any member who records money may record a settlement, also on a guest's behalf (D15). Ruling P322: also a
- * payment of a third member's debt, given away or not, and the receiver's forgiveness of a debt.
+ * payment of a third member's debt, given away or not, and the receiver's forgiveness of a debt. P342 (S5): stored in
+ * its own currency; a gift's half and a payment for someone stay in it, and only an account leg exchanges.
  */
 export const createRecordSettlement =
   (deps: LedgerDeps): RecordSettlement =>
@@ -48,8 +84,6 @@ export const createRecordSettlement =
       const space = writer.value;
       const amount = positiveAmount(input.amount.minor);
       if (!amount.ok) return amount;
-      const currency = inSpaceCurrency(space, input.amount);
-      if (!currency.ok) return currency;
       const members = await deps.members.listCurrent(space.spaceId);
       // D9: the payer's account is debited, so only its owner records it; the receiver's is credited.
       const source = await partyAccount(deps, members, input.payerMemberId, input.sourceAccountId ?? null, {
@@ -77,7 +111,7 @@ export const createRecordSettlement =
         description: input.description,
         date,
         amount: amount.value,
-        currency: space.currency,
+        currency: input.amount.currency.code,
         createdBy: input.userId,
         occurredAt,
         timeZone,
@@ -91,9 +125,18 @@ export const createRecordSettlement =
         gift: input.gift,
       });
       if (!recorded.ok) return recorded;
-      // D29, section 4.1: each account's leg in its own currency whenever it is not the base (the rate is a read inside
+      // P342 (S5): each account's leg in its own currency whenever it is not the settlement's (the rate is a read inside
       // the held space lock, #89).
-      const settlement = await withAccountLegs(deps, space, recorded.value, []);
+      const legOf = (accountId: string | null, accountAmount: Money | undefined) =>
+        settlementLegOf(deps, input.userId, accountId, input.amount, accountAmount, date);
+      const sourceLeg = await legOf(source.value, input.sourceAmount);
+      if (!sourceLeg.ok) return sourceLeg;
+      const destinationLeg = await legOf(destination.value, input.destinationAmount);
+      if (!destinationLeg.ok) return destinationLeg;
+      const settlement = withLegs(recorded.value, {
+        source: sourceLeg.value,
+        destination: destinationLeg.value,
+      }) as Result<Settlement>;
       if (!settlement.ok) return settlement;
       const { onBehalfOfMemberId, reason } = settlement.value;
       if (onBehalfOfMemberId !== null && !members.some((m) => m.id === onBehalfOfMemberId)) {

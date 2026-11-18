@@ -18,7 +18,7 @@ import { createRecordSettlement } from "./record-settlement";
  * D29, section 4.1: an account leg is in the account's own currency whenever that currency is not the base. Ana's
  * space is COP and her wallet is USD; on 2026-11-14 1 COP = 0.00025 USD (USD→COP 4,000).
  */
-const RATES = { "COP>USD": "0.00025", "USD>COP": "4000", "EUR>COP": "4500" } as const;
+const RATES = { "COP>USD": "0.00025", "USD>COP": "4000", "EUR>USD": "1.125" } as const;
 const day = "2026-11-14" as LocalDate;
 /** 5.000.000,00 COP, which is US$1,250.00 that day. */
 const fiveMillion = money(500_000_000n);
@@ -42,10 +42,14 @@ describe("an amount typed in the base currency on an account in another currency
     expect(store.netOf(ACCOUNTS.usdWallet.id)).toBe(-125_000n);
   });
 
-  it("converts the base amount into the account's currency when the entered one is a third currency", async () => {
+  it("converts a third currency straight into the account's at the EUR>USD rate, never through the space's", async () => {
     const { deps, store } = ledgerFixture({ rates: fakeRates(RATES) });
-    // 100 EUR = 450.000,00 COP = US$112.50.
-    unwrap(await createRecordExpense(deps)({ ...groceries, amount: money(100_00n, "EUR") }));
+    // P342: a EUR expense stays EUR; the USD wallet moves by 100 EUR at 1.125, US$112.50.
+    const { expense } = unwrap(
+      await createRecordExpense(deps)({ ...groceries, amount: money(100_00n, "EUR") }),
+    );
+    expect(expense).toMatchObject({ amount: 100_00n, currency: "EUR" });
+    expect(expense.payments[0]).toMatchObject({ accountAmount: 112_50n, accountCurrency: "USD" });
     expect(store.netOf(ACCOUNTS.usdWallet.id)).toBe(-112_50n);
   });
 

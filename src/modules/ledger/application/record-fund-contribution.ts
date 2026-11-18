@@ -1,7 +1,7 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
 import { ok, type Money, type Result } from "@/shared/kernel";
 import { positiveAmount, recordFundContribution, type Transfer } from "../domain/transaction";
-import { authorizeWriter, fundAccount, inSpaceCurrency, openPeriod, partyAccount } from "./checks";
+import { authorizeWriter, fundAccount, openPeriod, partyAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
 import { withAccountLegs } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
@@ -73,8 +73,6 @@ export const createRecordFundContribution =
       const space = writer.value;
       const amount = positiveAmount(input.amount.minor);
       if (!amount.ok) return amount;
-      const currency = inSpaceCurrency(space, input.amount);
-      if (!currency.ok) return currency;
       const members = await deps.members.listCurrent(space.spaceId);
       const parties = await contributionParties(deps, space, members, input);
       if (!parties.ok) return parties;
@@ -90,7 +88,7 @@ export const createRecordFundContribution =
         description: input.description,
         date,
         amount: amount.value,
-        currency: space.currency,
+        currency: input.amount.currency.code,
         createdBy: input.userId,
         occurredAt,
         timeZone,
@@ -100,7 +98,7 @@ export const createRecordFundContribution =
         destinationAccountId: parties.value.fundAccountId,
       });
       if (!contribution.ok) return contribution;
-      // D29, section 4.1: each account's leg in its own currency whenever it is not the base.
+      // P342 (S3): stored in its own currency; each account's leg in its own whenever it is not the contribution's.
       const legged = await withAccountLegs(deps, space, contribution.value, []);
       if (!legged.ok) return legged;
       await deps.transactions.add(legged.value);

@@ -1,9 +1,8 @@
 import type { SpaceMembership } from "@/modules/spaces/application";
-import { domainError, err, flatMap, Money, ok, type Result } from "@/shared/kernel";
-import { recordAdjustment, withLegs, type Adjustment } from "../domain/transaction";
+import { domainError, err, flatMap, Money, type Result } from "@/shared/kernel";
+import { recordAdjustment, type Adjustment } from "../domain/transaction";
 import { accountInSpace, authorizeWriter, fundAccount, openPeriod, ownAccount } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { accountLegOf, convertedAt } from "./foreign-amount";
 import type { LedgerAccount } from "./ports";
 import { whenOf, type WhenInput } from "./when";
 
@@ -39,9 +38,8 @@ const adjustableAccount = async (
 
 /**
  * Design Q4, gap G1 (#329): a balance adjustment ("Ajuste de saldo") of one account. It moves that account's balance by
- * the signed amount, in the account's own currency (its leg, D29 section 4.1), and nothing else: never spending or
- * income, no category, payer or split. The base amount the row stores is the amount itself in an account of the base
- * currency, else its conversion at the date's rate (ExchangeRateRequired without one).
+ * the signed amount, in the account's own currency, and nothing else: never spending or income, no category, payer or
+ * split. P342 (S3): the row is stored in the account's currency, so it needs no rate and keeps no leg.
  */
 export const createRecordAdjustment =
   (deps: LedgerDeps): RecordAdjustment =>
@@ -73,22 +71,14 @@ export const createRecordAdjustment =
         input.amount.currency.code,
       );
       if (!magnitude.ok) return magnitude;
-      // D29, section 4.1: the base amount, in the space's base currency; a rate lookup is a read inside the lock (#89).
-      const base =
-        account.value.currency === space.currency
-          ? ok(magnitude.value)
-          : await convertedAt(deps, magnitude.value, space.currency, date);
-      if (!base.ok) return base;
-      // D29: the account's leg is what was entered, whenever the account is not in the base currency.
-      const leg = await accountLegOf(deps, space, account.value.id, base.value, [magnitude.value], date);
-      if (!leg.ok) return leg;
+      // P342 (S3): stored in the account's own currency, so the account moves by the amount and keeps no leg.
       const adjustment = recordAdjustment({
         id: deps.ids.next<"Transaction">(),
         spaceId: space.spaceId,
         description: input.description,
         date,
-        amount: base.value.minor,
-        currency: space.currency,
+        amount: magnitude.value.minor,
+        currency: magnitude.value.currency.code,
         createdBy: input.userId,
         occurredAt,
         timeZone,
@@ -97,11 +87,6 @@ export const createRecordAdjustment =
         direction,
       });
       if (!adjustment.ok) return adjustment;
-      const legged = withLegs(
-        adjustment.value,
-        direction === "IN" ? { destination: leg.value } : { source: leg.value },
-      ) as Result<Adjustment>;
-      if (!legged.ok) return legged;
-      await deps.transactions.add(legged.value);
-      return legged;
+      await deps.transactions.add(adjustment.value);
+      return adjustment;
     });

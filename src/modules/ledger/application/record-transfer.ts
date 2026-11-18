@@ -9,12 +9,15 @@ export interface RecordTransferInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
   readonly userId: string;
   readonly description?: string;
-  /** D29, slice MC3: what LEAVES the source account ("Sale"), in the source account's own currency. */
+  /**
+   * D29, slice MC3: what LEAVES the source account ("Sale"), in the source account's own currency. P342 (S3): the
+   * transfer is stored in it.
+   */
   readonly amount: Money;
   /**
    * D29, section 4.1: what ARRIVES at the destination account ("Llega"), in the destination account's own currency,
-   * when it differs from the source's. Suggested from the rate; when given, it wins. Absent when both accounts share a
-   * currency, or when the destination amount follows the rate.
+   * when it differs from the source's: the destination's leg. Suggested from the rate; when given, it wins. Absent when
+   * both accounts share a currency, or when the destination amount follows the rate.
    */
   readonly destinationAmount?: Money;
   readonly sourceAccountId: string;
@@ -23,7 +26,10 @@ export interface RecordTransferInput extends Omit<WhenInput, "userId"> {
 
 export type RecordTransfer = (input: RecordTransferInput) => Promise<Result<Transfer>>;
 
-/** HU-E4-03: moves money between the requester's own accounts; never spending. */
+/**
+ * HU-E4-03: moves money between the requester's own accounts; never spending. P342 (S3): stored in the source account's
+ * currency, with the destination's leg when its currency differs (D29 section 4.1, relative to the movement's currency).
+ */
 export const createRecordTransfer =
   (deps: LedgerDeps): RecordTransfer =>
   (input) =>
@@ -66,35 +72,26 @@ export const createRecordTransfer =
       const { date, occurredAt, timeZone } = when.value;
       const open = await openPeriod(deps, space.spaceId, date);
       if (!open.ok) return open;
-      // D29, section 4.1: the amounts are decided at recording; the rate lookups are reads inside the held lock (#89).
-      const resolved = await resolveAmounts(
-        deps,
-        space.currency,
-        input,
-        sourceCurrency,
-        destinationCurrency,
-        date,
-      );
-      if (!resolved.ok) return resolved;
-      const { base, arrive } = resolved.value;
-      // D29: a leg is stored only when its account's currency differs from the base; then it is in that currency.
-      const sourceLeg = sourceCurrency === space.currency ? undefined : input.amount.minor;
-      const destinationLeg = destinationCurrency === space.currency ? undefined : arrive.minor;
+      // P342 (S3): stored in the source's currency, what left; only a destination in another currency keeps a leg, what
+      // arrived. The rate lookup is a read inside the held lock (#89).
+      const arrive = await arrivingAmount(deps, input, destinationCurrency, date);
+      if (!arrive.ok) return arrive;
       const transfer = recordTransfer({
         id: deps.ids.next<"Transaction">(),
         spaceId: space.spaceId,
         description: input.description,
         date,
-        amount: base.minor,
-        currency: space.currency,
+        amount: input.amount.minor,
+        currency: sourceCurrency,
         createdBy: input.userId,
         occurredAt,
         timeZone,
         now: deps.clock.now(),
         sourceAccountId: source.value.id,
         destinationAccountId: destination.value.id,
-        ...(sourceLeg === undefined ? {} : { sourceAmount: sourceLeg, sourceCurrency }),
-        ...(destinationLeg === undefined ? {} : { destinationAmount: destinationLeg, destinationCurrency }),
+        ...(destinationCurrency === sourceCurrency
+          ? {}
+          : { destinationAmount: arrive.value.minor, destinationCurrency }),
       });
       if (!transfer.ok) return transfer;
       await deps.transactions.add(transfer.value);
@@ -102,11 +99,30 @@ export const createRecordTransfer =
     });
 
 /**
- * D29, section 4.1 (approved for slice MC3). Let B be the space's base currency, S the source currency and D the
- * destination's. `arrive` is what reaches the destination (in D): the amount when S === D, else the given
- * `destinationAmount`, else the rate's conversion. `base` is what the row stores (in B): the amount when S === B, the
- * arriving amount when D === B, else the amount converted at the S→B rate. When the currencies match, the given
- * destination amount must equal the amount (InvalidTransferAmounts); when they do not, no rate is ExchangeRateRequired.
+ * D29, section 4.1: what reaches the destination, in its own currency: the amount when both accounts share a currency
+ * (a given destination amount must equal it, InvalidTransferAmounts), else the given `destinationAmount`, else the
+ * amount at the date's rate (ExchangeRateRequired without one).
+ */
+export const arrivingAmount = async (
+  deps: Pick<LedgerDeps, "rates">,
+  input: Pick<RecordTransferInput, "amount" | "destinationAmount">,
+  destinationCurrency: string,
+  date: LocalDate,
+): Promise<Result<Money>> => {
+  if (input.amount.currency.code === destinationCurrency) {
+    return input.destinationAmount !== undefined && input.destinationAmount.minor !== input.amount.minor
+      ? err(domainError("InvalidTransferAmounts"))
+      : ok(input.amount);
+  }
+  if (input.destinationAmount !== undefined) return ok(input.destinationAmount);
+  return convertedAt(deps, input.amount, destinationCurrency, date);
+};
+
+/**
+ * D29, section 4.1 (approved for slice MC3), for a transfer stored in currency B (P342: its own, no longer the space's),
+ * S its source currency and D its destination's. `arrive` is `arrivingAmount`'s. `base` is what the row stores in B:
+ * the amount when S === B, the arriving amount when D === B, else the amount converted at the S→B rate. Recording stores
+ * a transfer in S, so it needs only `arrivingAmount`; the edit path uses this.
  */
 export const resolveAmounts = async (
   deps: Pick<LedgerDeps, "rates">,
@@ -116,24 +132,11 @@ export const resolveAmounts = async (
   destinationCurrency: string,
   date: LocalDate,
 ): Promise<Result<{ readonly base: Money; readonly arrive: Money }>> => {
-  // What arrives at the destination, in its own currency.
-  let arrive: Money;
-  if (sourceCurrency === destinationCurrency) {
-    if (input.destinationAmount !== undefined && input.destinationAmount.minor !== input.amount.minor) {
-      return err(domainError("InvalidTransferAmounts"));
-    }
-    arrive = input.amount;
-  } else if (input.destinationAmount !== undefined) {
-    arrive = input.destinationAmount;
-  } else {
-    const converted = await convertedAt(deps, input.amount, destinationCurrency, date);
-    if (!converted.ok) return converted;
-    arrive = converted.value;
-  }
-  // The stored base amount, in the space's base currency.
-  if (sourceCurrency === base) return ok({ base: input.amount, arrive });
-  if (destinationCurrency === base) return ok({ base: arrive, arrive });
+  const arrive = await arrivingAmount(deps, input, destinationCurrency, date);
+  if (!arrive.ok) return arrive;
+  if (sourceCurrency === base) return ok({ base: input.amount, arrive: arrive.value });
+  if (destinationCurrency === base) return ok({ base: arrive.value, arrive: arrive.value });
   const converted = await convertedAt(deps, input.amount, base, date);
   if (!converted.ok) return converted;
-  return ok({ base: converted.value, arrive });
+  return ok({ base: converted.value, arrive: arrive.value });
 };

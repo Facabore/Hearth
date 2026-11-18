@@ -20,14 +20,17 @@ export const authorizeWriter = async (
 };
 
 /**
- * D6, D29: `money` is in the space's currency. P342: expenses and incomes no longer pass through it (they keep their own
- * currency; an expense's payments are checked against the expense's); settlements, contributions, recurrences and edits
- * still do until their slices.
+ * D6, D29: `money` is in the space's currency. P342: no write path records in the space's currency any more (each
+ * movement and recurrence keeps its own, checked with `inCurrency`); only the edit path still calls this until its slice.
  */
 export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<Money> =>
-  money.currency.code === space.currency
+  inCurrency(space.currency, money);
+
+/** P342: `money` is in `currency`, the movement's or recurrence's own (CurrencyMismatch otherwise). */
+export const inCurrency = (currency: string, money: Money): Result<Money> =>
+  money.currency.code === currency
     ? ok(money)
-    : err(domainError("CurrencyMismatch", { expected: space.currency, actual: money.currency.code }));
+    : err(domainError("CurrencyMismatch", { expected: currency, actual: money.currency.code }));
 
 /**
  * HU-E4-01 / HU-E3-03: a category of the space that is not archived. Issue #245: the lookup waits for a delete of the

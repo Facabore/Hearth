@@ -2,7 +2,7 @@ import { ok, todayIn, type LocalDate, type Money, type PeriodPolicy, type Result
 import { defineRecurrence, type RecurrenceMode } from "../domain/recurrence";
 import { scheduleOf } from "../domain/recurrence-schedule";
 import { positiveAmount } from "../domain/transaction";
-import { authorizeWriter, inSpaceCurrency } from "./checks";
+import { authorizeWriter } from "./checks";
 import type { RecurrenceDeps } from "./recurrence-ports";
 import { checkTemplate, withContributor, type TemplateInput } from "./recurrence-template";
 import { recurrenceView, type RecurrenceView } from "./recurrence-view";
@@ -37,8 +37,6 @@ export const createDefineRecurrence =
       const space = writer.value;
       const amount = positiveAmount(input.amount.minor);
       if (!amount.ok) return amount;
-      const currency = inSpaceCurrency(space, input.amount);
-      if (!currency.ok) return currency;
       const schedule = scheduleOf(input.schedule);
       if (!schedule.ok) return schedule;
       const members = await deps.members.listCurrent(space.spaceId);
@@ -55,7 +53,8 @@ export const createDefineRecurrence =
         spaceId: space.spaceId,
         description: input.description,
         amount: amount.value,
-        currency: space.currency,
+        // P342 (S3): its own currency, which every occurrence is recorded in.
+        currency: input.amount.currency.code,
         template: template.value,
         schedule: schedule.value,
         mode: input.mode,

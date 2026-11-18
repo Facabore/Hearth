@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LocalDate } from "@/shared/kernel";
-import { codeOf, fakeRates, money, unwrap } from "../../../../tests/support/fakes";
+import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
 import { ACCOUNTS, householdLedger, ledgerFixture } from "../../../../tests/support/in-memory-ledger";
 import { createConvertTransaction } from "./convert-transaction";
 import { createDeleteTransaction } from "./delete-transaction";
@@ -12,9 +12,7 @@ import { createRecordIncome } from "./record-income";
 import { createRecordTransfer } from "./record-transfer";
 import { createRestoreTransaction } from "./restore-transaction";
 
-/** Ana's personal space is COP; 1 USD = 4,000 COP on the date. */
-const RATES = { "USD>COP": "4000", "COP>USD": "0.00025" } as const;
-
+/** Ana's personal space is COP; an adjustment is stored in its account's own currency (P342). */
 const adjust = (amount: bigint, overrides: Partial<RecordAdjustmentInput> = {}): RecordAdjustmentInput => ({
   spaceId: "space-ana",
   userId: "u-ana",
@@ -57,30 +55,30 @@ describe("RecordAdjustment (design Q4, #329)", () => {
     expect(locks.money).toEqual(["space-ana"]);
   });
 
-  it("adjusts a USD account in USD: the leg is the USD entered, the base its conversion at the date's rate", async () => {
-    const { deps, store } = ledgerFixture({ rates: fakeRates(RATES) });
+  it("adjusts a USD account in USD: stored in USD, with no leg and no rate needed (P342)", async () => {
+    const { deps, store } = ledgerFixture();
     const usd = (minor: bigint) => money(minor, "USD");
     const record = createRecordAdjustment(deps);
     const up = unwrap(await record(adjust(0n, { accountId: ACCOUNTS.usdWallet.id, amount: usd(25_00n) })));
     expect(up).toMatchObject({
-      amount: 10_000_000n,
-      currency: "COP",
+      amount: 25_00n,
+      currency: "USD",
       destinationAccountId: ACCOUNTS.usdWallet.id,
-      destinationAmount: 25_00n,
-      destinationCurrency: "USD",
     });
+    expect("destinationAmount" in up).toBe(false);
     const down = unwrap(await record(adjust(0n, { accountId: ACCOUNTS.usdWallet.id, amount: usd(-5_00n) })));
-    expect(down).toMatchObject({ sourceAmount: 5_00n, sourceCurrency: "USD" });
+    expect(down).toMatchObject({ amount: 5_00n, currency: "USD", sourceAccountId: ACCOUNTS.usdWallet.id });
+    expect("sourceAmount" in down).toBe(false);
     expect(store.netOf(ACCOUNTS.usdWallet.id)).toBe(20_00n);
   });
 
-  it("refuses an amount in another currency than the account's, and no rate for a foreign account", async () => {
+  it("refuses an amount in another currency than the account's", async () => {
     const { deps } = ledgerFixture();
     const record = createRecordAdjustment(deps);
     expect(codeOf(await record(adjust(0n, { amount: money(100n, "USD") })))).toBe("CurrencyMismatch");
-    expect(
-      codeOf(await record(adjust(0n, { accountId: ACCOUNTS.usdWallet.id, amount: money(100n, "USD") }))),
-    ).toBe("ExchangeRateRequired");
+    expect(codeOf(await record(adjust(0n, { accountId: ACCOUNTS.usdWallet.id, amount: money(100n) })))).toBe(
+      "CurrencyMismatch",
+    );
   });
 
   it("refuses a zero amount, an archived account and an account of another space", async () => {

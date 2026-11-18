@@ -5,8 +5,9 @@ import { ACCOUNTS, ledgerFixture } from "../../../../tests/support/in-memory-led
 import { createRecordTransfer, type RecordTransferInput } from "./record-transfer";
 
 /**
- * D29, section 4.1: Ana's space is COP. "Sale" leaves the source in its own currency, "Llega" reaches the destination
- * in its own currency. 1 USD = 4,000 COP on the date (so 1 COP = 0.00025 USD).
+ * P342 (S3), D29 section 4.1: Ana's space is COP. A transfer is stored in its source account's currency ("Sale"), with
+ * no converted base; only a destination in another currency keeps a leg ("Llega"), given or at the date's rate. 1 USD =
+ * 4,000 COP on the date (so 1 COP = 0.00025 USD).
  */
 const usd = (minor: bigint) => money(minor, "USD");
 const RATES = { "USD>COP": "4000", "COP>USD": "0.00025" } as const;
@@ -31,9 +32,9 @@ const usdToCop: RecordTransferInput = {
   destinationAccountId: ACCOUNTS.bancolombia.id,
 };
 
-describe("RecordTransfer across currencies (D29, section 4.1)", () => {
-  it("COP → USD with a given destination amount: base is the amount, the destination leg is the USD it arrives", async () => {
-    const { deps } = ledgerFixture({ rates: fakeRates(RATES) });
+describe("RecordTransfer across currencies (P342, D29 section 4.1)", () => {
+  it("COP → USD with a given destination amount: stored in COP, the destination leg is the USD that arrived", async () => {
+    const { deps, store } = ledgerFixture();
     const transfer = unwrap(
       await createRecordTransfer(deps)({ ...copToUsd, destinationAmount: usd(9_950n) }),
     );
@@ -44,9 +45,13 @@ describe("RecordTransfer across currencies (D29, section 4.1)", () => {
       destinationAmount: 9_950n,
       destinationCurrency: "USD",
     });
-    // The source is the base currency, so it keeps no leg; transfers never keep an original.
+    // The source is in the transfer's own currency, so it keeps no leg; transfers never keep an original.
     expect("sourceAmount" in transfer).toBe(false);
     expect("originalAmount" in transfer).toBe(false);
+    expect([store.netOf(ACCOUNTS.bancolombia.id), store.netOf(ACCOUNTS.usdWallet.id)]).toEqual([
+      -40_000_000n,
+      9_950n,
+    ]);
   });
 
   it("COP → USD without a destination amount converts it at the date's rate", async () => {
@@ -62,39 +67,40 @@ describe("RecordTransfer across currencies (D29, section 4.1)", () => {
   });
 
   it("requires a rate when none connects the currencies and no destination amount is given", async () => {
-    const { deps } = ledgerFixture();
+    const { deps, store } = ledgerFixture();
     expect(codeOf(await createRecordTransfer(deps)(copToUsd))).toBe("ExchangeRateRequired");
+    expect(store.rows).toHaveLength(0);
   });
 
-  it("USD → COP: the base is what arrives, the source leg is the USD that left", async () => {
-    const { deps } = ledgerFixture({ rates: fakeRates(RATES) });
-    const transfer = unwrap(await createRecordTransfer(deps)(usdToCop));
+  it("USD → COP: stored in USD, what left; the COP destination keeps what arrived as its leg", async () => {
+    const { deps, store } = ledgerFixture();
+    const transfer = unwrap(
+      await createRecordTransfer(deps)({ ...usdToCop, destinationAmount: money(41_000_000n) }),
+    );
     expect(transfer).toMatchObject({
-      amount: 40_000_000n,
-      currency: "COP",
-      sourceAmount: 100_00n,
-      sourceCurrency: "USD",
+      amount: 100_00n,
+      currency: "USD",
+      destinationAmount: 41_000_000n,
+      destinationCurrency: "COP",
     });
-    // The destination is the base currency, so it keeps no leg.
-    expect("destinationAmount" in transfer).toBe(false);
+    expect("sourceAmount" in transfer).toBe(false);
+    expect([store.netOf(ACCOUNTS.usdWallet.id), store.netOf(ACCOUNTS.bancolombia.id)]).toEqual([
+      -100_00n,
+      41_000_000n,
+    ]);
   });
 
-  it("USD → USD in a COP space: both legs are USD and the base comes from the rate", async () => {
-    const { deps } = ledgerFixture({ rates: fakeRates(RATES) });
+  it("USD → USD in a COP space: stored in USD with no legs and no rate needed", async () => {
+    const { deps } = ledgerFixture();
     const transfer = unwrap(
       await createRecordTransfer(deps)({
         ...usdToCop,
         destinationAccountId: ACCOUNTS.usdSavings.id,
       }),
     );
-    expect(transfer).toMatchObject({
-      amount: 40_000_000n,
-      currency: "COP",
-      sourceAmount: 100_00n,
-      sourceCurrency: "USD",
-      destinationAmount: 100_00n,
-      destinationCurrency: "USD",
-    });
+    expect(transfer).toMatchObject({ amount: 100_00n, currency: "USD" });
+    expect("sourceAmount" in transfer).toBe(false);
+    expect("destinationAmount" in transfer).toBe(false);
   });
 
   it("rejects an amount that is not in the source account's currency", async () => {
@@ -127,7 +133,7 @@ describe("RecordTransfer across currencies (D29, section 4.1)", () => {
     expect(codeOf(result)).toBe("InvalidTransferAmounts");
   });
 
-  it("leaves a same-currency COP → COP transfer unchanged: base is the amount and no legs are kept", async () => {
+  it("leaves a same-currency COP → COP transfer unchanged: stored as the amount and no legs are kept", async () => {
     const { deps } = ledgerFixture();
     const transfer = unwrap(
       await createRecordTransfer(deps)({

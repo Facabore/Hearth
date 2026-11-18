@@ -23,7 +23,7 @@ import {
 } from "../domain/recurrence";
 import { scheduleOf } from "../domain/recurrence-schedule";
 import { canModify } from "../domain/transaction";
-import { inSpaceCurrency } from "./checks";
+import { inCurrency } from "./checks";
 import type { RecurrenceDeps } from "./recurrence-ports";
 import { checkTemplate } from "./recurrence-template";
 import { viewsOf, type RecurrenceView } from "./recurrence-view";
@@ -175,7 +175,8 @@ export const createUpdateRecurrence =
       );
       if (!revised.ok) return revised;
       if (amount !== undefined) {
-        const currency = inSpaceCurrency(space, amount);
+        // P342: a recurrence keeps its own currency; a new amount is in it.
+        const currency = inCurrency(recurrence.currency, amount);
         if (!currency.ok) return currency;
       }
       // A new category, split or amount is what recording an occurrence checks (P21).

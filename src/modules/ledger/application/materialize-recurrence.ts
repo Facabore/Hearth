@@ -65,8 +65,11 @@ const occurrenceOn = async (
     date,
     amount: amount.value,
   });
-  return recorded.ok
-    ? recordedOccurrence(id, recurrence, date, recorded.value.transaction.id, now)
+  if (recorded.ok) return recordedOccurrence(id, recurrence, date, recorded.value.transaction.id, now);
+  // P342 (S3): no rate that day for an account in another currency than the recurrence's is no refusal of the template:
+  // the date waits for a person, who confirms it with what the account moved, and the recurrence goes on.
+  return recorded.error.code === "ExchangeRateRequired"
+    ? pendingOccurrence(id, recurrence, date, now)
     : skippedOccurrence(id, recurrence, date, recorded.error.code, now);
 };
 

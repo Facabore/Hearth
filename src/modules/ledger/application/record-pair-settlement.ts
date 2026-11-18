@@ -1,4 +1,4 @@
-import type { Result } from "@/shared/kernel";
+import type { Money, Result } from "@/shared/kernel";
 import type { Settlement } from "../domain/transaction";
 import { authorizeWriter, pairCounterpart } from "./checks";
 import type { LedgerDeps } from "./deps";
@@ -18,6 +18,11 @@ export type RecordPairSettlementInput = Pick<
    * import records a person's loan history, whose incomes and expenses moved no account of the recorder's).
    */
   readonly accountId: string | null;
+  /**
+   * P342 (S5): what the recorder's account really moved, in its own currency, when it is not the amount's: the explicit
+   * exchange, the settlement's source leg (TO) or destination leg (FROM).
+   */
+  readonly accountAmount?: Money;
 };
 
 export type RecordPairSettlement = (input: RecordPairSettlementInput) => Promise<Result<Settlement>>;
@@ -32,7 +37,7 @@ export const createRecordPairSettlement =
     deps: Pick<LedgerDeps, "access" | "spaceLocks" | "members">,
     recordSettlement: RecordSettlement,
   ): RecordPairSettlement =>
-  async ({ direction, accountId, ...input }) => {
+  async ({ direction, accountId, accountAmount, ...input }) => {
     const writer = await authorizeWriter(deps, input.spaceId, input.userId);
     if (!writer.ok) return writer;
     const other = await pairCounterpart(deps, writer.value);
@@ -41,7 +46,17 @@ export const createRecordPairSettlement =
     return recordSettlement({
       ...input,
       ...(direction === "TO"
-        ? { payerMemberId: me, receivingMemberId: other.value, sourceAccountId: accountId }
-        : { payerMemberId: other.value, receivingMemberId: me, destinationAccountId: accountId }),
+        ? {
+            payerMemberId: me,
+            receivingMemberId: other.value,
+            sourceAccountId: accountId,
+            ...(accountAmount === undefined ? {} : { sourceAmount: accountAmount }),
+          }
+        : {
+            payerMemberId: other.value,
+            receivingMemberId: me,
+            destinationAccountId: accountId,
+            ...(accountAmount === undefined ? {} : { destinationAmount: accountAmount }),
+          }),
     });
   };
