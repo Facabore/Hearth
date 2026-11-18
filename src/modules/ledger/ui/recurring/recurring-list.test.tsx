@@ -78,7 +78,7 @@ describe("the recurring list (HU-E9-09, P270)", () => {
     const rent = within(active).getByRole("link", { name: /Arriendo/ });
     expect(rent).toHaveAttribute("href", "/spaces/sp-personal/recurrences/r-rent");
     const text = normalized(rent.textContent);
-    expect(text).toContain("−$ 1.200.000");
+    expect(text).toContain("−\u20601.200.000 COP");
     expect(text).toContain("Gasto · Cada mes, el día 1 · Bancolombia");
     expect(text).toContain(`Próxima: ${formatDate("2026-12-01", BUILT_IN_FORMATS)}`);
     expect(text).toContain("Próxima: 1/12/2026");

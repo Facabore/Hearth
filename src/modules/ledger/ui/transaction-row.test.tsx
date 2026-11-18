@@ -76,7 +76,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     );
     const link = screen.getByRole("link", { name: /Dinner/ });
     expect(link).toHaveAttribute("href", "/spaces/s-1/transactions?tx=t-dinner");
-    expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants−$ 60.000");
+    expect(norm(link.textContent)).toBe("Dinner20:45 · Restaurants−\u206060.000 COP");
     expect(link.closest("li")).toBe(screen.getByRole("listitem"));
     expect(link).toHaveAttribute("data-scroll", "false");
     expect(link).toHaveClass("min-h-row-lg");
@@ -98,13 +98,13 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
 
   it("reads an expense: the record's wall-clock time, the category and a minus sign, no account (board B1 03)", async () => {
     const { container } = renderRow(dinner);
-    expect(rowText()).toBe("Dinner20:45 · Restaurants−$ 60.000");
+    expect(rowText()).toBe("Dinner20:45 · Restaurants−\u206060.000 COP");
     expect(await axeViolations(container)).toEqual([]);
   });
 
   it("names a subcategory with its parent", () => {
     renderRow({ ...dinner, categoryId: "c-veg" });
-    expect(rowText()).toBe("Dinner20:45 · Groceries › Vegetables−$ 60.000");
+    expect(rowText()).toBe("Dinner20:45 · Groceries › Vegetables−\u206060.000 COP");
   });
 
   it("shows the zone's city only when the record's zone differs from the viewer's", () => {
@@ -116,17 +116,17 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
     renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null });
     expect(screen.getByRole("listitem")).not.toHaveTextContent(/\d{2}:\d{2}/);
     // Audit pass 3, A12: the category is the title, so a screen reader hears it too; the account takes its line.
-    expect(rowText()).toBe("RestaurantsBancolombia−$ 60.000");
+    expect(rowText()).toBe("RestaurantsBancolombia−\u206060.000 COP");
   });
 
   it("names a subcategorized expense with no description by its subcategory (#286)", () => {
     renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null, categoryId: "c-veg" });
-    expect(rowText()).toBe("VegetablesBancolombia−$ 60.000");
+    expect(rowText()).toBe("VegetablesBancolombia−\u206060.000 COP");
   });
 
   it("falls back to the type when an expense has neither a description nor a known category", () => {
     renderRow({ ...dinner, description: "", occurredAt: null, timeZone: null, categoryId: "c-gone" });
-    expect(rowText()).toBe("GastoBancolombia−$ 60.000");
+    expect(rowText()).toBe("GastoBancolombia−\u206060.000 COP");
   });
 
   it("adds an income with a plus sign, named by its category", () => {
@@ -140,7 +140,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
         destinationAccountId: "a-bank",
       }),
     );
-    expect(rowText()).toBe("SalaryWages+$ 3.200.000");
+    expect(rowText()).toBe("SalaryWages+3.200.000 COP");
   });
 
   it("shows a transfer between its accounts, unsigned and without a category", () => {
@@ -154,7 +154,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
         destinationAccountId: "a-visa",
       }),
     );
-    expect(rowText()).toBe("TransferenciaBancolombia → Visa$ 200.000");
+    expect(rowText()).toBe("TransferenciaBancolombia → Visa200.000 COP");
   });
 
   it("names a deposit into the shared fund a contribution, never a transfer (#223)", () => {
@@ -171,7 +171,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
       }),
       { ...context, accountNames: { ...context.accountNames, "a-fund": "Fondo Hogar" } },
     );
-    expect(rowText()).toBe("Aporte al fondoBancolombia → Fondo Hogar$ 500.000");
+    expect(rowText()).toBe("Aporte al fondoBancolombia → Fondo Hogar500.000 COP");
   });
 
   it("keeps a row whose category is unknown, with no category in its line", () => {
@@ -185,7 +185,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
       formats: { ...BUILT_IN_FORMATS, numberFormat: "COMMA_DOT", timeFormat: "H12" },
     });
     expect(rowText()).toContain("8:45 PM · Restaurants");
-    expect(rowText()).toContain("−$ 60,000");
+    expect(rowText()).toContain("−\u206060,000 COP");
   });
 
   it("is read-only: no edit, delete or any other control (ruling P140)", () => {
@@ -337,7 +337,7 @@ describe("transaction row (HU-E9-03, ruling P140)", () => {
         destinationAccountId: "a-bank",
       }),
     );
-    expect(rowText()).toBe("SalaryBancolombia+$ 3.200.000");
+    expect(rowText()).toBe("SalaryBancolombia+3.200.000 COP");
   });
 
   it("draws a round icon, as both lists do (boards B1 03 and E9-09 00)", () => {
@@ -410,11 +410,11 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
         destinationAccountId: "a-bank",
       }),
     );
-    expect(screen.getByText(/3\.200\.000/)).toHaveTextContent("+$");
+    expect(screen.getByText(/3\.200\.000/)).toHaveTextContent(/^\+3\.200\.000\sCOP$/);
     expect(screen.getByText(/3\.200\.000/)).toHaveClass("text-accent");
   });
 
-  it("adds the viewer's share once after who paid: 'pagaste tú · tu parte $ 32.000' (board Movimientos, P324)", () => {
+  it("adds the viewer's share once after who paid: 'pagaste tú · tu parte 32.000 COP' (board Movimientos, P324)", () => {
     cardRow(
       transactionDto({
         type: "EXPENSE",
@@ -428,14 +428,14 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
       }),
       hogar,
     );
-    expect(visibleLine("Domicilio")).toBe("pagaste tú · tu parte $ 32.000");
+    expect(visibleLine("Domicilio")).toBe("pagaste tú · tu parte 32.000 COP");
     // The row's amount is the whole expense, with its sign; the share is never repeated.
     expect(norm(screen.getByRole("listitem").textContent)).toBe(
-      "Domiciliopagaste tú · tu parte $ 32.000−$ 64.000",
+      "Domiciliopagaste tú · tu parte 32.000 COP−\u206064.000 COP",
     );
     expect(screen.getByRole("listitem").textContent!.match(/tu parte/g)).toHaveLength(1);
     // One line at 320 px too: the share never breaks, and only the payer's words give way (P324, S2).
-    const share = screen.getByText("tu parte $ 32.000");
+    const share = screen.getByText("tu parte 32.000 COP");
     expect(share).toHaveClass("shrink-0", "whitespace-nowrap");
     expect(screen.getByText("pagaste tú ·", { normalizer: (text) => text.trim() })).toHaveClass("truncate");
   });
@@ -481,7 +481,7 @@ describe("a row of Movimientos (board E9-09 00, ruling P284)", () => {
         />
       </ol>,
     );
-    expect(visibleLine("Internet")).toBe("pagó Juan · tu parte $ 55.000");
+    expect(visibleLine("Internet")).toBe("pagó Juan · tu parte 55.000 COP");
     expect(visibleLine("Solo mío")).toBe("pagaste tú");
     expect(visibleLine("Solo de Juan")).toBe("pagó Juan");
   });
@@ -524,7 +524,7 @@ describe("medium density (ruling P324)", () => {
     );
     expect(visibleLine("Domicilio")).toBe("Ayer · pagaste tú");
     // Inicio names no share: the line says who paid, the amount is the expense.
-    expect(screen.getByText(/64\.000/)).toHaveTextContent("−$ 64.000");
+    expect(screen.getByText(/64\.000/)).toHaveTextContent("−\u206064.000 COP");
     expect(screen.getByRole("link", { name: /Domicilio/ })).toHaveAttribute(
       "href",
       "/spaces/sp-hogar?tx=t-1",
@@ -636,7 +636,7 @@ describe("a balance adjustment's row (design Q4, #329)", () => {
 
   it("names money in as an adjustment of its account, with a plus sign", () => {
     renderRow(adjustment({}));
-    expect(rowText()).toBe("Ajuste de saldoBancolombia+$ 50.000");
+    expect(rowText()).toBe("Ajuste de saldoBancolombia+50.000 COP");
   });
 
   it("signs money out with a minus, and names its kind beside the account when a description titles it", () => {
@@ -648,7 +648,7 @@ describe("a balance adjustment's row (design Q4, #329)", () => {
         destinationAccountId: null,
       }),
     );
-    expect(rowText()).toBe("Cuadre con el bancoAjuste de saldo · Bancolombia−$ 20.000");
+    expect(rowText()).toBe("Cuadre con el bancoAjuste de saldo · Bancolombia−\u206020.000 COP");
   });
 
   it("reads Balance adjustment in English and wears the sliders", () => {
@@ -658,7 +658,7 @@ describe("a balance adjustment's row (design Q4, #329)", () => {
       </ol>,
       { locale: "en" },
     );
-    expect(rowText()).toBe("Balance adjustmentBancolombia+$ 50.000");
+    expect(rowText()).toBe("Balance adjustmentBancolombia+50.000 COP");
     expect(screen.getByRole("listitem").querySelector("svg[aria-hidden='true'] path")).toHaveAttribute(
       "d",
       UI_ICONS.sliders,

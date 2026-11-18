@@ -65,7 +65,7 @@ export type TransferEffect =
 
 /**
  * P334: the transfer's effect on what the two owe each other in that one space, never across spaces: "Saldas tu deuda
- * de $ 100.000 y Juan queda debiéndote $ 50.000", "Juan queda debiéndote $ 150.000", "Saldas tu deuda con Juan".
+ * de 100.000 COP y Juan queda debiéndote 50.000 COP", "Juan queda debiéndote 150.000 COP", "Saldas tu deuda con Juan".
  */
 export const effectOf = (mode: "TO" | "FROM", owed: bigint, amount: bigint): TransferEffect => {
   if (mode === "TO") {

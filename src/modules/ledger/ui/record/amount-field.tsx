@@ -11,11 +11,12 @@ import { exampleOf, type NumberRule } from "@/shared/ui/format/number-input";
  * typed on a physical keyboard. The phone's own keyboard stays down (`inputMode="none"`), since the keypad is on screen.
  * U3: the money rule's input props, so the digits are grouped as they are typed, in the person's number format (6000
  * reads 6.000), and the caret stays after the digit it was after; the example of how to type one is read out (#164).
+ * P342 (board 4): the currency's ISO code follows the figure, as every amount reads it ("50,00 USD").
  */
 export function AmountField({
   value,
   onChange,
-  symbol,
+  currency,
   numberFormat,
   exponent,
   error,
@@ -25,7 +26,8 @@ export function AmountField({
 }: {
   readonly value: string;
   readonly onChange: (value: string) => void;
-  readonly symbol: string;
+  /** The ISO 4217 code written after the figure. */
+  readonly currency: string;
   readonly numberFormat: NumberFormat;
   /** The currency's decimals: a currency with none has no point to type. */
   readonly exponent: number;
@@ -57,7 +59,6 @@ export function AmountField({
         {t("amount")}
       </label>
       <div className="flex max-w-full items-baseline justify-center gap-2 text-[40px] leading-tight font-bold text-ink tabular-nums">
-        <span aria-hidden="true">{symbol}</span>
         <input
           ref={input}
           id="record-amount"
@@ -74,10 +75,11 @@ export function AmountField({
           placeholder="0"
           aria-invalid={error ? true : undefined}
           aria-describedby={described}
-          // As wide as what is typed, so the figure stays centred with its symbol.
+          // As wide as what is typed, so the figure stays centred with its code.
           style={{ width: `${Math.max(value.length, 1) + 0.25}ch` }}
           className="min-w-0 rounded-lg bg-transparent text-center placeholder:text-muted aria-invalid:ring-2 aria-invalid:ring-danger"
         />
+        <span aria-hidden="true">{currency}</span>
       </div>
       {error ? (
         <p id="record-amount-error" className="flex items-center gap-1.5 text-sm text-danger">

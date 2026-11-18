@@ -74,7 +74,7 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
   it("shows a personal expense: type, amount, date and time, category path, account and description", async () => {
     open(detailOf(market));
     expect(screen.getByRole("dialog", { name: "Market" })).toBeInTheDocument();
-    expect(described()).toBe("−$ 85.000");
+    expect(described()).toBe("−\u206085.000 COP");
     expect(definition("Tipo")).toBe("Gasto");
     expect(definition("Fecha y hora")).toBe("31/10/2026 · 12:30");
     expect(definition("Categoría")).toBe("Groceries › Vegetables");
@@ -125,7 +125,7 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
       ),
     );
     expect(screen.getByRole("dialog", { name: "Salary" })).toBeInTheDocument();
-    expect(described()).toBe("+$ 3.200.000");
+    expect(described()).toBe("+3.200.000 COP");
     expect(definition("Cuenta que recibe")).toBe("Bancolombia");
     expect(definition("Categoría")).toBe("Wages");
   });
@@ -148,7 +148,10 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(definition("Pagó")).toBe("Juan");
     expect(definition("Cuenta")).toBe("Cuenta de Juan");
     const shares = within(screen.getByRole("list", { name: "División" })).getAllByRole("listitem");
-    expect(shares.map((item) => norm(item.textContent))).toEqual(["Ana (tú) $ 150.000", "Juan $ 150.000"]);
+    expect(shares.map((item) => norm(item.textContent))).toEqual([
+      "Ana (tú) 150.000 COP",
+      "Juan 150.000 COP",
+    ]);
     expect(definition("División")).toContain("Iguales");
     expect(norm(screen.getByRole("dialog").textContent)).toContain(
       "Solo Juan puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
@@ -255,7 +258,7 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     );
     expect(definition("Desde")).toBe("Bancolombia");
     expect(definition("Hacia")).toBe("Visa");
-    expect(described()).toBe("$ 500.000");
+    expect(described()).toBe("500.000 COP");
     expect(terms()).not.toContain("Categoría");
     expect(terms()).not.toContain("Cuenta");
   });
@@ -275,8 +278,8 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
       ),
     );
     // The description is the base-currency amount; the detail adds what was charged in its own currency.
-    expect(described()).toBe("−$ 205.000");
-    expect(definition("En su moneda")).toBe("US$ 50");
+    expect(described()).toBe("−\u2060205.000 COP");
+    expect(definition("En su moneda")).toBe("50 USD");
   });
 
   it("shows each leg in its own currency on a transfer across currencies (board 10, D29)", () => {
@@ -294,8 +297,8 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
         }),
       ),
     );
-    expect(definition("Desde")).toBe("Bancolombia · $ 400.000");
-    expect(definition("Hacia")).toBe("Visa · US$ 100");
+    expect(definition("Desde")).toBe("Bancolombia · 400.000 COP");
+    expect(definition("Hacia")).toBe("Visa · 100 USD");
   });
 
   it("shows a settlement's two members and why it is not edited", () => {
@@ -567,7 +570,7 @@ describe("a balance adjustment's detail (design Q4, #329)", () => {
   it("shows its kind, its account and a signed amount, and offers Eliminar only", () => {
     open(detailOf(adjustment));
     expect(screen.getByRole("dialog", { name: "Ajuste de saldo" })).toBeInTheDocument();
-    expect(described()).toBe("−$ 20.000");
+    expect(described()).toBe("−\u206020.000 COP");
     expect(definition("Tipo")).toBe("Ajuste de saldo");
     expect(definition("Cuenta")).toBe("Bancolombia");
     expect(terms()).not.toContain("Categoría");
@@ -577,7 +580,7 @@ describe("a balance adjustment's detail (design Q4, #329)", () => {
 
   it("signs money in with a plus and reads Balance adjustment in English", () => {
     open(detailOf({ ...adjustment, sourceAccountId: null, destinationAccountId: "a-bank" }), ORIGIN, "en");
-    expect(described()).toBe("+$ 20.000");
+    expect(described()).toBe("+20.000 COP");
     expect(definition("Type")).toBe("Balance adjustment");
   });
 

@@ -104,9 +104,9 @@ describe("a personal account's movements (ruling P327, board 'Cuenta · Movimien
       "2 nov",
     ]);
     expect(rowsOf()).toEqual([
-      "DomicilioHogar · tu parte $ 32.000−$ 64.000",
-      "Salario noviembreIngreso · Trabajo+$ 3.200.000",
-      "A AhorrosTransferencia entre tus cuentas−$ 500.000",
+      "DomicilioHogar · tu parte 32.000 COP−\u206064.000 COP",
+      "Salario noviembreIngreso · Trabajo+3.200.000 COP",
+      "A AhorrosTransferencia entre tus cuentas−\u2060500.000 COP",
     ]);
     expect(screen.getByRole("link", { name: /Salario noviembre/ })).toHaveAttribute(
       "href",
@@ -118,7 +118,7 @@ describe("a personal account's movements (ruling P327, board 'Cuenta · Movimien
       "/spaces/sp-hogar?tx=t-delivery",
     );
     // Money direction is never color alone: each amount carries its sign.
-    expect(within(screen.getByRole("link", { name: /Salario/ })).getByText("+$ 3.200.000")).toHaveClass(
+    expect(within(screen.getByRole("link", { name: /Salario/ })).getByText("+3.200.000 COP")).toHaveClass(
       "text-accent",
     );
     expect(await axeViolations(container)).toEqual([]);
@@ -172,7 +172,7 @@ describe("a balance adjustment on its account's screen (design Q4, #329)", () =>
         href="/spaces/sp-personal/accounts/a-bank"
       />,
     );
-    expect(rowsOf()).toEqual(["Ajuste de saldo+$ 50.000", "CuadreAjuste de saldo−US$ 2,50"]);
+    expect(rowsOf()).toEqual(["Ajuste de saldo+50.000 COP", "CuadreAjuste de saldo−\u20602,50 USD"]);
   });
 });
 
@@ -227,9 +227,9 @@ describe("a shared fund's movements (ruling P327, board 'Fondo de Hogar · Movim
       />,
     );
     expect(rowsOf()).toEqual([
-      "Mercado semanalpagó el fondo · Mercado−$ 300.000",
-      "Aporte de JuanJuan → Fondo de Hogar+$ 2.320.000",
-      "Aporte de Ana (tú)Bancolombia → Fondo de Hogar+$ 160.000",
+      "Mercado semanalpagó el fondo · Mercado−\u2060300.000 COP",
+      "Aporte de JuanJuan → Fondo de Hogar+2.320.000 COP",
+      "Aporte de Ana (tú)Bancolombia → Fondo de Hogar+160.000 COP",
     ]);
     expect(screen.getByRole("link", { name: /Mercado semanal/ })).toHaveAttribute(
       "href",

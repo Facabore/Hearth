@@ -138,7 +138,7 @@ export function NeedsToday({
       ? [
           {
             key: "owed",
-            // Board "Inicio de Hogar" (P324): "Juan te debe $ 947.000 · Saldar"; each figure is said once.
+            // Board "Inicio de Hogar" (P324): "Juan te debe 947.000 COP · Saldar"; each figure is said once.
             title: (
               <>
                 {owed.length === 1 && most.from ? t("owedBy", { name: most.from }) : t("owed")}

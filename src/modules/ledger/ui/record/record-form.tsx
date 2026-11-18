@@ -784,7 +784,7 @@ export function RecordForm({
   );
   const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
   // P333 (board "Registrar: una fila"): "Pagaste tú con Bancolombia · para Juan y Ana".
-  // P333: "Pagó Juan · le debes $ 60.000" when someone else paid.
+  // P333: "Pagó Juan · le debes 60.000 COP" when someone else paid.
   const otherPayer =
     forWhom.payer === ME
       ? null
@@ -882,7 +882,7 @@ export function RecordForm({
           <AmountField
             value={amount}
             onChange={changeAmount}
-            symbol={currency.symbol}
+            currency={amountCurrency}
             numberFormat={formats.numberFormat}
             exponent={currency.exponent}
             error={errorOf("amount")}
@@ -897,7 +897,7 @@ export function RecordForm({
               id="record-converted"
               numberFormat={formats.numberFormat}
               exponent={base.exponent}
-              symbol={base.symbol}
+              currency={space.currency}
               label={t("form.convertedAmount", { currency: space.currency })}
               hint={t("form.convertedHint")}
               value={converted}
@@ -1042,7 +1042,7 @@ export function RecordForm({
                   id="record-arrives"
                   numberFormat={formats.numberFormat}
                   exponent={currencyOf(toAccountCurrency).exponent}
-                  symbol={currencyOf(toAccountCurrency).symbol}
+                  currency={toAccountCurrency}
                   label={t("form.arrives")}
                   hint={t("form.arrivesHint")}
                   value={destAmount}

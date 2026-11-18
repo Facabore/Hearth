@@ -83,7 +83,7 @@ describe("transaction list (HU-E9-03)", () => {
       />,
     );
     const line = screen.getByRole("region", { name: "Totales del período" }).parentElement!;
-    expect(norm(line.textContent)).toBe("octubre 2026 · Gastos $ 245.000 · Ingresos +$ 3.200.000");
+    expect(norm(line.textContent)).toBe("octubre 2026 · Gastos 245.000 COP · Ingresos +3.200.000 COP");
     expect(line).toHaveClass("text-sm", "text-muted");
     const filters = screen.getByRole("button", { name: "Filtros" });
     expect(filters).toHaveAttribute("aria-haspopup", "dialog");
@@ -121,8 +121,8 @@ describe("transaction list (HU-E9-03)", () => {
     expect(rows[2]).not.toHaveTextContent("Groceries");
     expect(rows[0]).not.toHaveTextContent(/\d{2}:\d{2}/);
     const totals = screen.getByRole("region", { name: "Totales del período" });
-    expect(norm(totals.textContent)).toContain("$ 245.000");
-    expect(norm(totals.textContent)).toContain("$ 3.200.000");
+    expect(norm(totals.textContent)).toContain("245.000 COP");
+    expect(norm(totals.textContent)).toContain("3.200.000 COP");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -562,7 +562,7 @@ describe("saved with a warning in the list (HU-E9-06, ruling P170)", () => {
     renderWithIntl(listOf({ notice, filter: { period: "2026-10", categoryId: "c-groceries" } }));
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Gasto guardado");
-    expect(norm(status.textContent)).toContain("El saldo de Fondo Hogar quedó en −$ 500.000.");
+    expect(norm(status.textContent)).toContain("El saldo de Fondo Hogar quedó en −\u2060500.000 COP.");
     expect(screen.getByRole("link", { name: "Cerrar aviso" })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/transactions?period=2026-10&category=c-groceries",
@@ -651,22 +651,22 @@ describe("the list's states (HU-E9-03, ruling P140)", () => {
       { locale: "en" },
     );
     const totals = screen.getByRole("region", { name: "Period totals" });
-    expect(norm(totals.textContent)).toBe("Expenses $ 245,000 · Income +$ 3,200,000");
+    expect(norm(totals.textContent)).toBe("Expenses 245,000 COP · Income +3,200,000 COP");
   });
 
   it("reads the totals as plain text with bold figures and the income in green (board B1 06)", () => {
     renderWithIntl(listOf());
     const totals = screen.getByRole("region", { name: "Totales del período" });
     expect(totals).not.toHaveClass("bg-surface");
-    expect(within(totals).getByText("$ 245.000").tagName).toBe("STRONG");
-    expect(within(totals).getByText("+$ 3.200.000")).toHaveClass("text-accent");
+    expect(within(totals).getByText("245.000 COP").tagName).toBe("STRONG");
+    expect(within(totals).getByText("+3.200.000 COP")).toHaveClass("text-accent");
   });
 
   it("reads the totals for the chosen category, not the whole period's, and no sign on a zero income", () => {
     renderWithIntl(listOf({ page: { ...page, totals: { expenses: cop(185_000), income: cop(0) } } }));
     const totals = screen.getByRole("region", { name: "Totales del período" });
-    expect(norm(totals.textContent)).toBe("Gastos $ 185.000 · Ingresos $ 0");
-    expect(within(totals).getByText("$ 0")).not.toHaveClass("text-accent");
+    expect(norm(totals.textContent)).toBe("Gastos 185.000 COP · Ingresos 0 COP");
+    expect(within(totals).getByText("0 COP")).not.toHaveClass("text-accent");
   });
 });
 
@@ -675,7 +675,7 @@ describe("whose figures the totals are (#287)", () => {
     renderWithIntl(listOf({ spaceName: "Hogar" }));
     const totals = screen.getByRole("region", { name: "Totales del período" });
     // Audit pass 3, A6: Inicio shows Ana's share of Hogar; here the whole space's spending, and it says so.
-    expect(norm(totals.textContent)).toBe("Gastos de Hogar $ 245.000 · Ingresos +$ 3.200.000");
+    expect(norm(totals.textContent)).toBe("Gastos de Hogar 245.000 COP · Ingresos +3.200.000 COP");
   });
 });
 

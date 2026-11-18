@@ -54,7 +54,7 @@ function Harness({
     <SplitSheet
       open
       onOpenChange={() => undefined}
-      title="Mercado · $ 300.000 · Household"
+      title="Mercado · 300.000 COP · Household"
       members={MEMBERS}
       meUserId="u-ana"
       myAccounts={[BANK]}
@@ -83,7 +83,7 @@ describe("percent split (issue #177)", () => {
     await userEvent.click(within(sheet()).getByRole("radio", { name: "Porcentaje" }));
     expect(valueOf("Ana (tú)")).toHaveValue("50");
     expect(valueOf("Juan")).toHaveValue("50");
-    expect(status()).toHaveTextContent("Suma $ 300.000: cuadra con el gasto");
+    expect(status()).toHaveTextContent("Suma 300.000 COP: cuadra con el gasto");
     expect(done()).toBeEnabled();
   });
 
@@ -93,7 +93,7 @@ describe("percent split (issue #177)", () => {
     await userEvent.clear(valueOf("Ana (tú)"));
     await userEvent.type(valueOf("Ana (tú)"), "40");
     expect(valueOf("Juan")).toHaveValue("60");
-    expect(shareOf("Juan")).toContain("$ 180.000");
+    expect(shareOf("Juan")).toContain("180.000 COP");
     expect(done()).toBeEnabled();
   });
 
@@ -109,18 +109,18 @@ describe("percent split (issue #177)", () => {
 describe("split sheet (HU-E9-06)", () => {
   it("splits 300,000 COP equally between Ana and Juan and says the sum matches", async () => {
     renderWithIntl(<Harness amount="30000000" />);
-    expect(shareOf("Ana (tú)")).toContain("$ 150.000");
-    expect(shareOf("Juan")).toContain("$ 150.000");
+    expect(shareOf("Ana (tú)")).toContain("150.000 COP");
+    expect(shareOf("Juan")).toContain("150.000 COP");
     expect(shareOf("Pedro (invitado)")).toContain("—");
-    expect(status()).toHaveTextContent("Suma $ 300.000: cuadra con el gasto");
+    expect(status()).toHaveTextContent("Suma 300.000 COP: cuadra con el gasto");
     expect(done()).toBeEnabled();
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
   it.each([
-    ["30000000", "Porcentaje", ["40", "60"], ["$ 120.000", "$ 180.000"]],
-    ["25000000", "Montos", ["100.000", "150.000"], ["$ 100.000", "$ 150.000"]],
-    ["9000000", "Partes", ["2", "1"], ["$ 60.000", "$ 30.000"]],
+    ["30000000", "Porcentaje", ["40", "60"], ["120.000 COP", "180.000 COP"]],
+    ["25000000", "Montos", ["100.000", "150.000"], ["100.000 COP", "150.000 COP"]],
+    ["9000000", "Partes", ["2", "1"], ["60.000 COP", "30.000 COP"]],
   ] as const)("previews %s split by %s", async (amount, method, [ana, juan], [anaShare, juanShare]) => {
     renderWithIntl(<Harness amount={amount} />);
     await userEvent.click(within(sheet()).getByRole("radio", { name: method }));
@@ -149,7 +149,7 @@ describe("split sheet (HU-E9-06)", () => {
     await userEvent.click(within(sheet()).getByRole("radio", { name: "Montos" }));
     await userEvent.type(valueOf("Ana (tú)"), "100.000");
     await userEvent.type(valueOf("Juan"), "100.000");
-    expect(status()).toHaveTextContent("Falta asignar $ 100.000");
+    expect(status()).toHaveTextContent("Falta asignar 100.000 COP");
     expect(done()).toBeDisabled();
   });
 
@@ -239,11 +239,11 @@ describe("split sheet (HU-E9-06)", () => {
     );
     expect(within(sheet()).getByRole("radio", { name: "Según el plan" })).toBeChecked();
     expect(within(sheet()).getByRole("checkbox", { name: "Juan" })).toBeDisabled();
-    expect(shareOf("Ana (tú)")).toContain("$ 800.000");
-    expect(shareOf("Juan")).toContain("$ 1.200.000");
+    expect(shareOf("Ana (tú)")).toContain("800.000 COP");
+    expect(shareOf("Juan")).toContain("1.200.000 COP");
     await userEvent.click(within(sheet()).getByRole("radio", { name: "Iguales" }));
-    expect(shareOf("Ana (tú)")).toContain("$ 1.000.000");
-    expect(shareOf("Juan")).toContain("$ 1.000.000");
+    expect(shareOf("Ana (tú)")).toContain("1.000.000 COP");
+    expect(shareOf("Juan")).toContain("1.000.000 COP");
   });
 
   it("lists the plan's participants even when the draft remembers others", () => {
@@ -447,12 +447,12 @@ describe("the split sheet without who paid (ruling P324, S6, board Cómo se divi
     expect(within(split()).queryByRole("heading", { level: 3 })).not.toBeInTheDocument();
     const people = within(within(split()).getByRole("list", { name: "Para quién" })).getAllByRole("listitem");
     expect(people.map((row) => normalized(row.textContent))).toEqual([
-      "Ana (tú)$ 150.000",
-      "Juan$ 150.000",
+      "Ana (tú)150.000 COP",
+      "Juan150.000 COP",
       "Pedro (invitado)—",
     ]);
     expect(within(split()).getAllByRole("checkbox")).toHaveLength(3);
-    expect(within(split()).getByRole("status")).toHaveTextContent("Suma $ 300.000: cuadra con el gasto");
+    expect(within(split()).getByRole("status")).toHaveTextContent("Suma 300.000 COP: cuadra con el gasto");
     expect(within(split()).getByRole("button", { name: "Listo" })).toBeEnabled();
     expect(await axeViolations(document.body)).toEqual([]);
   });

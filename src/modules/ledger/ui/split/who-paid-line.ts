@@ -18,7 +18,7 @@ export interface WhoPaidLineInput {
 }
 
 /**
- * P333, board "Registrar: una fila": "Pagaste tú con Bancolombia · para Juan y Ana", "Pagó Juan · le debes $ 75.000",
+ * P333, board "Registrar: una fila": "Pagaste tú con Bancolombia · para Juan y Ana", "Pagó Juan · le debes 75.000 COP",
  * "Pagaste por Fondo Hogar con Bancolombia · para ti y Juan". Only the recorder's own expense says no "para".
  */
 export const useWhoPaidLine = () => {

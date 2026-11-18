@@ -125,7 +125,7 @@ function DayStepper({
   );
 }
 
-/** The amount as the form types it, from the API's minor units ("1200000" for $ 1.200.000). */
+/** The amount as the form types it, from the API's minor units ("1200000" for 1.200.000 COP). */
 const typedAmountOf = (recurrence: RecurrenceDto, formats: Formats) =>
   formatNumber(decimalOf(recurrence.amount.amount, currencyOf(recurrence.amount.currency).exponent), formats);
 
@@ -432,14 +432,14 @@ export function RecurrenceForm({
           </div>
         )}
         {/* Board 02: Monto and Descripción each labelled above their field, the amount as the large figure with its
-            symbol inside, with no example under it. The design system's own labelled fields draw both. */}
+            code after it (P342), with no example under it. The design system's own labelled fields draw both. */}
         <NumberField
           id="recurrence-amount"
           label={ledger("form.amount")}
           kind="money"
           numberFormat={formats.numberFormat}
           decimals={currencyOf(space.currency).exponent}
-          symbol={currencyOf(space.currency).symbol}
+          currency={space.currency}
           example={false}
           large
           value={draft.amount}

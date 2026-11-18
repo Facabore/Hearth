@@ -4,14 +4,11 @@ import { CategoryIcon } from "@/modules/categories/ui";
 import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
 import type { ActivityItemDto, MoneyDto } from "@/shared/ui/api/dto";
 import { formatDayMonthYear } from "@/shared/ui/format/day-month";
-import { formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { formatDirectedMoney, formatTimeAt, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
 import { withTx } from "../detail/tx-href";
 import { kindOf } from "../movement-kind";
-
-const signed = (sign: "+" | "-" | null, amount: string) =>
-  sign === "+" ? `+${amount}` : sign === "-" ? `${MINUS}${amount}` : amount;
 
 type Title =
   | {
@@ -108,7 +105,7 @@ export function ActivityRow({
   readonly card?: boolean;
   /**
    * Ruling P327 (board "Cuenta · Movimientos · #315"): on the person's account's own screen, what the account moved and
-   * which way, and the detail its line names after the space ("tu parte $ 32.000") in place of the row's own.
+   * which way, and the detail its line names after the space ("tu parte 32.000 COP") in place of the row's own.
    */
   readonly moved?: {
     readonly amount: MoneyDto;
@@ -170,7 +167,7 @@ export function ActivityRow({
       : "from" in named
         ? t(named.key, { from: named.from, to: named.to })
         : // Ruling P339 (S9): a payment says what it did between the two, by the API's context: it paid a debt, lent,
-          // or both past the debt ("Le pagaste $ 30.000 y le prestaste $ 20.000 a Juan"); without one, who paid whom.
+          // or both past the debt ("Le pagaste 30.000 COP y le prestaste 20.000 COP a Juan"); without one, who paid whom.
           t(named.key, {
             name: named.name,
             kind: context?.kind ?? "",
@@ -222,7 +219,7 @@ export function ActivityRow({
           </span>
         </span>
         <span className={`shrink-0 text-base font-semibold whitespace-nowrap ${tone}`}>
-          {signed(sign, money(moved?.amount ?? part.amount))}
+          {formatDirectedMoney(moved?.amount ?? part.amount, sign, formats)}
         </span>
       </Link>
     </li>

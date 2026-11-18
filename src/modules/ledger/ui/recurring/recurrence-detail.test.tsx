@@ -64,7 +64,11 @@ describe("a recurrence's detail (HU-E9-09, P270)", () => {
       within(next)
         .getAllByRole("listitem")
         .map((item) => normalized(item.textContent)),
-    ).toEqual(["1/12/2026−$ 1.200.000", "1/1/2027−$ 1.200.000", "1/2/2027−$ 1.200.000"]);
+    ).toEqual([
+      "1/12/2026−\u20601.200.000 COP",
+      "1/1/2027−\u20601.200.000 COP",
+      "1/2/2027−\u20601.200.000 COP",
+    ]);
     expect(normalized(document.body.textContent)).toContain("Sale deBancolombia");
     expect(normalized(document.body.textContent)).toContain("Cada mes, el día 1");
     expect(screen.getByRole("link", { name: "Editar Arriendo" })).toHaveAttribute(

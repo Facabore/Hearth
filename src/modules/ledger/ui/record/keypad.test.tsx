@@ -18,7 +18,7 @@ function Harness({ numberFormat, point }: { numberFormat: NumberFormat; point: b
       <AmountField
         value={value}
         onChange={setValue}
-        symbol="$"
+        currency="COP"
         numberFormat={numberFormat}
         exponent={exponent}
       />

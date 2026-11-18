@@ -150,7 +150,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
     await userEvent.click(person(sheet, "Juan"));
     expect(lineOf(sheet, "Tú")).toBe("No te toca nada");
     expect(lineOf(sheet, "Juan")).toBe("Te debe");
-    expect(person(sheet, "Juan").closest("li")).toHaveTextContent("$ 120.000");
+    expect(person(sheet, "Juan").closest("li")).toHaveTextContent("120.000 COP");
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     expect(whoRow()).toHaveTextContent("Pagaste tú con Bancolombia · para Juan");
     await save();
@@ -386,7 +386,7 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
     expect(lineOf(sheet, "Luis")).toBe("Solo entre tú y Juan");
     expect(await axeViolations(document.body)).toEqual([]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
-    expect(whoRow()).toHaveTextContent("Pagó Juan · le debes $ 60.000");
+    expect(whoRow()).toHaveTextContent("Pagó Juan · le debes 60.000 COP");
     await save();
     const body = await posted(requests);
     expect(body).toMatchObject({
@@ -406,7 +406,7 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
     await userEvent.click(person(sheet, "Juan"));
     expect(lineOf(sheet, "Juan")).toBe("No le toca nada");
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
-    expect(whoRow()).toHaveTextContent("Pagó Juan · le debes $ 120.000");
+    expect(whoRow()).toHaveTextContent("Pagó Juan · le debes 120.000 COP");
     await save();
     expect(await posted(requests)).toMatchObject({
       paidBy: "COUNTERPART",

@@ -458,7 +458,7 @@ describe("shared expense (HU-E9-06)", () => {
     expect(lineOf(/^Juan/)).toBe("Su parte");
     expect(await axeViolations(document.body)).toEqual([]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
-    expect(normalized(divisionRow().textContent)).toContain("Pagó Juan · le debes $ 150.000");
+    expect(normalized(divisionRow().textContent)).toContain("Pagó Juan · le debes 150.000 COP");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     expect((await requests.find((r) => r.method === "POST")!.json()).payments).toEqual([
       { memberId: "m-juan", accountId: null, amount: { amount: "30000000", currency: "COP" } },

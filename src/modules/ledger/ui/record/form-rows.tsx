@@ -14,14 +14,14 @@ export function RowError({ id, children }: { readonly id: string; readonly child
 
 /**
  * D29, boards 9 and 10: a secondary money field (the bank's converted base amount, or what arrives at a cross-currency
- * transfer's destination), in its own currency's symbol and decimals. It reuses the record route's own number input
+ * transfer's destination), in its own currency's decimals, its ISO code after what is typed (P342). It reuses the record route's own number input
  * props (`numberInputProps`, already loaded by the amount field), so it adds no new chunk to the route (ADR 0004).
  */
 export function MoneyField({
   id,
   label,
   hint,
-  symbol,
+  currency,
   numberFormat,
   exponent,
   value,
@@ -31,7 +31,7 @@ export function MoneyField({
   readonly id: string;
   readonly label: string;
   readonly hint?: string;
-  readonly symbol: string;
+  readonly currency: string;
   readonly numberFormat: NumberFormat;
   readonly exponent: number;
   readonly value: string;
@@ -45,24 +45,24 @@ export function MoneyField({
         {label}
       </label>
       <div className="relative">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-base text-muted"
-        >
-          {symbol}
-        </span>
         <input
           id={id}
           {...numberInputProps({ kind: "money", numberFormat, decimals: exponent }, { value, onChange })}
           aria-invalid={error ? true : undefined}
           aria-describedby={described || undefined}
-          style={{ paddingLeft: `calc(1.5rem + ${symbol.length}ch)` }}
+          style={{ paddingRight: `calc(1.5rem + ${currency.length}ch)` }}
           className={
             error
               ? "h-11 w-full rounded-xl border border-danger bg-surface px-3 text-base text-ink"
               : "h-11 w-full rounded-xl border border-field bg-surface px-3 text-base text-ink"
           }
         />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-base text-muted"
+        >
+          {currency}
+        </span>
       </div>
       {error ? (
         <p id={`${id}-error`} className="flex items-center gap-1.5 text-sm text-danger">

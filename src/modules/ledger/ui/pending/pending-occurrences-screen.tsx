@@ -152,7 +152,7 @@ function PendingCard({
 }) {
   const t = useTranslations("recurrences.pending");
   const { currency } = item.suggested;
-  const { symbol, exponent } = currencyOf(currency);
+  const { exponent } = currencyOf(currency);
   const [amount, setAmount] = useState(() =>
     formatNumber(decimalOf(item.suggested.amount, exponent), formats),
   );
@@ -209,14 +209,14 @@ function PendingCard({
       </p>
       {canAct ? (
         <>
-          {/* Board 07: the real amount as the figure the card is about, its symbol inside the field. */}
+          {/* Board 07: the real amount as the figure the card is about, its code after it (P342). */}
           <NumberField
             id={`pending-amount-${item.id}`}
             label={t("realAmount", { name: item.name })}
             kind="money"
             numberFormat={formats.numberFormat}
             decimals={exponent}
-            symbol={symbol}
+            currency={currency}
             example={false}
             large
             value={amount}

@@ -59,7 +59,7 @@ describe("Por confirmar (HU-E9-09, ruling P270)", () => {
     expect(screen.getByText("Hogar · 2 pendientes")).toBeInTheDocument();
     const text = normalized(card("Energía").textContent);
     expect(text).toContain("Pendiente desde el 10/12/2026");
-    expect(text).toContain("Sugerido: $ 180.000 · Ana · Bancolombia");
+    expect(text).toContain("Sugerido: 180.000 COP · Ana · Bancolombia");
     expect(text).toContain("Gasto");
     expect(within(card("Energía")).getByRole("textbox", { name: "Monto real de Energía" })).toHaveValue(
       "180.000",
@@ -74,17 +74,18 @@ describe("Por confirmar (HU-E9-09, ruling P270)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("draws board 07's real amount: one large field with its symbol inside, the difference under it", async () => {
+  it("draws board 07's real amount: one large field with its code after it (P342), the difference under it", async () => {
     show();
     const field = within(card("Energía")).getByRole("textbox", { name: "Monto real de Energía" });
-    // The symbol sits in the field's own box, at the figure's 24 px semibold, never a small separate prefix.
+    // The code sits in the field's own box after the figure, at its 24 px semibold, never a symbol before it.
     const box = field.parentElement!;
-    expect(box).toHaveTextContent("$");
-    expect(within(box).getByText("$")).toHaveClass("text-2xl", "font-semibold");
+    expect(box).toHaveTextContent("COP");
+    expect(box).not.toHaveTextContent("$");
+    expect(within(box).getByText("COP")).toHaveClass("text-2xl", "font-semibold");
     expect(field).toHaveClass("text-2xl", "font-semibold");
     await userEvent.clear(field);
     await userEvent.type(field, "205300");
-    expect(field).toHaveAccessibleDescription(/25\.300 más que lo sugerido$/);
+    expect(field).toHaveAccessibleDescription(/25\.300\sCOP más que lo sugerido$/);
   });
 
   it("says the difference from the suggestion in words, above and below it", async () => {
@@ -92,10 +93,10 @@ describe("Por confirmar (HU-E9-09, ruling P270)", () => {
     const field = within(card("Energía")).getByRole("textbox", { name: "Monto real de Energía" });
     await userEvent.clear(field);
     await userEvent.type(field, "205300");
-    expect(normalized(card("Energía").textContent)).toContain("$ 25.300 más que lo sugerido");
+    expect(normalized(card("Energía").textContent)).toContain("25.300 COP más que lo sugerido");
     await userEvent.clear(field);
     await userEvent.type(field, "170000");
-    expect(normalized(card("Energía").textContent)).toContain("$ 10.000 menos que lo sugerido");
+    expect(normalized(card("Energía").textContent)).toContain("10.000 COP menos que lo sugerido");
   });
 
   it("confirms Energía with 205.300 in minor units, toasts Gasto guardado with Ver, and takes the item away (S4)", async () => {
@@ -156,7 +157,7 @@ describe("Por confirmar (HU-E9-09, ruling P270)", () => {
         "Tu rol en Hogar es Lector: puedes ver lo que está por confirmar, pero no confirmarlo ni omitirlo.",
       ),
     ).toBeInTheDocument();
-    expect(normalized(card("Energía").textContent)).toContain("Sugerido: $ 180.000 · Ana · Bancolombia");
+    expect(normalized(card("Energía").textContent)).toContain("Sugerido: 180.000 COP · Ana · Bancolombia");
     expect(screen.queryByRole("button", { name: "Confirmar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Omitir" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();

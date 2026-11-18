@@ -213,9 +213,9 @@ describe("the recurrence form (HU-E9-09, P270)", () => {
   it("draws board 02: Monto and Descripción labelled above their fields, a check on the chosen type (S4)", () => {
     form({});
     const amount = screen.getByLabelText("Monto");
-    // One field with its symbol inside, as the large figure; no example line under it.
-    expect(amount.parentElement).toHaveTextContent("$");
-    expect(within(amount.parentElement!).getByText("$")).toHaveClass("text-2xl");
+    // One field with its code after the figure (P342), as the large figure; no example line under it.
+    expect(amount.parentElement).toHaveTextContent("COP");
+    expect(within(amount.parentElement!).getByText("COP")).toHaveClass("text-2xl");
     expect(amount).toHaveClass("text-2xl", "font-semibold");
     expect(screen.queryByText(/Ej:/)).toBeNull();
     expect(screen.getByText("Monto", { selector: "label" })).not.toHaveClass("sr-only");

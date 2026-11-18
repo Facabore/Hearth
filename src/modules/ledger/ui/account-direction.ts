@@ -2,7 +2,7 @@ import type { MoneyDto, TransactionDto } from "@/shared/ui/api/dto";
 
 /**
  * Ruling P327: the account whose own screen lists a row. The row's amount is then what that account moved, signed by
- * its direction: "−$ 64.000" when it paid or sent, "+$ 3.200.000" when it received.
+ * its direction: "−64.000 COP" when it paid or sent, "+3.200.000 COP" when it received.
  */
 export interface AccountView {
   readonly id: string;

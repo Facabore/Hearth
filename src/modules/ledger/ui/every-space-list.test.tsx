@@ -111,7 +111,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
   it("reads the period and the person's share on the summary line, and draws each day without a card (P324)", () => {
     renderWithIntl(everySpace());
     expect(norm(screen.getByRole("region", { name: list.totals }).parentElement!.textContent)).toBe(
-      "octubre 2026 · Tu parte $ 335.000 · Ingresos +$ 3.200.000",
+      "octubre 2026 · Tu parte 335.000 COP · Ingresos +3.200.000 COP",
     );
     for (const day of screen.getAllByRole("list")) {
       expect(day).toHaveClass("divide-y");
@@ -126,7 +126,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
     expect(within(row).getByText("Hogar")).toHaveAttribute("data-space-chip");
     // Ruling P324: the day is the list's label and the amount is her part, so the line reads "Hogar · tu parte".
-    expect(norm(row.textContent)).toBe("Mercado del mesHogar · tu parte−$ 90.000");
+    expect(norm(row.textContent)).toBe("Mercado del mesHogar · tu parte−\u206090.000 COP");
   });
 
   it("shows a personal movement as the personal list does, opening its sheet over the list", () => {
@@ -143,7 +143,7 @@ describe("the personal Movimientos across every space (ruling P319, #294)", () =
   it("reads the person's share and her income where the list's totals were", () => {
     renderWithIntl(everySpace());
     expect(norm(screen.getByRole("region", { name: list.totals }).textContent)).toBe(
-      "Tu parte $ 335.000 · Ingresos +$ 3.200.000",
+      "Tu parte 335.000 COP · Ingresos +3.200.000 COP",
     );
   });
 

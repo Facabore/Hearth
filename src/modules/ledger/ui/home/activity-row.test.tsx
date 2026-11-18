@@ -45,9 +45,9 @@ describe("another space's row (ruling P306, medium density P324)", () => {
     const { container } = renderRow(delivery);
     expect(lineOf("Domicilio")).toBe("Ayer · Hogar · tu parte");
     const text = norm(screen.getByRole("listitem").textContent);
-    expect(text).toBe("DomicilioAyer · Hogar · tu parte−$ 32.000");
+    expect(text).toBe("DomicilioAyer · Hogar · tu parte−\u206032.000 COP");
     // The figure is the amount alone; neither the total, what she paid nor who recorded it repeats it.
-    expect(text.match(/\$/g)).toHaveLength(1);
+    expect(text.match(/COP/g)).toHaveLength(1);
     expect(text).not.toContain("registr");
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -88,7 +88,7 @@ describe("another space's row (ruling P306, medium density P324)", () => {
       }),
     );
     expect(lineOf("Regalo")).toBe("10 nov · Hogar · pagaste tú");
-    expect(screen.getByText(/40\.000/)).toHaveTextContent("−$ 40.000");
+    expect(screen.getByText(/40\.000/)).toHaveTextContent("−\u206040.000 COP");
     renderRow(
       activityItemDto({
         transaction: transactionDto({
@@ -103,7 +103,7 @@ describe("another space's row (ruling P306, medium density P324)", () => {
     // Ruling P329: the API no longer lists a movement without her; one that still arrived says who recorded it.
     expect(lineOf("Gas")).toBe("10 nov · Hogar · Juan registró");
     // Unsigned: no money of hers moved, and the words say so, never the grey alone.
-    expect(screen.getByText(/45\.000/).textContent).toMatch(/^\$/);
+    expect(screen.getByText(/45\.000/).textContent).toMatch(/^45/);
   });
 
   it("names an older day as Movimientos' day label does: '10 nov', with the year outside today's (P324, P327)", () => {
@@ -214,7 +214,7 @@ describe("money handed between Ana and someone else says whether it paid or lent
     const sent = renderRow(payment("m-ana", 20_000, { kind: "LENT", paid: 0, lent: 20_000 }));
     expect(titleOf()).toBe("Le prestaste a Juan");
     expect(norm(screen.getByRole("listitem").textContent)).toBe(
-      "Le prestaste a Juan10 nov · Hogar · Saldo entre ustedes−$ 20.000",
+      "Le prestaste a Juan10 nov · Hogar · Saldo entre ustedes−\u206020.000 COP",
     );
     sent.unmount();
     renderRow(payment("m-juan", 20_000, { kind: "LENT", paid: 0, lent: 20_000 }));
@@ -223,12 +223,12 @@ describe("money handed between Ana and someone else says whether it paid or lent
 
   it("names both amounts, each on one line, when it went past the debt", () => {
     const sent = renderRow(payment("m-ana", 50_000, { kind: "PAID_AND_LENT", paid: 30_000, lent: 20_000 }));
-    expect(titleOf()).toBe("Le pagaste $ 30.000 y le prestaste $ 20.000 a Juan");
+    expect(titleOf()).toBe("Le pagaste 30.000 COP y le prestaste 20.000 COP a Juan");
     // AGENTS.md: an amount never breaks across lines, so a no-break space joins its symbol and digits.
-    expect(screen.getByRole("link").textContent).toContain("$ 30.000");
+    expect(screen.getByRole("link").textContent).toContain("30.000 COP");
     sent.unmount();
     renderRow(payment("m-juan", 50_000, { kind: "PAID_AND_LENT", paid: 30_000, lent: 20_000 }));
-    expect(titleOf()).toBe("Juan te pagó $ 30.000 y te prestó $ 20.000");
+    expect(titleOf()).toBe("Juan te pagó 30.000 COP y te prestó 20.000 COP");
   });
 
   it("keeps today's words without a context, and a description over any of them", () => {
@@ -253,6 +253,6 @@ describe("money handed between Ana and someone else says whether it paid or lent
       </ol>,
       { locale: "en" },
     );
-    expect(titleOf()).toBe("You paid Juan $ 30.000 and lent them $ 20.000");
+    expect(titleOf()).toBe("You paid Juan 30.000 COP and lent them 20.000 COP");
   });
 });

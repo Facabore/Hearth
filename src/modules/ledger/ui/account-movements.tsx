@@ -32,7 +32,7 @@ interface Common {
  * Ruling P327: the period's rows under their day labels, each opening as Movimientos opens it, then "Cargar más". Each
  * amount is what the account moved, signed by direction; a row of the space's own names the kind of movement and its
  * category ("Ingreso · Trabajo", "pagó el fondo · Mercado", "Transferencia entre tus cuentas"), and a row of another
- * space of the person names her part ("Hogar · tu parte $ 32.000").
+ * space of the person names her part ("Hogar · tu parte 32.000 COP").
  */
 function AccountDays({
   entries,
@@ -131,7 +131,7 @@ export function FundMovements({
 
 /**
  * Ruling P327 (board "Cuenta · Movimientos · #315"): what one of the person's accounts paid, received or moved in the
- * period across every space of hers (P319): a Hogar expense it paid reads "Hogar · tu parte $ 32.000".
+ * period across every space of hers (P319): a Hogar expense it paid reads "Hogar · tu parte 32.000 COP".
  */
 export function PersonalAccountMovements({
   period,

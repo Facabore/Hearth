@@ -31,7 +31,7 @@ interface PayerChoiceProps {
 export interface SplitSheetProps extends PayerChoiceProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  /** The expense in one line ("Mercado · $ 300.000 · Household"), shown under the sheet's title. */
+  /** The expense in one line ("Mercado · 300.000 COP · Household"), shown under the sheet's title. */
   readonly title: string;
   /** Minor units, or null while the expense has no amount. */
   readonly amount: string | null;

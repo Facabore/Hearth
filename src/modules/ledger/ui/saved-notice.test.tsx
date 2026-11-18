@@ -41,7 +41,7 @@ describe("saved with a warning (HU-E9-06, ruling P170)", () => {
     const notice = screen.getByRole("status");
     expect(notice).toHaveTextContent("Gasto guardado");
     expect(normalized(notice.textContent)).toContain(
-      "El saldo de Fondo Hogar quedó en −$ 500.000. Pueden hacer un aporte al fondo para cubrirlo.",
+      "El saldo de Fondo Hogar quedó en −\u2060500.000 COP. Pueden hacer un aporte al fondo para cubrirlo.",
     );
     expect(screen.getByRole("link", { name: "Cerrar aviso" })).toHaveAttribute(
       "href",
@@ -75,7 +75,7 @@ describe("saved with a warning (HU-E9-06, ruling P170)", () => {
     const notice = screen.getByRole("status");
     expect(notice).toHaveTextContent("Expense saved");
     expect(normalized(notice.textContent)).toContain("Household fund");
-    expect(normalized(notice.textContent)).toContain("−$ 500,000");
+    expect(normalized(notice.textContent)).toContain("−\u2060500,000 COP");
     expect(screen.getByRole("link", { name: "Dismiss notice" })).toBeInTheDocument();
   });
 });

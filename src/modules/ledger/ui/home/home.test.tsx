@@ -43,10 +43,10 @@ describe("home (HU-E9-01)", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Inicio" })).toBeInTheDocument();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
     expect(norm(summary.textContent)).toContain("Gastaste en octubre");
-    expect(norm(summary.textContent)).toContain("$ 245.000");
-    expect(norm(summary.textContent)).toContain("+$ 3.200.000");
+    expect(norm(summary.textContent)).toContain("245.000 COP");
+    expect(norm(summary.textContent)).toContain("+3.200.000 COP");
     expect(norm(screen.getByRole("region", { name: "Cuentas" }).textContent)).toContain(
-      "Bancolombia$ 4.455.000",
+      "Bancolombia4.455.000 COP",
     );
     expect(within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem")).toHaveLength(
       3,
@@ -78,7 +78,7 @@ describe("home (HU-E9-01)", () => {
     expect(hero).not.toHaveClass("rounded-2xl");
     expect(hero.parentElement).not.toHaveClass("bg-surface");
     expect(container.querySelectorAll("[data-hero-amount]")).toHaveLength(1);
-    expect(norm(hero.querySelector("[data-hero-amount]")!.textContent)).toBe("$ 245.000");
+    expect(norm(hero.querySelector("[data-hero-amount]")!.textContent)).toBe("245.000 COP");
     // Nothing on Inicio sits in a card: the hero, the accounts and Recientes are on the page.
     expect(container.querySelector(".rounded-2xl.bg-surface")).toBeNull();
   });
@@ -104,7 +104,7 @@ describe("home (HU-E9-01)", () => {
       within(list)
         .getAllByRole("listitem")
         .map((row) => norm(row.textContent)),
-    ).toEqual(["Bancolombia$ 4.455.000", "Visa−$ 120.000"]);
+    ).toEqual(["Bancolombia4.455.000 COP", "Visa−\u2060120.000 COP"]);
     expect(list).toHaveClass("divide-y");
     expect(list).not.toHaveClass("overflow-x-auto");
     for (const row of within(list).getAllByRole("listitem")) expect(row).toHaveClass("min-h-row");
@@ -313,7 +313,7 @@ describe("the personal space shows everything (ruling P306)", () => {
     const { container } = home();
     const summary = screen.getByRole("region", { name: "Resumen del período" });
     expect(norm(summary.textContent)).toBe(
-      "Gastaste en octubre$ 725.000Incluye tu parte en 2 espacios. Solo tú $ 245.000 · con otros $ 480.000",
+      "Gastaste en octubre725.000 COPIncluye tu parte en 2 espacios. Solo tú 245.000 COP · con otros 480.000 COP",
     );
     expect(summary).not.toHaveClass("bg-surface");
     expect(within(summary).queryByRole("button")).toBeNull();
@@ -337,7 +337,9 @@ describe("the personal space shows everything (ruling P306)", () => {
       />,
     );
     const line = screen.getByRole("link", { name: /^Incluye tu parte en Hogar\./ });
-    expect(norm(line.textContent)).toBe("Incluye tu parte en Hogar. Solo tú $ 245.000 · con otros $ 480.000");
+    expect(norm(line.textContent)).toBe(
+      "Incluye tu parte en Hogar. Solo tú 245.000 COP · con otros 480.000 COP",
+    );
     expect(line).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
     expect(line).toHaveClass("min-h-11");
   });
@@ -353,7 +355,7 @@ describe("the personal space shows everything (ruling P306)", () => {
       />,
     );
     expect(screen.queryByText(/Incluye tu parte/)).toBeNull();
-    expect(norm(screen.getByText(/^Ingresos/).textContent)).toBe("Ingresos +$ 3.200.000");
+    expect(norm(screen.getByText(/^Ingresos/).textContent)).toBe("Ingresos +3.200.000 COP");
     // Mi consumo stays one tap away even in a month she shared nothing (verifier B2).
     expect(screen.getByRole("link", { name: /^Ingresos/ })).toHaveAttribute(
       "href",
@@ -372,7 +374,7 @@ describe("the personal space shows everything (ruling P306)", () => {
       { locale: "en" },
     );
     expect(norm(screen.getByRole("region", { name: "Period summary" }).textContent)).toBe(
-      "Spent in October$ 725.000Includes your part in 2 spaces. Just you $ 245.000 · with others $ 480.000",
+      "Spent in October725.000 COPIncludes your part in 2 spaces. Just you 245.000 COP · with others 480.000 COP",
     );
   });
 
@@ -381,14 +383,16 @@ describe("the personal space shows everything (ruling P306)", () => {
     const rows = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem");
     expect(rows).toHaveLength(4);
     // Board "Inicio personal": "Ayer · Hogar · tu parte"; the amount is her part, so the line repeats no figure.
-    expect(norm(rowOf("Mercado del mes").textContent)).toBe("Mercado del mesHoy · Hogar · tu parte−$ 90.000");
+    expect(norm(rowOf("Mercado del mes").textContent)).toBe(
+      "Mercado del mesHoy · Hogar · tu parte−\u206090.000 COP",
+    );
     expect(within(rowOf("Mercado del mes")).getByRole("link")).toHaveAttribute(
       "href",
       "/spaces/sp-hogar?tx=t-hogar",
     );
-    expect(norm(rowOf("Hotel").textContent)).toBe("HotelAyer · Viaje Cartagena · tu parte−$ 70.000");
+    expect(norm(rowOf("Hotel").textContent)).toBe("HotelAyer · Viaje Cartagena · tu parte−\u206070.000 COP");
     expect(norm(rowOf("te pagó").textContent)).toBe(
-      "Juan te pagó29 oct · Hogar · Saldo entre ustedes+$ 50.000",
+      "Juan te pagó29 oct · Hogar · Saldo entre ustedes+50.000 COP",
     );
     // Her own row is the one Inicio always drew, opening on her personal home.
     expect(within(rowOf("Salary")).getByRole("link")).toHaveAttribute(
@@ -435,20 +439,22 @@ describe("the personal space shows everything (ruling P306)", () => {
       .getAllByRole("listitem")
       .map((row) => norm(row.textContent));
     expect(rows).toEqual([
-      "Le perdonaste la deuda a Juan29 oct · Hogar · No se movió dinero$ 10.000",
-      "Luis te perdonó la deuda29 oct · Hogar · No se movió dinero$ 10.000",
-      "Se lo regalaste a Juan29 oct · Hogar · No se movió dinero$ 10.000",
-      "Luis te lo regaló29 oct · Hogar · No se movió dinero$ 10.000",
-      "Luis le perdonó la deuda a Juan29 oct · Hogar · No se movió dinero$ 10.000",
+      "Le perdonaste la deuda a Juan29 oct · Hogar · No se movió dinero10.000 COP",
+      "Luis te perdonó la deuda29 oct · Hogar · No se movió dinero10.000 COP",
+      "Se lo regalaste a Juan29 oct · Hogar · No se movió dinero10.000 COP",
+      "Luis te lo regaló29 oct · Hogar · No se movió dinero10.000 COP",
+      "Luis le perdonó la deuda a Juan29 oct · Hogar · No se movió dinero10.000 COP",
     ]);
     const first = within(screen.getByRole("region", { name: "Recientes" })).getAllByRole("listitem")[0]!;
-    const amount = [...first.querySelectorAll("span")].find((span) => norm(span.textContent) === "$ 10.000");
+    const amount = [...first.querySelectorAll("span")].find(
+      (span) => norm(span.textContent) === "10.000 COP",
+    );
     expect(amount).toHaveClass("text-muted");
   });
 
   it("ends the personal Inicio with its plan as one line, after Recientes, never in the hero (P324)", () => {
     // Inicio's route fills the slot with the plan's line (`PlanCard`).
-    home({ plan: <a href="/spaces/sp-personal/plan">Tu plan de octubre · Te quedan $ 1 de $ 2</a> });
+    home({ plan: <a href="/spaces/sp-personal/plan">Tu plan de octubre · Te quedan 1 COP de 2 COP</a> });
     const plan = screen.getByRole("link", { name: /^Tu plan de octubre/ });
     expect(screen.getByRole("region", { name: "Recientes" }).compareDocumentPosition(plan)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -693,10 +699,10 @@ describe("a shared space's Inicio (P324)", () => {
 
   it("says the space spent it, and shows the plan line under the hero", () => {
     // Inicio's route fills the slot with the plan's hero line (`PlanCard`, variant "hero").
-    shared({ plan: <a href="/spaces/sp-hogar/plan">de $ 4.000.000 del plan</a> });
+    shared({ plan: <a href="/spaces/sp-hogar/plan">de 4.000.000 COP del plan</a> });
     const hero = screen.getByRole("region", { name: "Resumen del período" });
     expect(hero).toHaveTextContent(/^Hogar gastó en octubre/);
-    expect(within(hero).getByRole("link", { name: "de $ 4.000.000 del plan" })).toHaveAttribute(
+    expect(within(hero).getByRole("link", { name: "de 4.000.000 COP del plan" })).toHaveAttribute(
       "href",
       "/spaces/sp-hogar/plan",
     );
@@ -708,7 +714,7 @@ describe("a shared space's Inicio (P324)", () => {
   it("says its income under the hero while it has no plan", () => {
     shared();
     const hero = screen.getByRole("region", { name: "Resumen del período" });
-    expect(norm(within(hero).getByText(/^Ingresos/).textContent)).toBe("Ingresos +$ 3.200.000");
+    expect(norm(within(hero).getByText(/^Ingresos/).textContent)).toBe("Ingresos +3.200.000 COP");
   });
 
   it("speaks English in the English catalog", () => {
@@ -868,7 +874,7 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
   it("says it is the person's turn to put money in a shared space, and Saldar opens Saldos' settle sheet", async () => {
     const { container } = renderWithIntl(home({ needs: needs({ owes: [owe] }) }));
     const card = await screen.findByRole("region", { name: "Te necesita hoy" });
-    expect(norm(card.textContent)).toContain("Te toca poner $ 120.000 a Juan");
+    expect(norm(card.textContent)).toContain("Te toca poner 120.000 COP a Juan");
     expect(card).toHaveTextContent("En Household");
     const settle = within(card).getByRole("link", { name: "Saldar con Juan en Household" });
     expect(settle).toHaveTextContent("Saldar");
@@ -907,7 +913,7 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
       date: "2026-10-31",
       amount: cop(180_000),
     };
-    it("reads 'Juan te debe $ 947.000 · Saldar' on Hogar's own Inicio, naming the figure once (P324)", async () => {
+    it("reads 'Juan te debe 947.000 COP · Saldar' on Hogar's own Inicio, naming the figure once (P324)", async () => {
       renderWithIntl(
         needs({
           here: true,
@@ -915,7 +921,7 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
         }),
       );
       const card = await screen.findByRole("region", { name: "Te necesita hoy" });
-      expect(norm(within(card).getByRole("listitem").textContent)).toBe("Juan te debe $ 947.000Saldar");
+      expect(norm(within(card).getByRole("listitem").textContent)).toBe("Juan te debe 947.000 COPSaldar");
       expect(within(card).getByRole("link", { name: "Saldar con Juan en Hogar" })).toHaveAttribute(
         "href",
         "/spaces/sp-household/balances",
@@ -931,7 +937,7 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
       const { container } = renderWithIntl(home({ needs: needs({ owes: [owe], pending: [energy], owed }) }));
       const card = await screen.findByRole("region", { name: "Te necesita hoy" });
       expect(within(card).getAllByRole("listitem")).toHaveLength(1);
-      expect(norm(within(card).getByRole("listitem").textContent)).toContain("Te toca poner $ 120.000");
+      expect(norm(within(card).getByRole("listitem").textContent)).toContain("Te toca poner 120.000 COP");
       expect(within(card).queryByRole("link", { name: "Revisar Energía en Household" })).toBeNull();
       const more = within(card).getByRole("button", { name: "2 más" });
       expect(more).toHaveAttribute("aria-expanded", "false");
@@ -945,11 +951,11 @@ describe("Inicio's turn to put money in and its eye (board B1 · 03, ruling P278
         .getAllByRole("listitem")
         .map((row) => norm(row.textContent));
       expect(rows).toHaveLength(3);
-      expect(rows[0]).toContain("Te toca poner $ 120.000");
+      expect(rows[0]).toContain("Te toca poner 120.000 COP");
       expect(rows[1]).toContain("Energía por confirmar");
-      expect(rows[1]).toContain("Household · hoy · sugerido $ 180.000");
-      expect(rows[2]).toContain("Te deben $ 341.400");
-      expect(rows[2]).toContain("Household $ 311.400 · Ana & Mateo $ 30.000");
+      expect(rows[1]).toContain("Household · hoy · sugerido 180.000 COP");
+      expect(rows[2]).toContain("Te deben 341.400 COP");
+      expect(rows[2]).toContain("Household 311.400 COP · Ana & Mateo 30.000 COP");
       expect(within(card).getByRole("link", { name: "Revisar Energía en Household" })).toHaveAttribute(
         "href",
         "/spaces/sp-household/pending-occurrences",

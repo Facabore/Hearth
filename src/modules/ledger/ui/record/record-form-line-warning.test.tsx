@@ -98,7 +98,9 @@ describe("the record form warns about a line past 80 % and asks only over the pl
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     const { container } = form(api, watch);
     await typeExpense("85000");
-    expect(noteText()).toBe("Con este gasto, Home quedaría en 94 % de lo planeado y le quedarían $ 85.000.");
+    expect(noteText()).toBe(
+      "Con este gasto, Home quedaría en 94 % de lo planeado y le quedarían 85.000 COP.",
+    );
     expect(document.getElementById("record-line-warning")).toHaveAttribute("data-level", "HIGH");
     expect(await axeViolations(container)).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: SAVE }));
@@ -106,7 +108,7 @@ describe("the record form warns about a line past 80 % and asks only over the pl
     expect(screen.queryByRole("heading", { name: CONFIRM_TITLE })).toBeNull();
     await waitFor(() =>
       expect(normalized(screen.getByRole("status").textContent)).toContain(
-        "Gasto guardado. Home quedó en 94 % de lo planeado y le quedan $ 85.000.",
+        "Gasto guardado. Home quedó en 94 % de lo planeado y le quedan 85.000 COP.",
       ),
     );
   });
@@ -140,7 +142,7 @@ describe("the record form warns about a line past 80 % and asks only over the pl
     await typeExpense("212300");
     await userEvent.click(screen.getByRole("button", { name: SAVE }));
     const panel = normalized(screen.getByRole("region", { name: CONFIRM_TITLE }).textContent);
-    expect(panel).toContain("Con este gasto te pasarías por $ 42.300 en Home.");
+    expect(panel).toContain("Con este gasto te pasarías por 42.300 COP en Home.");
     // Ruling P244: an overage is an amount in words, never a percentage above 100 %.
     expect(panel).not.toMatch(/%/);
     await userEvent.click(screen.getByRole("button", { name: "Revisar el monto" }));

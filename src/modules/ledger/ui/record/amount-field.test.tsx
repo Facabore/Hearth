@@ -28,7 +28,7 @@ function Harness({
         setValue(next);
         onValue?.(next);
       }}
-      symbol="$"
+      currency="COP"
       numberFormat={numberFormat}
       exponent={exponent}
     />
@@ -45,6 +45,14 @@ describe("amount field groups the digits while typing (U3)", () => {
     expect(values).toEqual(["6", "60", "600", "6.000"]);
     expect(parseDecimal(field().value, "DOT_COMMA")).toBe("6000");
     expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("writes the currency's code after the figure, as every amount reads it (P342, board 4)", () => {
+    renderWithIntl(<Harness />);
+    const code = screen.getByText("COP");
+    expect(code).toHaveAttribute("aria-hidden", "true");
+    expect(field().nextElementSibling).toBe(code);
+    expect(screen.queryByText("$")).toBeNull();
   });
 
   it("follows the format: commas for COMMA_DOT, a space for SPACE_COMMA", async () => {

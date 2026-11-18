@@ -1,4 +1,4 @@
-import { formatMoney, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { formatDirectedMoney, type Formats } from "@/shared/ui/format/formatters";
 import type { RecurrenceDto, Schedule } from "./recurrence-request";
 
 /** Names the rows read by: account and member ids to their names; a name the viewer cannot read is left out. */
@@ -14,14 +14,12 @@ type Translate = (
 ) => string;
 
 /** The amount with its direction: an expense goes out (−), an income comes in (+); a transfer or contribution moves. */
-export const signedAmountOf = (recurrence: Pick<RecurrenceDto, "type" | "amount">, formats: Formats) => {
-  const money = formatMoney(recurrence.amount, formats);
-  return recurrence.type === "EXPENSE"
-    ? `${MINUS}${money}`
-    : recurrence.type === "INCOME"
-      ? `+${money}`
-      : money;
-};
+export const signedAmountOf = (recurrence: Pick<RecurrenceDto, "type" | "amount">, formats: Formats) =>
+  formatDirectedMoney(
+    recurrence.amount,
+    recurrence.type === "EXPENSE" ? "-" : recurrence.type === "INCOME" ? "+" : null,
+    formats,
+  );
 
 /** "Cada mes, el día 1", "Dos veces al mes, los días 15 y 30". */
 export const scheduleText = (schedule: Schedule, t: Translate) =>

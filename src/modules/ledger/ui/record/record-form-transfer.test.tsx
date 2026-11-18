@@ -124,9 +124,9 @@ describe("Transferencia to or from someone (P334)", () => {
     expect(screen.getByRole("button", { name: /Desde Bancolombia/ })).toHaveTextContent("Tu cuenta");
     expect(screen.queryByRole("button", { name: /Hacia/ })).not.toBeInTheDocument();
     const space = screen.getByRole("button", { name: /En Ana & Juan/ });
-    await waitFor(() => expect(space).toHaveTextContent("Espacio · ahí le debías $ 100.000"));
+    await waitFor(() => expect(space).toHaveTextContent("Espacio · ahí le debías 100.000 COP"));
     const card = screen.getByRole("status");
-    expect(card).toHaveTextContent("Saldas tu deuda de $ 100.000 y Juan queda debiéndote $ 50.000.");
+    expect(card).toHaveTextContent("Saldas tu deuda de 100.000 COP y Juan queda debiéndote 50.000 COP.");
     expect(card).toHaveTextContent("Solo en el espacio Ana & Juan.");
     expect(await axeViolations(container)).toEqual([]);
     await save();
@@ -154,7 +154,7 @@ describe("Transferencia to or from someone (P334)", () => {
     expect(screen.getByRole("button", { name: /Hacia Bancolombia/ })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Juan abona $ 50.000 a su deuda contigo; aún te debe $ 50.000.",
+        "Juan abona 50.000 COP a su deuda contigo; aún te debe 50.000 COP.",
       ),
     );
     await save();
@@ -186,7 +186,7 @@ describe("Transferencia to or from someone (P334)", () => {
     await userEvent.click(await screen.findByRole("radio", { name: "Luis" }));
     const space = screen.getByRole("button", { name: /En Tu espacio con Luis/ });
     expect(space).toHaveTextContent("Espacio · ahí no se debían nada");
-    expect(screen.getByRole("status")).toHaveTextContent("Luis queda debiéndote $ 150.000.");
+    expect(screen.getByRole("status")).toHaveTextContent("Luis queda debiéndote 150.000 COP.");
     await save();
     await waitFor(() => expect(requests.some((r) => r.method === "POST")).toBe(true));
     const request = requests.find((r) => r.method === "POST")!;
@@ -244,13 +244,13 @@ describe("the effect card follows the person, not only the space (P334)", () => 
     await userEvent.click(mode("A alguien"));
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Saldas tu deuda de $ 100.000 y Juan queda debiéndote $ 50.000.",
+        "Saldas tu deuda de 100.000 COP y Juan queda debiéndote 50.000 COP.",
       ),
     );
     await userEvent.click(screen.getByRole("button", { name: /A Juan/ }));
     await userEvent.click(await screen.findByRole("radio", { name: "Luis" }));
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Luis queda debiéndote $ 150.000."),
+      expect(screen.getByRole("status")).toHaveTextContent("Luis queda debiéndote 150.000 COP."),
     );
     expect(screen.getByRole("status")).not.toHaveTextContent("100.000");
   });

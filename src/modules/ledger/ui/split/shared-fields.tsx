@@ -27,7 +27,7 @@ export interface SharedFieldsProps {
   readonly amount: string | null;
   readonly currency: string;
   readonly formats: Formats;
-  /** The expense in one line ("Mercado · $ 300.000 · Household"), shown under the sheets' titles. */
+  /** The expense in one line ("Mercado · 300.000 COP · Household"), shown under the sheets' titles. */
   readonly title: string;
   readonly spaceId: string;
   readonly categoryId: string | null;

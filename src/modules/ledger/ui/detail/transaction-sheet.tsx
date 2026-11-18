@@ -10,7 +10,7 @@ import { Button, Icon, ProblemNotice, Sheet } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
-import { formatDate, formatMoney, formatTimeAt, MINUS } from "@/shared/ui/format/formatters";
+import { formatDate, formatDirectedMoney, formatMoney, formatTimeAt } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import type { RowContext } from "../transaction-row";
@@ -137,11 +137,10 @@ export function TransactionSheet({
     return id && owner ? t("detail.payerAccount", { name: owner.displayName }) : "";
   };
 
-  const money = formatMoney(tx.amount, formats);
   // Design Q4: a balance adjustment carries its direction's sign, as an expense and an income do (never color alone).
   const out = tx.type === "EXPENSE" || (tx.type === "ADJUSTMENT" && tx.destinationAccountId === null);
   const into = tx.type === "INCOME" || (tx.type === "ADJUSTMENT" && tx.destinationAccountId !== null);
-  const signed = out ? `${MINUS}${money}` : into ? `+${money}` : money;
+  const signed = formatDirectedMoney(tx.amount, out ? "-" : into ? "+" : null, formats);
   const time =
     tx.occurredAt && tx.timeZone
       ? [
@@ -157,7 +156,7 @@ export function TransactionSheet({
   const addAccount = (term: string, value: string) => {
     if (value) accounts.push([term, value]);
   };
-  // D29, slice MC3 (boards 9 and 10): a leg in its own currency is shown beside its account ("Chase · US$ 100").
+  // D29, slice MC3 (boards 9 and 10): a leg in its own currency is shown beside its account ("Chase · 100 USD").
   const withLeg = (value: string, leg: TransactionDto["sourceAmount"]) =>
     value && leg ? `${value} · ${formatMoney(leg, formats)}` : value;
   if (tx.type === "EXPENSE")

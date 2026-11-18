@@ -4,7 +4,7 @@ import { categoryPath, CategoryIcon, findCategory } from "@/modules/categories/u
 import { Icon, paletteVars, SymbolIcon } from "@/shared/ui";
 import type { CategoryGroupDto, MoneyDto, TransactionDto } from "@/shared/ui/api/dto";
 import { formatDayMonthYear } from "@/shared/ui/format/day-month";
-import { formatMoney, formatTimeAt, MINUS, type Formats } from "@/shared/ui/format/formatters";
+import { formatDirectedMoney, formatMoney, formatTimeAt, type Formats } from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { relativeDay } from "@/shared/ui/time/when";
 import { kindOf } from "./movement-kind";
@@ -53,7 +53,7 @@ export function TransactionRow({
   readonly today?: string;
   /**
    * Ruling P284 (board E9-09 00), amended by P324: a row of Movimientos, under its day's label. Its line names the time,
-   * who paid or the account, and the viewer's share ("pagaste tú · tu parte $ 32.000"); an income shows in green beside
+   * who paid or the account, and the viewer's share ("pagaste tú · tu parte 32.000 COP"); an income shows in green beside
    * its plus sign. It is the same flat row as Inicio's (board "Inicio de Hogar"), whose line names the day and who paid.
    */
   readonly card?: boolean;
@@ -135,9 +135,8 @@ export function TransactionRow({
       shareText = t("yourShare", { share: formatMoney(share.amount, formats) });
   }
   const kind = kindOf(tx);
-  const money = formatMoney(moved?.amount ?? tx.amount, formats);
   const sign = moved?.sign ?? signOf(tx);
-  const amount = sign === "-" ? `${MINUS}${money}` : sign === "+" ? `+${money}` : money;
+  const amount = formatDirectedMoney(moved?.amount ?? tx.amount, sign, formats);
   const icon = found ? (
     <CategoryIcon icon={found.category.icon} color={found.category.color} size={36} />
   ) : (
