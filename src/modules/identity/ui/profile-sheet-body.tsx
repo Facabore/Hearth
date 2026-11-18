@@ -36,6 +36,13 @@ export function ProfileSheetBody({
   const t = useTranslations("shell.profile");
   const router = useRouter();
   const [shared, setShared] = useState<"copied" | "copyFailed" | null>(null);
+  const [wasOpen, setWasOpen] = useState(open);
+  // The body stays mounted while closed, so each opening starts from Compartir, not from the last copy's answer.
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setShared(null);
+  }
+  const handle = me.handle;
   const api = useMemo(() => injected ?? browserApi(), [injected]);
   const signOut = async () => {
     // Ruling P149: the sign-in screen reads the visitor cookie, so it keeps the language the person had.
@@ -80,15 +87,13 @@ export function ProfileSheetBody({
       leading={<Avatar name={me.name} size={48} tone="dark" />}
     >
       <p className="mb-4 text-sm [overflow-wrap:anywhere] text-muted">{me.email}</p>
-      {me.handle ? (
+      {handle ? (
         // Board "Perfil · tu @ para compartir · P343": who the person is, to share or to change.
         <div className="mb-3 flex flex-col gap-1 rounded-[14px] bg-accent-soft px-4 py-3.5">
-          <p className="font-semibold [overflow-wrap:anywhere] text-accent">
-            {t("you", { handle: me.handle })}
-          </p>
+          <p className="font-semibold [overflow-wrap:anywhere] text-accent">{t("you", { handle })}</p>
           <p className="text-sm text-ink">{t("handleNote")}</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Button size="compact" className="px-4" onClick={() => void share(me.handle!)}>
+            <Button size="compact" className="px-4" onClick={() => void share(handle)}>
               {shared === "copied" ? (
                 <>
                   <Icon name="check" size={18} />

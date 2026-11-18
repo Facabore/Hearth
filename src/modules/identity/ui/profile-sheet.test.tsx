@@ -1,6 +1,6 @@
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import { fakeApi } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
@@ -112,6 +112,9 @@ describe("profile sheet (HU-E9-01)", () => {
 });
 
 describe("profile sheet: the person's @ (ruling P343)", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "clipboard");
+  });
   const me = { name: "Ana", email: "ana@example.com", locale: "es" as const, handle: "ana_4821" };
   const open = async () => {
     renderWithIntl(<ProfileSheet me={me} spaceId="sp-personal" api={fakeApi({}).api} />);
@@ -151,6 +154,30 @@ describe("profile sheet: the person's @ (ruling P343)", () => {
     await userEvent.click(within(sheet).getByRole("button", { name: "Compartir" }));
     expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/f/ana_4821`);
     expect(await within(sheet).findByRole("button", { name: "Enlace copiado" })).toBeInTheDocument();
+  });
+
+  it("opens again with Compartir, not with the last copy's answer", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn(async () => undefined) },
+      configurable: true,
+    });
+    const sheet = await open();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Compartir" }));
+    await within(sheet).findByRole("button", { name: "Enlace copiado" });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
+    const again = await screen.findByRole("dialog", { name: "Ana" });
+    expect(within(again).getByRole("button", { name: "Compartir" })).toBeInTheDocument();
+  });
+
+  it("shows no @ card while the @ is not known", async () => {
+    renderWithIntl(
+      <ProfileSheet me={{ ...me, handle: undefined }} spaceId="sp-personal" api={fakeApi({}).api} />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
+    const sheet = await screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
+    expect(within(sheet).queryByText(/Tú eres/)).not.toBeInTheDocument();
   });
 
   it("says when the link could not be copied", async () => {
