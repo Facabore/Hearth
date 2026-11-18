@@ -1213,13 +1213,17 @@ describe("Registrar's reads do not grow with the person's friends (#338)", () =>
   it("reads nothing again when the person comes back to the tab right after a visit (ADR 0006 amendment)", async () => {
     const spa = await open(13);
     const before = spa.requests.length;
-    act(() => {
-      focusManager.setFocused(false);
-      focusManager.setFocused(true);
-    });
-    await settled(spa);
-    expect(spa.requests.slice(before).map((r) => r.url)).toEqual([]);
-    act(() => focusManager.setFocused(undefined));
+    try {
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      await settled(spa);
+      expect(spa.requests.slice(before).map((r) => r.url)).toEqual([]);
+    } finally {
+      // The focus state is global: the tests after this one see the browser's own again, whatever happened here.
+      act(() => focusManager.setFocused(undefined));
+    }
   });
 
   it("costs as many requests with 13 friends as with one", async () => {
