@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { isErr, type Result } from "@/shared/kernel";
 import type { SourceSnapshot } from "../domain/source-snapshot";
 import { MAX_IMPORT_BYTES, MoneyManagerAdapter } from "./money-manager-adapter";
+import { moneyManagerIosBackup } from "../../../../tests/support/money-manager-ios-backup";
 import { MONEY_MANAGER_TABLES } from "../../../../tests/support/money-manager-real-schema";
 
 type MovementRow = [
@@ -774,5 +775,128 @@ describe("Money Manager's real tables (owner's import of 2026-11-16)", () => {
     ]);
     expect(snapshot.movements.map((movement) => movement.amount.currency.code)).toEqual(["COP"]);
     expect(snapshot.settings.mainCurrency).toBe("COP");
+  });
+});
+
+describe("Money Manager for iOS (owner's iPhone backup of 2026-11-18)", () => {
+  // The iPhone app keeps the same data in Core Data's tables (ZASSET, ZINOUTCOME, …): the file was refused as
+  // ImportFileNotRecognized, since only the Android tables were looked for.
+  let snapshot: SourceSnapshot;
+
+  beforeAll(() => {
+    snapshot = readOk(moneyManagerIosBackup());
+  });
+
+  it("detects and reads an iOS backup instead of refusing it as not recognized", () => {
+    const bytes = moneyManagerIosBackup();
+    expect(new MoneyManagerAdapter().detect({ bytes })).toBe(true);
+    expect(errorCode(new MoneyManagerAdapter().read({ bytes }))).toBeNull();
+    expect(snapshot.sourceApp).toBe("money-manager");
+  });
+
+  it("reads accounts in Money Manager's order, with their group's type, currency, card days and flags", () => {
+    expect(
+      snapshot.accounts.map(({ sourceId, name, type, currency, order, loan }) => ({
+        sourceId,
+        name,
+        type,
+        currency,
+        order,
+        loan,
+      })),
+    ).toEqual([
+      { sourceId: "1", name: "Efectivo", type: "CASH", currency: "COP", order: 0, loan: false },
+      { sourceId: "2", name: "Banco", type: "BANK", currency: "COP", order: 1, loan: false },
+      { sourceId: "3", name: "Visa", type: "CREDIT_CARD", currency: "COP", order: 2, loan: false },
+      { sourceId: "9D2E-ana", name: "Ana", type: "OTHER", currency: "COP", order: 3, loan: true },
+    ]);
+    expect(snapshot.accounts.find((a) => a.sourceId === "3")).toMatchObject({
+      cutOffDay: 15,
+      paymentDay: 5,
+      hidden: true,
+    });
+    expect(snapshot.accounts.find((a) => a.sourceId === "2")).toMatchObject({
+      memo: "cuenta nómina",
+      hidden: false,
+      excludedFromTotals: false,
+    });
+  });
+
+  it("leaves out an account Money Manager deleted", () => {
+    expect(snapshot.accounts.find((a) => a.sourceId === "4")).toBeUndefined();
+  });
+
+  it("reads categories with their kind, emoji and parent, and skips a deleted one nothing uses", () => {
+    expect(snapshot.categories.find((c) => c.sourceId === "6")).toMatchObject({
+      name: "Comida",
+      icon: "🍔",
+      kind: "EXPENSE",
+      parentSourceId: null,
+    });
+    expect(snapshot.categories.find((c) => c.sourceId === "18")).toMatchObject({
+      name: "Mercado",
+      parentSourceId: "6",
+    });
+    expect(snapshot.categories.find((c) => c.sourceId === "1")!.kind).toBe("INCOME");
+    expect(snapshot.categories.find((c) => c.sourceId === "10")).toBeUndefined();
+    expect(snapshot.skipped.deletedCategories).toBe(1);
+  });
+
+  it("reads a movement's float amount into minor units, its local date, and its instant from Core Data's 2001 epoch", () => {
+    const expense = snapshot.movements.find((m) => m.sourceKey === "E1")!;
+    expect(expense).toMatchObject({
+      kind: "EXPENSE",
+      accountSourceId: "2",
+      categorySourceId: "18",
+      note: "Almuerzo #trabajo",
+    });
+    expect(expense.amount.currency.code).toBe("COP");
+    expect(expense.amount.minor).toBe(1550000n); // 15_500 COP
+    expect(expense.date.toString()).toBe("2025-01-10");
+    expect(expense.occurredAt?.toISOString()).toBe("2025-01-10T17:30:00.000Z");
+
+    const income = snapshot.movements.find((m) => m.sourceKey === "I1")!;
+    expect(income).toMatchObject({ kind: "INCOME", note: "Salario · enero" });
+    expect(income.amount.minor).toBe(300000000n);
+  });
+
+  it("keeps a foreign-currency expense in the account currency with its original amount", () => {
+    const foreign = snapshot.movements.find((m) => m.sourceKey === "F1")!;
+    expect(foreign.amount.currency.code).toBe("COP");
+    expect(foreign.amount.minor).toBe(5000000n); // 50_000 COP from ZAMOUNTACCOUNT
+    expect(foreign.originalAmount!.currency.code).toBe("USD");
+    expect(foreign.originalAmount!.minor).toBe(1250n); // 12.50 USD from ZAMOUNT
+  });
+
+  it("pairs the two transfer rows into one movement and skips deleted rows", () => {
+    const transfers = snapshot.movements.filter((m) => m.kind === "TRANSFER");
+    expect(transfers).toHaveLength(1);
+    expect(transfers[0]).toMatchObject({ sourceKey: "T1", accountSourceId: "2", toAccountSourceId: "1" });
+    expect(transfers[0]!.amount.minor).toBe(20000000n);
+    expect(snapshot.movements.find((m) => m.sourceKey === "D1")).toBeUndefined();
+    expect(snapshot.movements).toHaveLength(4);
+  });
+
+  it("lists budgets and the main currency; a backup without a start day suggests none", () => {
+    expect(snapshot.budgets).toEqual([{ sourceId: "B1", categorySourceId: "6" }]);
+    expect(snapshot.settings).toEqual({ startDay: null, mainCurrency: "COP" });
+  });
+
+  it("reads the start day from ZETC's own key column", () => {
+    const withStartDay = readOk(
+      moneyManagerIosBackup("INSERT INTO ZETC (ZDATAYTYPEKEY, ZDATA) VALUES ('start_day', '15');"),
+    );
+    expect(withStartDay.settings.startDay).toBe(15);
+  });
+
+  it("refuses an iOS backup whose tables are views, so a crafted query cannot run unbounded", () => {
+    const db = new DatabaseSync(":memory:");
+    db.exec(`
+      CREATE TABLE ZASSETGROUP (ZUID TEXT); CREATE TABLE ZASSET (ZUID TEXT);
+      CREATE TABLE ZINOUTCOME_DATA (ZUID TEXT); CREATE VIEW ZINOUTCOME AS SELECT ZUID FROM ZINOUTCOME_DATA;
+    `);
+    const bytes = db.serialize();
+    db.close();
+    expect(errorCode(new MoneyManagerAdapter().read({ bytes }))).toBe("ImportFileNotRecognized");
   });
 });

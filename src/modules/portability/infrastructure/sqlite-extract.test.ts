@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { isErr } from "@/shared/kernel";
 import { moneyManagerBackup } from "../../../../tests/support/money-manager-backup";
+import { moneyManagerIosBackup } from "../../../../tests/support/money-manager-ios-backup";
 import { MONEY_MANAGER_READ, MoneyManagerAdapter } from "./money-manager-adapter";
 import { extractInWorker, extractTables, liveWorkers } from "./sqlite-extract";
 import { createWorkerSnapshotReader } from "./worker-snapshot-reader";
@@ -28,6 +29,13 @@ describe("the SQLite reads in a worker (design §3.5)", () => {
     const direct = new MoneyManagerAdapter().read({ bytes: backup });
     expect(await createWorkerSnapshotReader().read(backup)).toEqual(direct);
     expect(isErr(direct)).toBe(false);
+  });
+
+  it("builds the same snapshot as the adapter's own read for an iOS backup", async () => {
+    const ios = moneyManagerIosBackup();
+    const direct = new MoneyManagerAdapter().read({ bytes: ios });
+    expect(isErr(direct)).toBe(false);
+    expect(await createWorkerSnapshotReader().read(ios)).toEqual(direct);
   });
 
   it("refuses the same files the same way: a view where a table belongs, and unreadable bytes", async () => {

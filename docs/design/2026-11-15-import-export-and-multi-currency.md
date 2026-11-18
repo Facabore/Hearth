@@ -26,7 +26,7 @@ The way in is Más's "Importar y exportar" tile, which reads "Próximamente" tod
 
 ## 1. What the Money Manager file holds
 
-Money Manager (Realbyte, Android) backs up to one SQLite file (`.mmbak`, or the `.sqlite` inside it). The sample was a real export of about 1,300 movements over 18 months, 31 accounts and 2 currencies. It was read locally and read-only; no row of it is in this repository.
+Money Manager (Realbyte, Android) backs up to one SQLite file (`.mmbak`, or the `.sqlite` inside it). The sample was a real export of about 1,300 movements over 18 months, 31 accounts and 2 currencies. It was read locally and read-only; no row of it is in this repository. Sections 1.1 and 1.2 describe the Android file; the iPhone app's differs in its names only (1.3).
 
 ### 1.1 Tables
 
@@ -70,6 +70,25 @@ Every table also has `isSynced`, `syncTime` and `syncVersion` (Realbyte's own sy
 | `MARK`, `lat`, `lng`, `gstd`, `SMS_*`, `paid`, `wtime` | Bookmarks, location, SMS origin; unused |
 
 **Foreign-currency rule.** The account's amount is `AMOUNT_ACCOUNT` in the account's currency, and the entered amount is `IN_ZMONEY` in `currencyUid`. The sample has all three cases: an expense entered in USD on a COP account, one entered in COP on a USD account, and a COP → USD transfer, whose out row carries the COP amount and whose in row carries the USD amount.
+
+### 1.3 The iPhone backup (2026-11-18)
+
+The iPhone app's `.mmbak` is also a plain SQLite file, but Core Data's: every table and column carries a `Z` prefix and the names differ (`ZASSET`, `ZASSETGROUP`, `ZINOUTCOME`, `ZCURRENCY`, `ZTAG`, `ZTXTAG`, `ZBUDGET`; `ZCATEGORY` and `ZETC` keep their names with other columns). The owner's iPhone backup (about 2,200 movements over two years, read locally and read-only) was refused as `ImportFileNotRecognized`, since only the Android tables were looked for. The reader now tries the Android tables, then the iPhone ones (`MONEY_MANAGER_LAYOUTS`), and reads the iPhone columns under their Android names, so one mapping (section 2) serves both. What differs:
+
+| Android | iPhone | Note |
+|---|---|---|
+| `ASSETGROUP.TYPE` | `ZASSETGROUP.ZSTATUS` | Same codes (1 Accounts … 11 Cash); the default groups' `ZUID` are those numbers, a group the person added has a UUID |
+| `ASSETS` (no delete column) | `ZASSET`, with `ZISDEL` | A deleted account is left out; its movements come out as `MovementWithoutAccount` |
+| `ASSETS.ZDATA1`, `ZDATA`, `ZDATA2` | `ZMEMO`, `ZZDATA`, `ZZDATA2` | Memo, then the hidden and excluded flags (unverified on both) |
+| `INOUTCOME.WDATE` | `ZINOUTCOME.ZTXDATESTR` | Local date `YYYY-MM-DD` |
+| `ZDATE`, epoch milliseconds | `ZDATE`, seconds since 2001-01-01 UTC (Core Data) | Turned into the same instant |
+| `IN_ZMONEY`, a decimal string | `ZAMOUNT`, a float | Read as `AMOUNT_ACCOUNT` is: its shortest decimal, rounded half to even by the kernel (D29) |
+| `AMOUNT_ACCOUNT` | `ZAMOUNTACCOUNT` | A float in both |
+| `ZCONTENT`, `ZDATA` | `ZCONTENT`, `ZMEMO` | The note |
+| `ZCATEGORY.TYPE`, `STATUS`, `C_IS_DEL`, `ORDERSEQ` | `ZDOTYPE`, `ZSTATUS`, `ZISDEL`, `ZORDER` | Same codes |
+| `ZETC.dataTypeKey` | `ZETC.ZDATAYTYPEKEY` | The sample has no `start_day`, so no period policy is suggested |
+
+In the sample, 51 transfers go from an account to the same account (the out row in a "Préstamo" category). They read as any transfer, and the ledger refuses them at confirm as `SameAccountTransfer` row errors, as it would for an Android backup.
 
 ## 2. How it maps onto Hearth
 

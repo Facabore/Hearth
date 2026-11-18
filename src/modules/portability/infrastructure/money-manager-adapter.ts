@@ -67,8 +67,57 @@ export const MONEY_MANAGER_READ: ExtractSpec = {
   queries: QUERIES,
 };
 
-/** The same check with no query, for `detect`. */
-const RECOGNIZE_ONLY: ExtractSpec = { ...MONEY_MANAGER_READ, queries: {} };
+/** The iPhone app's tables: Core Data's, each name and column prefixed with `Z`. */
+const IOS_READ_TABLES = [
+  "ZCURRENCY",
+  "ZASSETGROUP",
+  "ZASSET",
+  "ZCATEGORY",
+  "ZINOUTCOME",
+  "ZTAG",
+  "ZTXTAG",
+  "ZBUDGET",
+  "ZETC",
+];
+
+/**
+ * The same reads on the iPhone app's backup, each column renamed to the Android name `build` reads, so one mapping
+ * serves both; only `ZDATE` and the entered amount differ in their units (`BackupLayout`). A group's type is its
+ * `ZSTATUS` (1 Accounts … 11 Cash, as Android's `TYPE`): the default groups' uids are those same numbers, a group the
+ * person added has a UUID. A deleted account (`ZISDEL`, a column Android does not have) is left out, so its movements
+ * come out as MovementWithoutAccount.
+ */
+const IOS_QUERIES: Readonly<Record<keyof typeof QUERIES, string>> = {
+  currency:
+    "SELECT ZUID AS uid, ZISO AS ISO, ZMAINISO AS MAIN_ISO, ZISMAINCURRENCY AS IS_MAIN_CURRENCY FROM ZCURRENCY",
+  assetGroups:
+    "SELECT ZUID AS uid, ZASSETGROUPNAME AS ACC_GROUP_NAME, ZSTATUS AS TYPE, ZORDER AS ORDERSEQ, ZISDEL AS IS_DEL " +
+    "FROM ZASSETGROUP",
+  assets:
+    "SELECT ZUID AS uid, ZNICNAME AS NIC_NAME, ZGROUPUID AS groupUid, ZCURRENCYUID AS currencyUid, " +
+    "ZORDER AS ORDERSEQ, ZCARD_DAYFIN AS CARD_DAY_FIN, ZCARD_DAYPAY AS CARD_DAY_PAY, ZMEMO AS ZDATA1, " +
+    "ZZDATA AS ZDATA, ZZDATA2 AS ZDATA2 FROM ZASSET WHERE ZISDEL IS NULL OR ZISDEL = 0",
+  tag: "SELECT ZUID AS uid, ZNAME AS NAME FROM ZTAG",
+  txTag: "SELECT ZTXUID AS txUid, ZTAGUID AS tagUid FROM ZTXTAG",
+  movements:
+    "SELECT ZUID AS uid, ZDO_TYPE AS DO_TYPE, ZTXDATESTR AS WDATE, ZDATE, ZASSETUID AS assetUid, " +
+    "ZTOASSETUID AS toAssetUid, ZCATEGORYUID AS ctgUid, ZCURRENCYUID AS currencyUid, ZAMOUNT AS IN_ZMONEY, " +
+    "ZAMOUNTACCOUNT AS AMOUNT_ACCOUNT, ZTXUIDTRANS AS txUidTrans, ZCONTENT, ZMEMO AS ZDATA, ZISDEL AS IS_DEL " +
+    "FROM ZINOUTCOME",
+  categories:
+    "SELECT ZUID AS uid, ZNAME AS NAME, ZDOTYPE AS TYPE, ZPUID AS pUid, ZSTATUS AS STATUS, ZISDEL AS C_IS_DEL, " +
+    "ZORDER AS ORDERSEQ FROM ZCATEGORY",
+  budgets: "SELECT ZUID AS uid, ZTARGETUID AS targetUid FROM ZBUDGET",
+  // The iPhone app spells the key column ZDATAYTYPEKEY.
+  startDay: "SELECT ZDATA FROM ZETC WHERE ZDATAYTYPEKEY = 'start_day'",
+};
+
+/** The iPhone app's backup: its three core tables exist, and nothing the reader queries is a view. */
+export const MONEY_MANAGER_IOS_READ: ExtractSpec = {
+  required: ["ZASSETGROUP", "ZASSET", "ZINOUTCOME"],
+  guarded: IOS_READ_TABLES,
+  queries: IOS_QUERIES,
+};
 
 const startsWith = (bytes: Uint8Array, prefix: Uint8Array): boolean =>
   bytes.length >= prefix.length && prefix.every((byte, index) => bytes[index] === byte);
@@ -84,6 +133,36 @@ const trimmed = (value: unknown): string | null => {
   return text === "" ? null : text;
 };
 const isSet = (value: unknown): value is string => trimmed(value) !== null && trimmed(value) !== "0";
+
+/** Core Data counts seconds from 2001-01-01T00:00:00Z. */
+const APPLE_EPOCH_SECONDS = 978_307_200;
+
+/** How one Money Manager app lays out its backup: what to read, and the two fields whose units differ. */
+export interface BackupLayout {
+  readonly spec: ExtractSpec;
+  /** A movement's `ZDATE` as epoch milliseconds. */
+  readonly epochMs: (zdate: number) => number;
+  /** The amount as entered (`IN_ZMONEY`): a decimal string on Android, a float on iOS. */
+  readonly entered: (value: unknown, currency: string) => Result<Money>;
+}
+
+const ANDROID_LAYOUT: BackupLayout = {
+  spec: MONEY_MANAGER_READ,
+  epochMs: (zdate) => zdate,
+  entered: (value, currency) => moneyFromDecimal(str(value), currency),
+};
+
+const IOS_LAYOUT: BackupLayout = {
+  spec: MONEY_MANAGER_IOS_READ,
+  epochMs: (zdate) => (zdate + APPLE_EPOCH_SECONDS) * 1000,
+  entered: (value, currency) => moneyFromFloat(floatField(value), currency),
+};
+
+/** Every layout the reader knows, in the order tried; the first whose tables the file has is read. */
+export const MONEY_MANAGER_LAYOUTS: readonly BackupLayout[] = [ANDROID_LAYOUT, IOS_LAYOUT];
+
+/** A layout's recognition check with no query, for `detect`. */
+const recognizeOnly = (layout: BackupLayout): ExtractSpec => ({ ...layout.spec, queries: {} });
 
 /** A note carries at most this many tags per movement; more are left out with a TagsTruncated warning. */
 const MAX_TAGS_PER_MOVEMENT = 10;
@@ -105,19 +184,27 @@ const rowIssue = (sourceKey: string, error: DomainError): SourceIssue =>
  * (design §1-2). The upload is untrusted (§3.5): at most `MAX_IMPORT_BYTES`, then read by `extractTables` (an
  * in-memory `node:sqlite` database, never a file on disk, with extensions off, the defensive flag on and an authorizer
  * that only lets it read), here or in a worker with a time limit (`fromExtracted`). A `.mmbak` that is a zip is
- * reported as not yet supported (`ZipBackupNotSupported`); only the raw `.sqlite` is read for now.
+ * reported as not yet supported (`ZipBackupNotSupported`); only the raw `.sqlite` is read for now. The Android and
+ * the iPhone app keep the same data in differently named tables (`MONEY_MANAGER_LAYOUTS`).
  */
 export class MoneyManagerAdapter implements SourceAdapter {
   readonly sourceApp = "money-manager";
 
   detect(file: SourceFile): boolean {
-    return !isErr(this.checkUpload(file.bytes)) && extractTables(file.bytes, RECOGNIZE_ONLY).kind === "rows";
+    return (
+      !isErr(this.checkUpload(file.bytes)) &&
+      MONEY_MANAGER_LAYOUTS.some((layout) => extractTables(file.bytes, recognizeOnly(layout)).kind === "rows")
+    );
   }
 
   read(file: SourceFile): Result<SourceSnapshot> {
     const checked = this.checkUpload(file.bytes);
     if (isErr(checked)) return checked;
-    return this.fromExtracted(extractTables(file.bytes, MONEY_MANAGER_READ));
+    for (const layout of MONEY_MANAGER_LAYOUTS) {
+      const extracted = extractTables(file.bytes, layout.spec);
+      if (extracted.kind !== "notRecognized") return this.fromExtracted(extracted, layout);
+    }
+    return this.fromExtracted({ kind: "notRecognized" });
   }
 
   /** Size, then zip, then the SQLite header, all before any parsing. */
@@ -135,8 +222,8 @@ export class MoneyManagerAdapter implements SourceAdapter {
     return ok(undefined);
   }
 
-  /** The snapshot from `MONEY_MANAGER_READ`'s rows, wherever they were read; a time-out is `ImportTimedOut`. */
-  fromExtracted(extracted: Extracted): Result<SourceSnapshot> {
+  /** The snapshot from a layout's rows, wherever they were read; a time-out is `ImportTimedOut`. */
+  fromExtracted(extracted: Extracted, layout: BackupLayout = ANDROID_LAYOUT): Result<SourceSnapshot> {
     switch (extracted.kind) {
       case "notRecognized":
         return err(domainError("ImportFileNotRecognized", { app: this.sourceApp }));
@@ -146,14 +233,14 @@ export class MoneyManagerAdapter implements SourceAdapter {
         return err(domainError("ImportTimedOut", { app: this.sourceApp }));
       case "rows":
         try {
-          return this.build(extracted.rows as TableRows);
+          return this.build(extracted.rows as TableRows, layout);
         } catch (cause) {
           return err(domainError("UnreadableBackup", { app: this.sourceApp, reason: String(cause) }));
         }
     }
   }
 
-  private build(rows: TableRows): Result<SourceSnapshot> {
+  private build(rows: TableRows, layout: BackupLayout): Result<SourceSnapshot> {
     // Money Manager's currency ids are text (`COP_COP`, `COP_USD`): read as numbers they would all collapse into one.
     const currencyByUid = new Map<string, string>();
     let mainCurrency: string | null = null;
@@ -205,6 +292,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
       accountInfo,
       tagsByMovement,
       currencyByUid,
+      layout,
     );
 
     // P337: Money Manager's own order, its groups' order first and each account's within its group.
@@ -294,6 +382,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     accountInfo: Map<string, { currency: string }>,
     tagsByMovement: Map<string, string[]>,
     currencyByUid: Map<string, string>,
+    layout: BackupLayout,
   ): {
     movements: SourceMovement[];
     zeroAmountMovements: number;
@@ -312,11 +401,11 @@ export class MoneyManagerAdapter implements SourceAdapter {
     const transfers = new Map<string, { sourceKey: string; out?: Row; in?: Row }>();
     let zeroAmountMovements = 0;
 
-    // ZDATE is epoch milliseconds; one out of Date's range keeps the movement, untimed, with a warning.
+    // ZDATE is an instant in the layout's units; one out of Date's range keeps the movement, untimed, with a warning.
     const instantOf = (row: Row, sourceKey: string): Date | null => {
-      const ms = num(row.ZDATE);
-      if (!(ms > 0)) return null;
-      const instant = new Date(ms);
+      const zdate = num(row.ZDATE);
+      if (!(zdate > 0)) return null;
+      const instant = new Date(layout.epochMs(zdate));
       if (Number.isNaN(instant.getTime())) {
         warnings.push({ code: "InvalidInstant", sourceKey });
         return null;
@@ -332,7 +421,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
     const accountAmount = (row: Row, accountCurrency: string): Result<Money> => {
       const entered = currencyByUid.get(str(row.currencyUid).trim());
       return entered === accountCurrency
-        ? moneyFromDecimal(str(row.IN_ZMONEY), accountCurrency)
+        ? layout.entered(row.IN_ZMONEY, accountCurrency)
         : moneyFromFloat(floatField(row.AMOUNT_ACCOUNT), accountCurrency);
     };
 
@@ -377,7 +466,7 @@ export class MoneyManagerAdapter implements SourceAdapter {
       const entered = currencyByUid.get(str(row.currencyUid).trim());
       let originalAmount: Money | null = null;
       if (entered !== undefined && entered !== account.currency) {
-        const original = moneyFromDecimal(str(row.IN_ZMONEY), entered);
+        const original = layout.entered(row.IN_ZMONEY, entered);
         if (isErr(original)) {
           errors.push(rowIssue(uid, original.error));
           continue;
