@@ -36,9 +36,8 @@ const Formats = z.object({
 export const ProfileResponseSchema = MeResponseSchema.extend({
   handle: z
     .string()
-    .optional()
     .describe(
-      "P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none.",
+      "P339: the person's @usuario, in lower case and without the @. P343: always sent; a new account gets a random one it can change.",
     ),
   preferences: z.object({
     stored: z.object({
@@ -88,7 +87,10 @@ export const UpdateMeBodySchema = z.object({
   weekStart: WeekStart.nullable().optional(),
   /** D29 (MC4): the person's display currency as an ISO 4217 code; null returns to their personal space's currency. */
   displayCurrency: z.string().length(3).nullable().optional(),
-  /** P339: the person's @usuario (3–20 of a–z, 0–9 and _, a leading @ and upper case accepted); null clears it. */
+  /**
+   * P339: the person's @usuario (3–20 of a–z, 0–9 and _, a leading @ and upper case accepted). P343: a handle is never
+   * cleared; null is still accepted here and refused by the use case as InvalidHandle.
+   */
   handle: z.string().max(64).nullable().optional(),
   /**
    * P342: the person's whole list of favorite currencies, in their order (at most 20, ISO 4217 codes, any case); a
@@ -100,13 +102,13 @@ export const UpdateMeBodySchema = z.object({
 /**
  * HU-E1-15: the profile as `GET` and `PATCH /api/v1/me` answer it. D29 (MC4): `displayCurrency` is sent only once the
  * person chose one, so a client that never asked for it receives exactly what it received before (additive only); so is
- * P339's `handle`, and P342's `favoriteCurrencies`.
+ * P342's `favoriteCurrencies`. P343: P339's `handle` is always sent, since everyone always has one.
  */
 export const meDto = (view: ProfileView) => {
   const { displayCurrency, favoriteCurrencies, ...preferences } = view.preferences;
   return {
     ...view.user,
-    ...(view.handle === null ? {} : { handle: view.handle }),
+    handle: view.handle,
     preferences: {
       ...preferences,
       ...(displayCurrency === null ? {} : { displayCurrency }),

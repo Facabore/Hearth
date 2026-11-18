@@ -42,13 +42,13 @@ describe("finding someone by their @ (P339, S3)", () => {
 
 describe("the handle through the profile (P339, S2)", () => {
   const world = (taken: string[] = []) => {
-    const saved: (string | null)[] = [];
+    const saved: string[] = [];
     const writes: ProfileChange[] = [];
     const update = createUpdateProfile({
       profiles: { saveProfile: async (_userId, fields) => void writes.push(fields) },
       handles: {
         setHandle: async (_userId, handle) => {
-          if (handle !== null && taken.includes(handle)) return "taken";
+          if (taken.includes(handle)) return "taken";
           saved.push(handle);
           return "saved";
         },
@@ -58,11 +58,13 @@ describe("the handle through the profile (P339, S2)", () => {
     return { update, saved, writes };
   };
 
-  it("stores the handle in lower case, without the @, and null clears it", async () => {
+  it("stores the handle in lower case, without the @, and never clears it (P343)", async () => {
     const { update, saved } = world();
     expect((await update({ user: ana, handle: " @Ana_2 " })).ok).toBe(true);
-    expect((await update({ user: ana, handle: null })).ok).toBe(true);
-    expect(saved).toEqual(["ana_2", null]);
+    expect(await update({ user: ana, handle: null })).toEqual(
+      err(domainError("InvalidHandle", { length: 0 })),
+    );
+    expect(saved).toEqual(["ana_2"]);
   });
 
   it("refuses an invalid handle and one someone else holds, and writes nothing else", async () => {

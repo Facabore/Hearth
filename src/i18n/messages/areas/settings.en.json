@@ -56,7 +56,7 @@
     },
     "handle": {
       "label": "Your @username",
-      "hint": "This is how people find you to add you to Friends: only by your exact @. Leave it empty and nobody finds you."
+      "hint": "This is how people find you to add you to Friends: only by your exact @."
     },
     "favoriteCurrencies": {
       "hint": "They come first when you pick a currency. Each space's own currency is always the default.",

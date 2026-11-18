@@ -42,7 +42,17 @@ const world = (
       if (fields.favoriteCurrencies !== undefined) favorites.set(userId, fields.favoriteCurrencies);
     },
   };
-  const handles = { handleOf: async () => null, setHandle: async () => "saved" as const };
+  // Ruling P343: every user has a handle (a random one until they change it); `handleWrites` records every change.
+  const handleOf = new Map<string, string>([[ana.id, "ana_4821"]]);
+  const handleWrites: [string, string][] = [];
+  const handles = {
+    handleOf: async (userId: string) => handleOf.get(userId) ?? `u_${userId.replace(/[^a-z0-9]/g, "")}`,
+    setHandle: async (userId: string, handle: string) => {
+      handleWrites.push([userId, handle]);
+      handleOf.set(userId, handle);
+      return "saved" as const;
+    },
+  };
   let current = rules;
   const reader = { rules: async () => current };
   const getProfile = createGetProfile({
@@ -53,6 +63,8 @@ const world = (
   });
   return {
     writes,
+    handleWrites,
+    profileOf: async (user: AuthUser = ana) => unwrap(await getProfile({ user })),
     /** Replaces the installation's locks, as HU-E8-18 will when an administrator locks or lifts a field. */
     lock: (locked: readonly LockableField[]) => {
       current = { ...current, locked };
@@ -250,5 +262,29 @@ describe("formatting preferences (HU-E1-15)", () => {
     lock([]);
     const lifted = await preferencesOf();
     expect([lifted.stored.dateFormat, lifted.effective.dateFormat]).toEqual(["MDY", "MDY"]);
+  });
+});
+
+describe("the @usuario on the profile (P339, P343)", () => {
+  it("is always there, as stored", async () => {
+    const { profileOf } = world();
+    expect((await profileOf()).handle).toBe("ana_4821");
+  });
+
+  it("changes to a valid one, read in lower case and without the @", async () => {
+    const { handleWrites, update, profileOf } = world();
+    expect(codeOf(await update({ user: ana, handle: "@Ana_B" }))).toBe("ok");
+    expect(handleWrites).toEqual([[ana.id, "ana_b"]]);
+    expect((await profileOf()).handle).toBe("ana_b");
+  });
+
+  it("refuses to clear it with InvalidHandle, and writes nothing", async () => {
+    const { writes, handleWrites, update, profileOf } = world();
+    expect(codeOf(await update({ user: ana, handle: null, timezone: "Europe/Madrid" }))).toBe(
+      "InvalidHandle",
+    );
+    expect(handleWrites).toEqual([]);
+    expect(writes).toEqual([]);
+    expect((await profileOf()).handle).toBe("ana_4821");
   });
 });

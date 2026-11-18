@@ -28,13 +28,14 @@ const RULES = {
   weekStart: "MONDAY",
 } as const;
 
-/** Ana, signed in, following every installation rule. */
+/** Ana, signed in, following every installation rule, with the handle sign-up gave her (P343). */
 export const meDto = (overrides: Partial<MeDto> = {}): MeDto => ({
   id: "u-ana",
   name: "Ana",
   email: "ana@example.com",
   locale: "es",
   timezone: "America/Bogota",
+  handle: "ana_4821",
   preferences: {
     stored: { numberFormat: null, timeFormat: null, dateFormat: null, weekStart: null },
     effective: { ...RULES },

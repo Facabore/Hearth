@@ -100,7 +100,7 @@ const friends = async () => {
 };
 
 describe("@usuario: a unique handle on the profile (P339, S2)", () => {
-  it("sets, shows, changes and clears the handle; upper case is stored in lower case", async () => {
+  it("sets, shows and changes the handle; upper case is stored in lower case", async () => {
     const ana = await registerUser("Ana");
     const handle = freshHandle("ana");
     const set = await setHandle(ana, `@${handle.toUpperCase()}`);
@@ -110,16 +110,24 @@ describe("@usuario: a unique handle on the profile (P339, S2)", () => {
     expect(await me.json()).toMatchObject({ handle });
     const other = freshHandle("anita");
     expect(await (await setHandle(ana, other)).json()).toMatchObject({ handle: other });
-    const cleared = await setHandle(ana, null);
-    expect(cleared.status).toBe(200);
-    expect(await cleared.json()).not.toHaveProperty("handle");
     // The old handle is free again.
-    expect(await problemOf(await lookup(await registerUser("Eva"), other))).toEqual([404, "UserNotFound"]);
+    expect(await problemOf(await lookup(await registerUser("Eva"), handle))).toEqual([404, "UserNotFound"]);
   });
 
-  it("a person without a handle reads a profile without one (additive only)", async () => {
-    const ana = await registerUser("Ana");
-    expect(await (await call(getMe, "GET", "/api/v1/me", { user: ana })).json()).not.toHaveProperty("handle");
+  it("refuses to clear the handle with InvalidHandle, and keeps it (P343)", async () => {
+    const ana = await person("Ana");
+    expect(await problemOf(await setHandle(ana, null))).toEqual([422, "InvalidHandle"]);
+    expect(await (await call(getMe, "GET", "/api/v1/me", { user: ana })).json()).toMatchObject({
+      handle: ana.handle,
+    });
+  });
+
+  it("gives a new person a handle made of their name, which others find (P343)", async () => {
+    const jose = await registerUser("José Ñúñez", `jose-${randomUUID()}@example.com`);
+    const me = (await (await call(getMe, "GET", "/api/v1/me", { user: jose })).json()) as { handle: string };
+    expect(me.handle).toMatch(/^josenunez_[0-9]{4}$/);
+    const found = await lookup(await registerUser("Eva"), me.handle);
+    expect(await found.json()).toStrictEqual({ handle: me.handle, displayName: "José Ñúñez" });
   });
 
   it("refuses a handle someone else holds, whatever its case, and keeps the person's own", async () => {

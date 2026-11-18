@@ -113,8 +113,8 @@
                       "description": "The person's own IANA time zone."
                     },
                     "handle": {
-                      "description": "P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none.",
-                      "type": "string"
+                      "type": "string",
+                      "description": "P339: the person's @usuario, in lower case and without the @. P343: always sent; a new account gets a random one it can change."
                     },
                     "preferences": {
                       "type": "object",
@@ -331,6 +331,7 @@
                     "email",
                     "locale",
                     "timezone",
+                    "handle",
                     "preferences"
                   ],
                   "additionalProperties": false
@@ -502,8 +503,8 @@
                       "description": "The person's own IANA time zone."
                     },
                     "handle": {
-                      "description": "P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none.",
-                      "type": "string"
+                      "type": "string",
+                      "description": "P339: the person's @usuario, in lower case and without the @. P343: always sent; a new account gets a random one it can change."
                     },
                     "preferences": {
                       "type": "object",
@@ -720,6 +721,7 @@
                     "email",
                     "locale",
                     "timezone",
+                    "handle",
                     "preferences"
                   ],
                   "additionalProperties": false

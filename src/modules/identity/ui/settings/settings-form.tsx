@@ -119,7 +119,7 @@ export function SettingsForm({
     void send("favoriteCurrencies", next, { favoriteCurrencies: [...list] } as MePatch);
   };
   // P339: the @ is not shown ahead of the API, which normalizes it and may refuse it: what was typed stays until then.
-  const sendHandle = (handle: string | null) => void send("handle", current, { handle });
+  const sendHandle = (handle: string) => void send("handle", current, { handle });
 
   return (
     <div className="flex flex-col gap-3">

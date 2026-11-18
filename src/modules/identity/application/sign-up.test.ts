@@ -25,15 +25,20 @@ const provider = (overrides: Partial<AuthProvider> = {}): AuthProvider => ({
 });
 
 const input = { name: "Ana", email: "a@b.co", password: "x" };
-/** HU-E1-14: the zone port and the deployment default; existing tests sign up without a zone or a language. */
-const zones = () => ({
+/**
+ * HU-E1-14: the zone port and the deployment default; existing tests sign up without a zone or a language. Ruling
+ * P343: every handle is free, and the digits are always 4821.
+ */
+const defaults = () => ({
   profiles: { setTimeZone: vi.fn(async () => undefined), saveProfile: vi.fn(async () => undefined) },
   defaultTimeZone: "America/Bogota",
+  handles: { setHandle: vi.fn(async () => "saved" as const) },
+  digits: { next: () => "4821" },
 });
 /** Ruling P143: an open installation; its gate is never consulted. */
 const openGate = (): SignUpGate => ({ mode: "open", admits: vi.fn(async () => false) });
 const createSignUp = (deps: Pick<SignUpDeps, "auth" | "provisionUser">) =>
-  createSignUpWith({ ...zones(), signUpGate: openGate(), ...deps });
+  createSignUpWith({ ...defaults(), signUpGate: openGate(), ...deps });
 
 describe("normalizeEmail", () => {
   it("trims and lowercases", () => {
@@ -124,7 +129,7 @@ describe("SignUp time zone (HU-E1-14)", () => {
     defaultTimeZone = "America/New_York",
   ) =>
     createSignUpWith({
-      ...zones(),
+      ...defaults(),
       signUpGate: openGate(),
       auth: provider(),
       provisionUser: async () => ok(undefined),
@@ -155,7 +160,7 @@ describe("SignUp time zone (HU-E1-14)", () => {
   it("provisions the user with the zone already applied", async () => {
     const provisionUser = vi.fn(async () => ok(undefined));
     await createSignUpWith({
-      ...zones(),
+      ...defaults(),
       signUpGate: openGate(),
       auth: provider(),
       provisionUser,
@@ -167,7 +172,7 @@ describe("SignUp time zone (HU-E1-14)", () => {
     const auth = provider();
     const provisionUser = vi.fn(async () => ok(undefined));
     const result = await createSignUpWith({
-      ...zones(),
+      ...defaults(),
       signUpGate: openGate(),
       auth,
       provisionUser,
@@ -186,7 +191,7 @@ describe("SignUp time zone (HU-E1-14)", () => {
 describe("SignUp language (ruling P142)", () => {
   const signUpWith = (saveProfile: SignUpDeps["profiles"]["saveProfile"], auth = provider()) =>
     createSignUpWith({
-      ...zones(),
+      ...defaults(),
       signUpGate: openGate(),
       auth,
       provisionUser: async () => ok(undefined),
@@ -202,7 +207,7 @@ describe("SignUp language (ruling P142)", () => {
 
   it("provisions the user with the language already applied", async () => {
     const provisionUser = vi.fn(async () => ok(undefined));
-    await createSignUpWith({ ...zones(), signUpGate: openGate(), auth: provider(), provisionUser })({
+    await createSignUpWith({ ...defaults(), signUpGate: openGate(), auth: provider(), provisionUser })({
       ...input,
       locale: "en",
     });
@@ -229,7 +234,7 @@ describe("SignUp language (ruling P142)", () => {
     const auth = provider();
     const provisionUser = vi.fn(async () => ok(undefined));
     const result = await createSignUpWith({
-      ...zones(),
+      ...defaults(),
       signUpGate: openGate(),
       auth,
       provisionUser,
@@ -251,7 +256,7 @@ describe("SignUp gate (ruling P143)", () => {
     return {
       auth,
       signUp: createSignUpWith({
-        ...zones(),
+        ...defaults(),
         auth,
         provisionUser: async () => ok(undefined),
         signUpGate: { mode: "closed", admits },
@@ -291,7 +296,7 @@ describe("SignUp gate (ruling P143)", () => {
     const gate = openGate();
     const auth = provider();
     const result = await createSignUpWith({
-      ...zones(),
+      ...defaults(),
       auth,
       provisionUser: async () => ok(undefined),
       signUpGate: gate,
@@ -299,5 +304,84 @@ describe("SignUp gate (ruling P143)", () => {
     expect(result.ok).toBe(true);
     expect(gate.admits).not.toHaveBeenCalled();
     expect(auth.signUp).toHaveBeenCalledWith({ name: "Ana", email: "a@b.co", password: "x" });
+  });
+});
+
+describe("SignUp handle (ruling P343)", () => {
+  const signUpWith = (
+    setHandle: SignUpDeps["handles"]["setHandle"],
+    draws: string[] = ["4821", "0007", "1234", "5555", "9090", "3141"],
+    overrides: Partial<SignUpDeps> = {},
+  ) => {
+    const digits = { next: vi.fn(() => draws.shift() ?? "0000") };
+    const auth = provider();
+    const provisionUser = vi.fn(async () => ok(undefined));
+    const signUp = createSignUpWith({
+      ...defaults(),
+      signUpGate: openGate(),
+      auth,
+      provisionUser,
+      handles: { setHandle },
+      digits,
+      ...overrides,
+    });
+    return { signUp, auth, provisionUser, digits };
+  };
+
+  it("gives the new account a handle made of the name and random digits", async () => {
+    const setHandle = vi.fn(async () => "saved" as const);
+    const { signUp, auth } = signUpWith(setHandle);
+    const result = await signUp(input);
+    expect(result).toEqual(ok(session));
+    expect(setHandle).toHaveBeenCalledTimes(1);
+    expect(setHandle).toHaveBeenCalledWith("u-ana", "ana_4821");
+    expect(auth.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("tries new digits when the handle is taken", async () => {
+    const setHandle = vi.fn(async (_userId: string, handle: string) =>
+      handle === "ana_4821" ? ("taken" as const) : ("saved" as const),
+    );
+    const { signUp } = signUpWith(setHandle);
+    const result = await signUp(input);
+    expect(result.ok).toBe(true);
+    expect(setHandle.mock.calls).toEqual([
+      ["u-ana", "ana_4821"],
+      ["u-ana", "ana_0007"],
+    ]);
+  });
+
+  it("still signs up, keeping the database's handle, when 5 tries are all taken", async () => {
+    const setHandle = vi.fn<SignUpDeps["handles"]["setHandle"]>(async () => "taken");
+    const { signUp, auth, provisionUser } = signUpWith(setHandle);
+    const result = await signUp(input);
+    expect(result).toEqual(ok(session));
+    expect(setHandle.mock.calls.map(([, handle]) => handle)).toEqual([
+      "ana_4821",
+      "ana_0007",
+      "ana_1234",
+      "ana_5555",
+      "ana_9090",
+    ]);
+    expect(provisionUser).toHaveBeenCalledWith(ana);
+    expect(auth.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("removes the half-created user, and provisions nobody, when the handle cannot be stored", async () => {
+    const { signUp, auth, provisionUser } = signUpWith(async () => Promise.reject(new Error("db down")));
+    const result = await signUp(input);
+    expect(!result.ok && result.error.code).toBe("InternalError");
+    expect(!result.ok && result.error.details).toEqual({ cause: "HandleWriteThrew" });
+    expect(provisionUser).not.toHaveBeenCalled();
+    expect(auth.deleteUser).toHaveBeenCalledWith("u-ana");
+  });
+
+  it("gives no handle when the provider refuses the account", async () => {
+    const setHandle = vi.fn(async () => "saved" as const);
+    const { signUp } = signUpWith(setHandle, undefined, {
+      auth: provider({ signUp: vi.fn(async () => err(domainError("EmailTaken"))) }),
+    });
+    expect(!(await signUp(input)).ok).toBe(true);
+    expect(setHandle).not.toHaveBeenCalled();
   });
 });

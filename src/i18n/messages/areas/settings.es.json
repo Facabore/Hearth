@@ -56,7 +56,7 @@
     },
     "handle": {
       "label": "Tu @usuario",
-      "hint": "Así te encuentran para agregarte en Amigos: solo con tu @ exacto. Si lo dejas vacío, nadie te encuentra."
+      "hint": "Así te encuentran para agregarte en Amigos: solo con tu @ exacto."
     },
     "favoriteCurrencies": {
       "hint": "Salen primero cuando eliges una moneda. La de cada espacio siempre viene por defecto.",

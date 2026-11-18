@@ -89,6 +89,9 @@ describe("DrizzleUserProfiles handles (P339)", () => {
   it("finds a handle ignoring case and answers taken for one someone else holds, inside a transaction that goes on", async () => {
     const ana = await userFixture(pool, "Ana");
     const eva = await userFixture(pool, "Eva");
+    // Ruling P343: a row written without a handle has the database's random one.
+    const evaBefore = await handles.handleOf(eva.id);
+    expect(evaBefore).toMatch(/^u_[0-9a-f]{12}$/);
     const handle = unique();
     expect(await handles.setHandle(ana.id, handle)).toBe("saved");
     expect(await handles.findByHandle(handle.toUpperCase())).toEqual({
@@ -99,16 +102,20 @@ describe("DrizzleUserProfiles handles (P339)", () => {
     const outcome = await tm.run(async () => {
       const taken = await handles.setHandle(eva.id, handle);
       // The refused UPDATE ran in a savepoint: the transaction still answers.
-      expect(await handles.handleOf(eva.id)).toBeNull();
+      expect(await handles.handleOf(eva.id)).toBe(evaBefore);
       return { ok: true as const, value: taken };
     });
     expect(outcome).toEqual({ ok: true, value: "taken" });
-    // Cleared, the handle is free for someone else.
-    await pool.query(`UPDATE "user" SET handle = NULL WHERE id = $1`, [ana.id]);
+    // Changed, the handle is free for someone else.
+    expect(await handles.setHandle(ana.id, unique())).toBe("saved");
     expect(await handles.findByHandle(handle)).toBeNull();
     expect(await handles.setHandle(eva.id, handle)).toBe("saved");
     expect(await handles.holdersOf([eva.id, "nobody"])).toEqual([
       { userId: eva.id, handle, displayName: "Eva" },
     ]);
+  });
+
+  it("answers null only for an unknown user (P343)", async () => {
+    expect(await handles.handleOf("nobody")).toBeNull();
   });
 });

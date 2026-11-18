@@ -12,6 +12,11 @@ const ACTOR = "system:migration-0045";
 const admin = new pg.Client({ connectionString: inject("adminDatabaseUrl") });
 /** A copy of drizzle/ whose journal stops before 0045: the 0044 shape, where a foreign movement kept a base amount. */
 const before = mkdtempSync(join(tmpdir(), "hearth-before-0045-"));
+/**
+ * A copy of drizzle/ whose journal stops at 0045, for its rollback: the migrator applies only migrations newer than the
+ * last one applied, so a later migration (P343's 0046) still applied would keep a rolled-back 0045 from applying again.
+ */
+const through = mkdtempSync(join(tmpdir(), "hearth-through-0045-"));
 /** Every database a test opened, registered before it is migrated so `afterAll` always drops it. */
 const databases: { name: string; client?: pg.Client }[] = [];
 const migrationSql = () => readFileSync(join("drizzle", `${TAG}.sql`), "utf8");
@@ -24,6 +29,11 @@ beforeAll(async () => {
   const cut = journal.entries.findIndex((entry) => entry.tag === TAG);
   expect(cut).toBeGreaterThan(0);
   writeFileSync(journalFile, JSON.stringify({ ...journal, entries: journal.entries.slice(0, cut) }));
+  cpSync("drizzle", through, { recursive: true });
+  writeFileSync(
+    join(through, "meta", "_journal.json"),
+    JSON.stringify({ ...journal, entries: journal.entries.slice(0, cut + 1) }),
+  );
 });
 
 afterAll(async () => {
@@ -41,6 +51,7 @@ afterAll(async () => {
   }
   await attempt(() => admin.end());
   await attempt(() => rmSync(before, { recursive: true, force: true }));
+  await attempt(() => rmSync(through, { recursive: true, force: true }));
   if (failures.length > 0) throw new AggregateError(failures, "Cleaning up the 0045 test databases failed");
 });
 
@@ -484,7 +495,7 @@ describe(`${TAG} (P342 S8, #341)`, () => {
       destination: { account: w.cop },
     });
     const rows = await everythingBefore(db.client);
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
     const migrated = await everything(db.client);
     const rollback = readFileSync(join("drizzle", "rollback", "0045_down.sql"), "utf8");
 
@@ -504,7 +515,7 @@ describe(`${TAG} (P342 S8, #341)`, () => {
     await db.client.query(rollback);
     expect(await everything(db.client)).toEqual(once);
 
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
     expect(
       await db.client.query(`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`),
     ).toMatchObject({

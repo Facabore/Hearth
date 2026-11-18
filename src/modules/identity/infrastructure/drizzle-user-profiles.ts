@@ -102,7 +102,7 @@ export class DrizzleUserProfiles implements UserProfiles, UserTimeZones, UserHan
       .where(inArray(user.id, [...userIds]));
   }
 
-  /** Ruling P339: the stored handle; an unknown user, or one who picked none, has null. */
+  /** Ruling P339: the stored handle; only an unknown user has null (ruling P343: the column is NOT NULL). */
   async handleOf(userId: string): Promise<string | null> {
     const [row] = await this.tm
       .executor()
@@ -117,7 +117,7 @@ export class DrizzleUserProfiles implements UserProfiles, UserTimeZones, UserHan
    * Ruling P339: one UPDATE in a savepoint, since the unique index on lower(handle) refuses one that someone else took
    * meanwhile, and a refused statement would otherwise abort the caller's transaction.
    */
-  async setHandle(userId: string, handle: string | null): Promise<"saved" | "taken"> {
+  async setHandle(userId: string, handle: string): Promise<"saved" | "taken"> {
     try {
       await this.tm
         .executor()

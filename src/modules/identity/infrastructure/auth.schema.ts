@@ -26,8 +26,12 @@ export const user = pgTable(
     // P342: the person's favorite ISO 4217 currencies, in their order; null until they choose some (an empty array is
     // a choice). An open set like display_currency, so no check constraint; the use case refuses unknown codes.
     favoriteCurrencies: text("favorite_currencies").array(),
-    // Ruling P339: the person's @usuario, stored in lower case; null until they pick one. Better Auth never reads it.
-    handle: text("handle"),
+    // Ruling P339: the person's @usuario, stored in lower case; Better Auth never reads it. Ruling P343: never null; a row
+    // written without one (Better Auth's sign-up, seeds, older code) gets a random `u_` and 12 hex digits, matching the
+    // format check, which sign-up then replaces with one made of the name.
+    handle: text("handle")
+      .notNull()
+      .default(sql`'u_' || substr(md5(random()::text || clock_timestamp()::text), 1, 12)`),
     createdAt: tz("created_at").notNull().defaultNow(),
     updatedAt: tz("updated_at").notNull().defaultNow(),
   },

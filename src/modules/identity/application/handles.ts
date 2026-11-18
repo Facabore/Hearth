@@ -8,18 +8,26 @@ export interface HandleHolder {
   readonly displayName: string;
 }
 
-/** Ruling P339: where each person's @usuario lives (the provider's `user` row), unique ignoring case. */
+/**
+ * Ruling P339: where each person's @usuario lives (the provider's `user` row), unique ignoring case. Ruling P343: every
+ * person always has one; the database gives a random one to a row written without it.
+ */
 export interface UserHandles {
-  /** The person's handle; null when they have none, or for an unknown user. */
+  /** The person's handle; null only for an unknown user. */
   handleOf(userId: string): Promise<string | null>;
-  /** Sets or clears the handle; "taken" when someone else holds it ignoring case, decided by the database. */
-  setHandle(userId: string, handle: string | null): Promise<"saved" | "taken">;
+  /** Changes the handle; "taken" when someone else holds it ignoring case, decided by the database. */
+  setHandle(userId: string, handle: string): Promise<"saved" | "taken">;
   /** The person holding exactly this handle, ignoring case, or null. */
   findByHandle(handle: string): Promise<HandleHolder | null>;
   /** The handle and name of each known id; unknown ids are left out. */
   holdersOf(
     userIds: readonly string[],
   ): Promise<{ userId: string; handle: string | null; displayName: string }[]>;
+}
+
+/** Ruling P343: random digits for the handle a new account is given, HANDLE_DIGITS of 0–9 each time. */
+export interface HandleDigits {
+  next(): string;
 }
 
 /** Ruling P339: how many lookups a person makes; false once they made too many in the current window. */

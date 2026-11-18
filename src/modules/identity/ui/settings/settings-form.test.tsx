@@ -338,13 +338,17 @@ describe("settings: the person's @usuario (ruling P339, S2)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
-  it("clears the @ with an empty field", async () => {
+  it("never clears the @: an emptied field gets the stored one back and sends nothing (ruling P343)", async () => {
     const { api, requests } = fakeApi({ "PATCH /api/v1/me": () => jsonResponse(meDto()) });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto({ handle: "ana" })} api={api} />);
+    expect(screen.queryByText(/vacío/)).not.toBeInTheDocument();
     await userEvent.clear(field());
     await userEvent.keyboard("{Enter}");
-    await waitFor(() => expect(requests).toHaveLength(1));
-    expect(await requests[0]!.json()).toEqual({ handle: null });
+    expect(field()).toHaveValue("ana");
+    await userEvent.clear(field());
+    await userEvent.tab();
+    expect(field()).toHaveValue("ana");
+    expect(requests).toHaveLength(0);
   });
 
   it("says why an @ is refused, under the field, until the person types again", async () => {
@@ -355,7 +359,9 @@ describe("settings: the person's @usuario (ruling P339, S2)", () => {
       },
     });
     renderWithIntl(<SettingsForm backHref="/spaces/sp-personal" me={meDto()} api={api} />);
-    expect(field()).toHaveValue("");
+    // P343: everyone has an @, here the one sign-up gave.
+    expect(field()).toHaveValue("ana_4821");
+    await userEvent.clear(field());
     await userEvent.type(field(), "ab{Enter}");
     expect(
       await screen.findByText(

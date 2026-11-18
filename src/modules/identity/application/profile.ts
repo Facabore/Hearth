@@ -38,8 +38,8 @@ export interface UserProfiles {
 /** HU-E1-15: the profile that `GET` and `PATCH /api/v1/me` answer. */
 export interface ProfileView {
   readonly user: AuthUser;
-  /** Ruling P339: the person's @usuario; null until they pick one. */
-  readonly handle: string | null;
+  /** Ruling P339: the person's @usuario. Ruling P343: everyone always has one. */
+  readonly handle: string;
   readonly preferences: {
     readonly stored: StoredPreferences;
     readonly effective: FormatPreferences;
@@ -70,6 +70,8 @@ export const createGetProfile =
       deps.handles.handleOf(user.id),
       deps.rules.rules(),
     ]);
+    // Ruling P343: the column is NOT NULL, so only a signed-in user without a row has none.
+    if (handle === null) throw new Error("The signed-in user has no user row");
     return ok({
       user,
       handle,
@@ -86,7 +88,7 @@ export const createGetProfile =
 
 export type UpdateProfile = (
   input: { readonly user: AuthUser } & ProfileChange & {
-      /** Ruling P339: the person's new @usuario; null clears it, and an omitted one is unchanged. */
+      /** Ruling P339: the person's new @usuario; an omitted one is unchanged, and null is refused (ruling P343). */
       readonly handle?: string | null;
     },
 ) => Promise<Result<AuthUser>>;
@@ -96,7 +98,8 @@ export type UpdateProfile = (
  * field is PreferenceLocked, even to clear it or to repeat its value; then an unknown zone is InvalidTimeZone. Nothing
  * is written unless the whole change passes, and a zone or a language equal to the current one is not written.
  * Ruling P339: a handle outside the rules is InvalidHandle, and one someone else holds, ignoring case, is HandleTaken;
- * the handle is written first, so a taken one leaves everything else unwritten too. P342: favorite currencies pass
+ * the handle is written first, so a taken one leaves everything else unwritten too. Ruling P343: a handle is never
+ * cleared, so null is InvalidHandle like any other handle outside the rules. P342: favorite currencies pass
  * `parseFavoriteCurrencies` (UnknownCurrency, TooManyFavoriteCurrencies) before anything is written.
  */
 export const createUpdateProfile =
@@ -122,7 +125,8 @@ export const createUpdateProfile =
         ? ok(undefined)
         : parseFavoriteCurrencies(change.favoriteCurrencies);
     if (!favorites.ok) return favorites;
-    const handle = rawHandle === undefined || rawHandle === null ? ok(rawHandle) : parseHandle(rawHandle);
+    // Ruling P343: null would clear the handle, and everyone always has one; it fails as an empty handle does.
+    const handle = rawHandle === undefined ? ok(undefined) : parseHandle(rawHandle ?? "");
     if (!handle.ok) return handle;
     const locale = change.locale ?? user.locale;
     const fields: ProfileChange = {

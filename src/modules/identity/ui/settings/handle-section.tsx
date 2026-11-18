@@ -10,7 +10,7 @@ import { SavedFlash } from "@/shared/ui/molecules/saved-flash";
 /**
  * Ruling P339 (S2): the person's @usuario, by which others find them in Agregar amigo, only by its exact spelling. As the
  * rest of the screen (ruling P137) it has no Save button: what is typed is stored when the field is left or Enter is
- * pressed, and an empty field clears it. The API reads it trimmed, without its "@" and in lower case, and answers
+ * pressed. Ruling P343: everyone has an @, so an emptied field gets the stored one back and nothing is sent. The API reads it trimmed, without its "@" and in lower case, and answers
  * `InvalidHandle` or `HandleTaken`, said under the field until the person types again.
  */
 export function HandleSection({
@@ -21,8 +21,8 @@ export function HandleSection({
 }: {
   /** The stored @, without the "@"; absent while the person has none. */
   readonly handle?: string;
-  /** Stores what was typed: null clears the @. */
-  readonly onCommit: (handle: string | null) => void;
+  /** Stores what was typed. */
+  readonly onCommit: (handle: string) => void;
   readonly problem: Problem | null;
   /** U5: the @ was just stored. */
   readonly saved?: boolean;
@@ -42,8 +42,12 @@ export function HandleSection({
 
   const commit = () => {
     const value = typed.trim().replace(/^@/, "");
+    if (value === "") {
+      setTyped(handle ?? "");
+      return;
+    }
     if (value === (handle ?? "")) return;
-    onCommit(value === "" ? null : value);
+    onCommit(value);
   };
   const submit = (event: FormEvent) => {
     event.preventDefault();

@@ -3101,8 +3101,8 @@ export interface operations {
                         locale: string;
                         /** @description The person's own IANA time zone. */
                         timezone: string;
-                        /** @description P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none. */
-                        handle?: string;
+                        /** @description P339: the person's @usuario, in lower case and without the @. P343: always sent; a new account gets a random one it can change. */
+                        handle: string;
                         preferences: {
                             stored: {
                                 numberFormat: ("DOT_COMMA" | "COMMA_DOT" | "SPACE_COMMA") | null;
@@ -3196,8 +3196,8 @@ export interface operations {
                         locale: string;
                         /** @description The person's own IANA time zone. */
                         timezone: string;
-                        /** @description P339: the person's @usuario, in lower case and without the @; sent once they picked one, absent while they have none. */
-                        handle?: string;
+                        /** @description P339: the person's @usuario, in lower case and without the @. P343: always sent; a new account gets a random one it can change. */
+                        handle: string;
                         preferences: {
                             stored: {
                                 numberFormat: ("DOT_COMMA" | "COMMA_DOT" | "SPACE_COMMA") | null;

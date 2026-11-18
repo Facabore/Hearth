@@ -1,7 +1,12 @@
 import { domainError, err, ok, writableTimeZone, type AuthUser, type Result } from "@/shared/kernel";
+import { handleCandidate } from "../domain/handle";
 import type { Locale } from "../domain/preferences";
 import type { AuthProvider, AuthSession } from "./auth-provider";
+import type { HandleDigits, UserHandles } from "./handles";
 import type { UserProfiles } from "./profile";
+
+/** Ruling P343: how many random handles sign-up tries before it keeps the database's default. */
+export const HANDLE_TRIES = 5;
 
 export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
@@ -24,6 +29,9 @@ export interface SignUpDeps {
   /** APP_TIMEZONE: the zone of a user whose browser sent none, or one Intl does not know. */
   readonly defaultTimeZone: string;
   readonly signUpGate: SignUpGate;
+  /** Ruling P343: gives the new account its first @usuario. */
+  readonly handles: Pick<UserHandles, "setHandle">;
+  readonly digits: HandleDigits;
 }
 
 export type SignUp = (input: {
@@ -58,6 +66,13 @@ export const createSignUp =
     try {
       if (zone !== user.timezone) await deps.profiles.setTimeZone(user.id, zone);
       if (language !== user.locale) await deps.profiles.saveProfile(user.id, { locale: language });
+      cause = "HandleWriteThrew";
+      // Ruling P343: a handle made of the name and random digits; when every try is taken the database's random
+      // default stays, so the handle never refuses a sign-up.
+      for (let tries = 0; tries < HANDLE_TRIES; tries += 1) {
+        const handle = handleCandidate(user.name, deps.digits.next());
+        if ((await deps.handles.setHandle(user.id, handle)) === "saved") break;
+      }
       cause = "ProvisioningThrew";
       const provisioned = await deps.provisionUser(withProfile);
       if (provisioned.ok) return ok({ ...created.value, user: withProfile });

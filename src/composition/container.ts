@@ -247,6 +247,7 @@ import {
 import { createAuth } from "@/modules/identity/infrastructure/better-auth";
 import { BetterAuthProvider } from "@/modules/identity/infrastructure/better-auth-provider";
 import { BuiltInInstallationRules } from "@/modules/identity/infrastructure/built-in-installation-rules";
+import { cryptoHandleDigits } from "@/modules/identity/infrastructure/crypto-handle-digits";
 import { DrizzleUserProfiles } from "@/modules/identity/infrastructure/drizzle-user-profiles";
 import {
   createClaimReferrer,
@@ -1308,6 +1309,9 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         defaultTimeZone: env.APP_TIMEZONE,
         // Ruling P143: identity never imports spaces, so a closed installation asks the invitations through this port.
         signUpGate: { mode: env.HEARTH_SIGN_UP, admits: createInvitationAdmitsSignUp(invitationsDeps) },
+        // Ruling P343: a new account's first @usuario.
+        handles: profiles,
+        digits: cryptoHandleDigits,
       }),
       signUpMode: env.HEARTH_SIGN_UP,
       verifyEmail: createVerifyEmail(provider),

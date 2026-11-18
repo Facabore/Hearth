@@ -193,10 +193,10 @@ describe("Amigos: one row per person a direct space is shared with (P338)", () =
     expect((await friendsOf(h.ana)).map((f) => f.name)).toEqual(["Pedro", "Juan"]);
   });
 
-  it("shows a registered friend's @usuario once they pick one, and none for a guest (P339)", async () => {
+  it("shows a registered friend's @usuario, the one sign-up gave and then the one they pick, and none for a guest (P339, P343)", async () => {
     const { h, dinner, taxi } = await anaWithJuanAndPedro();
     const before = await friendsOf(h.ana.personal);
-    expect(before.find((f) => f.spaceId === dinner.spaceId)?.other.handle).toBeUndefined();
+    expect(before.find((f) => f.spaceId === dinner.spaceId)?.other.handle).toMatch(/^juan_[0-9]{4}$/);
     const picked = await call(updateMe, "PATCH", "/api/v1/me", {
       user: h.juan.personal,
       body: { handle: "juanp" },

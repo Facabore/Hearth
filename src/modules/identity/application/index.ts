@@ -15,11 +15,12 @@ export type { InstallationRulesReader } from "./installation-rules";
 export {
   createFindUserByHandle,
   type FindUserByHandle,
+  type HandleDigits,
   type HandleHolder,
   type HandleLookupThrottle,
   type UserHandles,
 } from "./handles";
-export { parseHandle } from "../domain/handle";
+export { HANDLE_DIGITS, parseHandle } from "../domain/handle";
 export { MAX_FAVORITE_CURRENCIES, parseFavoriteCurrencies } from "../domain/favorite-currencies";
 export {
   BUILT_IN_RULES,
