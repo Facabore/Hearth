@@ -143,7 +143,7 @@ describe("POST /api/v1/spaces/{spaceId}/adjustments (design Q4, #329)", () => {
     expect(await figuresOf(r)).toEqual(before);
   });
 
-  it("adjusts a USD account in USD: its balance moves in USD, the base by the date's rate", async () => {
+  it("adjusts a USD account in USD: the adjustment itself is in USD, with no base and no leg (P342)", async () => {
     const r = await reportHousehold();
     const ana = r.h.ana.personal;
     const day = "2036-05-20";
@@ -168,10 +168,10 @@ describe("POST /api/v1/spaces/{spaceId}/adjustments (design Q4, #329)", () => {
     const body = await recorded(adjust(ana, chase, { amount: "-250", currency: "USD" }, { date: day }));
     expect(body).toMatchObject({
       type: "ADJUSTMENT",
-      amount: cop(10_000),
+      amount: { amount: "250", currency: "USD" },
       sourceAccountId: chase,
-      sourceAmount: { amount: "250", currency: "USD" },
     });
+    expect(body).not.toHaveProperty("sourceAmount");
     expect(await balanceOf(ana, chase)).toEqual({ amount: "750", currency: "USD" });
     expect(await problemOf(await adjust(ana, chase, cop(10)))).toEqual([422, "CurrencyMismatch"]);
   });
