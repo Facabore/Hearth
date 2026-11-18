@@ -155,9 +155,9 @@ Then(
   /^the form shows the description "([^"]+)" and the amount ([\d,]+) COP$/,
   async ({ page, world }, description: string, pesos: string) => {
     await expect(page.getByLabel(world.t("ledger.form.description"))).toHaveValue(description);
-    // The amount field writes the number only; the symbol belongs to the label around it.
+    // The amount field writes the number only; its currency code follows it outside the field (P342).
     await expect(page.getByLabel(world.t("ledger.form.amount"))).toHaveValue(
-      norm(shown(pesos)).replace(/^\S+\s/, ""),
+      norm(shown(pesos)).replace(/\s\S+$/, ""),
     );
   },
 );
