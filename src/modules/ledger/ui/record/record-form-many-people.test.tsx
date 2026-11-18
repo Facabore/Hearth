@@ -109,6 +109,11 @@ describe("Para quién fue with many friends: recent people and a search (P340)",
     const sheet = await openWho();
     await userEvent.type(search(sheet), "bro");
     expect(listed(sheet)).toEqual(["Brother", "Brother (invitado)", "Brother (invitado)"]);
+    // As on the board, the results come under the field while it is being typed in, which keeps its focus.
+    expect(
+      search(sheet).compareDocumentPosition(forWhom(sheet)) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(search(sheet)).toHaveFocus();
     const lines = within(forWhom(sheet))
       .getAllByRole("checkbox")
       .map((box) => document.getElementById(box.getAttribute("aria-describedby")!)!.textContent);
@@ -209,6 +214,11 @@ describe("Pagó with many friends: recent people and Otra persona (P340)", () =>
     expect(payers(sheet)).toEqual(["Tú", "Ana", "Juan"]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Otra persona" }));
     const find = within(sheet).getByRole("searchbox", { name: "Buscar quién pagó" });
+    // Right under Pagó, before Desde.
+    expect(
+      find.compareDocumentPosition(within(sheet).getByRole("radiogroup", { name: "Desde" })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await userEvent.type(find, "papa");
     await userEvent.click(within(sheet).getByRole("button", { name: /^Papá/ }));
     expect(payers(sheet)).toEqual(["Tú", "Papá", "Ana", "Juan"]);

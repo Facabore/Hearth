@@ -289,6 +289,71 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
     </label>
   );
 
+  const forWhomList = (
+    <ul aria-label={t("forWhom")} className="flex flex-col">
+      {shown.map((person) => {
+        const ticked = selected.includes(person.id);
+        const share = shares.find((s) => s.memberId === person.id);
+        const typed = !planned && draft.method !== "EQUAL" && ticked;
+        const locked = props.lockedReason?.(person.id) ?? null;
+        return (
+          <li
+            key={person.id}
+            aria-labelledby={`who-name-${person.id}`}
+            className="flex min-h-row flex-wrap items-center gap-x-2 py-1"
+          >
+            <label className="flex min-h-11 min-w-32 flex-1 items-center gap-3">
+              <input
+                type="checkbox"
+                checked={ticked}
+                disabled={planned || locked !== null}
+                onChange={() => toggle(person.id)}
+                aria-describedby={`who-line-${person.id}`}
+                className="size-[22px] shrink-0 accent-accent"
+              />
+              <span className="flex min-w-0 flex-col">
+                <span id={`who-name-${person.id}`} className="break-words text-base text-ink">
+                  {person.name}
+                </span>
+                <span id={`who-line-${person.id}`} className="text-sm text-muted">
+                  {locked ??
+                    (searching && !ticked && person.detail ? person.detail : lineOf(person.id, ticked))}
+                </span>
+              </span>
+            </label>
+            <div className="ml-auto flex items-center gap-2">
+              {typed ? (
+                <span className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    aria-label={ts("valueOf", { name: person.name })}
+                    aria-describedby="who-format"
+                    {...numberInputProps(rule, {
+                      value: draft.values[person.id] ?? "",
+                      onChange: (next) => setValue(person.id, next),
+                    })}
+                    className={cn(
+                      "h-11 rounded-[10px] border border-field bg-surface px-2 text-right text-base tabular-nums text-ink",
+                      draft.method === "PERCENT" ? "w-16" : "w-24",
+                    )}
+                  />
+                  {draft.method === "PERCENT" ? (
+                    <span aria-hidden="true" className="text-sm text-muted">
+                      %
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
+              <span className="min-w-14 text-right text-base font-semibold tabular-nums whitespace-nowrap text-ink">
+                {share ? formatMoney({ amount: share.amount, currency }, formats) : "—"}
+              </span>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   return (
     <Sheet
       open={props.open}
@@ -343,6 +408,34 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               </button>
             ) : null}
           </div>
+          {payerQuery !== null ? (
+            <div className="flex flex-col gap-1">
+              {searchField("who-find-payer", t("findPayer"), payerQuery, setPayerQuery)}
+              <ul aria-label={t("findPayer")} className="flex flex-col">
+                {payerMatches.map((match) => (
+                  <li key={match.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        props.onPayer(match.id);
+                        setPayerQuery(null);
+                      }}
+                      className="flex min-h-row w-full flex-col justify-center py-1 text-left"
+                    >
+                      <span className="break-words text-base text-ink">{match.name}</span>
+                      {match.detail ? <span className="text-sm text-muted">{match.detail}</span> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {payerQuery.trim() !== "" && props.onAddPayerByName
+                ? addGuestButton(payerQuery, (typed) => {
+                    props.onAddPayerByName?.(typed);
+                    setPayerQuery(null);
+                  })
+                : null}
+            </div>
+          ) : null}
           {accounts && accounts.length > 0 ? (
             <>
               <h3 aria-hidden="true" className="text-sm font-semibold text-ink">
@@ -376,34 +469,6 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               </Link>
             </>
           ) : null}
-          {payerQuery !== null ? (
-            <div className="flex flex-col gap-1">
-              {searchField("who-find-payer", t("findPayer"), payerQuery, setPayerQuery)}
-              <ul aria-label={t("findPayer")} className="flex flex-col">
-                {payerMatches.map((match) => (
-                  <li key={match.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        props.onPayer(match.id);
-                        setPayerQuery(null);
-                      }}
-                      className="flex min-h-row w-full flex-col justify-center py-1 text-left"
-                    >
-                      <span className="break-words text-base text-ink">{match.name}</span>
-                      {match.detail ? <span className="text-sm text-muted">{match.detail}</span> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {payerQuery.trim() !== "" && props.onAddPayerByName
-                ? addGuestButton(payerQuery, (typed) => {
-                    props.onAddPayerByName?.(typed);
-                    setPayerQuery(null);
-                  })
-                : null}
-            </div>
-          ) : null}
           {naming === "payer" ? nameField : null}
           {props.payerNote ? <p className="text-sm text-muted">{props.payerNote}</p> : null}
         </section>
@@ -414,73 +479,13 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               {common("numberExample", { example: example ?? "" })}
             </p>
           ) : null}
-          <ul aria-label={t("forWhom")} className="flex flex-col">
-            {shown.map((person) => {
-              const ticked = selected.includes(person.id);
-              const share = shares.find((s) => s.memberId === person.id);
-              const typed = !planned && draft.method !== "EQUAL" && ticked;
-              const locked = props.lockedReason?.(person.id) ?? null;
-              return (
-                <li
-                  key={person.id}
-                  aria-labelledby={`who-name-${person.id}`}
-                  className="flex min-h-row flex-wrap items-center gap-x-2 py-1"
-                >
-                  <label className="flex min-h-11 min-w-32 flex-1 items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={ticked}
-                      disabled={planned || locked !== null}
-                      onChange={() => toggle(person.id)}
-                      aria-describedby={`who-line-${person.id}`}
-                      className="size-[22px] shrink-0 accent-accent"
-                    />
-                    <span className="flex min-w-0 flex-col">
-                      <span id={`who-name-${person.id}`} className="break-words text-base text-ink">
-                        {person.name}
-                      </span>
-                      <span id={`who-line-${person.id}`} className="text-sm text-muted">
-                        {locked ??
-                          (searching && !ticked && person.detail ? person.detail : lineOf(person.id, ticked))}
-                      </span>
-                    </span>
-                  </label>
-                  <div className="ml-auto flex items-center gap-2">
-                    {typed ? (
-                      <span className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          aria-label={ts("valueOf", { name: person.name })}
-                          aria-describedby="who-format"
-                          {...numberInputProps(rule, {
-                            value: draft.values[person.id] ?? "",
-                            onChange: (next) => setValue(person.id, next),
-                          })}
-                          className={cn(
-                            "h-11 rounded-[10px] border border-field bg-surface px-2 text-right text-base tabular-nums text-ink",
-                            draft.method === "PERCENT" ? "w-16" : "w-24",
-                          )}
-                        />
-                        {draft.method === "PERCENT" ? (
-                          <span aria-hidden="true" className="text-sm text-muted">
-                            %
-                          </span>
-                        ) : null}
-                      </span>
-                    ) : null}
-                    <span className="min-w-14 text-right text-base font-semibold tabular-nums whitespace-nowrap text-ink">
-                      {share ? formatMoney({ amount: share.amount, currency }, formats) : "—"}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          {searching ? null : forWhomList}
           {crowded ? (
             <div className="flex flex-col gap-2">
               {searchField("who-find", t("find"), query, setQuery)}
               {searching ? (
                 <>
+                  {forWhomList}
                   {props.onAddByName
                     ? addGuestButton(query, (typed) => {
                         props.onAddByName?.(typed);
