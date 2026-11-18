@@ -1,11 +1,13 @@
 import type { SpaceId, SpaceRepository } from "@/modules/spaces/application";
 import { ok, type Result } from "@/shared/kernel";
-import { pairwiseDebts } from "../domain/balances";
+import { pairwiseDebtsByCurrency } from "../domain/balances";
 import {
   createGetSpaceBalances,
   type BalanceSource,
   type BalancesDeps,
+  type CurrencyNet,
   type DebtSource,
+  netsOf,
 } from "./get-space-balances";
 
 /** One space with balances, as its viewer stands in it (#240, ruling P278). */
@@ -14,12 +16,21 @@ export interface MyBalance {
   readonly currency: string;
   /** The viewer's member id in the space (Saldos' `?settle=` opens the settle sheet with it). */
   readonly memberId: string;
-  /** The viewer's net: negative when it is her turn to put money in, positive when she is owed. */
+  /** The viewer's net in the space currency: negative when it is her turn to put money in, positive when she is owed. */
   readonly net: bigint;
+  /** Ruling P342 (S4): the viewer's non-zero nets in every currency, never converted, the space's first. */
+  readonly nets: readonly CurrencyNet[];
   /** The current members in join order, guests included, by the name the space knows them by. */
   readonly members: readonly { readonly memberId: string; readonly name: string }[];
-  /** The settle-up suggestions (HU-E5-03, pairwise since ruling P323) in which the viewer pays, the largest first. */
-  readonly payments: readonly { readonly receivingMemberId: string; readonly amount: bigint }[];
+  /**
+   * The settle-up suggestions (HU-E5-03, pairwise since ruling P323) in which the viewer pays, each in its debt's
+   * currency (P342): the space's first, then by ISO code, and the largest first inside a currency.
+   */
+  readonly payments: readonly {
+    readonly receivingMemberId: string;
+    readonly amount: bigint;
+    readonly currency: string;
+  }[];
 }
 
 export type GetMyBalances = (userId: string) => Promise<Result<MyBalance[]>>;
@@ -48,19 +59,21 @@ export const createGetMyBalances = (deps: MyBalancesDeps): GetMyBalances => {
         const { currency } = balances.value;
         // Ruling P323: current members only, in join order; a debt to someone who left goes through them.
         const current = members.map((member) => member.id);
-        const debts = pairwiseDebts(currency, current, await deps.source.debtMovements(space.id));
+        const debts = pairwiseDebtsByCurrency(currency, current, await deps.source.debtMovements(space.id));
         if (!debts.ok) return null;
         return {
           spaceId: space.id,
           currency,
           memberId: me.id,
           net: balances.value.members.find((standing) => standing.memberId === me.id)?.net ?? 0n,
+          nets: netsOf(balances.value.byCurrency, me.id),
           members: members.map((member) => ({ memberId: member.id, name: member.displayName })),
           payments: debts.value
             .filter((suggestion) => suggestion.payerMemberId === me.id)
             .map((suggestion) => ({
               receivingMemberId: suggestion.receivingMemberId,
               amount: suggestion.amount,
+              currency: suggestion.currency,
             })),
         };
       }),

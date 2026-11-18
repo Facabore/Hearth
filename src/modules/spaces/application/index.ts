@@ -83,7 +83,7 @@ export {
   type AcceptInvitationInput,
 } from "./accept-invitation";
 export type { MemberLifecycleRepository } from "./space-member-repository";
-export type { LifecycleDeps, MemberNetBalance } from "./lifecycle-deps";
+export type { CurrencyNet, LifecycleDeps, MemberNetBalance } from "./lifecycle-deps";
 export { createLeaveSpace, type LeaveSpace } from "./leave-space";
 export type { ClaimOutcome, GuestClaimRepository } from "./space-member-repository";
 export type { ClaimsDeps } from "./invitation-ports";

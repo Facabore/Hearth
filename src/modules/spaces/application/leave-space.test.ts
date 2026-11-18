@@ -15,18 +15,23 @@ import {
   type SpaceMemberId,
 } from "../domain/space";
 import { createLeaveSpace } from "./leave-space";
-import type { LifecycleDeps } from "./lifecycle-deps";
+import type { CurrencyNet, LifecycleDeps } from "./lifecycle-deps";
 import { createSpaceAccess } from "./space-access";
 
 const now = new Date("2026-10-14T12:00:00Z");
 const space = "space-household";
 const as = (name: string) => ({ spaceId: space, userId: `u-${name}` });
 
-/** Net balances of Household by member id (minor units); any other space answers 1, never settled. */
+/**
+ * Net balances of Household by member id: minor units of COP, or the member's non-zero nets per currency (P342); any
+ * other space answers 1 COP, never settled.
+ */
 const nets =
-  (byMember: Record<string, bigint> = {}): LifecycleDeps["netBalance"] =>
-  async (spaceId, memberId) =>
-    spaceId === space ? (byMember[memberId] ?? 0n) : 1n;
+  (byMember: Record<string, bigint | readonly CurrencyNet[]> = {}): LifecycleDeps["netBalance"] =>
+  async (spaceId, memberId) => {
+    const net = spaceId === space ? (byMember[memberId] ?? 0n) : 1n;
+    return typeof net !== "bigint" ? net : net === 0n ? [] : [{ currency: "COP", net }];
+  };
 
 /** A store whose member was moved (claimed, removed or left) by a concurrent change after it was read. */
 class LostRaceStore extends InMemorySpaceStore {
@@ -38,7 +43,7 @@ class LostRaceStore extends InMemorySpaceStore {
 // HU-E1-05 Background members: OWNER Ana, ADMIN Juan, MEMBER Luis, VIEWER Sofi and the guest Pedro.
 const setup = (
   seeded: Space = householdSpace(),
-  byMember: Record<string, bigint> = {},
+  byMember: Record<string, bigint | readonly CurrencyNet[]> = {},
   store: InMemorySpaceStore = new InMemorySpaceStore(),
 ) => {
   store.seed(seeded);
@@ -96,6 +101,46 @@ describe("LeaveSpace (HU-E1-08)", () => {
       ok: false,
       error: { code: "OutstandingBalance", details: { outstanding: { amount: "5000000", currency: "COP" } } },
     });
+  });
+
+  it("refuses Juan with 0 COP while he still owes Ana 30 USD, in the debt's own currency (P342, S4)", async () => {
+    const { store, leave } = setup(householdSpace(), {
+      "member-ana": [{ currency: "USD", net: 3_000n }],
+      "member-juan": [{ currency: "USD", net: -3_000n }],
+    });
+    expect(await leave(as("juan"))).toEqual({
+      ok: false,
+      error: { code: "OutstandingBalance", details: { outstanding: { amount: "3000", currency: "USD" } } },
+    });
+    expect(store.left).toEqual([]);
+  });
+
+  it("names the space currency first when Juan owes in several, and asks for the nets in it (P342)", async () => {
+    const asked: string[] = [];
+    const store = new InMemorySpaceStore();
+    store.seed(householdSpace());
+    const leave = createLeaveSpace({
+      access: createSpaceAccess(store),
+      members: store,
+      spaceLocks: store,
+      netBalance: async (_spaceId, _memberId, spaceCurrency) => {
+        asked.push(spaceCurrency);
+        return [
+          { currency: "COP", net: -15_000_000n },
+          { currency: "EUR", net: -6_000n },
+        ];
+      },
+      clock: new FixedClock(now),
+      tm: memoryTm,
+    });
+    expect(await leave(as("juan"))).toEqual({
+      ok: false,
+      error: {
+        code: "OutstandingBalance",
+        details: { outstanding: { amount: "15000000", currency: "COP" } },
+      },
+    });
+    expect(asked).toEqual(["COP"]);
   });
 
   it("keeps the only OWNER, and lets an owner leave once another OWNER exists", async () => {

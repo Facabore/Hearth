@@ -221,7 +221,7 @@ const formerMembersWithBalance = async (spaceId: string): Promise<string[]> => {
   );
   const netBalance = createGetMemberNetBalance(ledgerQueries);
   const owing: string[] = [];
-  for (const row of rows) if ((await netBalance(spaceId, row.id)) !== 0n) owing.push(row.id);
+  for (const row of rows) if ((await netBalance(spaceId, row.id)).length > 0) owing.push(row.id);
   return owing;
 };
 

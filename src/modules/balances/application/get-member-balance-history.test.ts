@@ -66,6 +66,7 @@ interface Ask {
   readonly memberId?: string;
   readonly from?: string;
   readonly to?: string;
+  readonly currency?: string;
 }
 
 /** Juan asks about Juan unless told otherwise; `source` stands in for the ledger's history. */
@@ -85,6 +86,7 @@ const askAbout = (
       memberId: ask.memberId ?? "member-juan",
       from: ask.from === undefined ? null : day(ask.from),
       to: ask.to === undefined ? null : day(ask.to),
+      ...(ask.currency === undefined ? {} : { currency: ask.currency }),
     });
 };
 const world = async (options: Parameters<typeof household>[0] = {}) => askAbout(await household(options));
@@ -120,6 +122,37 @@ describe("GetMemberBalanceHistory (HU-E5-04)", () => {
       ["SETTLEMENT", "2026-10-30", pesos(100_000n), 0n],
     ]);
     expect([view.opening, view.closing, view.currency]).toEqual([0n, 0n, "COP"]);
+  });
+
+  it("reads one currency's movements, the space's by default, never converted (P342, S4)", async () => {
+    const fixture = await household();
+    // Juan pays 50 USD for Ana on 2026-10-04 and Ana pays him 20 USD back on 2026-10-06.
+    await fixture.ledger.add({
+      ...anExpense("2026-10-04", 5_000n, {
+        spaceId: "space-household",
+        payments: [{ memberId: "member-juan", accountId: null, amount: 5_000n }],
+        shares: [{ memberId: "member-ana", amount: 5_000n, splitMethod: "EXACT" }],
+      }),
+      currency: "USD",
+    });
+    await fixture.ledger.add({
+      ...aSettlement("2026-10-06", 2_000n, { payerMemberId: "member-ana", receivingMemberId: "member-juan" }),
+      currency: "USD",
+    });
+    const { source, reads } = watched(fixture.ledger);
+    const ask = askAbout(fixture, source);
+    const cop = unwrap(await ask());
+    expect([cop.currency, balances(cop)]).toEqual(["COP", [pesos(-150_000n), pesos(-100_000n), 0n]]);
+    const usd = unwrap(await ask({ currency: "USD" }));
+    expect([usd.currency, balances(usd), usd.closing]).toEqual(["USD", [5_000n, 3_000n], 3_000n]);
+    expect(reads.map((read) => read[3])).toEqual(["COP", "USD"]);
+  });
+
+  it("answers UnknownCurrency for a code Money does not know, before the ledger is read (P342)", async () => {
+    const fixture = await household();
+    const { source, reads } = watched(fixture.ledger);
+    expect(codeOf(await askAbout(fixture, source)({ currency: "XYZ" }))).toBe("UnknownCurrency");
+    expect(reads).toEqual([]);
   });
 
   it("names the space, the member and the period it answers for", async () => {

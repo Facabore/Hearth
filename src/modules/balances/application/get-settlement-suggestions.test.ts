@@ -47,8 +47,18 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
       spaceId: "space-household",
       currency: "COP",
       suggestions: [
-        { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: pesos(100_000n) },
-        { payerMemberId: "member-luis", receivingMemberId: "member-ana", amount: pesos(50_000n) },
+        {
+          payerMemberId: "member-juan",
+          receivingMemberId: "member-ana",
+          amount: pesos(100_000n),
+          currency: "COP",
+        },
+        {
+          payerMemberId: "member-luis",
+          receivingMemberId: "member-ana",
+          amount: pesos(50_000n),
+          currency: "COP",
+        },
       ],
     });
   });
@@ -64,8 +74,18 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
     await ledger.add(paidFor("member-ana", pesos(100_000n), [["member-juan", pesos(100_000n)]]));
     await ledger.add(paidFor("member-juan", pesos(100_000n), [["member-luis", pesos(100_000n)]]));
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([
-      { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: pesos(100_000n) },
-      { payerMemberId: "member-luis", receivingMemberId: "member-juan", amount: pesos(100_000n) },
+      {
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        amount: pesos(100_000n),
+        currency: "COP",
+      },
+      {
+        payerMemberId: "member-luis",
+        receivingMemberId: "member-juan",
+        amount: pesos(100_000n),
+        currency: "COP",
+      },
     ]);
   });
 
@@ -99,8 +119,18 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
       }),
     );
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-luis" })).suggestions).toEqual([
-      { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: pesos(14_666n) },
-      { payerMemberId: "member-luis", receivingMemberId: "member-juan", amount: pesos(7_333n) },
+      {
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        amount: pesos(14_666n),
+        currency: "COP",
+      },
+      {
+        payerMemberId: "member-luis",
+        receivingMemberId: "member-juan",
+        amount: pesos(7_333n),
+        currency: "COP",
+      },
     ]);
   });
 
@@ -134,8 +164,18 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
       ]),
     );
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([
-      { payerMemberId: "member-pedro", receivingMemberId: "member-ana", amount: pesos(60_000n) },
-      { payerMemberId: "member-zed", receivingMemberId: "member-ana", amount: pesos(40_000n) },
+      {
+        payerMemberId: "member-pedro",
+        receivingMemberId: "member-ana",
+        amount: pesos(60_000n),
+        currency: "COP",
+      },
+      {
+        payerMemberId: "member-zed",
+        receivingMemberId: "member-ana",
+        amount: pesos(40_000n),
+        currency: "COP",
+      },
     ]);
   });
 
@@ -145,8 +185,58 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
     await ledger.add(paidFor("member-zed", pesos(40_000n), [["member-juan", pesos(40_000n)]]));
     await ledger.add(paidFor("member-luis", pesos(30_000n), [["member-zed", pesos(30_000n)]]));
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([
-      { payerMemberId: "member-juan", receivingMemberId: "member-luis", amount: pesos(30_000n) },
-      { payerMemberId: "member-juan", receivingMemberId: "member-zed", amount: pesos(10_000n) },
+      {
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-luis",
+        amount: pesos(30_000n),
+        currency: "COP",
+      },
+      {
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-zed",
+        amount: pesos(10_000n),
+        currency: "COP",
+      },
+    ]);
+  });
+
+  it("keeps every debt in its own currency, the space's first: Juan owes 500.000 COP, 60 EUR and is owed 50 USD (P342)", async () => {
+    const { ledger, suggest } = world();
+    // "te puedo deber 500.000 COP, 50 USD y 60 EUR": nothing converts, so the three never net against each other.
+    await ledger.add(paidFor("member-ana", pesos(500_000n), [["member-juan", pesos(500_000n)]]));
+    await ledger.add({ ...paidFor("member-juan", 5_000n, [["member-ana", 5_000n]]), currency: "USD" });
+    await ledger.add({ ...paidFor("member-ana", 6_000n, [["member-juan", 6_000n]]), currency: "EUR" });
+    expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-juan" }))).toEqual({
+      spaceId: "space-household",
+      currency: "COP",
+      suggestions: [
+        {
+          payerMemberId: "member-juan",
+          receivingMemberId: "member-ana",
+          amount: pesos(500_000n),
+          currency: "COP",
+        },
+        { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: 6_000n, currency: "EUR" },
+        { payerMemberId: "member-ana", receivingMemberId: "member-juan", amount: 5_000n, currency: "USD" },
+      ],
+    });
+  });
+
+  it("settles a debt only in its own currency: a USD payment leaves the COP debt whole (P342)", async () => {
+    const { ledger, suggest } = world();
+    await ledger.add(paidFor("member-ana", pesos(100_000n), [["member-juan", pesos(100_000n)]]));
+    await ledger.add({
+      ...aSettlement("2026-10-06", 2_500n, { payerMemberId: "member-juan", receivingMemberId: "member-ana" }),
+      currency: "USD",
+    });
+    expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-ana" })).suggestions).toEqual([
+      {
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        amount: pesos(100_000n),
+        currency: "COP",
+      },
+      { payerMemberId: "member-ana", receivingMemberId: "member-juan", amount: 2_500n, currency: "USD" },
     ]);
   });
 
@@ -166,7 +256,12 @@ describe("GetSettlementSuggestions (HU-E5-03)", () => {
     await ledger.add(paidFor("member-ana", pesos(150_000n), [["member-juan", pesos(150_000n)]]));
     spaces.archived.add("space-household");
     expect(unwrap(await suggest({ spaceId: "space-household", userId: "u-juan" })).suggestions).toEqual([
-      { payerMemberId: "member-juan", receivingMemberId: "member-ana", amount: pesos(150_000n) },
+      {
+        payerMemberId: "member-juan",
+        receivingMemberId: "member-ana",
+        amount: pesos(150_000n),
+        currency: "COP",
+      },
     ]);
     expect(codeOf(await suggest({ spaceId: "space-household", userId: "u-marta" }))).toBe("SpaceNotFound");
   });

@@ -55,12 +55,13 @@ describe("GetMyBalances (#240, P278)", () => {
         currency: "COP",
         memberId: "member-ana",
         net: -pesos(100_000n),
+        nets: [{ currency: "COP", net: -pesos(100_000n) }],
         members: [
           { memberId: "member-ana", name: "Ana" },
           { memberId: "member-juan", name: "Juan" },
           { memberId: "member-luis", name: "Luis" },
         ],
-        payments: [{ receivingMemberId: "member-juan", amount: pesos(100_000n) }],
+        payments: [{ receivingMemberId: "member-juan", amount: pesos(100_000n), currency: "COP" }],
       },
     ]);
   });
@@ -88,8 +89,8 @@ describe("GetMyBalances (#240, P278)", () => {
     const [household] = unwrap(await getMyBalances("u-luis"));
     expect(household?.net).toBe(-pesos(130_000n));
     expect(household?.payments).toEqual([
-      { receivingMemberId: "member-juan", amount: pesos(100_000n) },
-      { receivingMemberId: "member-ana", amount: pesos(30_000n) },
+      { receivingMemberId: "member-juan", amount: pesos(100_000n), currency: "COP" },
+      { receivingMemberId: "member-ana", amount: pesos(30_000n), currency: "COP" },
     ]);
   });
 
@@ -106,8 +107,8 @@ describe("GetMyBalances (#240, P278)", () => {
     await ledger.add(paidFor("member-juan", "member-zed", pesos(30_000n)));
     const [household] = unwrap(await getMyBalances("u-luis"));
     expect(household?.payments).toEqual([
-      { receivingMemberId: "member-juan", amount: pesos(30_000n) },
-      { receivingMemberId: "member-zed", amount: pesos(10_000n) },
+      { receivingMemberId: "member-juan", amount: pesos(30_000n), currency: "COP" },
+      { receivingMemberId: "member-zed", amount: pesos(10_000n), currency: "COP" },
     ]);
   });
 
@@ -115,7 +116,37 @@ describe("GetMyBalances (#240, P278)", () => {
     const { getMyBalances } = world();
     const [household] = unwrap(await getMyBalances("u-ana"));
     expect(household?.net).toBe(0n);
+    expect(household?.nets).toEqual([]);
     expect(household?.payments).toEqual([]);
+  });
+
+  it("gives her nets and payments in every currency apart, the space's first; `net` stays the space currency's (P342)", async () => {
+    const { ledger, getMyBalances } = world();
+    const paidFor = (payer: string, debtor: string, amount: bigint, currency: string) => ({
+      ...anExpense("2026-10-05", amount, {
+        spaceId: "space-household",
+        payments: [{ memberId: payer, accountId: null, amount }],
+        shares: [{ memberId: debtor, amount, splitMethod: "EXACT" as const }],
+      }),
+      currency,
+    });
+    // "te puedo deber 500.000 COP, 50 USD y 60 EUR", and Luis owes Ana 20 USD.
+    await ledger.add(paidFor("member-juan", "member-ana", pesos(500_000n), "COP"));
+    await ledger.add(paidFor("member-juan", "member-ana", 5_000n, "USD"));
+    await ledger.add(paidFor("member-juan", "member-ana", 6_000n, "EUR"));
+    await ledger.add(paidFor("member-ana", "member-luis", 2_000n, "USD"));
+    const [household] = unwrap(await getMyBalances("u-ana"));
+    expect(household?.net).toBe(-pesos(500_000n));
+    expect(household?.nets).toEqual([
+      { currency: "COP", net: -pesos(500_000n) },
+      { currency: "EUR", net: -6_000n },
+      { currency: "USD", net: -3_000n },
+    ]);
+    expect(household?.payments).toEqual([
+      { receivingMemberId: "member-juan", amount: pesos(500_000n), currency: "COP" },
+      { receivingMemberId: "member-juan", amount: 6_000n, currency: "EUR" },
+      { receivingMemberId: "member-juan", amount: 5_000n, currency: "USD" },
+    ]);
   });
 
   it("answers an empty list to someone without a shared space", async () => {

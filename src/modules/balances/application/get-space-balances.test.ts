@@ -74,7 +74,59 @@ describe("GetSpaceBalances (HU-E5-01)", () => {
         { memberId: "member-ana", net: pesos(150_000n), hasMovements: true },
         { memberId: "member-juan", net: -pesos(150_000n), hasMovements: true },
       ],
+      byCurrency: [
+        {
+          currency: "COP",
+          members: [
+            { memberId: "member-ana", net: pesos(150_000n), hasMovements: true },
+            { memberId: "member-juan", net: -pesos(150_000n), hasMovements: true },
+          ],
+        },
+      ],
     });
+  });
+
+  it("keeps one standing per currency, never converted, the space's first (P342, S4)", async () => {
+    const { ledger, getBalances } = world();
+    // Ana pays 500.000 COP for Juan; Juan pays 50 USD for Ana; Ana pays 60 EUR for Juan.
+    await ledger.add(paid("member-ana", pesos(500_000n), ["member-juan"]));
+    await ledger.add(paid("member-juan", 5_000n, ["member-ana"], { currency: "USD" }));
+    await ledger.add(paid("member-ana", 6_000n, ["member-juan"], { currency: "EUR" }));
+    const balances = unwrap(await getBalances({ spaceId: "space-household", userId: "u-juan" }));
+    expect(balances.currency).toBe("COP");
+    // The single-currency fields still mean the space currency.
+    expect(balances.members).toEqual([
+      { memberId: "member-ana", net: pesos(500_000n), hasMovements: true },
+      { memberId: "member-juan", net: -pesos(500_000n), hasMovements: true },
+    ]);
+    expect(balances.byCurrency).toEqual([
+      { currency: "COP", members: balances.members },
+      {
+        currency: "EUR",
+        members: [
+          { memberId: "member-ana", net: 6_000n, hasMovements: true },
+          { memberId: "member-juan", net: -6_000n, hasMovements: true },
+        ],
+      },
+      {
+        currency: "USD",
+        members: [
+          { memberId: "member-ana", net: -5_000n, hasMovements: true },
+          { memberId: "member-juan", net: 5_000n, hasMovements: true },
+        ],
+      },
+    ]);
+  });
+
+  it("answers a space whose movements are all in another currency with every member at 0 in its own (P342)", async () => {
+    const { ledger, getBalances } = world();
+    await ledger.add(paid("member-juan", 5_000n, ["member-ana"], { currency: "USD" }));
+    const balances = unwrap(await getBalances({ spaceId: "space-household", userId: "u-ana" }));
+    expect(balances.members).toEqual([
+      { memberId: "member-ana", net: 0n, hasMovements: false },
+      { memberId: "member-juan", net: 0n, hasMovements: false },
+    ]);
+    expect(balances.byCurrency.map((group) => group.currency)).toEqual(["COP", "USD"]);
   });
 
   it("says whom a live movement ever touched, a settled-up member included (#217, P263)", async () => {

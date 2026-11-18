@@ -1,4 +1,5 @@
 export type {
+  CurrencyStandings,
   DatedDebtMovements,
   DebtExpense,
   DebtMovements,
@@ -11,6 +12,7 @@ export type {
 } from "../domain/balances";
 export {
   createGetSettlementContexts,
+  type CurrencyDatedDebtMovements,
   type DebtHistorySource,
   type GetSettlementContexts,
   type SettlementContextQuery,
@@ -19,8 +21,10 @@ export {
   createGetSpaceBalances,
   type BalancesDeps,
   type BalanceSource,
+  type CurrencyNet,
   type DebtSource,
   type GetSpaceBalances,
+  netsOf,
   type SpaceBalances,
 } from "./get-space-balances";
 export {

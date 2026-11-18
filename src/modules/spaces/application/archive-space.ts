@@ -1,15 +1,19 @@
 import { ok, type Result } from "@/shared/kernel";
-import { ensureSettled, outstandingIn } from "../domain/member";
 import { ensureArchivable } from "../domain/space";
-import type { LifecycleDeps } from "./lifecycle-deps";
+import { ensureSettledInEveryCurrency, type CurrencyNet, type LifecycleDeps } from "./lifecycle-deps";
 import { authorizeSpaceAction } from "./space-access";
 import type { SpaceArchiveRepository } from "./space-repository";
 
 /**
  * HU-E5-01 net(m) of the given members of one space, in that order, read from one aggregate so that they
- * come from one snapshot; bound to the balances module by the composition root (balances imports spaces).
+ * come from one snapshot; each member's non-zero nets, one per currency (ruling P342). Bound to the balances module
+ * by the composition root (balances imports spaces).
  */
-export type MemberNetBalances = (spaceId: string, memberIds: readonly string[]) => Promise<bigint[]>;
+export type MemberNetBalances = (
+  spaceId: string,
+  memberIds: readonly string[],
+  spaceCurrency: string,
+) => Promise<readonly (readonly CurrencyNet[])[]>;
 
 export type ArchiveSpace = (input: { spaceId: string; userId: string }) => Promise<Result<void>>;
 
@@ -20,7 +24,7 @@ export type ArchiveSpaceDeps = Omit<LifecycleDeps, "netBalance"> & {
 
 /**
  * HU-E1-09: the OWNER archives a shared or direct space once every current member, registered or guest,
- * is settled; the space then only reads (SpaceAccess). Personal spaces are never archived.
+ * is settled in every currency (ruling P342); the space then only reads (SpaceAccess). Personal spaces are never archived.
  */
 export const createArchiveSpace =
   (deps: ArchiveSpaceDeps): ArchiveSpace =>
@@ -38,8 +42,9 @@ export const createArchiveSpace =
       const nets = await deps.netBalances(
         spaceId,
         current.map((m) => m.id),
+        currency,
       );
-      const settled = ensureSettled(outstandingIn(nets), currency);
+      const settled = ensureSettledInEveryCurrency(currency, nets);
       if (!settled.ok) return settled;
       await deps.spaces.archive(spaceId, deps.clock.now());
       return ok(undefined);

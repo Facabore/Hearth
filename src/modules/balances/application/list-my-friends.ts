@@ -7,7 +7,7 @@ import {
   type SpaceRepository,
 } from "@/modules/spaces/application";
 import { domainError, err, ok, type Result } from "@/shared/kernel";
-import { createGetSpaceBalances, type BalancesDeps } from "./get-space-balances";
+import { createGetSpaceBalances, netsOf, type BalancesDeps, type CurrencyNet } from "./get-space-balances";
 
 /** Ruling P338: the newest live movement of a direct space; bound to the ledger by the composition root. */
 export interface LastMovement {
@@ -39,8 +39,10 @@ export interface Friend extends Omit<FriendName, "other"> {
   readonly spaceId: string;
   readonly currency: string;
   readonly me: { readonly memberId: string };
-  /** The viewer's net in the space: positive when the other one owes her, negative when she owes them. */
+  /** The viewer's net in the space currency: positive when the other one owes her, negative when she owes them. */
   readonly net: bigint;
+  /** Ruling P342 (S4): the viewer's non-zero nets in every currency, never converted, the space's first. */
+  readonly nets: readonly CurrencyNet[];
   readonly lastMovement: Omit<LastMovement, "spaceId"> | null;
 }
 
@@ -98,6 +100,7 @@ export const createListMyFriends = (deps: ListMyFriendsDeps): ListMyFriends => {
           me: { memberId: me.id },
           ...friendName(other, aliasOf.get(space.id) ?? null),
           net: balances.value.members.find((standing) => standing.memberId === me.id)?.net ?? 0n,
+          nets: netsOf(balances.value.byCurrency, me.id),
           lastMovement: lastOf.get(space.id) ?? null,
         };
       }),

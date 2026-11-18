@@ -39,7 +39,7 @@ const world = async (archived: boolean) => {
     access: deps.access,
     members: store,
     spaceLocks: store,
-    netBalance: async () => 0n,
+    netBalance: async () => [],
     clock,
     tm: memoryTm,
   };

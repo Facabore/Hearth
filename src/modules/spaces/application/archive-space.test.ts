@@ -4,6 +4,7 @@ import { codeOf, memoryTm, unwrap } from "../../../../tests/support/fakes";
 import { householdSpace, InMemorySpaceStore, memberOf } from "../../../../tests/support/in-memory-spaces";
 import { createPersonalSpace, type Space, type SpaceId, type SpaceMemberId } from "../domain/space";
 import { createArchiveSpace } from "./archive-space";
+import type { CurrencyNet } from "./lifecycle-deps";
 import { createListMySpaces } from "./list-my-spaces";
 import { createSpaceAccess } from "./space-access";
 
@@ -12,19 +13,27 @@ const space = "space-household";
 const as = (name: string) => ({ spaceId: space, userId: `u-${name}` });
 
 // HU-E1-05 Background members: OWNER Ana, ADMIN Juan, MEMBER Luis, VIEWER Sofi and the guest Pedro.
-const setup = (seeded: Space = householdSpace(), byMember: Record<string, bigint> = {}) => {
+const setup = (
+  seeded: Space = householdSpace(),
+  byMember: Record<string, bigint> = {},
+  foreign: Record<string, readonly CurrencyNet[]> = {},
+) => {
   const store = new InMemorySpaceStore();
   store.seed(seeded);
-  const asked: { spaceId: string; memberIds: readonly string[] }[] = [];
+  const asked: { spaceId: string; memberIds: readonly string[]; spaceCurrency: string }[] = [];
   const archive = createArchiveSpace({
     access: createSpaceAccess(store),
     members: store,
     spaceLocks: store,
     spaces: store,
-    // Nets of Household by member id; any other space answers 1 for everyone, never settled.
-    netBalances: async (spaceId, memberIds) => {
-      asked.push({ spaceId, memberIds });
-      return memberIds.map((id) => (spaceId === space ? (byMember[id] ?? 0n) : 1n));
+    // Nets of Household by member id in COP, or per currency in `foreign` (P342); any other space answers 1 COP for
+    // everyone, never settled.
+    netBalances: async (spaceId, memberIds, spaceCurrency) => {
+      asked.push({ spaceId, memberIds, spaceCurrency });
+      return memberIds.map((id) => {
+        const net = spaceId === space ? (byMember[id] ?? 0n) : 1n;
+        return [...(net === 0n ? [] : [{ currency: "COP", net }]), ...(foreign[id] ?? [])];
+      });
     },
     clock: new FixedClock(now),
     tm: memoryTm,
@@ -56,6 +65,7 @@ describe("ArchiveSpace (HU-E1-09)", () => {
       {
         spaceId: space,
         memberIds: ["member-ana", "member-juan", "member-luis", "member-sofi", "member-pedro"],
+        spaceCurrency: "COP",
       },
     ]);
     // Members are read plainly, like RemoveGuestMember: FOR UPDATE would conflict with the key-share locks that
@@ -104,6 +114,51 @@ describe("ArchiveSpace (HU-E1-09)", () => {
       },
     });
     expect(store.archived.size).toBe(0);
+  });
+
+  it("refuses with every COP net at 0 while Juan still owes Ana 30 USD, in the debt's currency (P342, S4)", async () => {
+    const { store, archive } = setup(
+      householdSpace(),
+      {},
+      {
+        "member-ana": [{ currency: "USD", net: 3_000n }],
+        "member-juan": [{ currency: "USD", net: -3_000n }],
+      },
+    );
+    expect(await archive(as("ana"))).toEqual({
+      ok: false,
+      error: { code: "OutstandingBalance", details: { outstanding: { amount: "3000", currency: "USD" } } },
+    });
+    expect(store.archived.size).toBe(0);
+  });
+
+  it("names the space currency first, then the others by ISO code, when several are owed (P342)", async () => {
+    const { archive } = setup(
+      householdSpace(),
+      {},
+      {
+        "member-ana": [
+          { currency: "EUR", net: 6_000n },
+          { currency: "USD", net: 3_000n },
+        ],
+        "member-juan": [{ currency: "USD", net: -3_000n }],
+        "member-luis": [{ currency: "EUR", net: -6_000n }],
+      },
+    );
+    expect(await archive(as("ana"))).toMatchObject({
+      error: { details: { outstanding: { amount: "6000", currency: "EUR" } } },
+    });
+    const { archive: withCop } = setup(
+      householdSpace(),
+      { "member-ana": 100n, "member-luis": -100n },
+      {
+        "member-ana": [{ currency: "EUR", net: 6_000n }],
+        "member-luis": [{ currency: "EUR", net: -6_000n }],
+      },
+    );
+    expect(await withCop(as("ana"))).toMatchObject({
+      error: { details: { outstanding: { amount: "100", currency: "COP" } } },
+    });
   });
 
   it("lets only the OWNER archive and hides the space from non-members", async () => {

@@ -10,6 +10,7 @@ import {
 } from "../../../../tests/support/in-memory-spaces";
 import { issueClaim, issueInvitation, type InvitationId } from "../domain/invitation";
 import { createPersonalSpace, type Space, type SpaceId, type SpaceMemberId } from "../domain/space";
+import type { CurrencyNet } from "./lifecycle-deps";
 import { createRemoveGuestMember, type RemoveGuestDeps } from "./remove-guest-member";
 import { createSpaceAccess } from "./space-access";
 
@@ -17,11 +18,16 @@ const now = new Date("2026-10-14T12:00:00Z");
 const space = "space-household";
 const as = (name: string) => ({ spaceId: space, userId: `u-${name}` });
 
-/** Net balances of Household by member id (minor units); any other space answers 1, never settled. */
+/**
+ * Net balances of Household by member id: minor units of COP, or the member's non-zero nets per currency (P342); any
+ * other space answers 1 COP, never settled.
+ */
 const nets =
-  (byMember: Record<string, bigint> = {}): RemoveGuestDeps["netBalance"] =>
-  async (spaceId, memberId) =>
-    spaceId === space ? (byMember[memberId] ?? 0n) : 1n;
+  (byMember: Record<string, bigint | readonly CurrencyNet[]> = {}): RemoveGuestDeps["netBalance"] =>
+  async (spaceId, memberId) => {
+    const net = spaceId === space ? (byMember[memberId] ?? 0n) : 1n;
+    return typeof net !== "bigint" ? net : net === 0n ? [] : [{ currency: "COP", net }];
+  };
 /** Pedro and a second guest, Other, both current guests of Household, so a claim link can name either. */
 const guests = [...HOUSEHOLD_MEMBERS, memberOf("Other", null, 5)];
 const claimFor = (id: string, guestMemberId: string) =>
@@ -40,7 +46,7 @@ const claimFor = (id: string, guestMemberId: string) =>
 // HU-E1-12 Background (HU-E1-05 members): OWNER Ana, ADMIN Juan, MEMBER Luis, VIEWER Sofi and the guest Pedro.
 const setup = (
   seeded: Space = householdSpace(),
-  byMember: Record<string, bigint> = {},
+  byMember: Record<string, bigint | readonly CurrencyNet[]> = {},
   store = new InMemorySpaceStore(),
 ) => {
   store.seed(seeded);
@@ -87,6 +93,15 @@ describe("RemoveGuestMember (HU-E1-12)", () => {
         code: "OutstandingBalance",
         details: { outstanding: { amount: "10000000", currency: "COP" } },
       },
+    });
+    expect(store.left).toEqual([]);
+  });
+
+  it("refuses removing Pedro with 0 COP while Ana still owes him 60 EUR (P342, S4)", async () => {
+    const { store, remove } = setup(householdSpace(), { "member-pedro": [{ currency: "EUR", net: 6_000n }] });
+    expect(await remove({ ...as("ana"), memberId: "member-pedro" })).toEqual({
+      ok: false,
+      error: { code: "OutstandingBalance", details: { outstanding: { amount: "6000", currency: "EUR" } } },
     });
     expect(store.left).toEqual([]);
   });

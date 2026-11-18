@@ -359,11 +359,11 @@ const rendezvous = (parties: number, ms: number) => {
   const everyone = new Promise<void>((resolve) => {
     release = resolve;
   });
-  return async (): Promise<bigint> => {
+  return async (): Promise<readonly never[]> => {
     arrived += 1;
     if (arrived >= parties) release();
     await Promise.race([everyone, new Promise((resolve) => setTimeout(resolve, ms))]);
-    return 0n;
+    return [];
   };
 };
 
