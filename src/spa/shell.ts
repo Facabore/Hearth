@@ -79,6 +79,7 @@ export const useShell = (spaceId: string | null, from?: string): Shell | null =>
           name: me.name,
           email: me.email,
           locale: resolveLocale({ userLocale: me.locale }),
+          handle: me.handle,
           formats: me.preferences.effective,
         },
         spaces,

@@ -55,5 +55,5 @@ export const handleOf = (typed: string): string => typed.trim().replace(/^@/, ""
 /** Ruling P339 (S2): whether an @ can be someone's: 3–20 lower-case letters a–z, digits and underscores. */
 export const isHandle = (handle: string): boolean => /^[a-z0-9_]{3,20}$/.test(handle);
 
-/** Ruling P339 (S6): the link that opens Agregar amigo with this @ filled in. */
-export const friendLinkOf = (handle: string): string => `/f/${encodeURIComponent(handle)}`;
+/** Ruling P339 (S6): the link that opens Agregar amigo with this @ filled in; the profile sheet shares it too (P343). */
+export { friendLinkOf } from "@/shared/ui/share-link";

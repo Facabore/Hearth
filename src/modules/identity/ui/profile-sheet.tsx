@@ -21,7 +21,13 @@ export function ProfileSheet({
   spaceId,
   api,
 }: {
-  readonly me: { readonly name: string; readonly email: string; readonly locale: Locale };
+  readonly me: {
+    readonly name: string;
+    readonly email: string;
+    readonly locale: Locale;
+    /** Ruling P343: the person's @, which everyone has; absent only while it is not known yet. */
+    readonly handle?: string;
+  };
   readonly spaceId: string;
   readonly api?: Api;
 }) {

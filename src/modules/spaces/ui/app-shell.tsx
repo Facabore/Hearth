@@ -17,6 +17,8 @@ export interface AppShellProps {
     readonly name: string;
     readonly email: string;
     readonly locale: Locale;
+    /** Ruling P343: the person's @, which the profile sheet shows and shares. */
+    readonly handle?: string;
     /** The person's effective formats (P121), for the amounts the switcher shows. */
     readonly formats?: Pick<Formats, "numberFormat">;
   };

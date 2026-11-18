@@ -60,7 +60,7 @@
     "routes/members.tsx": 24,
     "routes/balances.tsx": 20,
     "routes/friend.tsx": 21,
-    "../modules/balances/ui/add-friend-sheet.tsx": 8,
+    "../modules/balances/ui/add-friend-sheet.tsx": 9,
     "../modules/balances/ui/remove-friend-sheet.tsx": 6,
     "spaces/friend-link.ts": 1,
     "routes/invitation.tsx": 12,

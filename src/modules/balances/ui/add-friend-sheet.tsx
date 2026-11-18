@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Button, ProblemNotice, Sheet, TextField } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
+import { shareLink } from "@/shared/ui/share-link";
 import { friendLinkOf, handleOf, initialsOf, isHandle } from "./friends";
 
 /** How long typing pauses before the @ is looked up: one lookup for the whole @, never one per letter (S3). */
@@ -157,22 +158,11 @@ export function AddFriendSheet({
 
   const share = async () => {
     if (!myHandle) return;
-    const link = `${window.location.origin}${friendLinkOf(myHandle)}`;
-    try {
-      if (typeof navigator.share === "function") {
-        try {
-          await navigator.share({ text: t("shareText"), url: link });
-          return;
-        } catch (error) {
-          // The person closed the share sheet: nothing to say. Any other refusal falls back to copying.
-          if (error instanceof DOMException && error.name === "AbortError") return;
-        }
-      }
-      await navigator.clipboard.writeText(link);
-      setShared("copied");
-    } catch {
-      setShared("copyFailed");
-    }
+    const outcome = await shareLink({
+      url: `${window.location.origin}${friendLinkOf(myHandle)}`,
+      text: t("shareText"),
+    });
+    if (outcome === "copied" || outcome === "copyFailed") setShared(outcome);
   };
 
   return (

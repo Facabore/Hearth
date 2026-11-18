@@ -319,6 +319,13 @@
     "profile": {
       "open": "{name}'s profile",
       "settings": "Settings",
+      "you": "You're @{handle}",
+      "handleNote": "Share it so people can add you as a friend.",
+      "share": "Share",
+      "shareText": "Add me to your Friends on Hearth",
+      "copied": "Link copied",
+      "copyFailed": "We couldn't copy the link. Tell your friend your @ instead.",
+      "changeHandle": "Change",
       "settingsHint": "Formats, time, time zone, theme and language",
       "signOut": "Sign out"
     },

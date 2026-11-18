@@ -110,3 +110,56 @@ describe("profile sheet (HU-E9-01)", () => {
     expect(within(sheet).getByRole("button", { name: "Cerrar sesión" })).toBeInTheDocument();
   });
 });
+
+describe("profile sheet: the person's @ (ruling P343)", () => {
+  const me = { name: "Ana", email: "ana@example.com", locale: "es" as const, handle: "ana_4821" };
+  const open = async () => {
+    renderWithIntl(<ProfileSheet me={me} spaceId="sp-personal" api={fakeApi({}).api} />);
+    await userEvent.click(screen.getByRole("button", { name: "Perfil de Ana" }));
+    return screen.findByRole("dialog", { name: "Ana" }, { timeout: 10_000 });
+  };
+
+  it("says who the person is and links to change it in Ajustes, at the @ field", async () => {
+    const sheet = await open();
+    expect(within(sheet).getByText("Tú eres @ana_4821")).toBeInTheDocument();
+    expect(within(sheet).getByRole("link", { name: "Cambiar" })).toHaveAttribute(
+      "href",
+      "/settings?from=sp-personal#settings-handle",
+    );
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("shares the friend link through the device's share sheet", async () => {
+    const share = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "share", { value: share, configurable: true });
+    try {
+      const sheet = await open();
+      await userEvent.click(within(sheet).getByRole("button", { name: "Compartir" }));
+      expect(share).toHaveBeenCalledWith({
+        text: "Agrégame en Amigos de Hearth",
+        url: `${window.location.origin}/f/ana_4821`,
+      });
+    } finally {
+      Reflect.deleteProperty(navigator, "share");
+    }
+  });
+
+  it("copies the link where there is no share sheet, and says so on the button", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const sheet = await open();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Compartir" }));
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/f/ana_4821`);
+    expect(await within(sheet).findByRole("button", { name: "Enlace copiado" })).toBeInTheDocument();
+  });
+
+  it("says when the link could not be copied", async () => {
+    const writeText = vi.fn(async () => {
+      throw new Error("denied");
+    });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const sheet = await open();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Compartir" }));
+    expect(await within(sheet).findByText(/No pudimos copiar el enlace/)).toBeInTheDocument();
+  });
+});

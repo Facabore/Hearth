@@ -319,6 +319,13 @@
     "profile": {
       "open": "Perfil de {name}",
       "settings": "Ajustes",
+      "you": "Tú eres @{handle}",
+      "handleNote": "Compártelo para que te agreguen como amigo.",
+      "share": "Compartir",
+      "shareText": "Agrégame en Amigos de Hearth",
+      "copied": "Enlace copiado",
+      "copyFailed": "No pudimos copiar el enlace. Dile tu @ a tu amigo.",
+      "changeHandle": "Cambiar",
       "settingsHint": "Formatos, hora, zona horaria, tema e idioma",
       "signOut": "Cerrar sesión"
     },
