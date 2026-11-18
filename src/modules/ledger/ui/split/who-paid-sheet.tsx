@@ -222,20 +222,20 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
   const others = people.filter((p) => p.id !== meId);
   const crowded = props.findable === true && others.length > CROWD;
   const searching = crowded && query.trim().replace(/^@/, "") !== "";
-  const ticked = others.filter((p) => selected.includes(p.id));
+  const tickedOthers = others.filter((p) => selected.includes(p.id));
   const shown: readonly WhoPaidPerson[] = !crowded
     ? people
     : searching
       ? others.filter((p) => matches(p, query))
       : [
           ...people.filter((p) => p.id === meId),
-          ...ticked,
+          ...tickedOthers,
           ...others
             .filter((p) => !selected.includes(p.id))
             .sort(byRecent)
             .slice(0, RECENT_FOR_WHOM),
         ];
-  const kept = searching ? ticked.filter((p) => !shown.includes(p)).map((p) => p.name) : [];
+  const kept = searching ? tickedOthers.filter((p) => !shown.includes(p)).map((p) => p.name) : [];
   const keptLine =
     kept.length === 0
       ? null

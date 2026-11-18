@@ -143,6 +143,45 @@ describe("Para quién fue with many friends: recent people and a search (P340)",
       expect(within(sheet).getByRole("checkbox", { name: new RegExp(`^${name}`) })).toBeChecked();
   });
 
+  it("says how many stay ticked once three or more are hidden by a search (S5)", async () => {
+    const { api } = fakeApi({});
+    form(api);
+    const sheet = await openWho();
+    for (const name of ["Juan", "Ana", "Mamá"])
+      await userEvent.click(within(sheet).getByRole("checkbox", { name: new RegExp(`^${name}`) }));
+    await userEvent.type(search(sheet), "sam");
+    expect(within(sheet).getByText("Ya marcaste a 3 personas.")).toBeVisible();
+  });
+
+  it("lists everyone, with no search, while there are five other people or fewer (S2)", async () => {
+    const { api } = fakeApi({});
+    renderWithIntl(
+      <RecordForm
+        space={spaceDto()}
+        accounts={accounts}
+        groups={groups}
+        formats={BUILT_IN_FORMATS}
+        initialKind="EXPENSE"
+        initialNow="2026-11-17T15:00:00.000Z"
+        timeZone="America/Bogota"
+        people={PEOPLE.slice(0, 5)}
+        api={api}
+      />,
+    );
+    const sheet = await openWho();
+    expect(listed(sheet)).toEqual([
+      "Tú",
+      "Papá",
+      "Juan",
+      "Brother",
+      "Brother (invitado)",
+      "Brother (invitado)",
+    ]);
+    expect(within(sheet).queryByRole("searchbox")).not.toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Agregar a alguien" })).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Otra persona" })).not.toBeInTheDocument();
+  });
+
   it("creates a guest only from Agregar «…» como invitado, ticked, and sends it (S4)", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-new", true) });
     form(api);
