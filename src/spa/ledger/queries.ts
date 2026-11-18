@@ -22,6 +22,7 @@ import {
 } from "../reads";
 import { ensurer, sharedSpace, showsUnifiedMonth, viewerOf, type Load, type Viewer } from "../load";
 import { read } from "../read";
+import { myFriendsQuery } from "../shell";
 
 /** The home's latest rows and the list's page size, as the Next.js containers read them. */
 export const HOME_ROWS = 3;
@@ -320,12 +321,19 @@ export const loadRecord = async (load: Load, spaceId: string) => {
     ensure(categoriesQuery(api, spaceId, "active")),
     viewer.then((v) => {
       if (!v) return undefined;
-      // P172: a personal expense can be split with the people of every other space; one that fails is left out.
+      // P172: a personal expense can be split with the people of every other space; a read that fails leaves its
+      // people out. #338: the direct spaces' people are Amigos' one read, so only the groups read their members.
+      const others = v.spaces.filter(sharedSpace);
       const people = sharedSpace(v.space)
         ? loadShared(load, v, "active")
-        : Promise.all(
-            v.spaces.filter(sharedSpace).map((space) => settled(ensure(membersQuery(api, space.id)))),
-          );
+        : Promise.all([
+            others.some((space) => space.kind === "DIRECT")
+              ? settled(ensure(myFriendsQuery(api)))
+              : undefined,
+            ...others
+              .filter((space) => space.kind === "SHARED")
+              .map((space) => settled(ensure(membersQuery(api, space.id)))),
+          ]);
       return Promise.all([people, loadLineWatch(load, v)]);
     }),
   ]);

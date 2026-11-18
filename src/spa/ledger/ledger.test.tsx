@@ -1,5 +1,5 @@
 import { createBrowserHistory } from "@tanstack/react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { es } from "@/i18n/messages/full";
@@ -8,6 +8,7 @@ import {
   activityItemDto,
   categoryDto,
   cop,
+  friendDto,
   householdSpace,
   meDto,
   memberDto,
@@ -1086,5 +1087,63 @@ describe("the record sheet draws the screen it was opened from behind it, from t
     await record();
     await openForm(spa);
     await waitFor(() => expect(region()).toHaveAttribute("data-placement", "top"));
+  });
+});
+
+describe("Registrar's reads do not grow with the person's friends (#338)", () => {
+  /** Ana in Personal with Household and `count` friends, each a direct space (P338). */
+  const withFriends = (count: number) => {
+    const friends = Array.from({ length: count }, (_, i) => ({
+      space: spaceDto({ id: `sp-friend-${i}`, name: `Amigo ${i}`, kind: "DIRECT", role: "OWNER" }),
+      friend: friendDto({
+        spaceId: `sp-friend-${i}`,
+        me: { memberId: `m-ana-${i}` },
+        other: { memberId: `m-friend-${i}`, kind: "GUEST", displayName: `Amigo ${i}`, nickname: null },
+        name: `Amigo ${i}`,
+      }),
+    }));
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () =>
+        jsonResponse({ items: [spaceDto(), householdSpace(), ...friends.map((f) => f.space)] }),
+      "GET /api/v1/me/friends": () => jsonResponse({ items: friends.map((f) => f.friend) }),
+      "GET /api/v1/me/account-usage": () =>
+        jsonResponse({ since: "2026-07-20", accounts: [], categories: [] }),
+      "GET /api/v1/spaces/{spaceId}/members": () =>
+        jsonResponse({
+          items: [
+            memberDto(),
+            memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" }),
+          ],
+        }),
+    });
+    return routes;
+  };
+
+  const open = async (count: number) => {
+    const spa = renderSpa("/spaces/sp-personal/new", withFriends(count));
+    expect(
+      await screen.findByRole("button", { name: es.ledger.form.save.EXPENSE }, { timeout: 5_000 }),
+    ).toBeVisible();
+    await settled(spa);
+    return spa;
+  };
+
+  it("reads Amigos once for every friend's direct space, and members only for the group", async () => {
+    const spa = await open(13);
+    expect(calls(spa.requests, "GET", /\/me\/friends$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/members$/)).toHaveLength(1);
+    expect(calls(spa.requests, "GET", /\/spaces\/sp-friend-\d+\/members$/)).toHaveLength(0);
+    // "Para quién fue" still offers each friend and the group's member.
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    expect(within(sheet).getByRole("checkbox", { name: /^Amigo 12/ })).toBeInTheDocument();
+    expect(within(sheet).getByRole("checkbox", { name: /^Juan/ })).toBeInTheDocument();
+  });
+
+  it("costs as many requests with 13 friends as with one", async () => {
+    const one = (await open(1)).requests.filter((r) => r.method === "GET").length;
+    cleanup();
+    const thirteen = (await open(13)).requests.filter((r) => r.method === "GET").length;
+    expect(thirteen).toBe(one);
   });
 });

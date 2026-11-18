@@ -11645,6 +11645,10 @@
                               "handle": {
                                 "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
                                 "type": "string"
+                              },
+                              "userId": {
+                                "description": "#338: the registered person's user id, so a group's members list can tell them apart; absent for a guest",
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -11816,6 +11820,10 @@
                         },
                         "handle": {
                           "description": "P339: the registered person's @usuario; absent for a guest or someone who picked none",
+                          "type": "string"
+                        },
+                        "userId": {
+                          "description": "#338: the registered person's user id, so a group's members list can tell them apart; absent for a guest",
                           "type": "string"
                         }
                       },

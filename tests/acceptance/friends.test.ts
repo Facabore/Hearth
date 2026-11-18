@@ -26,6 +26,7 @@ interface FriendDto {
     displayName: string;
     nickname: string | null;
     handle?: string;
+    userId?: string;
   };
   name: string;
   net: MoneyDto;
@@ -204,5 +205,12 @@ describe("Amigos: one row per person a direct space is shared with (P338)", () =
     const after = await friendsOf(h.ana.personal);
     expect(after.find((f) => f.spaceId === dinner.spaceId)?.other.handle).toBe("juanp");
     expect(after.find((f) => f.spaceId === taxi.spaceId)?.other.handle).toBeUndefined();
+  });
+
+  it("names a registered friend's user, so a group she shares with Ana does not list her twice; none for a guest (#338)", async () => {
+    const { h, dinner, taxi } = await anaWithJuanAndPedro();
+    const friends = await friendsOf(h.ana);
+    expect(friends.find((f) => f.spaceId === dinner.spaceId)?.other.userId).toBe(h.juan.userId);
+    expect(friends.find((f) => f.spaceId === taxi.spaceId)?.other).not.toHaveProperty("userId");
   });
 });

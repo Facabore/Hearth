@@ -8719,6 +8719,8 @@ export interface operations {
                                 nickname: string | null;
                                 /** @description P339: the registered person's @usuario; absent for a guest or someone who picked none */
                                 handle?: string;
+                                /** @description #338: the registered person's user id, so a group's members list can tell them apart; absent for a guest */
+                                userId?: string;
                             };
                             /** @description What the viewer calls them: nickname ?? displayName */
                             name: string;
@@ -8784,6 +8786,8 @@ export interface operations {
                             nickname: string | null;
                             /** @description P339: the registered person's @usuario; absent for a guest or someone who picked none */
                             handle?: string;
+                            /** @description #338: the registered person's user id, so a group's members list can tell them apart; absent for a guest */
+                            userId?: string;
                         };
                         /** @description What the viewer calls them: nickname ?? displayName */
                         name: string;
