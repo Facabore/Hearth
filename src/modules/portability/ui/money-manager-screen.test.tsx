@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { File as NodeFile } from "node:buffer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { es } from "@/i18n/messages/full";
+import { en, es } from "@/i18n/messages/full";
 import { axeViolations } from "../../../../tests/support/ui/axe";
 import {
   fakeApi,
@@ -135,6 +135,21 @@ describe("Importar desde Money Manager (D28, board 2)", () => {
     await userEvent.upload(screen.getByLabelText("Copia de Money Manager"), backup());
     expect(await screen.findByRole("alert")).toHaveTextContent(es.errors.ImportFileNotRecognized);
     expect(screen.queryByRole("button", { name: "Intentar de nuevo" })).toBeNull();
+  });
+
+  it("words a file it cannot read generically, naming no file type, since Android and iPhone backups differ (#343)", async () => {
+    renderScreen({ [UPLOAD]: () => problemResponse(422, "ImportFileNotRecognized") });
+    await userEvent.upload(screen.getByLabelText("Copia de Money Manager"), backup());
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No pudimos leer este archivo como una copia de Money Manager. Exporta la copia de nuevo desde la app e inténtalo otra vez.",
+    );
+    expect(es.errors.ZipBackupNotSupported).toBe(
+      "No pudimos leer esta copia de Money Manager. Exporta la copia de nuevo desde la app e inténtalo otra vez.",
+    );
+    for (const messages of [es.errors, en.errors]) {
+      expect(messages.ImportFileNotRecognized).not.toMatch(/\.(sqlite|mmbak)/);
+      expect(messages.ZipBackupNotSupported).not.toMatch(/\.(sqlite|mmbak)/);
+    }
   });
 
   it("shows only the latest refusal: the API's or the screen's own too-large", async () => {
