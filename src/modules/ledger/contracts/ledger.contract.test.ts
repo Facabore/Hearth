@@ -10,6 +10,7 @@ import {
   directSplitFromBody,
   EditTransactionBodySchema,
   editChangesFromBody,
+  expenseFromBody,
   positionFromCursor,
   RecordExpenseBodySchema,
   transactionPageDto,
@@ -250,10 +251,10 @@ describe("edit bodies (HU-E4-06, ruling P186)", () => {
   });
 });
 
-describe("conversionFromBody in another currency (D29, slice MC3)", () => {
+describe("conversionFromBody in another currency (D29, slice MC3; P342)", () => {
   const usd = { amount: "10000", currency: "USD" };
 
-  it("keeps an income's converted amount and a transfer's arriving amount, as recording them does", () => {
+  it("keeps an income's account leg and a transfer's arriving amount, as recording them does", () => {
     const income = ConvertTransactionBodySchema.parse({
       type: "INCOME",
       amount: usd,
@@ -261,7 +262,10 @@ describe("conversionFromBody in another currency (D29, slice MC3)", () => {
       accountId: "0194f3a0-0000-7000-8000-000000000001",
       categoryId: "0194f3a0-0000-7000-8000-000000000002",
     });
-    expect(unwrap(conversionFromBody(income))).toMatchObject({ convertedAmount: money(41_000_000n) });
+    // P342: the deprecated convertedAmount is the account leg.
+    const converted = unwrap(conversionFromBody(income));
+    expect(converted).toMatchObject({ amount: money(100_00n, "USD"), accountAmount: money(41_000_000n) });
+    expect(converted).not.toHaveProperty("convertedAmount");
     const transfer = ConvertTransactionBodySchema.parse({
       type: "TRANSFER",
       amount: { amount: "40000000", currency: "COP" },
@@ -270,5 +274,54 @@ describe("conversionFromBody in another currency (D29, slice MC3)", () => {
       destinationAccountId: "0194f3a0-0000-7000-8000-000000000003",
     });
     expect(unwrap(conversionFromBody(transfer))).toMatchObject({ destinationAmount: money(100_00n, "USD") });
+  });
+});
+
+describe("account legs of a recorded expense (P342, S3)", () => {
+  const usd = { amount: "10000", currency: "USD" };
+  const cop = (amount: string) => ({ amount, currency: "COP" });
+  const fields = (extra: Record<string, unknown>) =>
+    unwrap(
+      expenseFromBody(
+        RecordExpenseBodySchema.parse({
+          amount: usd,
+          accountId: "0194f3a0-0000-7000-8000-000000000001",
+          ...extra,
+        }),
+      ),
+    );
+
+  it("takes accountAmount, and the deprecated convertedAmount as the same figure, accountAmount winning", () => {
+    expect(fields({ accountAmount: cop("41000000") }).accountAmount).toEqual(money(41_000_000n));
+    expect(fields({ convertedAmount: cop("40500000") }).accountAmount).toEqual(money(40_500_000n));
+    expect(
+      fields({ accountAmount: cop("41000000"), convertedAmount: cop("40500000") }).accountAmount,
+    ).toEqual(money(41_000_000n));
+    expect(fields({}).accountAmount).toBeUndefined();
+  });
+
+  it("ignores a convertedAmount in the expense's own currency, as D29 did", () => {
+    expect(fields({ convertedAmount: usd })).not.toHaveProperty("accountAmount");
+  });
+
+  it("takes each payment's own account leg, and refuses an unknown currency in it", () => {
+    const payments = (accountAmount: unknown) =>
+      expenseFromBody(
+        RecordExpenseBodySchema.parse({
+          amount: usd,
+          payments: [
+            { memberId: "0194f3a0-0000-7000-8000-000000000004", accountId: null, amount: usd, accountAmount },
+          ],
+        }),
+      );
+    expect(unwrap(payments(cop("41000000"))).payments).toEqual([
+      {
+        memberId: "0194f3a0-0000-7000-8000-000000000004",
+        accountId: null,
+        amount: money(100_00n, "USD"),
+        accountAmount: money(41_000_000n),
+      },
+    ]);
+    expect(codeOf(payments({ amount: "100", currency: "ZZZ" }))).toBe("UnknownCurrency");
   });
 });

@@ -1879,6 +1879,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/exchange-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The day's exchange rate between two currencies (P342, D30)
+         * @description The rate the ledger converts a movement of that day at, from the stored daily rates (ECB and TRM), directly or through a pivot currency. The app suggests an account leg from it (what an account in another currency moved); the person may change the figure, and the rate itself is never stored on a movement.
+         */
+        get: operations["getExchangeRate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/export": {
         parameters: {
             query?: never;
@@ -2213,6 +2233,10 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            /**
+             * @deprecated
+             * @description Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.
+             */
             originalAmount?: components["schemas"]["MoneyOutput"];
             sourceAmount?: components["schemas"]["MoneyOutput"];
             destinationAmount?: components["schemas"]["MoneyOutput"];
@@ -2740,6 +2764,10 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            /**
+             * @deprecated
+             * @description Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.
+             */
             originalAmount?: components["schemas"]["MoneyOutput"];
             sourceAmount?: components["schemas"]["MoneyOutput"];
             destinationAmount?: components["schemas"]["MoneyOutput"];
@@ -2948,6 +2976,10 @@ export interface components {
             occurredAt: string | null;
             timeZone: string | null;
             amount: components["schemas"]["MoneyOutput"];
+            /**
+             * @deprecated
+             * @description Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.
+             */
             originalAmount?: components["schemas"]["MoneyOutput"];
             sourceAmount?: components["schemas"]["MoneyOutput"];
             destinationAmount?: components["schemas"]["MoneyOutput"];
@@ -6523,12 +6555,20 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                    accountAmount?: components["schemas"]["Money"];
+                    /**
+                     * @deprecated
+                     * @description Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.
+                     */
                     convertedAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
                         accountId?: string | null;
                         amount: components["schemas"]["Money"];
+                        /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                        accountAmount?: components["schemas"]["Money"];
                     }[];
                     split?: {
                         /** @constant */
@@ -6644,6 +6684,12 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                    accountAmount?: components["schemas"]["Money"];
+                    /**
+                     * @deprecated
+                     * @description Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.
+                     */
                     convertedAmount?: components["schemas"]["Money"];
                     accountId: string;
                 };
@@ -6977,6 +7023,10 @@ export interface operations {
                     receivingMemberId: string;
                     sourceAccountId?: string | null;
                     destinationAccountId?: string | null;
+                    /** @description P342 (S5): what the source account really moved, in its own currency, when it is not `amount`'s: the explicit exchange ("Saldar 50 USD con 205.000 COP"); when absent, `amount` at the date's rate. A leg in another currency than `amount`'s needs one of the recorder's accounts in that currency on its side (ExchangeAccountRequired). Additive and optional. */
+                    sourceAmount?: components["schemas"]["Money"];
+                    /** @description P342 (S5): what really reached the destination account, in its own currency, when it is not `amount`'s; as `sourceAmount`, for the receiving side. Additive and optional. */
+                    destinationAmount?: components["schemas"]["Money"];
                     onBehalfOfMemberId?: string;
                     gift?: boolean;
                     /** @enum {string} */
@@ -7237,6 +7287,12 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount?: components["schemas"]["Money"];
+                    /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                    accountAmount?: components["schemas"]["Money"];
+                    /**
+                     * @deprecated
+                     * @description Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.
+                     */
                     convertedAmount?: components["schemas"]["Money"];
                     destinationAmount?: components["schemas"]["Money"];
                     accountId?: string;
@@ -7499,12 +7555,20 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                    accountAmount?: components["schemas"]["Money"];
+                    /**
+                     * @deprecated
+                     * @description Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.
+                     */
                     convertedAmount?: components["schemas"]["Money"];
                     accountId?: string;
                     payments?: {
                         memberId: string | null;
                         accountId?: string | null;
                         amount: components["schemas"]["Money"];
+                        /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                        accountAmount?: components["schemas"]["Money"];
                     }[];
                     split?: {
                         /** @constant */
@@ -7544,6 +7608,12 @@ export interface operations {
                     timeZone?: string;
                     categoryId?: string;
                     amount: components["schemas"]["Money"];
+                    /** @description P342: what the account really moved, in the account's own currency, when it is not the movement's ("Tu Visa Oro en pesos pagó 205.000 COP"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional. */
+                    accountAmount?: components["schemas"]["Money"];
+                    /**
+                     * @deprecated
+                     * @description Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.
+                     */
                     convertedAmount?: components["schemas"]["Money"];
                     accountId: string;
                     /** @constant */
@@ -7750,6 +7820,8 @@ export interface operations {
                     timeZone?: string;
                     amount: components["schemas"]["Money"];
                     accountId: string;
+                    /** @description P342 (S5): what the requester's account really moved, in its own currency, when it is not `amount`'s: the explicit exchange, the settlement's source leg (TO) or destination leg (FROM); when absent, `amount` at the date's rate. Additive and optional. */
+                    accountAmount?: components["schemas"]["Money"];
                 };
             };
         };
@@ -11470,6 +11542,68 @@ export interface operations {
                 };
             };
             /** @description ValidationFailed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getExchangeRate: {
+        parameters: {
+            query: {
+                /** @description The currency one unit of which the rate prices, such as USD. */
+                base: string;
+                /** @description The currency the rate is given in, such as COP. */
+                quote: string;
+                /** @description The day the rate is wanted for: the movement's date. */
+                on: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The rate and the day it is from */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description How many units of `quote` one unit of `base` is worth, as an exact decimal such as "4100.25". */
+                        rate: string;
+                        /**
+                         * Format: date
+                         * @description The day of the stored rate it rests on: the day asked for or the latest one before it (for a rate through a pivot currency, the oldest of the rates it went through).
+                         */
+                        on: string;
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ExchangeRateNotFound: no stored rate connects the currencies by that day */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description ValidationFailed, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;

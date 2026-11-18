@@ -22,6 +22,8 @@ const EXPLICIT: ReadonlyMap<string, number> = new Map([
   // (the default would be 409).
   ["ExchangeRateRequired", 422],
   ["MultiCurrencyUnsupported", 422],
+  // P342 (S5): a leg in another currency needs one of the recorder's accounts in it; the person picks or creates one.
+  ["ExchangeAccountRequired", 422],
   // D28, design §3.5: an upload the importer cannot read; the person picks another file (the default would be 409).
   ["ImportFileTooLarge", 422],
   ["ImportFileNotRecognized", 422],

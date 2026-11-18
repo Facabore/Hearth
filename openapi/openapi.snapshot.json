@@ -6983,7 +6983,13 @@
                   "amount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "accountAmount": {
+                    "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "convertedAmount": {
+                    "deprecated": true,
+                    "description": "Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.",
                     "$ref": "#/components/schemas/Money"
                   },
                   "accountId": {
@@ -7022,6 +7028,10 @@
                           ]
                         },
                         "amount": {
+                          "$ref": "#/components/schemas/Money"
+                        },
+                        "accountAmount": {
+                          "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
                           "$ref": "#/components/schemas/Money"
                         }
                       },
@@ -7343,7 +7353,13 @@
                   "amount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "accountAmount": {
+                    "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "convertedAmount": {
+                    "deprecated": true,
+                    "description": "Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.",
                     "$ref": "#/components/schemas/Money"
                   },
                   "accountId": {
@@ -7978,6 +7994,14 @@
                       }
                     ]
                   },
+                  "sourceAmount": {
+                    "description": "P342 (S5): what the source account really moved, in its own currency, when it is not `amount`'s: the explicit exchange (\"Saldar 50 USD con 205.000 COP\"); when absent, `amount` at the date's rate. A leg in another currency than `amount`'s needs one of the recorder's accounts in that currency on its side (ExchangeAccountRequired). Additive and optional.",
+                    "$ref": "#/components/schemas/Money"
+                  },
+                  "destinationAmount": {
+                    "description": "P342 (S5): what really reached the destination account, in its own currency, when it is not `amount`'s; as `sourceAmount`, for the receiving side. Additive and optional.",
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "onBehalfOfMemberId": {
                     "type": "string",
                     "minLength": 1,
@@ -8396,7 +8420,13 @@
                   "amount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "accountAmount": {
+                    "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
+                    "$ref": "#/components/schemas/Money"
+                  },
                   "convertedAmount": {
+                    "deprecated": true,
+                    "description": "Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.",
                     "$ref": "#/components/schemas/Money"
                   },
                   "destinationAmount": {
@@ -9077,7 +9107,13 @@
                       "amount": {
                         "$ref": "#/components/schemas/Money"
                       },
+                      "accountAmount": {
+                        "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
+                        "$ref": "#/components/schemas/Money"
+                      },
                       "convertedAmount": {
+                        "deprecated": true,
+                        "description": "Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.",
                         "$ref": "#/components/schemas/Money"
                       },
                       "accountId": {
@@ -9116,6 +9152,10 @@
                               ]
                             },
                             "amount": {
+                              "$ref": "#/components/schemas/Money"
+                            },
+                            "accountAmount": {
+                              "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
                               "$ref": "#/components/schemas/Money"
                             }
                           },
@@ -9312,7 +9352,13 @@
                       "amount": {
                         "$ref": "#/components/schemas/Money"
                       },
+                      "accountAmount": {
+                        "description": "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
+                        "$ref": "#/components/schemas/Money"
+                      },
                       "convertedAmount": {
+                        "deprecated": true,
+                        "description": "Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.",
                         "$ref": "#/components/schemas/Money"
                       },
                       "accountId": {
@@ -9751,6 +9797,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 64
+                  },
+                  "accountAmount": {
+                    "description": "P342 (S5): what the requester's account really moved, in its own currency, when it is not `amount`'s: the explicit exchange, the settlement's source leg (TO) or destination leg (FROM); when absent, `amount` at the date's rate. Additive and optional.",
+                    "$ref": "#/components/schemas/Money"
                   }
                 },
                 "required": [
@@ -17609,6 +17659,116 @@
         }
       }
     },
+    "/api/v1/exchange-rates": {
+      "get": {
+        "operationId": "getExchangeRate",
+        "summary": "The day's exchange rate between two currencies (P342, D30)",
+        "description": "The rate the ledger converts a movement of that day at, from the stored daily rates (ECB and TRM), directly or through a pivot currency. The app suggests an account leg from it (what an account in another currency moved); the person may change the figure, and the rate itself is never stored on a movement.",
+        "security": [
+          {
+            "cookieAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "base",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "The currency one unit of which the rate prices, such as USD."
+            },
+            "required": true,
+            "description": "The currency one unit of which the rate prices, such as USD."
+          },
+          {
+            "in": "query",
+            "name": "quote",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "The currency the rate is given in, such as COP."
+            },
+            "required": true,
+            "description": "The currency the rate is given in, such as COP."
+          },
+          {
+            "in": "query",
+            "name": "on",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+              "description": "The day the rate is wanted for: the movement's date."
+            },
+            "required": true,
+            "description": "The day the rate is wanted for: the movement's date."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The rate and the day it is from",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rate": {
+                      "type": "string",
+                      "description": "How many units of `quote` one unit of `base` is worth, as an exact decimal such as \"4100.25\"."
+                    },
+                    "on": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                      "description": "The day of the stored rate it rests on: the day asked for or the latest one before it (for a rate through a pivot currency, the oldest of the rates it went through)."
+                    }
+                  },
+                  "required": [
+                    "rate",
+                    "on"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ExchangeRateNotFound: no stored rate connects the currencies by that day",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "ValidationFailed, UnknownCurrency",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/me/export": {
       "get": {
         "operationId": "exportMyData",
@@ -20109,6 +20269,8 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "originalAmount": {
+            "deprecated": true,
+            "description": "Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.",
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "sourceAmount": {
@@ -22734,6 +22896,8 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "originalAmount": {
+            "deprecated": true,
+            "description": "Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.",
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "sourceAmount": {
@@ -23855,6 +24019,8 @@
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "originalAmount": {
+            "deprecated": true,
+            "description": "Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.",
             "$ref": "#/components/schemas/MoneyOutput"
           },
           "sourceAmount": {

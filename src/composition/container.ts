@@ -284,7 +284,11 @@ import { createExportReader } from "@/modules/portability/infrastructure/export-
 import { createUseCaseImportWriter } from "@/modules/portability/infrastructure/use-case-import-writer";
 import { createWorkerSnapshotReader } from "@/modules/portability/infrastructure/worker-snapshot-reader";
 import { zipStored } from "@/modules/portability/infrastructure/zip-writer";
-import type { ExchangeRateRepository } from "@/modules/rates/application";
+import {
+  createGetExchangeRate,
+  type ExchangeRateRepository,
+  type GetExchangeRate,
+} from "@/modules/rates/application";
 import { DrizzleExchangeRates } from "@/modules/rates/infrastructure/drizzle-exchange-rates";
 import { DrizzleReferrals } from "@/modules/referrals/infrastructure/drizzle-referrals";
 import {
@@ -574,6 +578,8 @@ export interface Container extends RouteDeps {
   /** D30: the global daily exchange-rate store, read on demand and written by the in-container fetch job. */
   readonly rates: {
     readonly repository: ExchangeRateRepository;
+    /** P342: the day's rate between two currencies, which the app suggests an account leg from. */
+    readonly getExchangeRate: GetExchangeRate;
   };
   /** Brute-force guards for the unauthenticated identity routes; false means "reject with 429". */
   readonly authThrottle: {
@@ -1024,8 +1030,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   /**
    * A copied plan's view walks its carry-over chain back through every earlier plan: its history is read in one batch
-   * of seven statements (the plans, their contents, the expenses and the savings transfers within each plan's dates),
-   * whatever the chain's length, within the request and never stored (D7).
+   * of eight statements (the plans, their contents, the space's currency, the expenses and the savings transfers within
+   * each plan's dates), whatever the chain's length, within the request and never stored (D7).
    */
   const planHistory: PlanHistoryReader = {
     historyOf: async (spaceId) => {
@@ -1036,7 +1042,17 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       const named = [...contents.values()].flatMap((parts) =>
         parts.lines.flatMap((line) => line.savingsAccountIds),
       );
-      const transfers = await ledgerQueries.transfersIntoAccountsIn([...new Set(named)], ranges);
+      // P342 (S7): a savings line counts only transfers in the space's currency, as the plan view's own path does.
+      const [space] = await tm
+        .executor()
+        .select({ currency: spacesTable.currency })
+        .from(spacesTable)
+        .where(eq(spacesTable.id, spaceId));
+      const transfers = await ledgerQueries.transfersIntoAccountsIn(
+        [...new Set(named)],
+        ranges,
+        space?.currency,
+      );
       return {
         plans,
         contents,
@@ -1576,6 +1592,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     },
     rates: {
       repository: exchangeRates,
+      getExchangeRate: createGetExchangeRate({ rates: exchangeRates }),
     },
     authThrottle: {
       // Both counters advance on every attempt, so neither can be probed independently.

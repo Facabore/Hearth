@@ -40,6 +40,7 @@ import type {
   RecordedExpense,
   RecordExpenseInput,
   RecordFundContributionInput,
+  RecordIncomeInput,
   RecordSettlementInput,
   SplitInput,
   Transaction,
@@ -79,8 +80,8 @@ export const PaymentSchema = z.object({
   accountId: z.string().nullable(),
   amount: MoneySchema,
   /**
-   * D29, slice MC3: what left the paying account, in that account's own currency, when it is not the space's base
-   * currency; absent when the account moved by `amount`. Additive: existing clients ignore it.
+   * P342 (S3): what left the paying account, in that account's own currency, when it is not the expense's; absent when
+   * the account moved by `amount`. Additive: existing clients ignore it.
    */
   accountAmount: MoneySchema.optional(),
 });
@@ -103,17 +104,26 @@ export const TransactionSchema = z.object({
   occurredAt: z.iso.datetime().nullable(),
   /** HU-E4-14: the IANA zone it was recorded in; null exactly when occurredAt is. */
   timeZone: z.string().nullable(),
+  /**
+   * P342 (S3): the movement in its own currency, the one it was recorded in, which its payments and shares keep too;
+   * the space's currency is only the default. Breaking (P342): a movement in another currency is no longer converted
+   * into the space's, so `amount` may be in any currency.
+   */
   amount: MoneySchema,
   /**
-   * D29, slice MC3: what was charged, in its own currency, when the movement was entered in a currency other than the
-   * space's base currency; absent when the amount is wholly in the base currency. Additive: existing clients ignore it.
+   * Deprecated (P342): never sent any more. D29 stored a converted amount in `amount` and kept what was charged here;
+   * every movement is now stored in its own currency, in `amount`, and migrated movements went back to it.
    */
-  originalAmount: MoneySchema.optional(),
+  originalAmount: MoneySchema.optional().meta({
+    deprecated: true,
+    description:
+      "Deprecated (P342): no longer sent. Every movement is stored in its own currency, in `amount`; movements that kept an original went back to it.",
+  }),
   /**
-   * D29, slice MC3: each account leg in its own currency, when it differs from the base amount: a transfer's "Sale"
-   * (`sourceAmount`) and "Llega" (`destinationAmount`), an income's destination (`destinationAmount`), and a
-   * settlement's accounts (`sourceAmount`, `destinationAmount`). Absent when
-   * the leg equals the base amount. Additive: existing clients ignore them.
+   * D29, P342: each account leg in its own currency, when it differs from the movement's: a transfer's "Sale"
+   * (`sourceAmount`) and "Llega" (`destinationAmount`), an income's account (`destinationAmount`), and a settlement's
+   * accounts (`sourceAmount`, `destinationAmount`: the explicit exchange of "Saldar 50 USD con 205.000 COP"). Absent
+   * when the account is in the movement's currency. Additive: existing clients ignore them.
    */
   sourceAmount: MoneySchema.optional(),
   destinationAmount: MoneySchema.optional(),
@@ -158,6 +168,24 @@ export const PaymentBodySchema = z.object({
   amount: MoneySchema,
 });
 
+/** P342 (S3): what an account in another currency than the movement's really moved, in the account's own currency. */
+const AccountAmount = MoneySchema.optional().meta({
+  description:
+    "P342: what the account really moved, in the account's own currency, when it is not the movement's (\"Tu Visa Oro en pesos pagó 205.000 COP\"); when absent, the movement's amount at the date's rate (ExchangeRateRequired without one). In another currency than the account's: CurrencyMismatch. Additive and optional.",
+});
+/**
+ * P342: D29's `convertedAmount`, kept for the clients that still send it: the same figure as `accountAmount`, which wins
+ * when both are sent. In the movement's own currency it changes nothing, as before.
+ */
+const DeprecatedConvertedAmount = MoneySchema.optional()
+  .meta({ deprecated: true })
+  .describe(
+    "Deprecated (P342): send `accountAmount`. Read as the account leg: what the account moved, in the account's own currency (CurrencyMismatch otherwise); ignored when in the movement's own currency. Breaking: it no longer becomes the stored amount, which stays in the currency it was recorded in.",
+  );
+
+/** HU-E4-07, P342: a payment of an expense, with what its account moved when that account is in another currency. */
+export const ExpensePaymentBodySchema = PaymentBodySchema.extend({ accountAmount: AccountAmount });
+
 /** HU-E4-07/08: EQUAL among the chosen members, or by percentage, exact amount or share units per member. */
 export const SplitBodySchema = z.discriminatedUnion("method", [
   EqualSplitSchema,
@@ -181,14 +209,13 @@ const RecordExpenseFields = z.object({
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
   categoryId: IdSchema.optional(),
+  /** P342 (S3): what was charged, in any currency; the expense, its payments and its shares are stored in it. */
   amount: MoneySchema,
-  /**
-   * D29, slice MC3: the real amount in the space's base currency the bank charged, when `amount` is in another
-   * currency; it wins over the rate. Additive and optional; ignored when `amount` is already in the base currency.
-   */
-  convertedAmount: MoneySchema.optional(),
+  /** P342 (S3): with `accountId`, or a sole payment with none of its own, what that account moved. */
+  accountAmount: AccountAmount,
+  convertedAmount: DeprecatedConvertedAmount,
   accountId: IdSchema.optional(),
-  payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
+  payments: z.array(ExpensePaymentBodySchema).max(MAX_PARTS).optional(),
   split: SplitBodySchema.optional(),
 });
 const accountOrPayments = (body: { accountId?: string; payments?: unknown }) =>
@@ -229,6 +256,29 @@ export const splitFromBody = (split: RecordExpenseBody["split"]): Result<SplitIn
   return ok({ method: "EXACT" as const, participants });
 };
 
+type MoneyBody = z.infer<typeof MoneySchema>;
+/** P342 (S3): a payment as RecordExpense takes it, with what its account moved. */
+type ExpensePaymentInput = NonNullable<RecordExpenseInput["payments"]>[number];
+
+/**
+ * P342: the account leg a body gives, as Money: `accountAmount`, else the deprecated `convertedAmount` unless it is in
+ * `amount`'s own currency (where D29 ignored it too). Fails only for currencies the kernel does not know.
+ */
+const accountAmountFromBody = (
+  amount: Money,
+  body: { readonly accountAmount?: MoneyBody; readonly convertedAmount?: MoneyBody },
+): Result<Money | undefined> => {
+  if (body.accountAmount !== undefined) return moneyFromDto(body.accountAmount);
+  if (body.convertedAmount === undefined) return ok(undefined);
+  const converted = moneyFromDto(body.convertedAmount);
+  if (!converted.ok) return converted;
+  return ok(converted.value.currency.code === amount.currency.code ? undefined : converted.value);
+};
+
+/** An optional Money of a body; fails only for currencies the kernel does not know. */
+const optionalMoney = (dto: MoneyBody | undefined): Result<Money | undefined> =>
+  dto === undefined ? ok(undefined) : moneyFromDto(dto);
+
 /** A validated body as RecordExpense input; fails only for impossible dates and currencies the kernel does not know. */
 export const expenseFromBody = (
   body: RecordExpenseBody,
@@ -237,29 +287,32 @@ export const expenseFromBody = (
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
-  let payments: PaymentInput[] | undefined;
+  let payments: ExpensePaymentInput[] | undefined;
   if (body.payments !== undefined) {
     payments = [];
     for (const payment of body.payments) {
       const paid = moneyFromDto(payment.amount);
       if (!paid.ok) return paid;
-      payments.push({ memberId: payment.memberId, accountId: payment.accountId ?? null, amount: paid.value });
+      const moved = optionalMoney(payment.accountAmount);
+      if (!moved.ok) return moved;
+      payments.push({
+        memberId: payment.memberId,
+        accountId: payment.accountId ?? null,
+        amount: paid.value,
+        ...(moved.value === undefined ? {} : { accountAmount: moved.value }),
+      });
     }
   }
   const split = splitFromBody(body.split);
   if (!split.ok) return split;
-  let convertedAmount: Money | undefined;
-  if (body.convertedAmount !== undefined) {
-    const converted = moneyFromDto(body.convertedAmount);
-    if (!converted.ok) return converted;
-    convertedAmount = converted.value;
-  }
+  const accountAmount = accountAmountFromBody(amount.value, body);
+  if (!accountAmount.ok) return accountAmount;
   return ok({
     description: body.description,
     ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
-    ...(convertedAmount === undefined ? {} : { convertedAmount }),
+    ...(accountAmount.value === undefined ? {} : { accountAmount: accountAmount.value }),
     accountId: body.accountId,
     payments,
     split: split.value,
@@ -274,14 +327,33 @@ export const RecordIncomeBodySchema = z.object({
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
   categoryId: IdSchema.optional(),
+  /** P342 (S3): what was received, in any currency; the income is stored in it. */
   amount: MoneySchema,
-  /**
-   * D29, slice MC3: the real amount in the space's base currency the bank credited, when `amount` is in another
-   * currency; it wins over the rate. Additive and optional; ignored when `amount` is already in the base currency.
-   */
-  convertedAmount: MoneySchema.optional(),
+  /** P342 (S3): what the receiving account got, in its own currency, when it is not `amount`'s. */
+  accountAmount: AccountAmount,
+  convertedAmount: DeprecatedConvertedAmount,
   accountId: IdSchema,
 });
+
+/** A validated body as RecordIncome input; fails only for impossible dates and currencies the kernel does not know. */
+export const incomeFromBody = (
+  body: z.infer<typeof RecordIncomeBodySchema>,
+): Result<Omit<RecordIncomeInput, "spaceId" | "userId">> => {
+  const amount = moneyFromDto(body.amount);
+  if (!amount.ok) return amount;
+  const when = whenFromBody(body);
+  if (!when.ok) return when;
+  const accountAmount = accountAmountFromBody(amount.value, body);
+  if (!accountAmount.ok) return accountAmount;
+  return ok({
+    description: body.description,
+    ...when.value,
+    categoryId: body.categoryId,
+    amount: amount.value,
+    accountId: body.accountId,
+    ...(accountAmount.value === undefined ? {} : { accountAmount: accountAmount.value }),
+  });
+};
 export const RecordTransferBodySchema = z.object({
   description: Description,
   date: z.iso.date().optional(),
@@ -371,35 +443,26 @@ export const conversionFromBody = (
     const { type, ...fields } = body;
     return map(fundContributionFromBody(fields), (contribution) => ({ type, ...contribution }));
   }
+  if (body.type === "INCOME") {
+    const { type, ...fields } = body;
+    return map(incomeFromBody(fields), (income) => ({ type, ...income }));
+  }
   const amount = moneyFromDto(body.amount);
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
-  // D29, slice MC3: the bank's converted amount of an income, and what arrives on a transfer, as when recording them.
-  const extra = body.type === "INCOME" ? body.convertedAmount : body.destinationAmount;
-  const extraMoney = extra === undefined ? ok(undefined) : moneyFromDto(extra);
-  if (!extraMoney.ok) return extraMoney;
-  return ok(
-    body.type === "INCOME"
-      ? {
-          type: body.type,
-          description: body.description,
-          ...when.value,
-          categoryId: body.categoryId,
-          amount: amount.value,
-          accountId: body.accountId,
-          ...(extraMoney.value === undefined ? {} : { convertedAmount: extraMoney.value }),
-        }
-      : {
-          type: body.type,
-          description: body.description,
-          ...when.value,
-          amount: amount.value,
-          sourceAccountId: body.sourceAccountId,
-          destinationAccountId: body.destinationAccountId,
-          ...(extraMoney.value === undefined ? {} : { destinationAmount: extraMoney.value }),
-        },
-  );
+  // D29, slice MC3: what arrives on a transfer, as when recording it.
+  const arriving = optionalMoney(body.destinationAmount);
+  if (!arriving.ok) return arriving;
+  return ok({
+    type: body.type,
+    description: body.description,
+    ...when.value,
+    amount: amount.value,
+    sourceAccountId: body.sourceAccountId,
+    destinationAccountId: body.destinationAccountId,
+    ...(arriving.value === undefined ? {} : { destinationAmount: arriving.value }),
+  });
 };
 
 /** HU-E5-02: `payerMemberId` paid `receivingMemberId`; both accounts are optional and never sent for a guest. */
@@ -408,11 +471,20 @@ export const RecordSettlementBodySchema = z.object({
   date: z.iso.date().optional(),
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
+  /** P342 (S5): in any currency, the debt's by default; the settlement is stored in it and settles that currency. */
   amount: MoneySchema,
   payerMemberId: IdSchema,
   receivingMemberId: IdSchema,
   sourceAccountId: IdSchema.nullable().optional(),
   destinationAccountId: IdSchema.nullable().optional(),
+  sourceAmount: MoneySchema.optional().meta({
+    description:
+      "P342 (S5): what the source account really moved, in its own currency, when it is not `amount`'s: the explicit exchange (\"Saldar 50 USD con 205.000 COP\"); when absent, `amount` at the date's rate. A leg in another currency than `amount`'s needs one of the recorder's accounts in that currency on its side (ExchangeAccountRequired). Additive and optional.",
+  }),
+  destinationAmount: MoneySchema.optional().meta({
+    description:
+      "P342 (S5): what really reached the destination account, in its own currency, when it is not `amount`'s; as `sourceAmount`, for the receiving side. Additive and optional.",
+  }),
   /**
    * Ruling P322: the member whose debt this payment pays (neither the payer nor the receiver). Balances then make that
    * member owe the payer, unless `gift` is true.
@@ -435,10 +507,16 @@ export const settlementFromBody = (
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
+  const leaving = optionalMoney(body.sourceAmount);
+  if (!leaving.ok) return leaving;
+  const arriving = optionalMoney(body.destinationAmount);
+  if (!arriving.ok) return arriving;
   return ok({
     description: body.description,
     ...when.value,
     amount: amount.value,
+    ...(leaving.value === undefined ? {} : { sourceAmount: leaving.value }),
+    ...(arriving.value === undefined ? {} : { destinationAmount: arriving.value }),
     payerMemberId: body.payerMemberId,
     receivingMemberId: body.receivingMemberId,
     sourceAccountId: body.sourceAccountId ?? null,
@@ -476,11 +554,8 @@ export const transactionDto = (tx: Transaction): z.infer<typeof TransactionSchem
     date: tx.date,
     occurredAt: tx.occurredAt?.toISOString() ?? null,
     timeZone: tx.timeZone,
+    // P342 (S3): the movement's own currency; `originalAmount` is no longer sent (S8 restored every original).
     amount: money(tx.amount),
-    // D29, slice MC3: what was charged in another currency, present only when the row kept an original (its own currency).
-    ...(tx.originalAmount === undefined || tx.originalCurrency === undefined
-      ? {}
-      : { originalAmount: { amount: tx.originalAmount.toString(), currency: tx.originalCurrency } }),
     // D29, slice MC3: each account leg in its own account's currency, when stored (4.1).
     ...transactionLegs(tx),
     categoryId: tx.categoryId,
@@ -657,12 +732,13 @@ export const EditTransactionBodySchema = z
     timeZone: TimeZoneName.optional(),
     categoryId: IdSchema.optional(),
     /**
-     * D29, slice MC3: read as recording the movement's type reads it: an expense's or income's in any currency (the
-     * original is kept), an own transfer's ("Sale") in the source account's, the others' in the space's.
+     * D29, P342: read as recording the movement's type reads it: an expense's or income's in any currency (it is stored
+     * in it from then on), an own transfer's ("Sale") in the source account's.
      */
     amount: MoneySchema.optional(),
-    /** D29, slice MC3: with an amount in another currency, the real base amount the bank charged; wins over the rate. */
-    convertedAmount: MoneySchema.optional(),
+    /** P342 (S3): an expense's sole payment's or an income's account, what it moved in its own currency. */
+    accountAmount: AccountAmount,
+    convertedAmount: DeprecatedConvertedAmount,
     /** D29, slice MC3: with an own transfer's amount, what arrived at a destination in another currency ("Llega"). */
     destinationAmount: MoneySchema.optional(),
     accountId: IdSchema.optional(),
@@ -681,7 +757,10 @@ export const EditTransactionBodySchema = z
 export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySchema>): Result<EditChanges> => {
   const amount = body.amount === undefined ? ok(undefined) : moneyFromDto(body.amount);
   if (!amount.ok) return amount;
-  const converted = body.convertedAmount === undefined ? ok(undefined) : moneyFromDto(body.convertedAmount);
+  const moved = optionalMoney(body.accountAmount);
+  if (!moved.ok) return moved;
+  // P342: the deprecated alias; EditTransaction reads it as the same figure as `accountAmount`, which wins.
+  const converted = moved.value === undefined ? optionalMoney(body.convertedAmount) : ok(undefined);
   if (!converted.ok) return converted;
   const arriving =
     body.destinationAmount === undefined ? ok(undefined) : moneyFromDto(body.destinationAmount);
@@ -705,6 +784,7 @@ export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySche
     ...when.value,
     categoryId: body.categoryId,
     amount: amount.value,
+    ...(moved.value === undefined ? {} : { accountAmount: moved.value }),
     ...(converted.value === undefined ? {} : { convertedAmount: converted.value }),
     ...(arriving.value === undefined ? {} : { destinationAmount: arriving.value }),
     accountId: body.accountId,
@@ -953,8 +1033,13 @@ export const DirectSettlementBodySchema = z.object({
   date: z.iso.date().optional(),
   occurredAt: Instant.nullable().optional(),
   timeZone: TimeZoneName.optional(),
+  /** P342 (S5): in any currency; the settlement is stored in it and settles that currency. */
   amount: MoneySchema,
   accountId: IdSchema,
+  accountAmount: MoneySchema.optional().meta({
+    description:
+      "P342 (S5): what the requester's account really moved, in its own currency, when it is not `amount`'s: the explicit exchange, the settlement's source leg (TO) or destination leg (FROM); when absent, `amount` at the date's rate. Additive and optional.",
+  }),
 });
 
 /** P334: the transfer as the composition root hands it to RecordPairSettlement. */
@@ -967,6 +1052,8 @@ export const directSettlementFromBody = (
   if (!amount.ok) return amount;
   const when = whenFromBody(body);
   if (!when.ok) return when;
+  const moved = optionalMoney(body.accountAmount);
+  if (!moved.ok) return moved;
   return ok({
     counterpart: counterpartOf(body.counterpart),
     transfer: {
@@ -975,6 +1062,7 @@ export const directSettlementFromBody = (
       amount: amount.value,
       direction: body.direction,
       accountId: body.accountId,
+      ...(moved.value === undefined ? {} : { accountAmount: moved.value }),
     },
   });
 };

@@ -16,6 +16,9 @@ describe("statusForCode", () => {
     // D29, slice MC3: what the request asks cannot be recorded as sent; the person changes it.
     ["ExchangeRateRequired", 422],
     ["MultiCurrencyUnsupported", 422],
+    // P342: settling in another currency needs an account in it; no stored rate connects two currencies that day.
+    ["ExchangeAccountRequired", 422],
+    ["ExchangeRateNotFound", 404],
     ["InvalidTransferAmounts", 422],
     ["InvalidTransferLeg", 422],
     ["InvalidOriginalAmount", 422],

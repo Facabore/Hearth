@@ -115,12 +115,14 @@ describe("a plan's carry-over chain is read in one batch, whatever its length (A
     expect(long).toEqual(short);
     // Measured 2026-11-09 with seven plans, before: plan 61, lines 64, member-matrix 67, fund-contributions 65, trend 68.
     // D26 (#316): the fund report reads what each member paid for the fund by category, one statement more (17 → 18).
+    // P342 (S7): a copied plan's history reads the space's currency, one statement more, so a savings line counts only
+    // transfers in it; the member matrix's other one more is the reports' own per-currency read (U3).
     expect(long).toEqual({
-      plan: 14,
-      lines: 15,
-      "member-matrix": 16,
-      "fund-contributions": 18,
-      trend: 15,
+      plan: 15,
+      lines: 16,
+      "member-matrix": 18,
+      "fund-contributions": 19,
+      trend: 16,
     });
   });
 

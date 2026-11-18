@@ -41,7 +41,7 @@ const created = async (response: Promise<Response>) => {
 };
 
 /**
- * Ana's personal "Cuenta en dólares" opens with US$ 120; she receives US$ 100 into it (the bank paid $ 400.000), and pays
+ * Ana's personal "Cuenta en dólares" opens with US$ 120; she receives US$ 100 into it (kept in USD, P342), and pays
  * the household's $ 300.000 market from it, split with Juan (US$ 75 at the day's rate).
  */
 const dollarsWorld = async () => {
@@ -64,7 +64,6 @@ const dollarsWorld = async () => {
     post(recordIncome, ana, "incomes", {
       description: "Freelance",
       amount: usd(100),
-      convertedAmount: cop(400_000),
       date: RATE_DAY,
       categoryId: await categoryWithKey(ana, "salary"),
       accountId: dollars.id,
@@ -146,10 +145,10 @@ describe("changing an account's currency (P336)", () => {
       openingBalance: cop(492_000),
       balance: cop(594_500),
     });
-    // Her own income follows the account: what it received, at the rate, is now its amount, with no leg.
+    // P342 (S3): her own income keeps its US$ 100; what the account received, at the rate, becomes its COP leg.
     const income = await transaction(w.ana, w.income);
-    expect(income.amount).toEqual(cop(410_000));
-    expect(income.destinationAmount).toBeUndefined();
+    expect(income.amount).toEqual(usd(100));
+    expect(income.destinationAmount).toEqual(cop(410_000));
     expect(income.originalAmount).toBeUndefined();
     // The household's market keeps its $ 300.000 and its halves; only what her account paid converts.
     const market = await transaction(w.h.ana, w.market);
@@ -192,6 +191,9 @@ describe("changing an account's currency (P336)", () => {
       const response = await change(user, w.dollars, body);
       expect([response.status, ((await response.json()) as { code: string }).code]).toEqual([status, code]);
     }
-    expect((await transaction(w.ana, w.income)).destinationAmount).toEqual(usd(100));
+    // P342: the USD income into the USD account is unchanged: in USD, with no leg.
+    const income = await transaction(w.ana, w.income);
+    expect(income.amount).toEqual(usd(100));
+    expect(income.destinationAmount).toBeUndefined();
   });
 });

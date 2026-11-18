@@ -129,11 +129,11 @@ describe("record a personal expense (HU-E4-01, @critical)", () => {
   });
 });
 
-describe("recording in another currency (D29, MC3)", () => {
+describe("recording in another currency (D29, MC3; P342)", () => {
   /** Whole dollars on the wire: USD has two minor digits, like COP. */
   const usd = (dollars: number): MoneyDto => ({ amount: String(dollars * 100), currency: "USD" });
 
-  it("stores a USD expense on a COP account at the bank's real converted amount and returns the original", async () => {
+  it("keeps a USD expense in USD, with the deprecated convertedAmount as what the COP account paid (P342)", async () => {
     const ana = await ledgerUser("Ana");
     const body = await recorded(
       post(recordExpense, ana, "expenses", {
@@ -145,15 +145,19 @@ describe("recording in another currency (D29, MC3)", () => {
         accountId: ana.bancolombia,
       }),
     );
-    // The stored base amount is the space's currency (what the bank charged); the original is kept in USD.
-    expect(body.amount).toEqual(cop(410_000));
-    expect(body.originalAmount).toEqual(usd(100));
-    expect(body.payments[0]).toMatchObject({ accountId: ana.bancolombia, amount: cop(410_000) });
-    // The COP account's balance moves by the base amount (its own currency), not the foreign original.
+    // P342 (S3): the expense stays in USD, with no converted base and no original; the COP account's leg is explicit.
+    expect(body.amount).toEqual(usd(100));
+    expect(body.originalAmount).toBeUndefined();
+    expect(body.payments[0]).toMatchObject({
+      accountId: ana.bancolombia,
+      amount: usd(100),
+      accountAmount: cop(410_000),
+    });
+    // The COP account's balance moves by its leg (its own currency), not the foreign amount.
     expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_590_000));
   });
 
-  it("stores a USD income at the bank's real converted amount and moves the account by the base amount", async () => {
+  it("keeps a USD income in USD, with the deprecated convertedAmount as what the COP account received (P342)", async () => {
     const ana = await ledgerUser("Ana");
     const body = await recorded(
       post(recordIncome, ana, "incomes", {
@@ -165,9 +169,10 @@ describe("recording in another currency (D29, MC3)", () => {
         accountId: ana.bancolombia,
       }),
     );
-    expect(body.amount).toEqual(cop(410_000));
-    expect(body.originalAmount).toEqual(usd(100));
-    // Bancolombia opens at 2,000,000 COP and receives the 410,000 COP base amount.
+    expect(body.amount).toEqual(usd(100));
+    expect(body.originalAmount).toBeUndefined();
+    expect(body.destinationAmount).toEqual(cop(410_000));
+    // Bancolombia opens at 2,000,000 COP and receives the 410,000 COP leg.
     expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(2_410_000));
   });
 
@@ -249,51 +254,67 @@ describe("recording in another currency (D29, MC3)", () => {
     expect(await balanceOf(ana, wallet)).toEqual(usd(-1_250));
   });
 
-  it("applies a converted amount sent alone to a USD expense (D29)", async () => {
+  it("applies a converted amount sent alone as the COP account's leg, and refuses one on a USD account (P342)", async () => {
     const ana = await ledgerUser("Ana");
     const wallet = await usdWalletOf(ana);
-    const tx = await recorded(
-      post(recordExpense, ana, "expenses", {
-        amount: usd(100),
-        date: RATE_DAY,
-        categoryId: ana.groceries,
-        accountId: wallet,
-      }),
-    );
-    const charged = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
+    const expense = (accountId: string) =>
+      recorded(
+        post(recordExpense, ana, "expenses", {
+          amount: usd(100),
+          date: RATE_DAY,
+          categoryId: ana.groceries,
+          accountId,
+        }),
+      );
+    const fromBank = await expense(ana.bancolombia);
+    const charged = await onTransaction(editTransaction, "PATCH", ana, fromBank.id, {
       body: { convertedAmount: cop(410_000) },
     });
     expect(charged.status).toBe(200);
-    expect(await charged.json()).toMatchObject({ amount: cop(410_000), originalAmount: usd(100) });
+    const body = (await charged.json()) as TransactionDto;
+    expect(body.amount).toEqual(usd(100));
+    expect(body.originalAmount).toBeUndefined();
+    expect(body.payments[0]).toMatchObject({ amount: usd(100), accountAmount: cop(410_000) });
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_590_000));
+    // A USD wallet pays a USD expense with no leg: a COP figure for it is in neither of their currencies.
+    const fromWallet = await expense(wallet);
+    const refused = await onTransaction(editTransaction, "PATCH", ana, fromWallet.id, {
+      body: { convertedAmount: cop(410_000) },
+    });
+    expect([refused.status, (await refused.json()).code]).toEqual([422, "CurrencyMismatch"]);
     expect(await balanceOf(ana, wallet)).toEqual(usd(-100));
   });
 
-  it("keeps a USD expense's legs on a description edit and recomputes them from a new amount (D29)", async () => {
+  it("keeps a USD expense's COP leg on a description edit and recomputes it from a new amount (D29, P342)", async () => {
     const ana = await ledgerUser("Ana");
-    const wallet = await usdWalletOf(ana);
+    await usdWalletOf(ana);
     const tx = await recorded(
       post(recordExpense, ana, "expenses", {
         amount: usd(100),
         date: RATE_DAY,
         categoryId: ana.groceries,
-        accountId: wallet,
+        accountId: ana.bancolombia,
       }),
     );
-    expect(tx).toMatchObject({ amount: cop(400_000), originalAmount: usd(100) });
+    expect(tx.amount).toEqual(usd(100));
+    expect(tx.payments[0]).toMatchObject({ amount: usd(100), accountAmount: cop(400_000) });
     const renamed = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
       body: { description: "Groceries" },
     });
     expect(renamed.status).toBe(200);
-    expect(await renamed.json()).toMatchObject({ description: "Groceries", originalAmount: usd(100) });
-    expect(await balanceOf(ana, wallet)).toEqual(usd(-100));
+    const kept = (await renamed.json()) as TransactionDto;
+    expect(kept).toMatchObject({ description: "Groceries", amount: usd(100) });
+    expect(kept.payments[0]).toMatchObject({ accountAmount: cop(400_000) });
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_600_000));
     const repriced = await onTransaction(editTransaction, "PATCH", ana, tx.id, {
       body: { amount: usd(150) },
     });
     expect(repriced.status).toBe(200);
     const edited = (await repriced.json()) as TransactionDto;
-    expect(edited).toMatchObject({ amount: cop(600_000), originalAmount: usd(150) });
-    expect(edited.payments[0]).toMatchObject({ amount: cop(600_000), accountAmount: usd(150) });
-    expect(await balanceOf(ana, wallet)).toEqual(usd(-150));
+    expect(edited.amount).toEqual(usd(150));
+    expect(edited.originalAmount).toBeUndefined();
+    expect(edited.payments[0]).toMatchObject({ amount: usd(150), accountAmount: cop(600_000) });
+    expect(await balanceOf(ana, ana.bancolombia)).toEqual(cop(1_400_000));
   });
 });
 
