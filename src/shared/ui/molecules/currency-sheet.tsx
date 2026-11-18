@@ -221,8 +221,7 @@ export function FavoriteCurrenciesSheet({
     readonly search: string;
     readonly favorites: string;
     readonly others: string;
-    /** The star's accessible name: "Agregar USD a favoritas" or "Quitar USD de favoritas". */
-    /** The star's fixed name; whether it is a favorite is `aria-pressed`, never the name (WAI-ARIA toggle buttons). */
+    /** The star's fixed name ("Moneda favorita: USD"); whether it is a favorite is `aria-pressed`, never the name (WAI-ARIA toggle buttons). */
     readonly star: (code: string) => string;
   };
   readonly favorites: readonly string[];
