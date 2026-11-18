@@ -2,7 +2,12 @@ import { expect } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
 import { minor, shown } from "../support/money";
 
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 
 Given(

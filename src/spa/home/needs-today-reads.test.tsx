@@ -68,7 +68,7 @@ const openHome = async (url: string, friendCount: number) => {
   const spa = renderSpa(url, api(friendCount));
   const card = await screen.findByRole("region", { name: "Te necesita hoy" }, { timeout: 15_000 });
   await waitFor(() => expect(card).toHaveTextContent("Energía por confirmar"));
-  expect(card.textContent?.replace(/\s/g, " ")).toContain("sugerido $ 180.000");
+  expect(card.textContent?.replace(/\s/g, " ")).toContain("sugerido 180.000 COP");
   await waitFor(() => expect(spa.queryClient.isFetching()).toBe(0));
   return spa.requests;
 };

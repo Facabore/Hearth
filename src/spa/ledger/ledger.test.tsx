@@ -141,7 +141,7 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     const spa = renderSpa("/spaces/sp-personal", routes);
     // Ruling P306 (as P324 draws it): one figure, her month across her spaces.
     const summary = await screen.findByRole("region", { name: es.home.summary });
-    await waitFor(() => expect(summary.textContent?.replace(/\s/g, " ")).toContain("$ 1.575.000"));
+    await waitFor(() => expect(summary.textContent?.replace(/\s/g, " ")).toContain("1.575.000 COP"));
     expect(summary).toHaveTextContent(/^Gastaste en octubre/);
     const row = await screen.findByRole("link", { name: /Mercado del mes/ });
     expect(row).toHaveAttribute("href", "/spaces/sp-hogar?tx=t-hogar");
@@ -619,7 +619,7 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
     expect(row).toHaveAttribute("href", "/spaces/sp-household?tx=t-household");
     expect(within(row).getByText("Household")).toHaveAttribute("data-space-chip");
     // Ruling P324: the amount is her part, so the line names it once, under the list's day label.
-    expect(normalized(row.textContent)).toBe("Mercado del mesHousehold · tu parte−$ 90.000");
+    expect(normalized(row.textContent)).toBe("Mercado del mesHousehold · tu parte−\u206090.000 COP");
     expect(screen.getByRole("link", { name: /Salary/ })).toHaveAttribute(
       "href",
       "/spaces/sp-personal/transactions?period=2026-10&tx=t-salary",
@@ -739,7 +739,7 @@ describe("the personal Movimientos gathers every space (ruling P319, #294)", () 
     expect(screen.queryByText(es.ledger.list.everySpace)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: es.ledger.list.allSpaces })).not.toBeInTheDocument();
     expect(normalized(screen.getByRole("region", { name: es.ledger.list.totals }).textContent)).toContain(
-      "Gastos $ 245.000",
+      "Gastos 245.000 COP",
     );
   });
 });
@@ -866,7 +866,7 @@ describe("the personal Inicio is the person's hub (ruling P310, #274)", () => {
     const summary = await screen.findByRole("region", { name: es.home.summary });
     const line = await within(summary).findByRole("link", { name: /^Incluye tu parte en Household\./ });
     expect(line.textContent?.replace(/\s/g, " ")).toBe(
-      "Incluye tu parte en Household. Solo tú $ 1.500 · con otros $ 900",
+      "Incluye tu parte en Household. Solo tú 1.500 COP · con otros 900 COP",
     );
     expect(line).toHaveAttribute("href", "/spaces/sp-personal/my-consumption?period=2026-10");
     // P324 drops the parts that opened in place (P310).

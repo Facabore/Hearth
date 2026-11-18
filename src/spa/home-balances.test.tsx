@@ -55,7 +55,7 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
   it("shows the personal home her turn to put money in Household, with Saldar opening its settle sheet", async () => {
     renderSpa("/spaces/sp-personal", api());
     const card = await screen.findByRole("region", { name: "Te necesita hoy" }, { timeout: 15_000 });
-    expect(card.textContent?.replace(/\s/g, " ")).toContain("Te toca poner $ 120.000 a Juan");
+    expect(card.textContent?.replace(/\s/g, " ")).toContain("Te toca poner 120.000 COP a Juan");
     expect(card).toHaveTextContent("En Household");
     expect(within(card).getByRole("link", { name: "Saldar con Juan en Household" })).toHaveAttribute(
       "href",
@@ -102,11 +102,11 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     const card = await screen.findByRole("region", { name: "Te necesita hoy" }, { timeout: 15_000 });
     await waitFor(() => expect(card).toHaveTextContent("Energía por confirmar"));
     const text = card.textContent?.replace(/\s/g, " ");
-    expect(text).toContain("sugerido $ 180.000");
-    expect(text).toContain("Te deben $ 30.000");
+    expect(text).toContain("sugerido 180.000 COP");
+    expect(text).toContain("Te deben 30.000 COP");
     // One space owes her, so its line names it once, without repeating the figure (P324).
     expect(text).toContain("En Viaje");
-    expect(text).toContain("Te toca poner $ 120.000 a Juan");
+    expect(text).toContain("Te toca poner 120.000 COP a Juan");
     // Ruling P324: one action line, her turn first; the others open in place behind "2 más".
     expect(within(card).getByRole("link", { name: "Saldar con Juan en Household" })).toBeVisible();
     expect(within(card).queryByRole("link", { name: "Revisar Energía en Household" })).toBeNull();
@@ -148,7 +148,7 @@ describe("Inicio and the space switcher read the person's balances (#240, ruling
     const sheet = await screen.findByRole("dialog", { name: es.shell.space.title });
     const household = within(sheet).getByRole("link", { name: /Household/ });
     await waitFor(() => expect(household).toHaveTextContent("Ana, Juan y Luis"));
-    expect(household.textContent?.replace(/\s/g, " ")).toContain("Te toca poner$ 120.000");
+    expect(household.textContent?.replace(/\s/g, " ")).toContain("Te toca poner120.000 COP");
   });
 
   it("reads no balances for a person with only her personal space, even with the switcher open", async () => {

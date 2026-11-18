@@ -83,7 +83,7 @@ describe("the Configuración's lazy chunks (ruling P311)", () => {
         within(screen.getByRole("navigation", { name: "Configuración" }))
           .getByRole("link", { name: /Plan del mes/ })
           .textContent?.replace(/\s/g, " "),
-      ).toContain("Quedan $ 590.000"),
+      ).toContain("Quedan 590.000 COP"),
     );
     vi.mocked(console.error).mockRestore();
   });

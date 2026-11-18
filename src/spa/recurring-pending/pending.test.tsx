@@ -138,8 +138,8 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Por confirmar" })).toBeInTheDocument();
     const names = screen.getAllByRole("article").map((a) => a.getAttribute("aria-labelledby"));
     expect(names).toEqual(["pending-o-internet", "pending-o-energy"]);
-    expect(normalized(card("Energía").textContent)).toContain("Sugerido: $ 180.000 · Ana · Bancolombia");
-    expect(normalized(card("Internet").textContent)).toContain("Sugerido: $ 95.000 · Juan");
+    expect(normalized(card("Energía").textContent)).toContain("Sugerido: 180.000 COP · Ana · Bancolombia");
+    expect(normalized(card("Internet").textContent)).toContain("Sugerido: 95.000 COP · Juan");
     expect(document.title).toBe("Por confirmar · Hearth");
     // P270: a card carries its category's icon once the categories are read; one without a category has none.
     await waitFor(() =>
@@ -148,11 +148,11 @@ describe("Por confirmar in the SPA (HU-E9-09, ruling P270)", () => {
     expect(card("Internet").querySelector("span[aria-hidden='true'].rounded-xl")).toBeNull();
   });
 
-  it("draws board 07's real amount as one large field with its symbol inside", async () => {
+  it("draws board 07's real amount as one large field with its code after it (P342)", async () => {
     renderSpa("/spaces/sp-household/pending-occurrences", pendingApi());
     const field = await screen.findByRole("textbox", { name: "Monto real de Energía" });
     expect(field).toHaveClass("text-2xl", "font-semibold");
-    expect(within(field.parentElement!).getByText("$")).toHaveClass("text-2xl", "font-semibold");
+    expect(within(field.parentElement!).getByText("COP")).toHaveClass("text-2xl", "font-semibold");
   });
 
   it("confirms Energía with 205.300 COP in minor units, then the item leaves and the movements are read again (S4)", async () => {

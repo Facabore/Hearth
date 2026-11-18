@@ -21,7 +21,12 @@ const onScreen = (world: { t: (key: string) => string }, english: string) => {
  */
 const whenRow = (world: { t: (key: string, values?: Record<string, string>) => string }, english: string) =>
   world.t("ledger.form.when", { label: onScreen(world, english) });
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 /** 2026-10-31 at 12:00 in Bogotá, the day the accounts scenario's movements happen. */
 const NOON = { date: "2026-10-31", occurredAt: "2026-10-31T17:00:00.000Z", timeZone: "America/Bogota" };
@@ -219,8 +224,10 @@ Then(
         `${world.t("accounts.card.limit", { amount: shown(limit) })} · ${world.t("accounts.card.payBy", { date })}`,
       ),
     );
-    // No "disponible $ …" figure; the "fuera del disponible" caption under the amount stays.
-    expect(text).not.toMatch(new RegExp(`${world.t("accounts.available")}\\s?\\$`, "i"));
+    // No "disponible 1.000 COP" figure; the "fuera del disponible" caption under the amount stays.
+    expect(text).not.toMatch(
+      new RegExp(`${world.t("accounts.available")}\\s?[−+]?\\u2060?\\d[.,\\d]*\\sCOP`, "i"),
+    );
   },
 );
 

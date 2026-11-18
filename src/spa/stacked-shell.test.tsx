@@ -172,7 +172,7 @@ describe("the Configuración's statuses and its space dropdown (ruling P311)", (
     });
     const list = await screen.findByRole("navigation", { name: "Configuración" }, { timeout: 5_000 });
     const plan = within(list).getByRole("link", { name: /Plan del mes/ });
-    await waitFor(() => expect(plan.textContent?.replace(/\s/g, " ")).toContain("Quedan $ 1.190.000"));
+    await waitFor(() => expect(plan.textContent?.replace(/\s/g, " ")).toContain("Quedan 1.190.000 COP"));
     expect(plan).toHaveAttribute("href", "/spaces/sp-household/plan");
     await waitFor(() =>
       expect(within(list).getByRole("link", { name: /Miembros e invitados/ })).toHaveTextContent(
@@ -205,7 +205,7 @@ describe("the Configuración's statuses and its space dropdown (ruling P311)", (
     });
     const list = await screen.findByRole("navigation", { name: "Configuración" }, { timeout: 5_000 });
     const plan = within(list).getByRole("link", { name: /Plan del mes/ });
-    await waitFor(() => expect(plan.textContent).toMatch(/Te pasaste \$\u00A0250\.000/));
+    await waitFor(() => expect(plan.textContent).toMatch(/Te pasaste 250\.000\u00A0COP/));
     expect(plan.textContent).not.toMatch(/[−-]/);
   });
 

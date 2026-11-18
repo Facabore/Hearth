@@ -1026,7 +1026,7 @@ test.describe("a shared expense saved with a warning (HU-E9-06, ruling P170)", (
     const notice = page.locator("main").getByRole("status");
     await expect(notice).toContainText(es.ledger.saved.title);
     await expect(notice).toContainText(FUND_NAME);
-    await expect(notice).toContainText("−$ 2.000.000");
+    await expect(notice).toContainText("−\u20602.000.000 COP");
     await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
     await expect(page.getByRole("listitem").filter({ hasText: "Arriendo" })).toContainText(
       es.ledger.paidBy.replace("{name}", FUND_NAME),
@@ -1613,7 +1613,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
       await expect(sheet).toBeVisible();
       await expect(
         page.getByText(
-          /^Sugerido \$\s1\.650\.000: tus ingresos de septiembre 2026 en Personal\. Solo tú lo ves\.$/,
+          /^Sugerido 1\.650\.000\sCOP: tus ingresos de septiembre 2026 en Personal\. Solo tú lo ves\.$/,
         ),
       ).toBeVisible();
       const { overflow, message } = await overflowReport(page, "the capacities screen");
@@ -1932,7 +1932,7 @@ test.describe("the Plan tab (HU-E9-10, ruling P200)", () => {
     }
     // Ana, the page, still gets hers.
     await page.goto(`/spaces/${sharedId}/plans/${plan.id}/capacities`);
-    await expect(page.getByText(/Sugerido \$\s1\.650\.000:/)).toBeVisible();
+    await expect(page.getByText(/Sugerido 1\.650\.000\sCOP:/)).toBeVisible();
   });
 
   test("at 640 px the member matrix keeps its lines inside its card, never widening the page", async ({
@@ -2913,7 +2913,7 @@ test.describe("a shared row names who paid, and its share stays whole (UX review
       expect(kept.clipped, "the share is fully visible").toBe(false);
       expect(kept.truncates, "the share never truncates").toBe(false);
       expect(kept.right).toBeLessThanOrEqual(viewport.width);
-      expect(kept.text?.replace(/\s/g, " ")).toBe("tu parte $ 150.000");
+      expect(kept.text?.replace(/\s/g, " ")).toBe("tu parte 150.000 COP");
       const scroll = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scroll, "no horizontal scroll").toBeLessThanOrEqual(viewport.width);
     });

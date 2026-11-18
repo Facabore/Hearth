@@ -430,7 +430,7 @@ describe("the Plan views' origins (#240, ruling P272)", () => {
     });
     expect(
       await screen.findByText(
-        "Gastado $ 60.000 en categorías sin rubro · Restaurantes",
+        "Gastado 60.000 COP en categorías sin rubro · Restaurantes",
         {},
         { timeout: 5_000 },
       ),

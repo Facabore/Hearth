@@ -32,7 +32,7 @@ export function SettingsStatus({
 }
 
 /**
- * "Quedan $ 380.000" while the period holding today has a plan with something left, "Te pasaste $ 45.000" once its
+ * "Quedan 380.000 COP" while the period holding today has a plan with something left, "Te pasaste 45.000 COP" once its
  * spending went past it (the words carry the direction, never a sign or color alone), "Sin plan" when it has none.
  */
 function PlanStatus({ viewer }: { readonly viewer: Viewer }) {

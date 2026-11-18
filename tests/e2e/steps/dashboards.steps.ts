@@ -12,7 +12,12 @@ import {
   seedReferencePlan,
 } from "../support/plan-seed";
 
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const LINE_NAMES: Record<string, string> = { Unbudgeted: "reports.lines.unbudgeted" };
 const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

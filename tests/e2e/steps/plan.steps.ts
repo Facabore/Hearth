@@ -3,7 +3,12 @@ import { Given, Then, When } from "../support/fixtures";
 import { percentShown, shown } from "../support/money";
 import { householdOf, seedHousehold } from "../support/plan-seed";
 
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const pesos = (amount: string) => amount.replaceAll(",", "");
 
 Given(

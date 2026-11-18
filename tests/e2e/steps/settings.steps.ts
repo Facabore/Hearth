@@ -11,7 +11,12 @@ const KEYS: Record<string, string> = {
   "12-hour": "settings.timeFormat.H12",
   "24-hour": "settings.timeFormat.H24",
 };
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 /** A sample label is the formatter's own text; a named choice ("12-hour") is a catalog message. */
 const labelOf = (world: { t: (key: string) => string }, choice: string) =>
   KEYS[choice] ? world.t(KEYS[choice]) : choice;
@@ -154,7 +159,7 @@ Then(
     // Ruling P327: the day's label is its day and short month in her date order, the year left out in this one.
     await expect(page.getByRole("heading", { level: 2, name: /^oct\s16$/i })).toBeVisible();
     const row = page.getByRole("listitem").filter({ hasText: "Market" });
-    expect(norm(await row.textContent())).toContain("$ 1,234,567.89");
+    expect(norm(await row.textContent())).toContain("1,234,567.89 COP");
     // Ruling P324 (amends P284): the row leaves the time to its detail, which writes it in her time format.
     await row.getByRole("link").click();
     const detail = page.getByRole("dialog", { name: /Market/ });

@@ -219,7 +219,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expect(page.getByRole("listitem", { name: "Mercado" })).toBeVisible();
       // HU-E9-08: Ana's capacities carry her private suggestion (the scan above ran on the same screen).
       await page.goto(`${h}/plans/${ids.plan}/capacities`);
-      await expect(page.getByText(/^Sugerido \$\s1\.650\.000:/)).toBeVisible();
+      await expect(page.getByText(/^Sugerido 1\.650\.000\sCOP:/)).toBeVisible();
       await expect(page.getByRole("button", { name: es.budgeting.capacity.useSuggestion })).toBeVisible();
       // HU-E9-08: the line editor, for a new line and for "Mercado" (with the Savings funding and its removal sheet).
       const october = await get(page, `/api/v1/spaces/${ids.household}/plans/${ids.plan}`);

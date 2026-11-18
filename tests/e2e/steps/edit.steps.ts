@@ -3,7 +3,12 @@ import { Given, Then, When } from "../support/fixtures";
 import { minor, shown } from "../support/money";
 import type { World } from "../support/world";
 
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const list = (world: World) => `/spaces/${world.user!.spaceId}/transactions`;
 const sheet = (page: Page) => page.getByRole("dialog");
 /** A row is a link whose name starts with its description (ruling P189). */

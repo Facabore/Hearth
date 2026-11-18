@@ -8,7 +8,12 @@ const METHOD_KEYS: Record<string, string> = {
   BY_ALLOCATION: "ledger.split.methods.BY_ALLOCATION",
   EQUAL: "ledger.split.methods.EQUAL",
 };
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 /** The page person's own row reads "<name> (tú)"; anyone else's their name. */
 const labelOf = (world: World, name: string) =>

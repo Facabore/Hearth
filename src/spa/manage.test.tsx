@@ -509,12 +509,14 @@ describe("an account's own screen in the SPA (ruling P327, #315)", () => {
     await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/a-bank`));
     expect(await screen.findByRole("heading", { level: 1, name: "Bancolombia" })).toBeVisible();
     expect(document.title).toBe("Bancolombia · Hearth");
-    expect(normalized(screen.getByRole("region", { name: "Saldo de hoy" }).textContent)).toContain("$ 1.000");
+    expect(normalized(screen.getByRole("region", { name: "Saldo de hoy" }).textContent)).toContain(
+      "1.000 COP",
+    );
     expect(await screen.findByText(/entró/)).toHaveTextContent(
-      /entró\s\+\$\s3\.200\.000 · salió\s−\$\s2\.500\.000/,
+      /entró\s\+3\.200\.000\sCOP · salió\s−\u20602\.500\.000\sCOP/,
     );
     expect(normalized(screen.getByRole("link", { name: /Arriendo noviembre/ }).textContent)).toBe(
-      "Arriendo noviembreHogar · tu parte $ 1.000.000−$ 2.000.000",
+      "Arriendo noviembreHogar · tu parte 1.000.000 COP−\u20602.000.000 COP",
     );
     // A personal account reads its movements across every space of hers, and its breakdown, by its id.
     expect(queryOf(spa.requests, /\/me\/transactions$/)).toContainEqual({ accountId: "a-bank", limit: "50" });
@@ -526,11 +528,11 @@ describe("an account's own screen in the SPA (ruling P327, #315)", () => {
     await userEvent.click(screen.getByRole("link", { name: "Estadísticas" }));
     await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/a-bank?view=stats`));
     expect(await screen.findByText("gastó", { exact: false })).toHaveTextContent(
-      /gastó\s\$\s2\.000\.000 · movió\s\$\s500\.000 a tus cuentas/,
+      /gastó\s2\.000\.000\sCOP · movió\s500\.000\sCOP a tus cuentas/,
     );
     const groups = screen.getByRole("list", { name: "En qué se gastó" });
     expect(normalized(within(groups).getByRole("listitem").textContent)).toBe(
-      "Vivienda100 % · Arriendo · 1 movimiento$ 2.000.000",
+      "Vivienda100 % · Arriendo · 1 movimiento2.000.000 COP",
     );
 
     await userEvent.click(screen.getByRole("link", { name: "Configurar" }));

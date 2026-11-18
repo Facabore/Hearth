@@ -13,7 +13,12 @@ import {
 } from "../support/plan-seed";
 import type { World } from "../support/world";
 
-const norm = (text: string | null) => (text ?? "").replace(/\s+/g, " ").trim();
+/** Spaces collapse to one, and the word joiner after a minus (P342) goes: a feature's text cannot show it. */
+const norm = (text: string | null) =>
+  (text ?? "")
+    .replace(/\s+/g, " ")
+    .replace(/\u2060/g, "")
+    .trim();
 const cop = (pesos: string) => ({ amount: minor(pesos), currency: "COP" });
 const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** The e2e server's today in Bogotá (P133): 2026-11-01T04:30:00Z, so the record form saves into 2026-10. */

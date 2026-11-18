@@ -128,7 +128,7 @@ describe("recurring movements in the SPA (HU-E9-09, P270)", () => {
     const { routes } = server();
     renderSpa("/spaces/sp-personal/recurrences/new", routes);
     const amount = await screen.findByLabelText("Monto", {}, { timeout: 5_000 });
-    expect(amount.parentElement).toHaveTextContent("$");
+    expect(amount.parentElement).toHaveTextContent("COP");
     expect(screen.getByText("Descripción", { selector: "label" })).not.toHaveClass("sr-only");
     const details = screen.getByRole("list", { name: "Detalles del movimiento" });
     expect(
