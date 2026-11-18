@@ -109,6 +109,8 @@ describe("member totals for balances (HU-E5-01)", () => {
     const expected = [
       {
         memberId: ana,
+        // Ruling P342 (S4): a space with one currency reads as before, each row saying its currency.
+        currency: "COP",
         paid: pesos(300_000n),
         consumed: pesos(200_000n),
         settledOut: 0n,
@@ -116,6 +118,7 @@ describe("member totals for balances (HU-E5-01)", () => {
       },
       {
         memberId: pedro,
+        currency: "COP",
         paid: pesos(100_000n),
         consumed: pesos(200_000n),
         settledOut: pesos(50_000n),

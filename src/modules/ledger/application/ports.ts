@@ -196,9 +196,12 @@ export interface LastMovementQuery {
 /**
  * HU-E5-01 (E5 balance rule): per-member sums of one space's live, member-paid expenses and its
  * settlements. Fund-paid expenses and every transfer, fund contributions included, create no debt (D5).
+ * Ruling P342 (S4): one row per member and currency, since amounts in different currencies never add up.
  */
 export interface MemberMoneyTotals {
   readonly memberId: string;
+  /** Ruling P342: the movements' own currency (ISO 4217) these sums are in. */
+  readonly currency: string;
   readonly paid: bigint;
   readonly consumed: bigint;
   readonly settledOut: bigint;
@@ -208,10 +211,12 @@ export interface MemberMoneyTotals {
 /**
  * Ruling P323: what pairwise debts are computed from, over one space's live transactions: every member-paid expense
  * with its payments and shares in position order (a fund-paid expense creates no debt, D5), and every settlement.
- * Transfers, fund contributions included, never count.
+ * Transfers, fund contributions included, never count. Ruling P342 (S4): each movement carries its own currency, which
+ * its payments, shares and amount are in.
  */
 export interface SpaceDebtMovements {
   readonly expenses: readonly (DebtMovementPlace & {
+    readonly currency: string;
     readonly payments: readonly { readonly memberId: string; readonly amount: bigint }[];
     readonly shares: readonly { readonly memberId: string; readonly amount: bigint }[];
   })[];
@@ -219,6 +224,7 @@ export interface SpaceDebtMovements {
     readonly payerMemberId: string;
     readonly receivingMemberId: string;
     readonly amount: bigint;
+    readonly currency: string;
     readonly reason: SettlementReason;
     readonly onBehalfOfMemberId: string | null;
   })[];

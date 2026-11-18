@@ -152,6 +152,8 @@ export class InMemoryTransactions
   implements TransactionRepository, TransactionQuery, TransactionsAcrossQuery
 {
   rows: Transaction[] = [];
+  /** Ruling P342: each space's currency, which `memberHistory` reads by default; COP, the fixtures' own, when unset. */
+  spaceCurrencies = new Map<string, string>();
 
   async add(...transactions: Transaction[]) {
     this.rows.push(...transactions);
@@ -231,14 +233,24 @@ export class InMemoryTransactions
   /** The in-memory twin of DrizzleLedgerQueries.memberTotals (E5 balance rule); the ledger's integration tests pin them together. */
   async memberTotals(spaceId: string): Promise<MemberMoneyTotals[]> {
     type Field = "paid" | "consumed" | "settledOut" | "settledIn";
-    const totals = new Map<string, Record<Field, bigint>>();
+    // Ruling P342 (S4): one row per member and currency.
+    const totals = new Map<string, MemberMoneyTotals>();
+    let currency = "";
     const add = (memberId: string, field: Field, amount: bigint) => {
-      const sums = totals.get(memberId) ?? { paid: 0n, consumed: 0n, settledOut: 0n, settledIn: 0n };
-      sums[field] += amount;
-      totals.set(memberId, sums);
+      const key = `${memberId} ${currency}`;
+      const sums = totals.get(key) ?? {
+        memberId,
+        currency,
+        paid: 0n,
+        consumed: 0n,
+        settledOut: 0n,
+        settledIn: 0n,
+      };
+      totals.set(key, { ...sums, [field]: sums[field] + amount });
     };
     for (const t of this.rows) {
       if (t.spaceId !== spaceId || t.deletedAt !== null) continue;
+      currency = t.currency;
       // D5: an expense paid from the shared fund creates no debt.
       if (t.type === "EXPENSE" && t.payments.every((p) => p.memberId !== null)) {
         for (const p of t.payments) if (p.memberId !== null) add(p.memberId, "paid", p.amount);
@@ -249,9 +261,17 @@ export class InMemoryTransactions
         add(t.receivingMemberId, "settledIn", t.amount);
       }
     }
-    return [...totals.entries()]
-      .map(([memberId, sums]) => ({ memberId, ...sums }))
-      .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+    return [...totals.values()].sort((a, b) =>
+      a.memberId !== b.memberId
+        ? a.memberId < b.memberId
+          ? -1
+          : 1
+        : a.currency < b.currency
+          ? -1
+          : a.currency > b.currency
+            ? 1
+            : 0,
+    );
   }
 
   /** The in-memory twin of DrizzleLedgerQueries.debtMovements (ruling P323): the rows `memberTotals` sums, listed. */
@@ -263,7 +283,7 @@ export class InMemoryTransactions
     const settlements: SpaceDebtMovements["settlements"][number][] = [];
     for (const t of live) {
       // Ruling P339: each movement's place in the space's balance history.
-      const place = { transactionId: t.id, date: t.date, createdAt: t.createdAt };
+      const place = { transactionId: t.id, date: t.date, createdAt: t.createdAt, currency: t.currency };
       // D5: an expense paid from the shared fund creates no debt.
       if (t.type === "EXPENSE" && t.payments.every((p) => p.memberId !== null)) {
         expenses.push({
@@ -287,7 +307,14 @@ export class InMemoryTransactions
   }
 
   /** The in-memory twin of DrizzleLedgerQueries.memberHistory (HU-E5-04); drizzle-balance-history.int.test.ts pins them. */
-  async memberHistory(spaceId: string, memberId: string, range: HistoryRange): Promise<MemberBalanceHistory> {
+  async memberHistory(
+    spaceId: string,
+    memberId: string,
+    range: HistoryRange,
+    currency?: string,
+  ): Promise<MemberBalanceHistory> {
+    // Ruling P342 (S4): one currency's movements, the space's own by default.
+    const wanted = currency ?? this.spaceCurrencies.get(spaceId) ?? "COP";
     const changeOf = (t: Transaction): bigint => {
       if (t.type === "SETTLEMENT") {
         return t.payerMemberId === memberId ? t.amount : t.receivingMemberId === memberId ? -t.amount : 0n;
@@ -312,7 +339,11 @@ export class InMemoryTransactions
               : 0;
     const live = this.rows
       .filter(
-        (t) => t.spaceId === spaceId && t.deletedAt === null && (range.to === null || t.date <= range.to),
+        (t) =>
+          t.spaceId === spaceId &&
+          t.deletedAt === null &&
+          t.currency === wanted &&
+          (range.to === null || t.date <= range.to),
       )
       .sort(byDateThenCreation);
     let balance = 0n;

@@ -83,6 +83,17 @@ const rangeRows = (ranges: readonly DateRange[]) =>
   );
 
 /** Ruling P277: `%`, `_` and the escape character itself match only themselves in a LIKE pattern. */
+/** Ruling P342: per-member rows by member id, then currency. */
+const byMemberThenCurrency = (a: MemberMoneyTotals, b: MemberMoneyTotals) =>
+  a.memberId !== b.memberId
+    ? a.memberId < b.memberId
+      ? -1
+      : 1
+    : a.currency < b.currency
+      ? -1
+      : a.currency > b.currency
+        ? 1
+        : 0;
 const literalLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 /** Read side of the ledger, computed on read (D7): the monthly list, totals, account movements and references. */
@@ -365,72 +376,84 @@ export class DrizzleLedgerQueries
    * HU-E5-01, E5 balance rule: per-member sums over the live transactions of one space. Expenses count
    * only when members paid them (a fund-paid expense creates no debt, D5); transfers, fund contributions
    * included, never count. One statement, so every sum comes from the same snapshot and Σ net stays 0
-   * under concurrent writes. Sorted by member id; `[]` for malformed ids.
+   * under concurrent writes. Ruling P342 (S4): one row per member and currency, the movements' own, never converted.
+   * Sorted by member id, then currency; `[]` for malformed ids.
    */
   async memberTotals(spaceId: string): Promise<MemberMoneyTotals[]> {
     if (!isUuid(spaceId)) return [];
     const db = this.tm.executor();
     type Field = "paid" | "consumed" | "settledOut" | "settledIn";
-    // Same selection shape in every branch of the UNION ALL: member, field label, sum as text.
+    // Same selection shape in every branch of the UNION ALL: member, currency, field label, sum as text.
     const memberOf = (column: AnyColumn) => sql<string | null>`${column}`;
+    const currency = sql<string>`${transactions.currency}`;
     const { memberPaid, settlements } = this.debtFilters(spaceId);
     const rows = await unionAll(
       db
         .select({
           memberId: memberOf(payments.memberId),
+          currency,
           field: sql<Field>`'paid'::text`,
           total: sumAsText(payments.amount),
         })
         .from(payments)
         .innerJoin(transactions, eq(transactions.id, payments.transactionId))
         .where(memberPaid)
-        .groupBy(payments.memberId),
+        .groupBy(payments.memberId, transactions.currency),
       db
         .select({
           memberId: memberOf(shares.memberId),
+          currency,
           field: sql<Field>`'consumed'::text`,
           total: sumAsText(shares.amount),
         })
         .from(shares)
         .innerJoin(transactions, eq(transactions.id, shares.transactionId))
         .where(memberPaid)
-        .groupBy(shares.memberId),
+        .groupBy(shares.memberId, transactions.currency),
       db
         .select({
           memberId: memberOf(transactions.payerMemberId),
+          currency,
           field: sql<Field>`'settledOut'::text`,
           total: sumAsText(transactions.amount),
         })
         .from(transactions)
         .where(settlements)
-        .groupBy(transactions.payerMemberId),
+        .groupBy(transactions.payerMemberId, transactions.currency),
       db
         .select({
           memberId: memberOf(transactions.receivingMemberId),
+          currency,
           field: sql<Field>`'settledIn'::text`,
           total: sumAsText(transactions.amount),
         })
         .from(transactions)
         .where(settlements)
-        .groupBy(transactions.receivingMemberId),
+        .groupBy(transactions.receivingMemberId, transactions.currency),
     );
-    const totals = new Map<string, Record<Field, bigint>>();
+    const totals = new Map<string, MemberMoneyTotals>();
     for (const row of rows) {
       if (row.memberId === null) continue;
-      const sums = totals.get(row.memberId) ?? { paid: 0n, consumed: 0n, settledOut: 0n, settledIn: 0n };
-      sums[row.field] += BigInt(row.total);
-      totals.set(row.memberId, sums);
+      const key = `${row.memberId} ${row.currency}`;
+      const sums = totals.get(key) ?? {
+        memberId: row.memberId,
+        currency: row.currency,
+        paid: 0n,
+        consumed: 0n,
+        settledOut: 0n,
+        settledIn: 0n,
+      };
+      totals.set(key, { ...sums, [row.field]: sums[row.field] + BigInt(row.total) });
     }
-    return [...totals.entries()]
-      .map(([memberId, sums]) => ({ memberId, ...sums }))
-      .sort((a, b) => (a.memberId < b.memberId ? -1 : a.memberId > b.memberId ? 1 : 0));
+    return [...totals.values()].sort(byMemberThenCurrency);
   }
 
   /**
    * Ruling P323: the live member-paid expenses of one space with their payments and shares in position order, and its
    * live settlements, in one statement so they all come from the same snapshot. The same rows `memberTotals` sums:
    * a fund-paid expense and every transfer create no debt (D5). Expenses by id; empty for malformed ids. Ruling P339:
-   * each with its date, creation instant and id, its place in the space's balance history.
+   * each with its date, creation instant and id, its place in the space's balance history. Ruling P342 (S4): each with
+   * its own currency, which its payments, shares and amount are in.
    */
   async debtMovements(spaceId: string): Promise<SpaceDebtMovements> {
     if (!isUuid(spaceId)) return { expenses: [], settlements: [] };
@@ -447,6 +470,7 @@ export class DrizzleLedgerQueries
           transactionId: text(transactions.id),
           date: sql<string>`${transactions.date}::text`,
           createdAt: transactions.createdAt,
+          currency: sql<string>`${transactions.currency}`,
           position: sql<number>`${payments.position}::integer`,
           memberId: text(payments.memberId),
           receiverId: none,
@@ -463,6 +487,7 @@ export class DrizzleLedgerQueries
           transactionId: text(transactions.id),
           date: sql<string>`${transactions.date}::text`,
           createdAt: transactions.createdAt,
+          currency: sql<string>`${transactions.currency}`,
           position: sql<number>`${shares.position}::integer`,
           memberId: text(shares.memberId),
           receiverId: none,
@@ -479,6 +504,7 @@ export class DrizzleLedgerQueries
           transactionId: text(transactions.id),
           date: sql<string>`${transactions.date}::text`,
           createdAt: transactions.createdAt,
+          currency: sql<string>`${transactions.currency}`,
           position: sql<number>`0`,
           memberId: text(transactions.payerMemberId),
           receiverId: text(transactions.receivingMemberId),
@@ -509,6 +535,7 @@ export class DrizzleLedgerQueries
         transactionId: row.transactionId!,
         date: row.date as LocalDate,
         createdAt: new Date(row.createdAt),
+        currency: row.currency,
       };
       if (row.kind === "settlement") {
         settled.push({
@@ -663,9 +690,15 @@ export class DrizzleLedgerQueries
    * fund-paid expenses create no debt, D5) and settlements they paid (+) or received (−), in date, creation and id
    * order, through `to`. The statement itself keeps only the last movement before `from` and flags it `before_range`:
    * its balance is the opening, and the application only splits it from the entries, so the opening and the entries
-   * come from one statement and one snapshot. Malformed ids answer an empty history.
+   * come from one statement and one snapshot. Malformed ids answer an empty history. Ruling P342 (S4): only the movements
+   * in `currency` (the space's own when absent) count, so the running balance is in that one currency.
    */
-  async memberHistory(spaceId: string, memberId: string, range: HistoryRange): Promise<MemberBalanceHistory> {
+  async memberHistory(
+    spaceId: string,
+    memberId: string,
+    range: HistoryRange,
+    currency?: string,
+  ): Promise<MemberBalanceHistory> {
     if (!isUuid(spaceId) || !isUuid(memberId)) return { opening: 0n, entries: [] };
     interface HistoryRow {
       readonly id: string;
@@ -683,7 +716,10 @@ export class DrizzleLedgerQueries
       readonly before_range: boolean;
     }
     const { rows } = await this.tm.executor().execute(sql`
-      WITH movements AS (
+      -- The spaces table by name: the spaces module's schema is not part of its public API (ADR 0001).
+      WITH wanted AS (
+        SELECT coalesce(${currency ?? null}::text, (SELECT s.currency FROM spaces s WHERE s.id = ${spaceId})) AS currency
+      ), movements AS (
         SELECT t.id, t.date, t.created_at, t.type, t.description,
           NULL::text AS reason, NULL::uuid AS payer, NULL::uuid AS receiver, NULL::uuid AS on_behalf_of, NULL::uuid AS linked,
           coalesce((SELECT sum(p.amount) FROM ${payments} p WHERE p.transaction_id = t.id AND p.member_id = ${memberId}), 0)
@@ -691,6 +727,7 @@ export class DrizzleLedgerQueries
             AS change
         FROM ${transactions} t
         WHERE t.space_id = ${spaceId} AND t.deleted_at IS NULL AND t.type = 'EXPENSE'
+          AND t.currency = (SELECT currency FROM wanted)
           AND NOT EXISTS (SELECT 1 FROM ${payments} f WHERE f.transaction_id = t.id AND f.member_id IS NULL)
         UNION ALL
         SELECT t.id, t.date, t.created_at, t.type, t.description,
@@ -700,6 +737,7 @@ export class DrizzleLedgerQueries
             WHEN t.receiving_member_id = ${memberId} THEN -t.amount ELSE 0 END
         FROM ${transactions} t
         WHERE t.space_id = ${spaceId} AND t.deleted_at IS NULL AND t.type = 'SETTLEMENT'
+          AND t.currency = (SELECT currency FROM wanted)
           AND ${memberId} IN (t.payer_member_id, t.receiving_member_id, t.on_behalf_of_member_id)
       ), running AS (
         SELECT id, date, created_at, type, description, change, reason, payer, receiver, on_behalf_of, linked,
