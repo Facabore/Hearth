@@ -1,7 +1,12 @@
 import { currencyOf, flatMap, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 
-/** Per-member sums over the live transactions of one space that move balances (E5 balance rule). */
+/**
+ * Per-member sums over the live transactions of one space that move balances (E5 balance rule), in one currency: a
+ * member with movements in several currencies has one row per currency (ruling P342).
+ */
 export interface MemberTotals {
+  /** ISO 4217 code of every amount in this row. */
+  readonly currency: string;
   readonly memberId: string;
   /** Σ payments by the member on member-paid expenses. */
   readonly paid: bigint;
@@ -13,6 +18,9 @@ export interface MemberTotals {
   readonly settledIn: bigint;
 }
 
+/** `MemberTotals` of a single currency the caller already knows (ruling P342). */
+export type OneCurrencyMemberTotals = Omit<MemberTotals, "currency">;
+
 export interface MemberBalance {
   readonly memberId: string;
   /** Positive: the member is owed money; negative: the member owes. */
@@ -20,7 +28,7 @@ export interface MemberBalance {
 }
 
 /** E5 balance rule: net(m) = Σ payments − Σ shares + settlements paid − settlements received. */
-export const netOf = (totals: MemberTotals): bigint =>
+export const netOf = (totals: OneCurrencyMemberTotals): bigint =>
   totals.paid - totals.consumed + totals.settledOut - totals.settledIn;
 
 /**
@@ -29,7 +37,7 @@ export const netOf = (totals: MemberTotals): bigint =>
  */
 export const netBalances = (
   memberIds: readonly string[],
-  totals: readonly MemberTotals[],
+  totals: readonly OneCurrencyMemberTotals[],
 ): MemberBalance[] => {
   const byMember = new Map(totals.map((t) => [t.memberId, netOf(t)]));
   const others = [...byMember.keys()].filter((id) => !memberIds.includes(id)).sort();
@@ -48,7 +56,7 @@ export interface MemberStanding extends MemberBalance {
 /** #217 (P263): `netBalances`, each with whether the totals mention the member; computed on read (D7). */
 export const memberStandings = (
   memberIds: readonly string[],
-  totals: readonly MemberTotals[],
+  totals: readonly OneCurrencyMemberTotals[],
 ): MemberStanding[] => {
   const moved = new Set(totals.map((t) => t.memberId));
   return netBalances(memberIds, totals).map((balance) => ({
@@ -57,13 +65,57 @@ export const memberStandings = (
   }));
 };
 
+/** Ruling P342: the space's currency first, then every other currency by ISO code. */
+const currencyOrder =
+  (spaceCurrency: string) =>
+  (x: string, y: string): number =>
+    x === y ? 0 : x === spaceCurrency ? -1 : y === spaceCurrency ? 1 : x < y ? -1 : 1;
+
+/** Ruling P342: groups `items` by their currency, in `currencyOrder`; `always` gets a group even when empty. */
+const byCurrency = <T extends { readonly currency: string }>(
+  spaceCurrency: string,
+  items: readonly T[],
+  always: readonly string[] = [],
+): [string, T[]][] => {
+  const groups = new Map<string, T[]>(always.map((currency) => [currency, []]));
+  for (const item of items) groups.set(item.currency, [...(groups.get(item.currency) ?? []), item]);
+  return [...groups.entries()].sort(([x], [y]) => currencyOrder(spaceCurrency)(x, y));
+};
+
+/** Ruling P342: the standings of one currency's movements; its nets sum to zero. */
+export interface CurrencyStandings {
+  readonly currency: string;
+  readonly members: MemberStanding[];
+}
+
+/**
+ * Ruling P342 (S4): `memberStandings` per currency, never converted: one group for the space currency (every member at
+ * 0 when nothing moved) and one for every other currency the totals mention, the space currency first, then by ISO
+ * code. Each group follows the per-member rules of `memberStandings` over that currency's totals alone, so its nets sum
+ * to zero and `hasMovements` means a movement in that currency. Computed on read (D7).
+ */
+export const memberStandingsByCurrency = (
+  spaceCurrency: string,
+  memberIds: readonly string[],
+  totals: readonly MemberTotals[],
+): CurrencyStandings[] =>
+  byCurrency(spaceCurrency, totals, [spaceCurrency]).map(([currency, inCurrency]) => ({
+    currency,
+    members: memberStandings(memberIds, inCurrency),
+  }));
+
 /** HU-E5-03: one suggested payment; accepting it is a regular settlement (HU-E5-02). */
 export interface SettlementSuggestion {
   readonly payerMemberId: string;
   readonly receivingMemberId: string;
-  /** Minor units, always positive. */
+  /** Minor units of `currency`, always positive. */
   readonly amount: bigint;
+  /** Ruling P342: the debt's currency, the one its movements were made in. */
+  readonly currency: string;
 }
+
+/** What one pair owes inside a currency the caller already knows. */
+type PairDebt = Omit<SettlementSuggestion, "currency">;
 
 /** Ruling P323: one member-paid part of an expense, in minor units; a fund payment has no member (D5). */
 export interface DebtPart<M extends string | null = string> {
@@ -71,14 +123,19 @@ export interface DebtPart<M extends string | null = string> {
   readonly amount: bigint;
 }
 
-/** Ruling P323: a live expense of the space, with its payments and shares in position order. */
+/** Ruling P323: a live expense of the space, with its payments and shares in position order, in its currency (P342). */
 export interface DebtExpense {
+  readonly currency: string;
   readonly payments: readonly DebtPart<string | null>[];
   readonly shares: readonly DebtPart[];
 }
 
-/** Ruling P323: a live settlement of the space (HU-E5-02), with why it was recorded and for whom (P322). */
+/**
+ * Ruling P323: a live settlement of the space (HU-E5-02), with why it was recorded and for whom (P322), in the currency
+ * it was paid in (P342).
+ */
 export interface DebtSettlement {
+  readonly currency: string;
   readonly payerMemberId: string;
   readonly receivingMemberId: string;
   readonly amount: bigint;
@@ -86,10 +143,21 @@ export interface DebtSettlement {
   readonly onBehalfOfMemberId: string | null;
 }
 
-/** Ruling P323: the live movements of one space that create or settle debts between its members. */
+/** Ruling P323: the live movements of one space that create or settle debts between its members, in any currency. */
 export interface DebtMovements {
   readonly expenses: readonly DebtExpense[];
   readonly settlements: readonly DebtSettlement[];
+}
+
+/** A `DebtExpense` of a single currency the caller already knows (ruling P342). */
+export type OneCurrencyDebtExpense = Omit<DebtExpense, "currency">;
+/** A `DebtSettlement` of a single currency the caller already knows (ruling P342). */
+export type OneCurrencyDebtSettlement = Omit<DebtSettlement, "currency">;
+
+/** `DebtMovements` all in one currency the caller already knows (ruling P342). */
+export interface OneCurrencyDebtMovements {
+  readonly expenses: readonly OneCurrencyDebtExpense[];
+  readonly settlements: readonly OneCurrencyDebtSettlement[];
 }
 
 /** Ruling P323: what each pair of members owes, netted over every movement between the two (positive: `a` owes `b`). */
@@ -111,7 +179,7 @@ class PairLedger {
     return sign * (this.owed.get(`${a}\n${b}`)?.net ?? 0n);
   }
 
-  debts(): SettlementSuggestion[] {
+  debts(): PairDebt[] {
     return [...this.owed.values()]
       .filter((pair) => pair.net !== 0n)
       .map((pair) =>
@@ -128,7 +196,7 @@ class PairLedger {
  * last share takes exactly what is left, so the parts of every share add up to it and the parts owed to every payer
  * add up to what they paid (Σ payments = Σ shares, spec 5.2). An expense with a fund payment creates no debt (D5).
  */
-const oweExpense = (currency: string, expense: DebtExpense, pairs: PairLedger): Result<void> => {
+const oweExpense = (currency: string, expense: OneCurrencyDebtExpense, pairs: PairLedger): Result<void> => {
   const payers: DebtPart[] = [];
   for (const payment of expense.payments) {
     if (payment.memberId === null) return ok(undefined);
@@ -156,7 +224,7 @@ const oweExpense = (currency: string, expense: DebtExpense, pairs: PairLedger): 
  * makes C owe A instead; any other settlement, a GIFT or a FORGIVENESS included, lowers its payer's debt to its
  * receiver, and one that pays more than the debt turns it around.
  */
-const oweSettlement = (settlement: DebtSettlement, pairs: PairLedger): void => {
+const oweSettlement = (settlement: OneCurrencyDebtSettlement, pairs: PairLedger): void => {
   const { payerMemberId, receivingMemberId, amount, onBehalfOfMemberId } = settlement;
   if (settlement.reason === "PAYMENT" && onBehalfOfMemberId !== null) {
     pairs.owe(onBehalfOfMemberId, receivingMemberId, -amount);
@@ -172,9 +240,8 @@ const oweSettlement = (settlement: DebtSettlement, pairs: PairLedger): void => {
  * stays with them.
  */
 const routeThrough = (gone: string, pairs: PairLedger, placeOf: (id: string) => number): void => {
-  const byPlace =
-    (id: (debt: SettlementSuggestion) => string) => (x: SettlementSuggestion, y: SettlementSuggestion) =>
-      placeOf(id(x)) - placeOf(id(y));
+  const byPlace = (id: (debt: PairDebt) => string) => (x: PairDebt, y: PairDebt) =>
+    placeOf(id(x)) - placeOf(id(y));
   const debts = pairs.debts();
   const owing = debts.filter((d) => d.receivingMemberId === gone).sort(byPlace((d) => d.payerMemberId));
   const owed = debts.filter((d) => d.payerMemberId === gone).sort(byPlace((d) => d.receivingMemberId));
@@ -198,13 +265,13 @@ const routeThrough = (gone: string, pairs: PairLedger, placeOf: (id: string) => 
  * the other over the space's live member-paid expenses and settlements; one suggestion per pair that owes anything,
  * from the member who owes to the member owed. For every member, what they are owed minus what they owe over their
  * pairs equals their net balance (E5 rule). The largest debt comes first; ties go by the payer's place and then the
- * receiver's: `memberIds` (join order), then anyone else by id. Computed on read (D7). UnknownCurrency for a currency
- * Money does not know.
+ * receiver's: `memberIds` (join order), then anyone else by id. Every movement is taken to be in `currency`, which
+ * each suggestion carries (P342). Computed on read (D7). UnknownCurrency for a currency Money does not know.
  */
 export const pairwiseDebts = (
   currency: string,
   memberIds: readonly string[],
-  movements: DebtMovements,
+  movements: OneCurrencyDebtMovements,
 ): Result<SettlementSuggestion[]> => {
   const known = currencyOf(currency);
   if (!known.ok) return known;
@@ -228,8 +295,39 @@ export const pairwiseDebts = (
           (x.amount === y.amount ? 0 : x.amount > y.amount ? -1 : 1) ||
           placeOf(x.payerMemberId) - placeOf(y.payerMemberId) ||
           placeOf(x.receivingMemberId) - placeOf(y.receivingMemberId),
-      ),
+      )
+      .map((debt) => ({ ...debt, currency })),
   );
+};
+
+/**
+ * Ruling P342 (S4): `pairwiseDebts` per currency, never converted: each currency's expenses and settlements net only
+ * against each other, so a member may owe someone in one currency and be owed by them in another, and a debt to someone
+ * who left goes through them inside its own currency. Grouped by currency, the space currency first, then by ISO code;
+ * inside a group, the order of `pairwiseDebts`. UnknownCurrency for a space or movement currency Money does not know.
+ */
+export const pairwiseDebtsByCurrency = (
+  spaceCurrency: string,
+  memberIds: readonly string[],
+  movements: DebtMovements,
+): Result<SettlementSuggestion[]> => {
+  const known = currencyOf(spaceCurrency);
+  if (!known.ok) return known;
+  const expenses = new Map(byCurrency(spaceCurrency, movements.expenses));
+  const settlements = new Map(byCurrency(spaceCurrency, movements.settlements));
+  const currencies = [...new Set([...expenses.keys(), ...settlements.keys()])].sort(
+    currencyOrder(spaceCurrency),
+  );
+  const suggestions: SettlementSuggestion[] = [];
+  for (const currency of currencies) {
+    const debts = pairwiseDebts(currency, memberIds, {
+      expenses: expenses.get(currency) ?? [],
+      settlements: settlements.get(currency) ?? [],
+    });
+    if (!debts.ok) return debts;
+    suggestions.push(...debts.value);
+  }
+  return ok(suggestions);
 };
 
 /** Ruling P339: a movement's place in its space's history: its date, when it was recorded, then its id. */
@@ -241,8 +339,8 @@ export interface DebtPlace {
 
 /** Ruling P339: `DebtMovements`, each with its place in the space's history. */
 export interface DatedDebtMovements {
-  readonly expenses: readonly (DebtExpense & DebtPlace)[];
-  readonly settlements: readonly (DebtSettlement & DebtPlace)[];
+  readonly expenses: readonly (OneCurrencyDebtExpense & DebtPlace)[];
+  readonly settlements: readonly (OneCurrencyDebtSettlement & DebtPlace)[];
 }
 
 /**
@@ -285,7 +383,8 @@ export const settlementContexts = (
   const known = currencyOf(currency);
   if (!known.ok) return known;
   type Step = { readonly place: DebtPlace } & (
-    { readonly expense: DebtExpense } | { readonly settlement: DebtSettlement & DebtPlace }
+    | { readonly expense: OneCurrencyDebtExpense }
+    | { readonly settlement: OneCurrencyDebtSettlement & DebtPlace }
   );
   const history: Step[] = [
     ...movements.expenses.map((expense) => ({ place: expense, expense })),

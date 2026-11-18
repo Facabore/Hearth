@@ -1,15 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { LocalDate, Result } from "@/shared/kernel";
 import {
+  memberStandings,
+  memberStandingsByCurrency,
   netBalances,
   netOf,
   pairwiseDebts,
+  pairwiseDebtsByCurrency,
   settlementContexts,
   type DatedDebtMovements,
   type DebtExpense,
-  type DebtMovements,
   type DebtSettlement,
   type MemberTotals,
+  type OneCurrencyDebtExpense,
+  type OneCurrencyDebtMovements,
+  type OneCurrencyDebtSettlement,
+  type OneCurrencyMemberTotals,
   type SettlementSuggestion,
 } from "./balances";
 
@@ -19,7 +25,7 @@ const totals = (
   consumed: bigint,
   settledOut = 0n,
   settledIn = 0n,
-): MemberTotals => ({
+): OneCurrencyMemberTotals => ({
   memberId,
   paid,
   consumed,
@@ -77,7 +83,7 @@ describe("pairwise debts (ruling P323)", () => {
   const expense = (
     payments: readonly (readonly [string | null, bigint])[],
     shares: readonly (readonly [string, bigint])[],
-  ): DebtExpense => ({
+  ): OneCurrencyDebtExpense => ({
     payments: payments.map(([memberId, amount]) => ({ memberId, amount })),
     shares: shares.map(([memberId, amount]) => ({ memberId, amount })),
   });
@@ -87,15 +93,16 @@ describe("pairwise debts (ruling P323)", () => {
     amount: bigint,
     reason: DebtSettlement["reason"] = "PAYMENT",
     onBehalfOfMemberId: string | null = null,
-  ): DebtSettlement => ({ payerMemberId, receivingMemberId, amount, reason, onBehalfOfMemberId });
+  ): OneCurrencyDebtSettlement => ({ payerMemberId, receivingMemberId, amount, reason, onBehalfOfMemberId });
   const pays = (payerMemberId: string, receivingMemberId: string, amount: bigint): SettlementSuggestion => ({
     payerMemberId,
     receivingMemberId,
     amount,
+    currency: "COP",
   });
   const debts = (
-    expenses: readonly DebtExpense[],
-    settlements: readonly DebtSettlement[] = [],
+    expenses: readonly OneCurrencyDebtExpense[],
+    settlements: readonly OneCurrencyDebtSettlement[] = [],
     memberIds: readonly string[] = MEMBERS,
   ) => valueOf(pairwiseDebts("COP", memberIds, { expenses, settlements }));
 
@@ -324,9 +331,13 @@ describe("pairwise debts (ruling P323)", () => {
 
   describe("S4: every member's pairs add up to their net balance (E5 rule)", () => {
     /** The E5 totals of the same movements, as the ledger sums them: fund-paid expenses count for nothing (D5). */
-    const netsOf = (movements: DebtMovements) => {
-      const sums = new Map<string, MemberTotals>();
-      const add = (memberId: string, field: keyof Omit<MemberTotals, "memberId">, amount: bigint) => {
+    const netsOf = (movements: OneCurrencyDebtMovements) => {
+      const sums = new Map<string, OneCurrencyMemberTotals>();
+      const add = (
+        memberId: string,
+        field: keyof Omit<OneCurrencyMemberTotals, "memberId">,
+        amount: bigint,
+      ) => {
         const current = sums.get(memberId) ?? totals(memberId, 0n, 0n);
         sums.set(memberId, { ...current, [field]: current[field] + amount });
       };
@@ -365,7 +376,12 @@ describe("pairwise debts (ruling P323)", () => {
 
     const generated = () => {
       const next = seeded(20_261_112n);
-      const cases: { name: string; currency: string; memberIds: string[]; movements: DebtMovements }[] = [
+      const cases: {
+        name: string;
+        currency: string;
+        memberIds: string[];
+        movements: OneCurrencyDebtMovements;
+      }[] = [
         {
           name: "the staging example (S5)",
           currency: "COP",
@@ -382,7 +398,7 @@ describe("pairwise debts (ruling P323)", () => {
         // COP amounts are whole pesos most of the time, as people record them; sometimes not, to stress sub-units.
         const scale = currency === "COP" && next(3n) !== 0n ? 100n : 1n;
         const limit = 1n + next(next(2n) === 0n ? 1_000n : 10_000_000n);
-        const expenses: DebtExpense[] = Array.from({ length: Number(next(8n)) }, () => {
+        const expenses: OneCurrencyDebtExpense[] = Array.from({ length: Number(next(8n)) }, () => {
           const fund = next(6n) === 0n;
           const payers = fund ? [null] : distinct(next, everyone, 1 + Number(next(3n)));
           const paid = payers.map(() => 1n + next(limit));
@@ -395,7 +411,7 @@ describe("pairwise debts (ruling P323)", () => {
             shares.map((amount, i) => [sharers[i]!, amount * scale] as const),
           );
         });
-        const settlements: DebtSettlement[] = Array.from({ length: Number(next(6n)) }, () => {
+        const settlements: OneCurrencyDebtSettlement[] = Array.from({ length: Number(next(6n)) }, () => {
           const [payer, receiver, third] = distinct(next, everyone, 3);
           const amount = (1n + next(limit)) * scale;
           const kind = next(4n);
@@ -473,7 +489,7 @@ describe("what a payment did between its two people (ruling P339, S9)", () => {
     payer: string,
     receiver: string,
     amount: bigint,
-    more: Partial<DebtSettlement> & { createdAt?: string } = {},
+    more: Partial<OneCurrencyDebtSettlement> & { createdAt?: string } = {},
   ): DatedDebtMovements["settlements"][number] => ({
     ...at(id, date, more.createdAt),
     payerMemberId: payer,
@@ -558,5 +574,274 @@ describe("what a payment did between its two people (ruling P339, S9)", () => {
   it("answers UnknownCurrency for a currency Money does not know", () => {
     const found = settlementContexts("XXX", { expenses: [], settlements: [] }, new Set());
     expect(found.ok ? null : found.error.code).toBe("UnknownCurrency");
+  });
+});
+
+describe("balances per currency (ruling P342, S4)", () => {
+  const MEMBERS = ["ana", "juan", "pedro"];
+  const totalsIn = (
+    currency: string,
+    memberId: string,
+    paid: bigint,
+    consumed: bigint,
+    settledOut = 0n,
+    settledIn = 0n,
+  ): MemberTotals => ({ currency, memberId, paid, consumed, settledOut, settledIn });
+  /** `debtor` owes `creditor` all of `amount`, in `currency`: the creditor paid it and the debtor consumed it. */
+  const owes = (currency: string, debtor: string, creditor: string, amount: bigint): DebtExpense => ({
+    currency,
+    payments: [{ memberId: creditor, amount }],
+    shares: [{ memberId: debtor, amount }],
+  });
+  const settles = (
+    currency: string,
+    payerMemberId: string,
+    receivingMemberId: string,
+    amount: bigint,
+    reason: DebtSettlement["reason"] = "PAYMENT",
+    onBehalfOfMemberId: string | null = null,
+  ): DebtSettlement => ({ currency, payerMemberId, receivingMemberId, amount, reason, onBehalfOfMemberId });
+  const pays = (
+    currency: string,
+    payerMemberId: string,
+    receivingMemberId: string,
+    amount: bigint,
+  ): SettlementSuggestion => ({ payerMemberId, receivingMemberId, amount, currency });
+  const debts = (
+    spaceCurrency: string,
+    expenses: readonly DebtExpense[],
+    settlements: readonly DebtSettlement[] = [],
+    memberIds: readonly string[] = MEMBERS,
+  ) => valueOf(pairwiseDebtsByCurrency(spaceCurrency, memberIds, { expenses, settlements }));
+
+  describe("member standings", () => {
+    it("gives one currency exactly what memberStandings gives, in one group", () => {
+      const totals = [totalsIn("COP", "juan", 0n, 150n), totalsIn("COP", "ana", 300n, 150n)];
+      expect(memberStandingsByCurrency("COP", MEMBERS, totals)).toEqual([
+        {
+          currency: "COP",
+          members: [
+            { memberId: "ana", net: 150n, hasMovements: true },
+            { memberId: "juan", net: -150n, hasMovements: true },
+            { memberId: "pedro", net: 0n, hasMovements: false },
+          ],
+        },
+      ]);
+      expect(memberStandingsByCurrency("COP", MEMBERS, totals)[0]!.members).toEqual(
+        memberStandings(MEMBERS, totals),
+      );
+    });
+
+    it("keeps the space currency's group, every member at 0, when nothing moved", () => {
+      expect(memberStandingsByCurrency("COP", MEMBERS, [])).toEqual([
+        {
+          currency: "COP",
+          members: MEMBERS.map((memberId) => ({ memberId, net: 0n, hasMovements: false })),
+        },
+      ]);
+    });
+
+    it("keeps currencies apart: owing in COP and being owed in USD", () => {
+      // Ana paid 500,000 COP for Juan; Juan paid 50 USD for Ana.
+      const standings = memberStandingsByCurrency("COP", MEMBERS, [
+        totalsIn("COP", "ana", 50_000_000n, 0n),
+        totalsIn("COP", "juan", 0n, 50_000_000n),
+        totalsIn("USD", "juan", 5_000n, 0n),
+        totalsIn("USD", "ana", 0n, 5_000n),
+      ]);
+      expect(standings).toEqual([
+        {
+          currency: "COP",
+          members: [
+            { memberId: "ana", net: 50_000_000n, hasMovements: true },
+            { memberId: "juan", net: -50_000_000n, hasMovements: true },
+            { memberId: "pedro", net: 0n, hasMovements: false },
+          ],
+        },
+        {
+          currency: "USD",
+          members: [
+            { memberId: "ana", net: -5_000n, hasMovements: true },
+            { memberId: "juan", net: 5_000n, hasMovements: true },
+            { memberId: "pedro", net: 0n, hasMovements: false },
+          ],
+        },
+      ]);
+    });
+
+    it("lists the space currency first, then the others by ISO code", () => {
+      const standings = memberStandingsByCurrency("USD", MEMBERS, [
+        totalsIn("GBP", "ana", 10n, 10n),
+        totalsIn("EUR", "ana", 10n, 10n),
+        totalsIn("USD", "ana", 10n, 10n),
+        totalsIn("COP", "ana", 10n, 10n),
+      ]);
+      expect(standings.map((group) => group.currency)).toEqual(["USD", "COP", "EUR", "GBP"]);
+    });
+
+    it("sums every currency's nets to zero across three people, settlements included", () => {
+      const standings = memberStandingsByCurrency("COP", MEMBERS, [
+        totalsIn("COP", "ana", 90_000n, 30_000n, 0n, 20_000n),
+        totalsIn("COP", "juan", 0n, 30_000n, 20_000n, 0n),
+        totalsIn("COP", "pedro", 0n, 30_000n),
+        totalsIn("EUR", "pedro", 6_000n, 2_000n),
+        totalsIn("EUR", "ana", 0n, 2_000n, 1_000n, 0n),
+        totalsIn("EUR", "juan", 0n, 2_000n, 0n, 1_000n),
+      ]);
+      expect(standings.map((group) => group.currency)).toEqual(["COP", "EUR"]);
+      for (const group of standings)
+        expect(
+          group.members.reduce((sum, m) => sum + m.net, 0n),
+          group.currency,
+        ).toBe(0n);
+      expect(standings[1]!.members).toEqual([
+        { memberId: "ana", net: -1_000n, hasMovements: true },
+        { memberId: "juan", net: -3_000n, hasMovements: true },
+        { memberId: "pedro", net: 4_000n, hasMovements: true },
+      ]);
+    });
+
+    it("shows a former member only in the currencies their history touches", () => {
+      const standings = memberStandingsByCurrency(
+        "COP",
+        ["ana"],
+        [totalsIn("COP", "ana", 100n, 0n), totalsIn("COP", "zed", 0n, 100n), totalsIn("USD", "ana", 0n, 0n)],
+      );
+      expect(standings).toEqual([
+        {
+          currency: "COP",
+          members: [
+            { memberId: "ana", net: 100n, hasMovements: true },
+            { memberId: "zed", net: -100n, hasMovements: true },
+          ],
+        },
+        { currency: "USD", members: [{ memberId: "ana", net: 0n, hasMovements: true }] },
+      ]);
+    });
+  });
+
+  describe("pairwise debts", () => {
+    it("gives one currency exactly what pairwiseDebts gives, each stamped with its currency", () => {
+      const expenses = [owes("COP", "juan", "ana", 30_000n), owes("COP", "pedro", "ana", 10_000n)];
+      expect(debts("COP", expenses)).toEqual([
+        pays("COP", "juan", "ana", 30_000n),
+        pays("COP", "pedro", "ana", 10_000n),
+      ]);
+      expect(debts("COP", expenses)).toEqual(
+        valueOf(pairwiseDebts("COP", MEMBERS, { expenses, settlements: [] })),
+      );
+    });
+
+    it("owes 500.000 COP, 50 USD and 60 EUR to the same person, never netted into one", () => {
+      expect(
+        debts("COP", [
+          owes("EUR", "juan", "ana", 6_000n),
+          owes("COP", "juan", "ana", 50_000_000n),
+          owes("USD", "juan", "ana", 5_000n),
+        ]),
+      ).toEqual([
+        pays("COP", "juan", "ana", 50_000_000n),
+        pays("EUR", "juan", "ana", 6_000n),
+        pays("USD", "juan", "ana", 5_000n),
+      ]);
+    });
+
+    it("lets a person owe in COP and be owed in USD by the same person", () => {
+      expect(
+        debts("COP", [owes("COP", "juan", "ana", 50_000_000n), owes("USD", "ana", "juan", 5_000n)]),
+      ).toEqual([pays("COP", "juan", "ana", 50_000_000n), pays("USD", "ana", "juan", 5_000n)]);
+    });
+
+    it("orders by currency, the space's first, then by the existing order inside each", () => {
+      expect(
+        debts("USD", [
+          owes("COP", "pedro", "ana", 100n),
+          owes("COP", "juan", "ana", 900n),
+          owes("USD", "pedro", "juan", 100n),
+          owes("USD", "juan", "ana", 100n),
+          owes("EUR", "ana", "pedro", 100n),
+        ]),
+      ).toEqual([
+        pays("USD", "juan", "ana", 100n),
+        pays("USD", "pedro", "juan", 100n),
+        pays("COP", "juan", "ana", 900n),
+        pays("COP", "pedro", "ana", 100n),
+        pays("EUR", "ana", "pedro", 100n),
+      ]);
+    });
+
+    it("splits three people's debts within each currency (P323), with no pair crossing currencies", () => {
+      const result = debts("COP", [
+        {
+          currency: "COP",
+          payments: [{ memberId: "ana", amount: 90_000n }],
+          shares: MEMBERS.map((memberId) => ({ memberId, amount: 30_000n })),
+        },
+        {
+          currency: "USD",
+          payments: [{ memberId: "pedro", amount: 6_000n }],
+          shares: MEMBERS.map((memberId) => ({ memberId, amount: 2_000n })),
+        },
+      ]);
+      expect(result).toEqual([
+        pays("COP", "juan", "ana", 30_000n),
+        pays("COP", "pedro", "ana", 30_000n),
+        pays("USD", "ana", "pedro", 2_000n),
+        pays("USD", "juan", "pedro", 2_000n),
+      ]);
+    });
+
+    it("settles only within the settlement's currency, gifts, forgiveness and payments for someone included (P322)", () => {
+      const expenses = [
+        owes("COP", "juan", "ana", 50_000_000n),
+        owes("USD", "juan", "ana", 5_000n),
+        owes("USD", "pedro", "ana", 3_000n),
+      ];
+      expect(
+        debts("COP", expenses, [
+          // Ana forgives 20 USD of Juan's; a COP gift from Juan lowers only his COP debt.
+          settles("USD", "juan", "ana", 2_000n, "FORGIVENESS"),
+          settles("COP", "juan", "ana", 10_000_000n, "GIFT"),
+          // Juan pays Pedro's 30 USD to Ana: Pedro now owes Juan 30 USD, and nothing in COP moves.
+          settles("USD", "juan", "ana", 3_000n, "PAYMENT", "pedro"),
+        ]),
+      ).toEqual([
+        pays("COP", "juan", "ana", 40_000_000n),
+        pays("USD", "juan", "ana", 3_000n),
+        pays("USD", "pedro", "juan", 3_000n),
+      ]);
+    });
+
+    it("turns a payment in a currency nobody owed into a debt in that currency", () => {
+      expect(
+        debts("COP", [owes("COP", "juan", "ana", 1_000n)], [settles("USD", "juan", "ana", 500n)]),
+      ).toEqual([pays("COP", "juan", "ana", 1_000n), pays("USD", "ana", "juan", 500n)]);
+    });
+
+    it("routes through a member who left inside each currency only", () => {
+      // Dani, gone, is owed 100 COP by Ana and owes 100 USD to Juan: no currency is exchanged to clear Dani.
+      expect(
+        debts(
+          "COP",
+          [owes("COP", "ana", "dani", 100n), owes("USD", "dani", "juan", 100n)],
+          [],
+          ["ana", "juan"],
+        ),
+      ).toEqual([pays("COP", "ana", "dani", 100n), pays("USD", "dani", "juan", 100n)]);
+    });
+
+    it("suggests nothing without movements", () => {
+      expect(debts("COP", [])).toEqual([]);
+    });
+
+    it("answers UnknownCurrency for a movement or a space currency Money does not know", () => {
+      const movement = pairwiseDebtsByCurrency("COP", MEMBERS, {
+        expenses: [owes("XXX", "juan", "ana", 100n)],
+        settlements: [],
+      });
+      expect(movement.ok ? "ok" : movement.error.code).toBe("UnknownCurrency");
+      const space = pairwiseDebtsByCurrency("XXX", MEMBERS, { expenses: [], settlements: [] });
+      expect(space.ok ? "ok" : space.error.code).toBe("UnknownCurrency");
+    });
   });
 });
