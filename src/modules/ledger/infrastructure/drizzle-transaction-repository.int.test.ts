@@ -157,14 +157,12 @@ describe("DrizzleTransactionRepository", () => {
 
 // D29, slice MC3: the storage for per-leg and original amounts round-trips; no recording use case sets them yet, so
 // the test builds the domain objects directly. Null columns read back as absent, so a base-only row is unchanged.
-describe("original and per-leg amounts (D29, slice MC3)", () => {
-  it("round-trips an expense's original amount and a payment's account-leg amount", async () => {
+describe("per-leg amounts in an account's own currency (D29, P342)", () => {
+  it("round-trips a payment's account-leg amount", async () => {
     // The leg's currency is the paying account's own, read back from the account.
     const usd = await accountFixture(db, space, "Wallet USD", 0n, "USD");
     const market: Expense = {
       ...expense(100_000_000n),
-      originalAmount: 25_00n,
-      originalCurrency: "USD",
       payments: [
         {
           memberId: space.memberId,
@@ -192,8 +190,6 @@ describe("original and per-leg amounts (D29, slice MC3)", () => {
       ...salary,
       destinationAmount: 25_00n,
       destinationCurrency: "USD",
-      originalAmount: 25_00n,
-      originalCurrency: "USD",
     };
     const move = unwrap(
       recordTransfer({ ...common(50_000_000n), sourceAccountId: bank, destinationAccountId: wallet }),
@@ -202,8 +198,6 @@ describe("original and per-leg amounts (D29, slice MC3)", () => {
       ...move,
       sourceAmount: 12_50n,
       sourceCurrency: "USD",
-      destinationAmount: 40_000_000n,
-      destinationCurrency: "COP",
     };
     await repo.add(income);
     await repo.add(transfer);

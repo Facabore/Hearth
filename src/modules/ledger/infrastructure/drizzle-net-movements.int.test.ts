@@ -191,27 +191,26 @@ describe("net movements use each account's leg amount, COALESCED to the base amo
   it("uses destination, source and payment leg amounts when set, and the base amount when null", async () => {
     const w = await world();
     // An income's destination leg: the bank's net is the 25.00 USD it received, not the 100.000.000 base.
-    await repo.add({ ...w.income("2026-10-06", 100_000_000n), destinationAmount: 25_00n });
+    await repo.add({
+      ...w.income("2026-10-06", 100_000_000n),
+      destinationAmount: 25_00n,
+      destinationCurrency: "USD",
+    });
     expect(await w.figures()).toEqual([25_00n, 0n]);
 
-    // A transfer's two legs: the bank loses 12.50 (source leg), Nequi gains 40.000.000 (its own-currency leg).
+    // A transfer in COP from the USD bank: the bank loses its 12.50 source leg, Nequi (COP) gains the amount itself,
+    // since a leg is only stored in a currency other than the movement's (P342, migration 0045's CHECKs).
     const move = w.transfer("2026-10-07", 50_000_000n);
-    await repo.add({
-      ...move,
-      sourceAmount: 12_50n,
-      sourceCurrency: "USD",
-      destinationAmount: 40_000_000n,
-      destinationCurrency: "COP",
-    });
-    expect(await w.figures()).toEqual([25_00n - 12_50n, 40_000_000n]);
+    await repo.add({ ...move, sourceAmount: 12_50n, sourceCurrency: "USD" });
+    expect(await w.figures()).toEqual([25_00n - 12_50n, 50_000_000n]);
 
     // A base-only income (null legs) still uses the base amount: the fallback COALESCE.
     await repo.add(w.income("2026-10-08", 7_000_000n));
-    expect(await w.figures()).toEqual([25_00n - 12_50n + 7_000_000n, 40_000_000n]);
+    expect(await w.figures()).toEqual([25_00n - 12_50n + 7_000_000n, 50_000_000n]);
 
     // A payment's account leg: Nequi loses the 3.00 it was charged, not the 5.000.000 base.
     const exp = w.expense("2026-10-09", 5_000_000n, w.wallet);
     await repo.add({ ...exp, payments: [{ ...exp.payments[0]!, accountAmount: 3_00n }] });
-    expect(await w.figures()).toEqual([25_00n - 12_50n + 7_000_000n, 40_000_000n - 3_00n]);
+    expect(await w.figures()).toEqual([25_00n - 12_50n + 7_000_000n, 50_000_000n - 3_00n]);
   });
 });
