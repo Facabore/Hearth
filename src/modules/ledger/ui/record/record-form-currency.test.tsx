@@ -57,14 +57,25 @@ const posted = async (requests: Request[]) =>
 const rateReads = (requests: Request[]) =>
   requests.filter((r) => r.method === "GET" && new URL(r.url).pathname === "/api/v1/exchange-rates");
 // 2026-11-01T04:30Z is 23:30 of 31 Oct in Bogotá: the form's date, which the rate is asked for.
+// The server converts the asked `amount` (Money.convert); the fake answers from `converted`, by amount in USD cents.
 const rate =
-  (value = "4100"): FakeHandler =>
+  (value = "4100", converted: Readonly<Record<string, string>> = { "5000": "20500000" }): FakeHandler =>
   (request) => {
     const query = new URL(request.url).searchParams;
+    const amount = query.get("amount");
+    const figure = amount === null ? undefined : converted[amount];
     return query.get("base") === "USD" && query.get("quote") === "COP" && query.get("on") === "2026-10-31"
-      ? jsonResponse({ rate: value, on: "2026-10-30" })
+      ? jsonResponse({
+          rate: value,
+          on: "2026-10-30",
+          ...(figure === undefined ? {} : { converted: { amount: figure, currency: "COP" } }),
+        })
       : problemResponse(404, "ExchangeRateNotFound");
   };
+const amountsAsked = (requests: Request[]) =>
+  rateReads(requests)
+    .map((r) => new URL(r.url).searchParams.get("amount"))
+    .filter((amount) => amount !== null);
 const currencyChip = () => screen.getByRole("button", { name: /^Moneda: / });
 const chooseCurrency = async (name: RegExp) => {
   await userEvent.click(currencyChip());
@@ -124,6 +135,39 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     });
     expect("convertedAmount" in (await posted(requests))).toBe(false);
     expect(rateReads(requests).length).toBeGreaterThan(0);
+  });
+
+  it("shows and sends the server's converted figure, asked once for the settled amount, never rounding itself", async () => {
+    // 4.100 × 50 would be 205.000; the server's figure differs on purpose, so only it can be what the card shows.
+    const { api, requests } = fakeApi({
+      "GET /api/v1/exchange-rates": rate("4100", { "5000": "20499999" }),
+      "POST /api/v1/spaces/{spaceId}/expenses": () => jsonResponse(transactionDto({ id: "t-usd" }), 201),
+    });
+    form(api);
+    await chooseCurrency(/^Dólar estadounidense/);
+    await userEvent.type(screen.getByLabelText("Monto"), "50");
+    const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
+    await waitFor(() => expect(within(card).getByText("204.999,99 COP")).toBeInTheDocument());
+    expect(card).toHaveTextContent("Sugerido con 4.100 COP por dólar estadounidense (30 oct).");
+    expect(amountsAsked(requests)).toEqual(["5000"]);
+    await save();
+    expect((await posted(requests)).accountAmount).toEqual({ amount: "20499999", currency: "COP" });
+  });
+
+  it("shows no figure and sends no leg while the server has not converted the amount", async () => {
+    const { api, requests } = fakeApi({
+      "GET /api/v1/exchange-rates": rate("4100", {}),
+      "POST /api/v1/spaces/{spaceId}/expenses": () => jsonResponse(transactionDto({ id: "t-usd" }), 201),
+    });
+    form(api);
+    await chooseCurrency(/^Dólar estadounidense/);
+    await userEvent.type(screen.getByLabelText("Monto"), "50");
+    const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
+    await waitFor(() => expect(amountsAsked(requests)).toEqual(["5000"]));
+    expect(card).toHaveTextContent("Sugerido con 4.100 COP por dólar estadounidense (30 oct).");
+    expect(within(card).queryByText(/COP$/)).toBeNull();
+    await save();
+    expect("accountAmount" in (await posted(requests))).toBe(false);
   });
 
   it("sends the value the person typed instead of the suggestion", async () => {

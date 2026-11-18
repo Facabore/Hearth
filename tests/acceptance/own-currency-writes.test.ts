@@ -6,6 +6,7 @@ import { POST as recordIncome } from "@/app/api/v1/spaces/[spaceId]/incomes/rout
 import { POST as recordSettlement } from "@/app/api/v1/spaces/[spaceId]/settlements/route";
 import { PATCH as editTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import { ExchangeRate, Money } from "@/shared/kernel";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
   balanceOf,
@@ -302,6 +303,72 @@ describe("the day's exchange rate, to suggest an account leg (P342)", () => {
     expect(await problemOf(await rateOf(undefined, `base=USD&quote=COP&on=${RATE_DAY}`))).toEqual([
       401,
       "Unauthenticated",
+    ]);
+  });
+
+  /** What the kernel's own conversion gives `minor` of `base` at the answered rate: the figure `converted` must be. */
+  const convertedByMoney = (minor: bigint, base: string, quote: string, rate: string): MoneyDto => {
+    const money = Money.ofMinor(minor, base);
+    const exchange = ExchangeRate.of(base, quote, rate);
+    if (!money.ok || !exchange.ok) throw new Error("bad fixture");
+    const converted = money.value.convert(exchange.value);
+    if (!converted.ok) throw new Error("bad fixture");
+    return { amount: converted.value.minor.toString(), currency: converted.value.currency.code };
+  };
+
+  it("converts an amount with Money's own conversion: 50,00 USD at 4.100 is 205.000 COP", async () => {
+    const ana = await person();
+    const answer = await rateOf(ana, `base=USD&quote=COP&on=${RATE_DAY}&amount=5000`);
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toEqual({
+      rate: "4100",
+      on: RATE_DAY,
+      converted: { amount: "20500000", currency: "COP" },
+    });
+  });
+
+  it("rounds the converted amount as Money.convert does: half to even, odd cents and an inverted rate", async () => {
+    const ana = await person();
+    // 150 JPY per dollar: 0,01 USD is 1,5 JPY → 2 and 0,03 USD is 4,5 JPY → 4 (JPY has no minor digits).
+    await app.pool.query(
+      `INSERT INTO exchange_rates (date, base, quote, rate, source, fetched_at)
+       VALUES ($1, 'USD', 'JPY', '150', 'test', now()) ON CONFLICT DO NOTHING`,
+      [RATE_DAY],
+    );
+    for (const [minor, expected] of [
+      ["1", "2"],
+      ["3", "4"],
+    ] as const) {
+      const body = (await (
+        await rateOf(ana, `base=USD&quote=JPY&on=${RATE_DAY}&amount=${minor}`)
+      ).json()) as {
+        rate: string;
+        converted: MoneyDto;
+      };
+      expect(body.converted).toEqual({ amount: expected, currency: "JPY" });
+      expect(body.converted).toEqual(convertedByMoney(BigInt(minor), "USD", "JPY", body.rate));
+    }
+    // 205.000,01 COP to dollars goes through the inverted rate (1 / 4.100, 12 digits): odd cents, rounded once.
+    const back = (await (await rateOf(ana, `base=COP&quote=USD&on=${RATE_DAY}&amount=20500001`)).json()) as {
+      rate: string;
+      converted: MoneyDto;
+    };
+    expect(back.converted).toEqual({ amount: "5000", currency: "USD" });
+    expect(back.converted).toEqual(convertedByMoney(20_500_001n, "COP", "USD", back.rate));
+  });
+
+  it("answers without `converted` when no amount is asked, and refuses a malformed amount with 422", async () => {
+    const ana = await person();
+    const plain = await rateOf(ana, `base=USD&quote=COP&on=${RATE_DAY}`);
+    expect(Object.keys((await plain.json()) as object).sort()).toEqual(["on", "rate"]);
+    for (const amount of ["12.50", "abc", "", "1e3", "99999999999999999999"]) {
+      expect(
+        await problemOf(await rateOf(ana, `base=USD&quote=COP&on=${RATE_DAY}&amount=${amount}`)),
+      ).toEqual([422, "ValidationFailed"]);
+    }
+    expect(await problemOf(await rateOf(ana, `base=USD&quote=COP&on=2000-01-03&amount=5000`))).toEqual([
+      404,
+      "ExchangeRateNotFound",
     ]);
   });
 });

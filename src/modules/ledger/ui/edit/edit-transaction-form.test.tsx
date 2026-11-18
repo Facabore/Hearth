@@ -105,7 +105,17 @@ describe("edit a movement in another currency than its account's (P342, board 4)
     payments: [{ memberId: "m-ana", accountId: "a-bank", amount: usd(50), accountAmount: cop(205_000) }],
     shares: [{ memberId: "m-ana", amount: usd(50), splitMethod: "EQUAL" }],
   });
-  const rate = () => jsonResponse({ rate: "4100", on: "2026-10-31" });
+  // The server converts the asked amount (Money.convert): 50 and 60 USD at 4.100.
+  const CONVERTED: Readonly<Record<string, string>> = { "5000": "20500000", "6000": "24600000" };
+  const rate = (request: Request) => {
+    const amount = new URL(request.url).searchParams.get("amount");
+    const figure = amount === null ? undefined : CONVERTED[amount];
+    return jsonResponse({
+      rate: "4100",
+      on: "2026-10-31",
+      ...(figure === undefined ? {} : { converted: { amount: figure, currency: "COP" } }),
+    });
+  };
 
   it("keeps the movement's currency and shows what the account paid", async () => {
     renderForm(fakeApi({ "GET /api/v1/exchange-rates": rate }).api, LIST, { tx: usdMarket });

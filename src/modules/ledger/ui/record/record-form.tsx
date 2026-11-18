@@ -66,7 +66,6 @@ import { SharedFields } from "../split/shared-fields";
 import { useWhoPaidLine } from "../split/who-paid-line";
 import type { PersonTransfer, TransferMode } from "./person-transfer";
 import { AmountField } from "./amount-field";
-import { suggestedLeg } from "./account-leg";
 import { AccountLegCard } from "./account-leg-card";
 import { CurrencyChip } from "./currency-chip";
 import { CategoryTiles } from "./category-tiles";
@@ -507,10 +506,13 @@ export function RecordForm({
   const typed = parseDecimal(amount, formats.numberFormat);
   const minor = typed === null ? null : minorOf(typed, currencyOf(amountCurrency).exponent);
   const positiveMinor = minor !== null && BigInt(minor) > 0n ? minor : null;
-  // P342 (board 4): the day's rate of the form's date, which suggests the leg; what the person typed wins over it.
+  // P342 (board 4): the day's rate of the form's date and the server's conversion of the amount at it, which suggests
+  // the leg; what the person typed wins over it.
   const rate = useExchangeRate(
     api,
-    legCurrency === null ? null : { base: amountCurrency, quote: legCurrency, on: when.date },
+    legCurrency === null
+      ? null
+      : { base: amountCurrency, quote: legCurrency, on: when.date, amount: positiveMinor },
   );
   const legKey = legCurrency === null ? null : `${amountCurrency}|${legCurrency}`;
   const legText = leg.key === legKey ? leg.text : "";
@@ -524,8 +526,8 @@ export function RecordForm({
       ? null
       : legTyped !== null && BigInt(legTyped) > 0n
         ? legTyped
-        : rate?.status === "found" && positiveMinor !== null
-          ? suggestedLeg(positiveMinor, amountCurrency, legCurrency, rate.rate)
+        : rate?.status === "found"
+          ? rate.converted
           : null;
   const accountAmountBody =
     legCurrency !== null && legMinor !== null && BigInt(legMinor) > 0n

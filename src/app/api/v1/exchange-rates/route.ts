@@ -5,7 +5,7 @@ import { exchangeRateDto, ExchangeRateQuerySchema } from "@/modules/rates/contra
 
 export const runtime = "nodejs";
 
-/** P342: the day's rate between two currencies, which the app suggests an account leg from. */
+/** P342: the day's rate between two currencies, and an amount converted at it, to suggest an account leg. */
 export const GET = defineRoute({
   auth: "required",
   query: ExchangeRateQuerySchema,
@@ -16,6 +16,7 @@ export const GET = defineRoute({
       base: query.base,
       quote: query.quote,
       on: on.value,
+      ...(query.amount === undefined ? {} : { amount: BigInt(query.amount) }),
     });
     return result.ok ? ok({ status: 200, body: exchangeRateDto(result.value) }) : result;
   },

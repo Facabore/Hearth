@@ -1888,7 +1888,7 @@ export interface paths {
         };
         /**
          * The day's exchange rate between two currencies (P342, D30)
-         * @description The rate the ledger converts a movement of that day at, from the stored daily rates (ECB and TRM), directly or through a pivot currency. The app suggests an account leg from it (what an account in another currency moved); the person may change the figure, and the rate itself is never stored on a movement.
+         * @description The rate the ledger converts a movement of that day at, from the stored daily rates (ECB and TRM), directly or through a pivot currency. The app suggests an account leg from it (what an account in another currency moved); the person may change the figure, and the rate itself is never stored on a movement. With `amount` it also answers that amount converted (`converted`), so the app never rounds money itself.
          */
         get: operations["getExchangeRate"];
         put?: never;
@@ -11561,6 +11561,8 @@ export interface operations {
                 quote: string;
                 /** @description The day the rate is wanted for: the movement's date. */
                 on: string;
+                /** @description Minor units of `base` to convert at the rate, as an integer string like Money's `amount` ("5000" is 50,00 USD). With it the answer adds `converted`. */
+                amount?: string;
             };
             header?: never;
             path?: never;
@@ -11568,7 +11570,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The rate and the day it is from */
+            /** @description The rate, the day it is from, and the converted amount when one was asked */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -11582,6 +11584,8 @@ export interface operations {
                          * @description The day of the stored rate it rests on: the day asked for or the latest one before it (for a rate through a pivot currency, the oldest of the rates it went through).
                          */
                         on: string;
+                        /** @description Only when `amount` is asked: that amount in `quote` at this rate, rounded half to even at `quote`'s minor unit (Money's own conversion, D30), the figure the app suggests as an account leg. */
+                        converted?: components["schemas"]["MoneyOutput"];
                     };
                 };
             };
