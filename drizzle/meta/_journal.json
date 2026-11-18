@@ -316,6 +316,13 @@
       "when": 1795023389998,
       "tag": "0044_user_favorite_currencies",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795031028179,
+      "tag": "0045_p342_own_currency",
+      "breakpoints": true
     }
   ]
 }

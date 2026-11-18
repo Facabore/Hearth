@@ -139,13 +139,11 @@ const toTransaction = (
         categoryId: row.categoryId!,
         destinationAccountId: row.destinationAccountId!,
         receivingMemberId: row.receivingMemberId!,
-        // D29, slice MC3: the leg's currency; a row written before it was stored kept its original currency there.
-        ...(row.destinationAmount === null
+        // P342: the leg round-trips with its currency, the account's own; 0045 filled in the ones stored without it and
+        // transactions_income_destination_currency keeps it set.
+        ...(row.destinationAmount === null || row.destinationCurrency === null
           ? {}
-          : {
-              destinationAmount: row.destinationAmount,
-              destinationCurrency: row.destinationCurrency ?? row.originalCurrency ?? row.currency,
-            }),
+          : { destinationAmount: row.destinationAmount, destinationCurrency: row.destinationCurrency }),
       };
     case "TRANSFER":
       return {

@@ -133,6 +133,20 @@ export const transactions = pgTable(
       sql`(${t.sourceCurrency} IS NULL) = (${t.sourceAmount} IS NULL)
         AND (${t.type} = 'INCOME' OR (${t.destinationCurrency} IS NULL) = (${t.destinationAmount} IS NULL))`,
     ),
+    // P342 (S8, migration 0045): a movement is stored in its own currency, so no converted base keeps an original.
+    // The columns stay until the reports slice drops them.
+    check("transactions_no_original", sql`${t.originalAmount} IS NULL AND ${t.originalCurrency} IS NULL`),
+    // P342: a leg is what an account in another currency moved; an account in the movement's currency has none.
+    check("transactions_source_leg_other_currency", sql`${t.sourceCurrency} IS DISTINCT FROM ${t.currency}`),
+    check(
+      "transactions_destination_leg_other_currency",
+      sql`${t.destinationCurrency} IS DISTINCT FROM ${t.currency}`,
+    ),
+    // P342: an income's destination leg names its currency too (0045 filled in the ones stored without it).
+    check(
+      "transactions_income_destination_currency",
+      sql`${t.type} <> 'INCOME' OR ${t.destinationAmount} IS NULL OR ${t.destinationCurrency} IS NOT NULL`,
+    ),
     check("transactions_time_zone", sql`(${t.occurredAt} IS NULL) = (${t.timeZone} IS NULL)`),
     // A TRANSFER without a payer is between own accounts; with a payer it is a fund contribution, whose
     // source is null only for a guest (spec 5.2). A SETTLEMENT has both parties and optional accounts. An ADJUSTMENT
