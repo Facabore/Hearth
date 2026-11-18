@@ -114,6 +114,13 @@ The `app` container serves the API only (`/api/*`). `HEARTH_E2E_FIXED_NOW` fixes
 2. Copy the release's `compose.yaml`, `Caddyfile` and `scripts/` over the old ones, and set `HEARTH_APP_IMAGE`, `HEARTH_MIGRATOR_IMAGE` and `HEARTH_WEB_IMAGE` in `.env` to the new SHA. The first release with the web service adds `HEARTH_WEB_IMAGE` (`ghcr.io/facabore/hearth-web:<sha>`); without it Compose refuses to start and names it. Behind a host proxy, also keep the `web` port and the host site of Behind a reverse proxy the host already runs as they are written there: the release of the cut-over (#199) changes that site.
 3. `docker compose pull && docker compose up -d` — `migrate` runs pending migrations before `app` starts.
 
+## Dependency advisories
+
+Run `pnpm audit --prod` before each release. State on 2026-11-17:
+
+- **Next.js** moved from 16.4.2 to 16.4.6, which fixes GHSA-mfr8-8qww-v76h and GHSA-vc7v-qv4w-wrv8 (cache leaks across root params with `use cache`; Hearth does not use `use cache` or `unstable_cache`, the upgrade closes them anyway).
+- **picomatch 4.0.7** (GHSA-fc5q-39xc-vjpf, ReDoS through repeated extglobs) stays open: no fixed version is published. It arrives only through `next-intl` → `@parcel/watcher`, which matches the project's own file paths and never a person's input, so the app does not expose it. Check again at each release and update when a fix ships.
+
 ## Rolling back
 
 Set the image tags back to the previous SHA and run `docker compose up -d`. Rolling back past the cut-over (#199) also needs that release's `Caddyfile` and, behind a host proxy, its host site (`/app` and `/app/*` to the web service, everything else to the app): before the cut-over the app served the screens. A release from before the web service has no `hearth-web` image: keep `HEARTH_WEB_IMAGE` at the first release that has one, or restore that release's `compose.yaml` and `Caddyfile` too. Migrations are forward-only; a release whose migration is not backward compatible must say so in its PR.
