@@ -44,13 +44,14 @@ export interface Load extends RouterContext {
  * prefetch on intent and staying on the screen read only what is missing: a pointer passing over a link, or opening a
  * sheet, reads nothing the cache holds (the router runs a loader again only on "enter", `router.tsx`). A read not in
  * the cache is waited for. A visit revalidates even inside the cache's fresh window (#338): only components that mount
- * on a query and a return to the tab wait for the window to pass (`FRESH_FOR_MS`, `app.tsx`).
+ * on a query and a return to the tab wait for the window to pass (`FRESH_FOR_MS`, `app.tsx`). A read that sets its own
+ * stale time keeps it: a catalog or an import's preview (Infinity) is never read again by a visit.
  */
 export const ensurer =
   ({ queryClient, cause }: Load): QueryClient["ensureQueryData"] =>
   (options) =>
     queryClient.ensureQueryData(
       cause === "enter"
-        ? { ...options, revalidateIfStale: true, staleTime: 0 }
+        ? { ...options, revalidateIfStale: true, staleTime: options.staleTime ?? 0 }
         : { ...options, revalidateIfStale: false },
     );
