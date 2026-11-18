@@ -1,47 +1,86 @@
 import { z } from "zod";
 import type { ZodOpenApiPathsObject } from "zod-openapi";
-import { jsonContent, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
+import { jsonContent, moneyOf, MoneySchema, problems, securedByUser } from "@/shared/http/contracts";
 import type { FriendNameView } from "@/modules/spaces/application";
-import type {
-  Friend,
-  MemberBalanceHistoryView,
-  MyBalance,
-  SettlementSuggestions,
-  SpaceBalances,
+import {
+  netsOf,
+  type CurrencyNet,
+  type Friend,
+  type MemberBalanceHistoryView,
+  type MyBalance,
+  type SettlementSuggestions,
+  type SpaceBalances,
 } from "../application";
+
+/** Ruling P342 (S4): a person's non-zero nets, one per currency, never converted, the space currency first. */
+const NetsSchema = z.array(MoneySchema).meta({
+  description:
+    "P342: the non-zero nets, one per currency and never converted into another, the space's currency first, then by ISO code; empty when even in every currency. Always sent, optional for older clients.",
+});
+
+const netsDto = (nets: readonly CurrencyNet[]) => nets.map((n) => moneyOf(n.net, n.currency));
 
 /**
  * HU-E5-01: one entry per current member in join order, guests included, then every former member with
- * a non-zero history in the space; positive net means owed money.
+ * a non-zero history in the space; positive net means owed money. Ruling P342: `net` is the space currency's and
+ * `nets` has every currency.
  */
 export const SpaceBalancesSchema = z.object({
   members: z.array(
     z.object({
       memberId: z.string(),
-      net: MoneySchema,
+      net: MoneySchema.meta({
+        description:
+          "The net in the space's currency (P342: other currencies are in `nets`, never converted)",
+      }),
+      nets: NetsSchema.optional(),
       hasMovements: z.boolean().optional().meta({
         description:
-          "#217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients.",
+          "#217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, in any currency (P342), even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients.",
       }),
     }),
   ),
 });
 
-export const spaceBalancesDto = (balances: SpaceBalances): z.infer<typeof SpaceBalancesSchema> => ({
-  members: balances.members.map((m) => ({
-    memberId: m.memberId,
-    net: { amount: m.net.toString(), currency: balances.currency },
-    hasMovements: m.hasMovements,
-  })),
-});
+/**
+ * Ruling P342: the space currency's members in their order, then anyone another currency adds (a former member who
+ * owes or is owed only in that currency) at a space-currency net of 0.
+ */
+export const spaceBalancesDto = (balances: SpaceBalances): z.infer<typeof SpaceBalancesSchema> => {
+  const memberIds = [
+    ...new Set(balances.byCurrency.flatMap((group) => group.members.map((m) => m.memberId))),
+  ];
+  return {
+    members: memberIds.map((memberId) => {
+      const standings = balances.byCurrency.flatMap(
+        (group) => group.members.find((m) => m.memberId === memberId) ?? [],
+      );
+      const net = balances.members.find((m) => m.memberId === memberId)?.net ?? 0n;
+      return {
+        memberId,
+        net: moneyOf(net, balances.currency),
+        nets: netsDto(netsOf(balances.byCurrency, memberId)),
+        hasMovements: standings.some((standing) => standing.hasMovements),
+      };
+    }),
+  };
+};
 
 /**
  * HU-E5-03: each suggestion has the fields of a settlement (HU-E5-02); POST it to accept it. A suggestion
  * that names a former member (possible only after the race tracked on #89) cannot be accepted until #89 lands.
+ * Ruling P342: each `amount` is in its debt's currency, which may not be the space's.
  */
 export const SettlementSuggestionsSchema = z.object({
   suggestions: z.array(
-    z.object({ payerMemberId: z.string(), receivingMemberId: z.string(), amount: MoneySchema }),
+    z.object({
+      payerMemberId: z.string(),
+      receivingMemberId: z.string(),
+      amount: MoneySchema.meta({
+        description:
+          "In the debt's own currency (P342), never converted: the space's suggestions first, then by ISO code, the largest first inside a currency",
+      }),
+    }),
   ),
 });
 
@@ -51,7 +90,7 @@ export const settlementSuggestionsDto = (
   suggestions: s.suggestions.map((suggestion) => ({
     payerMemberId: suggestion.payerMemberId,
     receivingMemberId: suggestion.receivingMemberId,
-    amount: { amount: suggestion.amount.toString(), currency: s.currency },
+    amount: moneyOf(suggestion.amount, suggestion.currency),
   })),
 });
 
@@ -65,29 +104,33 @@ export const MyBalancesSchema = z.object({
       spaceId: z.string(),
       memberId: z.string().meta({ description: "The viewer's member id in the space" }),
       net: MoneySchema.meta({
-        description: "The viewer's net; negative when it is her turn to put money in",
+        description:
+          "The viewer's net in the space's currency; negative when it is her turn to put money in (P342: other currencies are in `nets`)",
       }),
+      nets: NetsSchema.optional(),
       members: z.array(z.object({ memberId: z.string(), name: z.string() })).meta({
         description: "The current members in join order, guests included",
       }),
-      payments: z
-        .array(z.object({ receivingMemberId: z.string(), amount: MoneySchema }))
-        .meta({ description: "The settle-up suggestions in which the viewer pays, the largest first" }),
+      payments: z.array(z.object({ receivingMemberId: z.string(), amount: MoneySchema })).meta({
+        description:
+          "The settle-up suggestions in which the viewer pays, each in its debt's currency (P342): the space's first, then by ISO code, the largest first inside a currency",
+      }),
     }),
   ),
 });
 
 export const myBalancesDto = (balances: readonly MyBalance[]): z.infer<typeof MyBalancesSchema> => ({
-  items: balances.map((b) => {
-    const money = (minor: bigint) => ({ amount: minor.toString(), currency: b.currency });
-    return {
-      spaceId: b.spaceId,
-      memberId: b.memberId,
-      net: money(b.net),
-      members: b.members.map((m) => ({ memberId: m.memberId, name: m.name })),
-      payments: b.payments.map((p) => ({ receivingMemberId: p.receivingMemberId, amount: money(p.amount) })),
-    };
-  }),
+  items: balances.map((b) => ({
+    spaceId: b.spaceId,
+    memberId: b.memberId,
+    net: moneyOf(b.net, b.currency),
+    nets: netsDto(b.nets),
+    members: b.members.map((m) => ({ memberId: m.memberId, name: m.name })),
+    payments: b.payments.map((p) => ({
+      receivingMemberId: p.receivingMemberId,
+      amount: moneyOf(p.amount, p.currency),
+    })),
+  })),
 });
 
 /** Ruling P338: the other member of a direct space, by the name its viewer gives them. */
@@ -120,8 +163,9 @@ export const FriendSchema = z.object({
   }),
   net: MoneySchema.meta({
     description:
-      "The viewer's net in the space: positive when the other one owes her, negative when she owes them",
+      "The viewer's net in the space's currency: positive when the other one owes her, negative when she owes them (P342: other currencies are in `nets`)",
   }),
+  nets: NetsSchema.optional(),
   lastMovement: z
     .object({
       transactionId: z.string(),
@@ -141,7 +185,8 @@ export const friendDto = (f: Friend): z.infer<typeof FriendSchema> => ({
   me: { memberId: f.me.memberId },
   other: { ...f.other },
   name: f.name,
-  net: { amount: f.net.toString(), currency: f.currency },
+  net: moneyOf(f.net, f.currency),
+  nets: netsDto(f.nets),
   lastMovement: f.lastMovement === null ? null : { ...f.lastMovement },
 });
 
@@ -163,9 +208,16 @@ export const friendNameDto = (view: FriendNameView): z.infer<typeof FriendNameSc
   name: view.name,
 });
 
-/** HU-E5-04: an optional span of dates; `from` must not be after `to`. */
+/** HU-E5-04: an optional span of dates; `from` must not be after `to`. Ruling P342: an optional currency. */
 export const BalanceHistoryQuerySchema = z
-  .object({ from: z.iso.date().optional(), to: z.iso.date().optional() })
+  .object({
+    from: z.iso.date().optional(),
+    to: z.iso.date().optional(),
+    currency: z.string().length(3).optional().meta({
+      description:
+        "P342: the ISO 4217 code of the currency whose movements to read, never converted; the space's when left out. An unknown code is a 422 UnknownCurrency.",
+    }),
+  })
   .refine((query) => query.from === undefined || query.to === undefined || query.from <= query.to, {
     error: "from must not be after to",
     path: ["to"],
@@ -363,7 +415,7 @@ export const balancesPaths: ZodOpenApiPathsObject = {
       summary:
         "How a member's net balance evolved: each expense and settlement that moved it, with the running balance",
       description:
-        "Both bounds are optional and inclusive. `opening` is the balance after every movement before `from`, and each entry's running `balance` counts every earlier movement, also those before `from`. `closing` is the balance after the last entry, or `opening` when there are none. `from` after `to` is a 422 ValidationFailed.",
+        "Ruling P342: one currency's history, the space's unless `currency` names another; every amount is in it. Both bounds are optional and inclusive. `opening` is the balance after every movement before `from`, and each entry's running `balance` counts every earlier movement, also those before `from`. `closing` is the balance after the last entry, or `opening` when there are none. `from` after `to` is a 422 ValidationFailed.",
       ...securedByUser,
       requestParams: { path: MemberPath, query: BalanceHistoryQuerySchema },
       responses: {
@@ -374,7 +426,7 @@ export const balancesPaths: ZodOpenApiPathsObject = {
         ...problems({
           "401": "Unauthenticated",
           "404": "SpaceNotFound, MemberNotFound",
-          "422": "ValidationFailed, InvalidDate",
+          "422": "ValidationFailed, InvalidDate, UnknownCurrency",
         }),
       },
     },

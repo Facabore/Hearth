@@ -54,6 +54,8 @@ describe("GET /api/v1/me/balances (#240, P278)", () => {
         spaceId: h.spaceId,
         memberId: h.ana.memberId,
         net: cop(-100_000),
+        // Ruling P342: a single-currency space answers as before, plus `nets` with its one currency.
+        nets: [cop(-100_000)],
         members: [
           { memberId: h.ana.memberId, name: "Ana" },
           { memberId: h.juan.memberId, name: "Juan" },

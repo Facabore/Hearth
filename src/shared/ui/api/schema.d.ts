@@ -1376,7 +1376,7 @@ export interface paths {
         };
         /**
          * How a member's net balance evolved: each expense and settlement that moved it, with the running balance
-         * @description Both bounds are optional and inclusive. `opening` is the balance after every movement before `from`, and each entry's running `balance` counts every earlier movement, also those before `from`. `closing` is the balance after the last entry, or `opening` when there are none. `from` after `to` is a 422 ValidationFailed.
+         * @description Ruling P342: one currency's history, the space's unless `currency` names another; every amount is in it. Both bounds are optional and inclusive. `opening` is the balance after every movement before `from`, and each entry's running `balance` counts every earlier movement, also those before `from`. `closing` is the balance after the last entry, or `opening` when there are none. `from` after `to` is a 422 ValidationFailed.
          */
         get: operations["getMemberBalanceHistory"];
         put?: never;
@@ -8862,14 +8862,16 @@ export interface operations {
                             spaceId: string;
                             /** @description The viewer's member id in the space */
                             memberId: string;
-                            /** @description The viewer's net; negative when it is her turn to put money in */
+                            /** @description The viewer's net in the space's currency; negative when it is her turn to put money in (P342: other currencies are in `nets`) */
                             net: components["schemas"]["MoneyOutput"];
+                            /** @description P342: the non-zero nets, one per currency and never converted into another, the space's currency first, then by ISO code; empty when even in every currency. Always sent, optional for older clients. */
+                            nets?: components["schemas"]["MoneyOutput"][];
                             /** @description The current members in join order, guests included */
                             members: {
                                 memberId: string;
                                 name: string;
                             }[];
-                            /** @description The settle-up suggestions in which the viewer pays, the largest first */
+                            /** @description The settle-up suggestions in which the viewer pays, each in its debt's currency (P342): the space's first, then by ISO code, the largest first inside a currency */
                             payments: {
                                 receivingMemberId: string;
                                 amount: components["schemas"]["MoneyOutput"];
@@ -8925,8 +8927,10 @@ export interface operations {
                             };
                             /** @description What the viewer calls them: nickname ?? displayName */
                             name: string;
-                            /** @description The viewer's net in the space: positive when the other one owes her, negative when she owes them */
+                            /** @description The viewer's net in the space's currency: positive when the other one owes her, negative when she owes them (P342: other currencies are in `nets`) */
                             net: components["schemas"]["MoneyOutput"];
+                            /** @description P342: the non-zero nets, one per currency and never converted into another, the space's currency first, then by ISO code; empty when even in every currency. Always sent, optional for older clients. */
+                            nets?: components["schemas"]["MoneyOutput"][];
                             /** @description The newest live movement of the space; null when none is left */
                             lastMovement: {
                                 transactionId: string;
@@ -8992,8 +8996,10 @@ export interface operations {
                         };
                         /** @description What the viewer calls them: nickname ?? displayName */
                         name: string;
-                        /** @description The viewer's net in the space: positive when the other one owes her, negative when she owes them */
+                        /** @description The viewer's net in the space's currency: positive when the other one owes her, negative when she owes them (P342: other currencies are in `nets`) */
                         net: components["schemas"]["MoneyOutput"];
+                        /** @description P342: the non-zero nets, one per currency and never converted into another, the space's currency first, then by ISO code; empty when even in every currency. Always sent, optional for older clients. */
+                        nets?: components["schemas"]["MoneyOutput"][];
                         /** @description The newest live movement of the space; null when none is left */
                         lastMovement: {
                             transactionId: string;
@@ -9181,8 +9187,11 @@ export interface operations {
                     "application/json": {
                         members: {
                             memberId: string;
+                            /** @description The net in the space's currency (P342: other currencies are in `nets`, never converted) */
                             net: components["schemas"]["MoneyOutput"];
-                            /** @description #217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients. */
+                            /** @description P342: the non-zero nets, one per currency and never converted into another, the space's currency first, then by ISO code; empty when even in every currency. Always sent, optional for older clients. */
+                            nets?: components["schemas"]["MoneyOutput"][];
+                            /** @description #217 (P263): true once a live member-paid expense (as payer or participant) or a live settlement names the member, in any currency (P342), even when their net is back to 0. Fund-paid expenses, fund contributions and deleted movements do not count. Computed on read; always sent, optional for older clients. */
                             hasMovements?: boolean;
                         }[];
                     };
@@ -9229,6 +9238,7 @@ export interface operations {
                         suggestions: {
                             payerMemberId: string;
                             receivingMemberId: string;
+                            /** @description In the debt's own currency (P342), never converted: the space's suggestions first, then by ISO code, the largest first inside a currency */
                             amount: components["schemas"]["MoneyOutput"];
                         }[];
                     };
@@ -9259,6 +9269,8 @@ export interface operations {
             query?: {
                 from?: string;
                 to?: string;
+                /** @description P342: the ISO 4217 code of the currency whose movements to read, never converted; the space's when left out. An unknown code is a 422 UnknownCurrency. */
+                currency?: string;
             };
             header?: never;
             path: {
@@ -9318,7 +9330,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidDate */
+            /** @description ValidationFailed, InvalidDate, UnknownCurrency */
             422: {
                 headers: {
                     [name: string]: unknown;

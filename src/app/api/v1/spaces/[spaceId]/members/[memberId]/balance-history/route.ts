@@ -20,6 +20,7 @@ export const GET = defineRoute({
       memberId: params.memberId!,
       from: from.value ?? null,
       to: to.value ?? null,
+      ...(query.currency === undefined ? {} : { currency: query.currency }),
     });
     return result.ok ? ok({ status: 200, body: balanceHistoryDto(result.value) }) : result;
   },
