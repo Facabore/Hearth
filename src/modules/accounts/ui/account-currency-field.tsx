@@ -13,7 +13,7 @@ const CurrencySheet = dynamic(
 );
 
 /**
- * D29 (board 12): a new account's "Moneda", the space's by default, drawn as a select that opens the currency sheet
+ * D29 (board 12): an account's "Moneda", the space's by default, drawn as a select that opens the currency sheet
  * (board 13, "Moneda de la cuenta"). Its hint says the space's currency, and (P336) that changing it later converts the
  * account's movements.
  */
@@ -21,12 +21,15 @@ export function AccountCurrencyField({
   id,
   value,
   space,
+  favorites,
   onChange,
   hintKey = "hint",
 }: {
   readonly id: string;
   readonly value: string;
   readonly space: { readonly name: string; readonly currency: string };
+  /** P342: the person's favorite currencies, offered after the space's, which stays the default. */
+  readonly favorites?: readonly string[];
   readonly onChange: (currency: string) => void;
   /** Ruling P336: Editar cuenta says the movements convert ("editHint"); a new account, that it can change later. */
   readonly hintKey?: "hint" | "editHint";
@@ -68,6 +71,7 @@ export function AccountCurrencyField({
           value={value}
           primary={space.currency}
           primaryNote={t("currencyField.spaceNote", { space: space.name })}
+          favorites={favorites}
           onChoose={onChange}
         />
       ) : null}

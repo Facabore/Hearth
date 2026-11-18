@@ -137,7 +137,7 @@
       "value": "{name} ({code})",
       "hint": "{space}'s currency is {name} ({code}). You can change it later: its movements convert.",
       "sheetTitle": "Account currency",
-      "spaceNote": "{space}'s currency",
+      "spaceNote": "default in {space}",
       "editHint": "{space}'s currency is {name} ({code}). If you change it, its movements move to the new currency."
     },
     "rateLine": {

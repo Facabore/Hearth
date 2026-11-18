@@ -440,6 +440,33 @@ describe("new account form: its currency (D29, board 12)", () => {
 });
 
 describe("new account form: changing the currency (D29, board 12)", () => {
+  it("offers the space's currency as the default, then the person's favorites, then the rest (P342)", async () => {
+    renderWithIntl(
+      <NewAccountForm
+        space={spaceDto()}
+        formats={BUILT_IN_FORMATS}
+        favoriteCurrencies={["USD", "COP", "EUR"]}
+        api={fakeApi({}).api}
+      />,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Banco" }));
+    await userEvent.click(screen.getByRole("button", { name: /Moneda/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Moneda de la cuenta" });
+    expect(
+      within(sheet)
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual(["De este espacio", "Favoritas", "Todas"]);
+    const space = within(within(sheet).getByRole("region", { name: "De este espacio" })).getByRole("button");
+    expect(space).toHaveTextContent(`COP · por defecto en ${spaceDto().name}`);
+    expect(space).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(within(sheet).getByRole("region", { name: "Favoritas" }))
+        .getAllByRole("button")
+        .map((b) => b.querySelector("[aria-hidden]")?.textContent),
+    ).toEqual(["USD", "EUR"]);
+  });
+
   it("clears the amounts typed in the old currency, COP to JPY, and keeps the rest", async () => {
     const { api, requests } = fakeApi({
       "POST /api/v1/spaces/{spaceId}/accounts": () => jsonResponse(accountDto(), 201),
@@ -483,7 +510,7 @@ describe("new account form: its currency in English (D29, board 12)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Currency/ }));
     const sheet = await screen.findByRole("dialog", { name: "Account currency" });
     expect(within(sheet).getByRole("button", { name: /Colombian Peso/ })).toHaveTextContent(
-      "COP · Personal's currency",
+      "COP · default in Personal",
     );
   });
 });

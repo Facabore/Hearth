@@ -71,12 +71,15 @@ export function EditAccountForm({
   space,
   account,
   formats,
+  favoriteCurrencies,
   holdNavigation,
   api: injected,
 }: {
   readonly space: SpaceDto;
   readonly account: AccountDto;
   readonly formats: Formats;
+  /** P342: the person's favorite currencies, which the currency sheet offers after the space's. */
+  readonly favoriteCurrencies?: readonly string[];
   /** The router's hold on a navigation away while a change is typed (issue #215). */
   readonly holdNavigation?: HoldNavigation;
   readonly api?: Api;
@@ -183,6 +186,7 @@ export function EditAccountForm({
           id="ea-currency"
           value={accountCurrency}
           space={space}
+          favorites={favoriteCurrencies}
           hintKey="editHint"
           onChange={(next) => {
             // Ruling P307: once the currency sheet has given its history entry back, so its late Back never closes this

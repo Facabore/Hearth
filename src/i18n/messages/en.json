@@ -61,7 +61,8 @@
     "currencySheet": {
       "search": "Search",
       "searchPlaceholder": "Search by name or code",
-      "mostUsed": "Most used",
+      "ofThisSpace": "In this space",
+      "favorites": "Favorites",
       "all": "All",
       "noDecimals": "no decimals",
       "none": "No currency matches “{query}”."

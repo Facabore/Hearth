@@ -60,12 +60,15 @@ const TYPE_ICONS = {
 export function NewAccountForm({
   space,
   formats,
+  favoriteCurrencies,
   returnTo,
   holdNavigation,
   api: injected,
 }: {
   readonly space: SpaceDto;
   readonly formats: Formats;
+  /** P342: the person's favorite currencies, which the currency sheet offers after the space's. */
+  readonly favoriteCurrencies?: readonly string[];
   /** The screen the flow started from; saving lands there. Anything but a same-origin path is ignored. */
   readonly returnTo?: string | null;
   /** The router's hold on a navigation away while something is typed (issue #215). */
@@ -199,6 +202,7 @@ export function NewAccountForm({
                 id="na-currency"
                 value={accountCurrency}
                 space={space}
+                favorites={favoriteCurrencies}
                 onChange={(next) => {
                   if (next === accountCurrency) return;
                   // An amount typed in one currency means something else in another (and may have the wrong

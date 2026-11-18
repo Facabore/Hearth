@@ -137,7 +137,7 @@
       "value": "{name} ({code})",
       "hint": "La de {space} es {name} ({code}). Puedes cambiarla después: sus movimientos se convierten.",
       "sheetTitle": "Moneda de la cuenta",
-      "spaceNote": "la de {space}",
+      "spaceNote": "por defecto en {space}",
       "editHint": "La de {space} es {name} ({code}). Si la cambias, sus movimientos pasan a la nueva moneda."
     },
     "rateLine": {
