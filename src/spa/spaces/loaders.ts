@@ -12,6 +12,7 @@ import {
   invitationsQuery,
   membersQuery,
   netBalancesQuery,
+  otherCurrenciesOf,
   periodQuery,
   suggestionsQuery,
 } from "../reads";
@@ -122,18 +123,26 @@ export const loadFriend = async (load: Load, spaceId: string, friendSpaceId: str
   ]);
   const friend = friends.find((f) => f.spaceId === friendSpaceId);
   if (!friend) throw notFound();
-  await ensure(friendHistoryQuery(api, friendSpaceId, friend.me.memberId));
+  // P342: the history in each currency the two owe each other in, the space's always.
+  await Promise.all([
+    ensure(friendHistoryQuery(api, friendSpaceId, friend.me.memberId)),
+    ...otherCurrenciesOf(friend, direct.currency).map((currency) =>
+      ensure(friendHistoryQuery(api, friendSpaceId, friend.me.memberId, currency)),
+    ),
+  ]);
 };
 
 /**
  * Ruling P176: the period holding `?from=` (the current one without it), the members, the member's movements within
- * it and the neighbouring periods (P130), a neighbour that fails just absent.
+ * it and the neighbouring periods (P130), a neighbour that fails just absent. Ruling P342: the movements in
+ * `?currency=` (the space's without it), and the balances, whose currencies the screen offers (optional).
  */
 export const loadHistory = async (
   load: Load,
   spaceId: string,
   memberId: string,
   from: string | undefined,
+  currency?: string,
 ) => {
   const ensure = ensurer(load);
   const { api } = load.apis;
@@ -141,10 +150,11 @@ export const loadHistory = async (
   const [period] = await Promise.all([
     ensure(periodQuery(api, spaceId, from)),
     ensure(membersQuery(api, spaceId)),
+    settled(ensure(netBalancesQuery(api, spaceId))),
   ]);
   if (!period) throw new Error("The API answered no period");
   await Promise.all([
-    ensure(balanceHistoryQuery(api, spaceId, memberId, period)),
+    ensure(balanceHistoryQuery(api, spaceId, memberId, period, currency)),
     settled(ensure(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1)))),
     settled(ensure(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1)))),
   ]);

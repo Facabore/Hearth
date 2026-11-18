@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
-import { cop, guestDto, memberDto, normalized } from "../../../../tests/support/ui/dto";
+import { cop, guestDto, memberDto, money, normalized } from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalanceHistory } from "./balance-history";
@@ -281,5 +281,51 @@ describe("who paid for whom in the balance history (P322, boards B6 and B7)", ()
     expect(normalized(screen.getAllByRole("listitem")[0]!.textContent)).toContain(
       "Kamilox paid for youTo Camilou · you owe it back",
     );
+  });
+});
+
+describe("a member's history per currency (ruling P342, S4)", () => {
+  const USD_HISTORY = {
+    ...HISTORY,
+    opening: money(0, "USD"),
+    closing: money(-40, "USD"),
+    entries: [
+      {
+        transactionId: "t-usd",
+        type: "EXPENSE" as const,
+        date: "2026-10-12",
+        description: "Taxi",
+        change: money(-40, "USD"),
+        balance: money(-40, "USD"),
+      },
+    ],
+  };
+
+  it("offers a chip per currency the member has, each reading that currency's history of the same period", async () => {
+    const { container } = view({ currencies: ["COP", "USD"], currency: "USD", history: USD_HISTORY });
+    const chips = screen.getByRole("navigation", { name: "Moneda" });
+    const links = within(chips).getAllByRole("link");
+    expect(
+      links.map((link) => [link.textContent, link.getAttribute("href"), link.getAttribute("aria-current")]),
+    ).toEqual([
+      ["COP", "/spaces/sp-household/members/m-juan/history?from=2026-10-01", null],
+      ["USD", "/spaces/sp-household/members/m-juan/history?from=2026-10-01&currency=USD", "page"],
+    ]);
+    expect(screen.getByRole("link", { name: "Período anterior" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-household/members/m-juan/history?from=2026-09-01&currency=USD",
+    );
+    expect(normalized(screen.getByRole("list").textContent)).toContain("40 USD");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("speaks English", () => {
+    view({ currencies: ["COP", "USD"], currency: "COP" }, "en");
+    expect(screen.getByRole("navigation", { name: "Currency" })).toBeInTheDocument();
+  });
+
+  it("shows no choice for a member with one currency", () => {
+    view({ currencies: ["COP"] });
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
 });

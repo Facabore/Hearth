@@ -43,17 +43,29 @@ export function MembersRoute() {
   );
 }
 
-/** HU-E9-07, ruling P176: a member's running balance over a period of the space, `?from=<date>` for another period. */
+/**
+ * HU-E9-07, ruling P176: a member's running balance over a period of the space, `?from=<date>` for another period.
+ * Ruling P342: in `?currency=` (the space's without it), with a chip per currency the balances give the member.
+ */
 export function HistoryRoute() {
   useTitle(useTranslations("balances.history")("pageTitle"));
   const { spaceId, memberId } = history.useParams();
-  const { from } = history.useSearch();
+  const { from, currency } = history.useSearch();
   const { api } = useApis();
   const { me, space } = useViewer(spaceId);
   const period = useSuspenseQuery(periodQuery(api, spaceId, from)).data;
   const list = useSuspenseQuery(membersQuery(api, spaceId)).data;
   if (!period) throw new Error("The API answered no period");
-  const movements = useSuspenseQuery(balanceHistoryQuery(api, spaceId, memberId, period)).data;
+  const movements = useSuspenseQuery(balanceHistoryQuery(api, spaceId, memberId, period, currency)).data;
+  // P342: optional; without the balances the history offers no other currency.
+  const standing = useQuery(netBalancesQuery(api, spaceId)).data?.members.find(
+    (m) => m.memberId === memberId,
+  );
+  const currencies = [
+    space.currency,
+    ...(standing?.nets ?? []).map((net) => net.currency).filter((one) => one !== space.currency),
+  ];
+  if (currency && !currencies.includes(currency)) currencies.push(currency);
   const previous = useQuery(periodQuery(api, spaceId, addDays(period.startDate as LocalDate, -1))).data;
   const next = useQuery(periodQuery(api, spaceId, addDays(period.endDate as LocalDate, 1))).data;
   const member = list.find((one) => one.id === memberId);
@@ -71,6 +83,8 @@ export function HistoryRoute() {
         next={next ?? null}
         history={movements}
         formats={me.preferences.effective}
+        currencies={currencies}
+        currency={currency}
       />
     </div>
   );

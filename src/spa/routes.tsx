@@ -563,17 +563,29 @@ const membersRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/members"), "MembersRoute"),
 });
 
-/** HU-E9-07, ruling P176: a member's balance history, `?from=<date>` for another period. */
+/**
+ * HU-E9-07, ruling P176: a member's balance history, `?from=<date>` for another period; ruling P342, `?currency=<ISO>`
+ * for another currency than the space's.
+ */
 const historyRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "members/$memberId/history",
   staticData: { ...stackedScreen, areas: ["members"] },
-  validateSearch: (search: Record<string, unknown>) => ({ from: textParam(search.from) }),
-  loaderDeps: ({ search }) => ({ from: search.from }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    from: textParam(search.from),
+    currency: textParam(search.currency),
+  }),
+  loaderDeps: ({ search }) => ({ from: search.from, currency: search.currency }),
   loader: async ({ context, params, deps, cause, route }) =>
     withAreas(
       loadAreas(context, route),
-      (await sharedSpaces()).loadHistory({ ...context, cause }, params.spaceId, params.memberId, deps.from),
+      (await sharedSpaces()).loadHistory(
+        { ...context, cause },
+        params.spaceId,
+        params.memberId,
+        deps.from,
+        deps.currency,
+      ),
     ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "HistoryPending"),
   errorComponent: ScreenError,

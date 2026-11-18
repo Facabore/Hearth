@@ -60,8 +60,9 @@ export const moduleKeys = {
   balances: (spaceId: string) => ["balances", spaceId] as const,
   netBalances: (spaceId: string) => ["balances", spaceId, "net"] as const,
   suggestions: (spaceId: string) => ["balances", spaceId, "suggestions"] as const,
-  balanceHistory: (spaceId: string, memberId: string, from: string, to: string) =>
-    ["balances", spaceId, "history", memberId, { from, to }] as const,
+  /** P342: `currency` undefined (the space's) hashes as the key without it. */
+  balanceHistory: (spaceId: string, memberId: string, from: string, to: string, currency?: string) =>
+    ["balances", spaceId, "history", memberId, { from, to, currency }] as const,
   preview: (kind: "invitation" | "claim", token: string) => ["invitations", kind, token] as const,
   plans: (spaceId: string) => ["plans", spaceId] as const,
   plan: (spaceId: string, planId: string) => ["plans", spaceId, planId] as const,
@@ -208,31 +209,52 @@ export const invitationsQuery = (api: Api, spaceId: string) =>
       (await read(api.GET("/api/v1/spaces/{spaceId}/invitations", { params: { path: { spaceId } } }))).items,
   });
 
-/** Ruling P176: a member's movements and running balance within a period of the space. */
-export const balanceHistoryQuery = (api: Api, spaceId: string, memberId: string, period: PeriodDto) =>
+/**
+ * Ruling P176: a member's movements and running balance within a period of the space. Ruling P342: in one currency,
+ * `currency` (the space's when undefined), never converted.
+ */
+export const balanceHistoryQuery = (
+  api: Api,
+  spaceId: string,
+  memberId: string,
+  period: PeriodDto,
+  currency?: string,
+) =>
   queryOptions<BalanceHistoryDto>({
     ...LOADER_OWNED,
-    queryKey: moduleKeys.balanceHistory(spaceId, memberId, period.startDate, period.endDate),
+    queryKey: moduleKeys.balanceHistory(spaceId, memberId, period.startDate, period.endDate, currency),
     queryFn: () =>
       read(
         api.GET("/api/v1/spaces/{spaceId}/members/{memberId}/balance-history", {
-          params: { path: { spaceId, memberId }, query: { from: period.startDate, to: period.endDate } },
+          params: {
+            path: { spaceId, memberId },
+            // An undefined currency is left out of the address.
+            query: { from: period.startDate, to: period.endDate, currency },
+          },
         }),
       ),
   });
 
+/** Ruling P342: the currencies other than the space's that one person of Amigos and the viewer owe each other in. */
+export const otherCurrenciesOf = (
+  friend: { readonly nets?: readonly { readonly currency: string }[] | undefined },
+  spaceCurrency: string,
+): string[] =>
+  (friend.nets ?? []).map((net) => net.currency).filter((currency) => currency !== spaceCurrency);
+
 /**
  * Ruling P338: every movement that ever moved the viewer's balance with one person of Amigos, newest last, as the API
- * answers a history without a period. Under the space's balances, so a movement there reads it again.
+ * answers a history without a period. Under the space's balances, so a movement there reads it again. Ruling P342: in
+ * one currency, `currency` (the space's when undefined), never converted.
  */
-export const friendHistoryQuery = (api: Api, spaceId: string, memberId: string) =>
+export const friendHistoryQuery = (api: Api, spaceId: string, memberId: string, currency?: string) =>
   queryOptions<BalanceHistoryDto>({
     ...LOADER_OWNED,
-    queryKey: [...moduleKeys.balances(spaceId), "history", memberId, "all"],
+    queryKey: [...moduleKeys.balances(spaceId), "history", memberId, "all", { currency }],
     queryFn: () =>
       read(
         api.GET("/api/v1/spaces/{spaceId}/members/{memberId}/balance-history", {
-          params: { path: { spaceId, memberId } },
+          params: { path: { spaceId, memberId }, query: { currency } },
         }),
       ),
   });

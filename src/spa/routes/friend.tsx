@@ -12,6 +12,7 @@ import {
   friendHistoryQuery,
   membersQuery,
   netBalancesQuery,
+  otherCurrenciesOf,
   suggestionsQuery,
 } from "../reads";
 import { myFriendsQuery } from "../shell";
@@ -56,6 +57,12 @@ function Friend({
       friendHistoryQuery(api, friendSpaceId, friend.me.memberId),
     ],
   });
+  // P342: the movements in each other currency the two owe each other in, which the loader read.
+  const otherCurrencies = useSuspenseQueries({
+    queries: otherCurrenciesOf(friend, space.currency).map((currency) =>
+      friendHistoryQuery(api, friendSpaceId, friend.me.memberId, currency),
+    ),
+  }).map((one) => one.data);
   // P174: the accounts a payment of the viewer's may leave from or arrive in, as on Saldos; optional.
   const recordsMoney = controlsFor(space.role, space.kind).recordMoney;
   const own = useQuery({ ...accountsQuery(api, friendSpaceId, "active"), enabled: recordsMoney });
@@ -80,6 +87,7 @@ function Friend({
         balances={net.data.members}
         suggestions={suggestions.data}
         history={history.data}
+        otherCurrencies={otherCurrencies}
         formats={me.preferences.effective}
         today={nowIn(new Date(), me.timezone).date}
         timeZone={me.timezone}

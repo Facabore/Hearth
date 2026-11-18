@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Button, Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { MoneyDto } from "@/shared/ui/api/dto";
@@ -13,7 +13,7 @@ import { useDayLabel } from "./day-label";
 import { FRIEND_TONE, FriendAvatar } from "./friend-avatar";
 import { FriendRequests } from "./friend-requests";
 import { friendTotals, type FriendDto, type FriendRequestsDto } from "./friends";
-import { absolute, netState } from "./net-state";
+import { absolute, byDirection, netsOf } from "./net-state";
 
 // Agregar amigo loads only when it opens (ADR 0004).
 const AddFriendSheet = dynamic(() => import("./add-friend-sheet").then((module) => module.AddFriendSheet), {
@@ -22,9 +22,9 @@ const AddFriendSheet = dynamic(() => import("./add-friend-sheet").then((module) 
 
 const NO_REQUESTS: FriendRequestsDto = { incoming: [], outgoing: [] };
 
-/** Sums in several currencies, which never add up, side by side. */
+/** Ruling P342: sums in several currencies, which never add up, side by side ("525.000 COP · 200 USD"). */
 const joined = (amounts: readonly MoneyDto[], formats: Formats, zero: string): string =>
-  amounts.length === 0 ? zero : amounts.map((money) => formatMoney(money, formats)).join(" + ");
+  amounts.length === 0 ? zero : amounts.map((money) => formatMoney(money, formats)).join(" · ");
 
 /**
  * Ruling P338 (board "Amigos · cada persona con su saldo"): the personal space's Amigos, where Saldos is in a group.
@@ -32,6 +32,9 @@ const joined = (amounts: readonly MoneyDto[], formats: Formats, zero: string): s
  * two and who owes whom: "Te debe" in the accent, "Le debes" in the warm tone, or "Al día", always in words beside the
  * amount, never by colour alone. Over them, the totals owed each way. Each row opens the person's screen. Ruling P339
  * (board "Amigos · solicitudes y eliminar"): "+" opens Agregar amigo, and the pending requests come before the friends.
+ * Ruling P342 (S4, board "Amigos · una deuda por moneda"): a person's debts stack one per currency under their word, a
+ * mixed person's each direction under its own ("Le debes 120.000 COP", then "Te debe 30 USD"), and the totals list each
+ * currency apart, never converted.
  */
 export function FriendsScreen({
   spaceId,
@@ -98,7 +101,8 @@ export function FriendsScreen({
           ) : null}
           <ul aria-labelledby="friends-title" className="divide-y divide-line">
             {friends.map((friend) => {
-              const state = netState(friend.net);
+              const groups = byDirection(netsOf(friend));
+              const state = groups[0]?.state ?? "settled";
               const last = friend.lastMovement;
               return (
                 <li key={friend.spaceId}>
@@ -128,13 +132,26 @@ export function FriendsScreen({
                         </span>
                       </span>
                       <span className={`${AMOUNT_ROW_AMOUNT} flex flex-col items-end`}>
-                        <span className={`text-[13px] font-semibold ${FRIEND_TONE[state]}`}>
-                          {t(`state.${state}`)}
-                        </span>
-                        {state === "settled" ? null : (
-                          <Amount className={`font-semibold ${FRIEND_TONE[state]}`}>
-                            {formatMoney(absolute(friend.net), formats)}
-                          </Amount>
+                        {groups.length === 0 ? (
+                          <span className={`text-[13px] font-semibold ${FRIEND_TONE.settled}`}>
+                            {t("state.settled")}
+                          </span>
+                        ) : (
+                          groups.map((group) => (
+                            <Fragment key={group.state}>
+                              <span className={`text-[13px] font-semibold ${FRIEND_TONE[group.state]}`}>
+                                {t(`state.${group.state}`)}
+                              </span>
+                              {group.amounts.map((net) => (
+                                <Amount
+                                  key={net.currency}
+                                  className={`font-semibold ${FRIEND_TONE[group.state]}`}
+                                >
+                                  {formatMoney(absolute(net), formats)}
+                                </Amount>
+                              ))}
+                            </Fragment>
+                          ))
                         )}
                       </span>
                     </span>

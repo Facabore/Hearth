@@ -15,6 +15,12 @@ import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 /** Pesos as the wire carries them: minor units in a string (string arithmetic is safe for test amounts). */
 export const cop = (pesos: number): MoneyDto => ({ amount: String(pesos * 100), currency: "COP" });
 
+/** Ruling P342: an amount in another two-decimal currency, in major units ("50 USD" is `money(50, "USD")`). */
+export const money = (major: number, currency: string): MoneyDto => ({
+  amount: String(major * 100),
+  currency,
+});
+
 const RULES = {
   numberFormat: "DOT_COMMA",
   timeFormat: "H24",

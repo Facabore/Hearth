@@ -2,7 +2,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
-import { cop, friendDto, normalized } from "../../../../tests/support/ui/dto";
+import { cop, friendDto, money, normalized } from "../../../../tests/support/ui/dto";
 import { fakeApi, jsonResponse } from "../../../../tests/support/ui/fake-api";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
@@ -114,6 +114,85 @@ describe('Amigos (ruling P338, board "Amigos · cada persona con su saldo")', ()
     expect(screen.getByRole("heading", { level: 1, name: "Friends" })).toBeInTheDocument();
     expect(normalized(screen.getByText(/^You're owed/).textContent)).toBe(
       "You're owed 525.000 COP · You owe 120.000 COP",
+    );
+  });
+});
+
+describe('Amigos per currency (ruling P342, board "Amigos · una deuda por moneda")', () => {
+  const PER_CURRENCY = [
+    friendDto({ nets: [cop(500_000), money(50, "USD"), money(60, "EUR")] }),
+    friendDto({
+      spaceId: "sp-juan",
+      other: { memberId: "m-juan", kind: "USER", displayName: "Juan", nickname: null },
+      name: "Juan",
+      net: cop(25_000),
+      nets: [cop(25_000)],
+      lastMovement: null,
+    }),
+    friendDto({
+      spaceId: "sp-brother",
+      other: { memberId: "m-brother", kind: "USER", displayName: "Brother", nickname: null },
+      name: "Brother",
+      net: cop(0),
+      nets: [money(120, "USD")],
+      lastMovement: null,
+    }),
+    friendDto({
+      spaceId: "sp-jhon",
+      other: { memberId: "m-jhon", kind: "USER", displayName: "Jhon López", nickname: null },
+      name: "Jhon López",
+      net: cop(-120_000),
+      nets: [cop(-120_000), money(30, "USD")],
+      lastMovement: null,
+    }),
+    friendDto({
+      spaceId: "sp-ana",
+      other: { memberId: "m-ana2", kind: "USER", displayName: "Ana", nickname: null },
+      name: "Ana",
+      net: cop(0),
+      nets: [],
+      lastMovement: null,
+    }),
+  ];
+
+  it("stacks each person's debts by currency under their word, and totals each currency apart", async () => {
+    const { container } = view({ friends: PER_CURRENCY });
+    expect(normalized(screen.getByText(/^Te deben/).textContent)).toBe(
+      "Te deben 525.000 COP · 200 USD · 60 EUR · Debes 120.000 COP",
+    );
+    expect(rows().map((row) => row.text)).toEqual([
+      "MMamáNo usa Hearth · Préstamo · 12 mar 2025Te debe500.000 COP50 USD60 EUR",
+      "JJuanSin movimientosTe debe25.000 COP",
+      "BBrotherSin movimientosTe debe120 USD",
+      "JLJhon LópezSin movimientosLe debes120.000 COPTe debe30 USD",
+      "AAnaSin movimientosAl día",
+    ]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("gives a mixed person's every line its own word and tone, never colour alone", () => {
+    view({ friends: PER_CURRENCY });
+    const jhon = screen.getByRole("link", { name: /Jhon López/ });
+    expect(within(jhon).getByText("Le debes")).toHaveClass("text-owe-ink");
+    expect(within(jhon).getByText(/120\.000/)).toHaveClass("text-owe-ink");
+    expect(within(jhon).getByText("Te debe")).toHaveClass("text-accent");
+    expect(within(jhon).getByText(/30/)).toHaveClass("text-accent");
+    expect(within(jhon).getByText(/30/)).toHaveAttribute("data-amount");
+  });
+
+  it("speaks English", () => {
+    view({ friends: PER_CURRENCY }, "en");
+    expect(normalized(screen.getByText(/^You're owed/).textContent)).toBe(
+      "You're owed 525.000 COP · 200 USD · 60 EUR · You owe 120.000 COP",
+    );
+  });
+
+  it("sums Inicio's line per currency from each person's debts", () => {
+    renderWithIntl(
+      <FriendsLine friends={PER_CURRENCY} href="/spaces/sp-personal/balances" formats={BUILT_IN_FORMATS} />,
+    );
+    expect(normalized(screen.getByRole("link").textContent)).toBe(
+      "Amigos · te deben 525.000 COP + 200 USD + 60 EUR · debes 120.000 COP›",
     );
   });
 });

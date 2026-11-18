@@ -1,7 +1,14 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../tests/support/ui/axe";
-import { cop, guestDto, householdSpace, memberDto, normalized } from "../../../../tests/support/ui/dto";
+import {
+  cop,
+  guestDto,
+  householdSpace,
+  memberDto,
+  money,
+  normalized,
+} from "../../../../tests/support/ui/dto";
 import { renderWithIntl } from "../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { BalancesScreen } from "./balances-screen";
@@ -304,5 +311,65 @@ describe("balances screen (HU-E9-07, ruling P173)", () => {
   it("is a bottom-navigation destination, so it has no back link", () => {
     view();
     expect(screen.queryByRole("link", { name: "Volver" })).toBeNull();
+  });
+});
+
+describe("balances per currency (ruling P342, S4)", () => {
+  const perCurrency = (locale: "es" | "en" = "es") =>
+    view(
+      {
+        balances: [
+          { memberId: "m-ana", net: cop(150_000), nets: [cop(150_000), money(40, "USD")] },
+          { memberId: "m-juan", net: cop(-150_000), nets: [cop(-150_000), money(-40, "USD")] },
+        ],
+        suggestions: [
+          { payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: cop(150_000) },
+          { payerMemberId: "m-juan", receivingMemberId: "m-ana", amount: money(40, "USD") },
+        ],
+      },
+      locale,
+    );
+
+  it("groups the suggestions and the standings by currency, each in its own currency", async () => {
+    const { container } = perCurrency();
+    const suggestions = screen.getByRole("region", { name: "Para quedar al día" });
+    expect(
+      within(suggestions)
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual(["En COP", "En USD"]);
+    expect(
+      within(suggestions)
+        .getAllByRole("listitem")
+        .map((item) => normalized(item.textContent)),
+    ).toEqual(["Juan le paga 150.000 COP a AnaSaldar", "Juan le paga 40 USD a AnaSaldar"]);
+    const members = screen.getByRole("region", { name: "Por persona" });
+    expect(
+      within(members)
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual(["En COP", "En USD"]);
+    expect(
+      within(members).getByRole("link", { name: named("Ana: le toca recibir 40 USD. Ver historial") }),
+    ).toHaveAttribute("href", "/spaces/sp-household/members/m-ana/history?currency=USD");
+    expect(
+      within(members).getByRole("link", { name: named("Ana: le toca recibir 150.000 COP. Ver historial") }),
+    ).toHaveAttribute("href", "/spaces/sp-household/members/m-ana/history");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("speaks English", () => {
+    perCurrency("en");
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual([
+      "In COP",
+      "In USD",
+      "In COP",
+      "In USD",
+    ]);
+  });
+
+  it("draws one currency as before, with no heading per currency", () => {
+    view();
+    expect(screen.queryAllByRole("heading", { level: 3 })).toEqual([]);
   });
 });

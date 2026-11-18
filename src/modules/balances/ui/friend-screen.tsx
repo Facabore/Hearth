@@ -13,17 +13,24 @@ import type {
   BalanceHistoryDto,
   BalancesDto,
   MemberDto,
+  MoneyDto,
   SpaceDto,
   SuggestionDto,
 } from "@/shared/ui/api/dto";
-import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/shared/ui/atoms/amount";
+import {
+  Amount,
+  AMOUNT_ROW,
+  AMOUNT_ROW_AMOUNT,
+  AMOUNT_ROW_LABEL,
+  AmountText,
+} from "@/shared/ui/atoms/amount";
 import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useDayLabel } from "./day-label";
 import { FRIEND_TONE, FriendAvatar } from "./friend-avatar";
 import type { FriendDto } from "./friends";
-import { absolute, netState } from "./net-state";
+import { absolute, netsOf, netState } from "./net-state";
 import { NicknameSheet } from "./nickname-sheet";
 import { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
@@ -57,6 +64,11 @@ interface Settling {
  * "Entre tú y …" lists every movement that moved the balance between the two, newest first, each signed by what it did
  * to the viewer's balance, with "Cargar más"; then that nobody else sees it, and for a guest the invitation to Hearth.
  * Ruling P339 (S7): last, "Eliminar de Amigos", which removes the person once the two are even.
+ *
+ * Ruling P342 (S4, board "Amigo · una deuda por moneda"): one balance per currency, never converted. The first (the
+ * space's currency while it is not even) is the large figure; the others in the same direction follow under it ("50 USD
+ * · 60 EUR"), and one that goes the other way says so in words ("Le debes 30 USD"). The movements of every currency the
+ * two owe each other are listed together, each in its own amount, and the note says nothing converts.
  */
 export function FriendScreen({
   personalSpaceId,
@@ -67,6 +79,7 @@ export function FriendScreen({
   balances,
   suggestions,
   history,
+  otherCurrencies = [],
   formats,
   today,
   timeZone,
@@ -83,6 +96,8 @@ export function FriendScreen({
   readonly suggestions: readonly SuggestionDto[];
   /** Every movement that moved the viewer's balance in the space, oldest first, as the API answers it. */
   readonly history: BalanceHistoryDto;
+  /** Ruling P342: the same history in each other currency the two owe each other in. */
+  readonly otherCurrencies?: readonly BalanceHistoryDto[];
   readonly formats: Formats;
   readonly today: string;
   readonly timeZone: string;
@@ -94,8 +109,16 @@ export function FriendScreen({
   const dayOf = useDayLabel(formats, today);
   const name = friend.name;
   const me = friend.me.memberId;
-  const net = balances.find((balance) => balance.memberId === me)?.net ?? friend.net;
+  const standing = balances.find((balance) => balance.memberId === me) ?? friend;
+  const nets = netsOf(standing);
+  const net = nets[0] ?? standing.net;
   const state = netState(net);
+  // P342: the other currencies under the figure, those that go its way first, then the other way in words.
+  const along = nets.slice(1).filter((money) => netState(money) === state);
+  const against = nets.slice(1).filter((money) => netState(money) !== state);
+  const perCurrency = nets.some((money) => money.currency !== space.currency);
+  const joined = (amounts: readonly MoneyDto[]) =>
+    amounts.map((money) => formatMoney(absolute(money), formats)).join(" · ");
   const here = `/spaces/${personalSpaceId}/friends/${space.id}`;
   const canSettle = controlsFor(space.role, space.kind).recordMoney && members.some((m) => m.id === me);
   const guest = friend.other.kind === "GUEST";
@@ -109,7 +132,11 @@ export function FriendScreen({
   const [removing, setRemoving] = useState(false);
   const [settling, setSettling] = useState<Settling | null>(null);
   const [shown, setShown] = useState(PAGE);
-  const entries = [...history.entries].reverse();
+  // P342: every currency's movements together, newest first; each history comes oldest first.
+  const entries = [history, ...otherCurrencies]
+    .flatMap((one) => one.entries)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .reverse();
 
   const settle = () => {
     const suggestion = suggestions[0] ?? null;
@@ -190,6 +217,20 @@ export function FriendScreen({
           size="2.25rem"
           className="leading-tight font-semibold text-ink"
         />
+        {along.length > 0 ? (
+          <p className="text-xl font-semibold text-ink tabular-nums">
+            <AmountText text={joined(along)} />
+          </p>
+        ) : null}
+        {against.length > 0 ? (
+          <p className="text-[15px] font-semibold text-ink tabular-nums [overflow-wrap:anywhere]">
+            <AmountText
+              text={t(state === "owed" ? "person.alsoOwes" : "person.alsoOwed", {
+                amount: joined(against),
+              })}
+            />
+          </p>
+        ) : null}
       </section>
       <div className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2">
         {canSettle ? (
@@ -245,7 +286,7 @@ export function FriendScreen({
           </Button>
         ) : null}
       </section>
-      <p className="text-sm text-muted">{t("person.private")}</p>
+      <p className="text-sm text-muted">{t(perCurrency ? "person.privateByCurrency" : "person.private")}</p>
       {guest && controlsFor(space.role, space.kind).claimLinks ? (
         <GuestInvite
           spaceId={space.id}
@@ -265,7 +306,7 @@ export function FriendScreen({
           open
           onOpenChange={setRemoving}
           friend={friend}
-          even={state === "settled"}
+          even={nets.length === 0}
           personalSpaceId={personalSpaceId}
           onSettle={canSettle ? settle : undefined}
           api={api}

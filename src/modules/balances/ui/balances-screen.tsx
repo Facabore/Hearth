@@ -4,12 +4,19 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { preferredAccountId, readLastAccount } from "@/modules/ledger/ui";
 import { controlsFor, memberLabel } from "@/modules/spaces/ui";
 import { Button, Icon } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
-import type { AccountDto, BalancesDto, MemberDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
+import type {
+  AccountDto,
+  BalancesDto,
+  MemberDto,
+  MoneyDto,
+  SpaceDto,
+  SuggestionDto,
+} from "@/shared/ui/api/dto";
 import {
   Amount,
   AMOUNT_ROW,
@@ -19,7 +26,7 @@ import {
 } from "@/shared/ui/atoms/amount";
 import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
-import { absolute, memberSentence, netState } from "./net-state";
+import { absolute, memberSentence, netsOf, netState } from "./net-state";
 import { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
 // The settle-up sheet's code, its form and the Radix dialog under it, load only when the sheet opens (ADR 0004: the
@@ -39,6 +46,22 @@ interface Settling {
   readonly lastAccountId: string | null;
 }
 
+/** Ruling P342: the heading of one currency's suggestions or members. */
+const CURRENCY_HEADING = "pt-2 text-[13px] font-semibold text-muted";
+
+/** Ruling P342: every currency anyone owes in, the space's first, then by ISO code as the API orders them. */
+const currenciesOf = (
+  spaceCurrency: string,
+  balances: BalancesDto["members"],
+  suggestions: readonly SuggestionDto[],
+): string[] => {
+  const others = new Set<string>();
+  for (const balance of balances) for (const net of netsOf(balance)) others.add(net.currency);
+  for (const suggestion of suggestions) others.add(suggestion.amount.currency);
+  others.delete(spaceCurrency);
+  return [spaceCurrency, ...[...others].sort()];
+};
+
 /**
  * HU-E9-07, the Balances artboard as `/spaces/{spaceId}/balances` (the Saldos tab, ruling P173): the viewer's own
  * net, the API's settle-up suggestions and every current member's net. Only the header speaks to the viewer; the
@@ -56,6 +79,10 @@ interface Settling {
  * it; each suggestion is one action line between hairlines, not a card; each member is a flat row with a word for the
  * direction and a signed amount, so the colour never carries it alone. The board's "¿Cómo se calcula?" link is not
  * drawn: there is no help text for it to open yet.
+ *
+ * Ruling P342 (S4): debts never convert, so with more than one currency the suggestions and the members are grouped by
+ * currency under a heading each ("En COP", "En USD"), the space's first; each suggestion is in its own currency, and a
+ * member's row in another currency opens that currency's history. With one currency the screen is as it was.
  */
 export function BalancesScreen({
   space,
@@ -102,6 +129,16 @@ export function BalancesScreen({
   const viewer = members.find((member) => member.userId === meUserId);
   const mine = viewer ? netOf(viewer.id) : netOf("");
   const state = netState(mine);
+  const currencies = currenciesOf(space.currency, balances, suggestions);
+  const several = currencies.length > 1;
+  /** P342: a member's net in one currency, the space's from `net` as before, another's from `nets` (zero when absent). */
+  const netIn = (memberId: string, currency: string): MoneyDto => {
+    if (currency === space.currency) return netOf(memberId);
+    const balance = balances.find((one) => one.memberId === memberId);
+    return (
+      (balance ? netsOf(balance) : []).find((net) => net.currency === currency) ?? { amount: "0", currency }
+    );
+  };
 
   // P302: the personal space has Saldos too, where the person is always al día; it has no one to settle with and no
   // history to open (P159), so the screen says so instead of listing suggestions and members.
@@ -128,6 +165,79 @@ export function BalancesScreen({
     canSettle && settle && members.some((member) => member.id === settle)
       ? prefill(suggestions.find((s) => s.payerMemberId === settle) ?? null, settle)
       : null,
+  );
+
+  const suggestionList = (list: readonly SuggestionDto[]) => (
+    <ol className="divide-y divide-line border-y border-line">
+      {list.map((suggestion) => {
+        const payer = names.get(suggestion.payerMemberId) ?? "";
+        const receiver = names.get(suggestion.receivingMemberId) ?? "";
+        const amount = formatMoney(suggestion.amount, formats);
+        const sentence = t("owes", { payer, receiver, amount });
+        return (
+          <li
+            key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}-${suggestion.amount.currency}`}
+            className="flex min-h-row-lg flex-wrap items-center gap-x-3 py-1.5"
+          >
+            {/* P335: the names wrap and the amount stays whole; when the sentence cannot keep the amount
+                beside Saldar, Saldar moves under it. */}
+            <span className="flex-[1_1_12rem] text-base text-ink tabular-nums [overflow-wrap:anywhere]">
+              <AmountText text={sentence} />
+            </span>
+            {canSettle ? (
+              <Button
+                variant="ghost"
+                size="compact"
+                className="-mr-2 ml-auto shrink-0"
+                aria-label={t("settle.suggestion", { payer, receiver, amount })}
+                onClick={() => setSettling(prefill(suggestion))}
+              >
+                {t("settle.action")}
+              </Button>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+
+  const memberList = (rows: readonly MemberDto[], currency: string) => (
+    <ul className="divide-y divide-line empty:hidden">
+      {rows.map((member) => {
+        const net = netIn(member.id, currency);
+        const memberState = netState(net);
+        const sentence = memberSentence(net, formats, t);
+        const name = memberLabel(member, meUserId, tMembers);
+        // P324: the direction in words ("recibe", "paga") and a signed amount; the colour only repeats them, in the
+        // ink tone of --owe, which keeps AA on the page background now that the rows have no card.
+        const word = t(`state.${memberState}`);
+        return (
+          <li key={member.id}>
+            <Link
+              href={`/spaces/${space.id}/members/${member.id}/history${currency === space.currency ? "" : `?currency=${currency}`}`}
+              aria-label={t("member.link", { name, sentence })}
+              prefetch={false}
+              className="flex min-h-row-lg items-center gap-2 py-1.5"
+            >
+              {/* P335: the amount sits beside the name while they fit, and moves whole under it when not. */}
+              <span className={`${AMOUNT_ROW} min-w-0 flex-1 items-center`}>
+                <span className={`${AMOUNT_ROW_LABEL} flex flex-col`}>
+                  <span className="font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
+                  <span className="text-[13px] text-muted">{word}</span>
+                </span>
+                <Amount
+                  className={`${AMOUNT_ROW_AMOUNT} font-semibold ${memberState === "owes" ? "text-owe-ink" : memberState === "owed" ? "text-accent" : "text-muted"}`}
+                >
+                  {formatSignedMoney(net, formats)}
+                </Amount>
+              </span>
+              {/* Board 01: the chevron says the row opens the member's history. */}
+              <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
   );
 
   return (
@@ -166,37 +276,17 @@ export function BalancesScreen({
               </p>
             ) : (
               <>
-                <ol className="divide-y divide-line border-y border-line">
-                  {suggestions.map((suggestion) => {
-                    const payer = names.get(suggestion.payerMemberId) ?? "";
-                    const receiver = names.get(suggestion.receivingMemberId) ?? "";
-                    const amount = formatMoney(suggestion.amount, formats);
-                    const sentence = t("owes", { payer, receiver, amount });
-                    return (
-                      <li
-                        key={`${suggestion.payerMemberId}-${suggestion.receivingMemberId}`}
-                        className="flex min-h-row-lg flex-wrap items-center gap-x-3 py-1.5"
-                      >
-                        {/* P335: the names wrap and the amount stays whole; when the sentence cannot keep the amount
-                            beside Saldar, Saldar moves under it. */}
-                        <span className="flex-[1_1_12rem] text-base text-ink tabular-nums [overflow-wrap:anywhere]">
-                          <AmountText text={sentence} />
-                        </span>
-                        {canSettle ? (
-                          <Button
-                            variant="ghost"
-                            size="compact"
-                            className="-mr-2 ml-auto shrink-0"
-                            aria-label={t("settle.suggestion", { payer, receiver, amount })}
-                            onClick={() => setSettling(prefill(suggestion))}
-                          >
-                            {t("settle.action")}
-                          </Button>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ol>
+                {several
+                  ? currencies.map((currency) => {
+                      const list = suggestions.filter((one) => one.amount.currency === currency);
+                      return list.length === 0 ? null : (
+                        <Fragment key={currency}>
+                          <h3 className={CURRENCY_HEADING}>{t("inCurrency", { currency })}</h3>
+                          {suggestionList(list)}
+                        </Fragment>
+                      );
+                    })
+                  : suggestionList(suggestions)}
                 <p className="text-[13px] text-muted">{t("suggestionsNote")}</p>
               </>
             )}
@@ -217,42 +307,20 @@ export function BalancesScreen({
                 </Button>
               ) : null}
             </div>
-            <ul className="divide-y divide-line empty:hidden">
-              {listed.map((member) => {
-                const net = netOf(member.id);
-                const memberState = netState(net);
-                const sentence = memberSentence(net, formats, t);
-                const name = memberLabel(member, meUserId, tMembers);
-                // P324: the direction in words ("recibe", "paga") and a signed amount; the colour only repeats them, in the
-                // ink tone of --owe, which keeps AA on the page background now that the rows have no card.
-                const word = t(`state.${memberState}`);
-                return (
-                  <li key={member.id}>
-                    <Link
-                      href={`/spaces/${space.id}/members/${member.id}/history`}
-                      aria-label={t("member.link", { name, sentence })}
-                      prefetch={false}
-                      className="flex min-h-row-lg items-center gap-2 py-1.5"
-                    >
-                      {/* P335: the amount sits beside the name while they fit, and moves whole under it when not. */}
-                      <span className={`${AMOUNT_ROW} min-w-0 flex-1 items-center`}>
-                        <span className={`${AMOUNT_ROW_LABEL} flex flex-col`}>
-                          <span className="font-medium [overflow-wrap:anywhere] text-ink">{name}</span>
-                          <span className="text-[13px] text-muted">{word}</span>
-                        </span>
-                        <Amount
-                          className={`${AMOUNT_ROW_AMOUNT} font-semibold ${memberState === "owes" ? "text-owe-ink" : memberState === "owed" ? "text-accent" : "text-muted"}`}
-                        >
-                          {formatSignedMoney(net, formats)}
-                        </Amount>
-                      </span>
-                      {/* Board 01: the chevron says the row opens the member's history. */}
-                      <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            {several
+              ? currencies.map((currency) => {
+                  const rows =
+                    currency === space.currency
+                      ? listed
+                      : listed.filter((member) => BigInt(netIn(member.id, currency).amount) !== 0n);
+                  return rows.length === 0 ? null : (
+                    <Fragment key={currency}>
+                      <h3 className={CURRENCY_HEADING}>{t("inCurrency", { currency })}</h3>
+                      {memberList(rows, currency)}
+                    </Fragment>
+                  );
+                })
+              : memberList(listed, space.currency)}
           </section>
         </>
       )}

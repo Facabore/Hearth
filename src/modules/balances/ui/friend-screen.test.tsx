@@ -8,6 +8,7 @@ import {
   guestDto,
   invitationDto,
   memberDto,
+  money,
   normalized,
   spaceDto,
 } from "../../../../tests/support/ui/dto";
@@ -318,5 +319,117 @@ describe('removing a person from Amigos (ruling P339, board "Amigos · solicitud
       "Mamá te pagó",
       "le prestaste",
     ]);
+  });
+});
+
+describe('a person of Amigos per currency (ruling P342, board "Amigo · una deuda por moneda")', () => {
+  const NETS = [cop(500_000), money(50, "USD"), money(60, "EUR")];
+  const usd = (id: string, date: string, description: string, dollars: number) =>
+    ({
+      ...entry(id, date, description, 0),
+      change: money(dollars, "USD"),
+      balance: money(dollars, "USD"),
+    }) as Entry;
+  const eur = (id: string, date: string, description: string, euros: number) =>
+    ({
+      ...entry(id, date, description, 0),
+      change: money(euros, "EUR"),
+      balance: money(euros, "EUR"),
+    }) as Entry;
+  const perCurrency = (more: Partial<Parameters<typeof FriendScreen>[0]> = {}) =>
+    view({
+      friend: friendDto({ nets: NETS }),
+      balances: [
+        { memberId: "m-ana-mama", net: cop(500_000), nets: NETS },
+        { memberId: "m-mama", net: cop(-500_000) },
+      ],
+      history: { ...HISTORY, entries: [entry("t-loan", "2025-03-12", "Préstamo", 500_000)] },
+      otherCurrencies: [
+        {
+          ...HISTORY,
+          opening: money(0, "USD"),
+          closing: money(50, "USD"),
+          entries: [usd("t-miami", "2026-11-15", "Cena en Miami", 50)],
+        },
+        {
+          ...HISTORY,
+          opening: money(0, "EUR"),
+          closing: money(60, "EUR"),
+          entries: [eur("t-paris", "2026-11-01", "Museo en París", 60)],
+        },
+      ],
+      ...more,
+    });
+
+  it("shows the space's currency large, the others under it, each movement in its own currency, and that nothing converts", async () => {
+    const { container } = perCurrency();
+    const balance = screen.getByRole("region", { name: "Mamá te debe" });
+    expect(plain(balance.textContent)).toBe("Mamá te debe500.000 COP50 USD · 60 EUR");
+    expect(rows()).toEqual([
+      "Cena en MiamiAyer · tú pagaste · su parte+50 USD",
+      "Museo en París1 nov · tú pagaste · su parte+60 EUR",
+      "Préstamo12 mar 2025 · tú pagaste · su parte+500.000 COP",
+    ]);
+    expect(
+      screen.getByText(
+        "Cada moneda va aparte: nada se convierte a menos que tú lo digas. Solo ustedes dos ven esto.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No se mezcla con tus grupos/)).not.toBeInTheDocument();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("says in words a currency that goes the other way", () => {
+    const mixed = [cop(500_000), money(-30, "USD")];
+    perCurrency({
+      friend: friendDto({ nets: mixed }),
+      balances: [{ memberId: "m-ana-mama", net: cop(500_000), nets: mixed }],
+      otherCurrencies: [],
+    });
+    expect(plain(screen.getByRole("region", { name: "Mamá te debe" }).textContent)).toBe(
+      "Mamá te debe500.000 COPLe debes 30 USD",
+    );
+  });
+
+  it("leads with another currency when the two are even in the space's", () => {
+    const usdOnly = [money(-30, "USD")];
+    perCurrency({
+      friend: friendDto({ net: cop(0), nets: usdOnly }),
+      balances: [{ memberId: "m-ana-mama", net: cop(0), nets: usdOnly }],
+      otherCurrencies: [],
+    });
+    expect(plain(screen.getByRole("region", { name: "Le debes a Mamá" }).textContent)).toBe(
+      "Le debes a Mamá30 USD",
+    );
+  });
+
+  it("is not even while another currency is owed: removing offers only Saldar", async () => {
+    const usdOnly = [money(50, "USD")];
+    perCurrency({
+      friend: friendDto({ net: cop(0), nets: usdOnly }),
+      balances: [{ memberId: "m-ana-mama", net: cop(0), nets: usdOnly }],
+      otherCurrencies: [],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Eliminar de Amigos" }));
+    const sheet = await screen.findByRole("dialog", { name: "Eliminar a Mamá" });
+    expect(within(sheet).queryByRole("button", { name: "Eliminar de Amigos" })).not.toBeInTheDocument();
+  });
+
+  it("speaks English", () => {
+    view(
+      {
+        friend: friendDto({ nets: [cop(500_000), money(-30, "USD")] }),
+        balances: [{ memberId: "m-ana-mama", net: cop(500_000), nets: [cop(500_000), money(-30, "USD")] }],
+      },
+      "en",
+    );
+    expect(plain(screen.getByRole("region", { name: "Mamá owes you" }).textContent)).toBe(
+      "Mamá owes you500.000 COPYou owe 30 USD",
+    );
+    expect(
+      screen.getByText(
+        "Each currency stays apart: nothing converts unless you say so. Only you two see this.",
+      ),
+    ).toBeInTheDocument();
   });
 });

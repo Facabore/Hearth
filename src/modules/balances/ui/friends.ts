@@ -1,5 +1,6 @@
 import type { paths } from "@/shared/ui/api/schema";
 import type { MoneyDto } from "@/shared/ui/api/dto";
+import { netsOf } from "./nets";
 
 /** Ruling P338: one person of Amigos, the other member of one of the viewer's direct spaces, as the API answers it. */
 export type FriendDto =
@@ -18,25 +19,23 @@ export interface FriendTotals {
   readonly owe: readonly MoneyDto[];
 }
 
-const sums = (amounts: readonly MoneyDto[]): MoneyDto[] => {
-  const byCurrency = new Map<string, bigint>();
-  for (const money of amounts)
-    byCurrency.set(money.currency, (byCurrency.get(money.currency) ?? 0n) + BigInt(money.amount));
-  return [...byCurrency].map(([currency, amount]) => ({ amount: amount.toString(), currency }));
-};
-
 /**
  * Ruling P338 (board "Amigos · cada persona con su saldo"): the totals owed each way. A positive net is owed to the
- * viewer, a negative one she owes; both come out positive.
+ * viewer, a negative one she owes; both come out positive. Ruling P342 (S4): every person's net in each currency
+ * counts, one sum per currency, never converted.
  */
-export const friendTotals = (friends: readonly FriendDto[]): FriendTotals => ({
-  owed: sums(friends.filter((f) => BigInt(f.net.amount) > 0n).map((f) => f.net)),
-  owe: sums(
-    friends
-      .filter((f) => BigInt(f.net.amount) < 0n)
-      .map((f) => ({ ...f.net, amount: f.net.amount.replace(/^-/, "") })),
-  ),
-});
+export const friendTotals = (friends: readonly FriendDto[]): FriendTotals => {
+  const owed = new Map<string, bigint>();
+  const owe = new Map<string, bigint>();
+  for (const net of friends.flatMap(netsOf)) {
+    const value = BigInt(net.amount);
+    const side = value > 0n ? owed : owe;
+    side.set(net.currency, (side.get(net.currency) ?? 0n) + (value > 0n ? value : -value));
+  }
+  const list = (sums: Map<string, bigint>) =>
+    [...sums].map(([currency, amount]) => ({ amount: amount.toString(), currency }));
+  return { owed: list(owed), owe: list(owe) };
+};
 
 /** A person's initials, at most two: "Jhon López" is "JL", "Mamá" is "M". */
 export const initialsOf = (name: string): string =>

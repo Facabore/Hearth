@@ -9,6 +9,12 @@ import { absolute, memberSentence, netState } from "./net-state";
 
 const INK = { owes: "text-owe", owed: "text-accent", settled: "text-ink" } as const;
 
+/** Ruling P342: a currency chip, at least 44 px tall, the chosen one filled. */
+const chip = (selected: boolean) =>
+  `flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full px-4 text-sm tabular-nums ${
+    selected ? "bg-accent-soft font-semibold text-accent" : "border border-line bg-surface text-ink"
+  }`;
+
 type Entry = BalanceHistoryDto["entries"][number];
 
 /**
@@ -64,6 +70,10 @@ const giftPairs = (entries: readonly Entry[], memberId: string): Map<string, Ent
  * Ruling P322 (boards B6 and B7): a settlement says who paid for whom, speaking to the history's member: a payment made
  * for them reads "Kamilox pagó por ti", lent to them (its change is 0: the debt only moved to the payer) or given, and a
  * forgiven debt says so. The names come from `members`; one that is not a current member leaves the plain title.
+ *
+ * Ruling P342 (S4): a history is one currency's, never converted. A member who owes or is owed in more than one has a
+ * chip per currency, which reads the same period in that currency (`?currency=`, left out for the space's); the
+ * periods' arrows keep the currency chosen.
  */
 export function BalanceHistory({
   spaceId,
@@ -75,6 +85,8 @@ export function BalanceHistory({
   next,
   history,
   formats,
+  currencies = [],
+  currency,
 }: {
   readonly spaceId: string;
   readonly spaceName: string;
@@ -86,12 +98,20 @@ export function BalanceHistory({
   readonly next: PeriodDto | null;
   readonly history: BalanceHistoryDto;
   readonly formats: Formats;
+  /** Ruling P342: the currencies the member has a balance in, the space's first; a chip each when there are several. */
+  readonly currencies?: readonly string[];
+  /** Ruling P342: the currency this history is in; the space's (the first of `currencies`) when left out. */
+  readonly currency?: string | undefined;
 }) {
   const t = useTranslations("balances");
   const tLedger = useTranslations("ledger");
   const tCommon = useTranslations("common");
-  const hrefOf = (target: PeriodDto) =>
-    `/spaces/${spaceId}/members/${member.id}/history?from=${target.startDate}`;
+  const spaceCurrency = currencies[0];
+  const chosen = currency ?? spaceCurrency;
+  const hrefOf = (target: PeriodDto, inCurrency = chosen) =>
+    `/spaces/${spaceId}/members/${member.id}/history?from=${target.startDate}${
+      inCurrency && inCurrency !== spaceCurrency ? `&currency=${inCurrency}` : ""
+    }`;
   const step = "flex size-11 items-center justify-center rounded-xl text-ink";
   // A positive change reads "+50.000 COP"; a negative one is written by `formatMoney` with the typographic minus.
   const changeOf = (change: MoneyDto) =>
@@ -142,6 +162,21 @@ export function BalanceHistory({
         title={t("history.title", { name: member.displayName })}
         subtitle={spaceName}
       />
+      {currencies.length > 1 ? (
+        <nav aria-label={t("history.currency")} className="flex flex-wrap gap-2">
+          {currencies.map((one) => (
+            <Link
+              key={one}
+              href={hrefOf(period, one)}
+              replace
+              aria-current={one === chosen ? "page" : undefined}
+              className={chip(one === chosen)}
+            >
+              {one}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
       {/* Board 04: the period is a chip with a calendar icon. Its neighbours stay a tap away beside it (P176). */}
       <div className="flex items-center justify-between gap-2">
         <p
