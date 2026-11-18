@@ -5,6 +5,7 @@ import {
   DATE_FORMATS,
   LOCALES,
   LOCKABLE_FIELDS,
+  MAX_FAVORITE_CURRENCIES,
   NUMBER_FORMATS,
   TIME_FORMATS,
   WEEK_STARTS,
@@ -65,6 +66,12 @@ export const ProfileResponseSchema = MeResponseSchema.extend({
       .describe(
         "D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency.",
       ),
+    favoriteCurrencies: z
+      .array(z.string())
+      .optional()
+      .describe(
+        "P342: the person's favorite ISO 4217 currencies, in their order, sent once they chose some (an empty list is a choice); absent means their personal space's currency is the only favorite.",
+      ),
   }),
 });
 
@@ -83,19 +90,28 @@ export const UpdateMeBodySchema = z.object({
   displayCurrency: z.string().length(3).nullable().optional(),
   /** P339: the person's @usuario (3–20 of a–z, 0–9 and _, a leading @ and upper case accepted); null clears it. */
   handle: z.string().max(64).nullable().optional(),
+  /**
+   * P342: the person's whole list of favorite currencies, in their order (at most 20, ISO 4217 codes, any case); a
+   * repeated code keeps its first place, and an unknown one is the use case's UnknownCurrency.
+   */
+  favoriteCurrencies: z.array(z.string().length(3)).max(MAX_FAVORITE_CURRENCIES).optional(),
 });
 
 /**
  * HU-E1-15: the profile as `GET` and `PATCH /api/v1/me` answer it. D29 (MC4): `displayCurrency` is sent only once the
  * person chose one, so a client that never asked for it receives exactly what it received before (additive only); so is
- * P339's `handle`.
+ * P339's `handle`, and P342's `favoriteCurrencies`.
  */
 export const meDto = (view: ProfileView) => {
-  const { displayCurrency, ...preferences } = view.preferences;
+  const { displayCurrency, favoriteCurrencies, ...preferences } = view.preferences;
   return {
     ...view.user,
     ...(view.handle === null ? {} : { handle: view.handle }),
-    preferences: displayCurrency === null ? preferences : { ...preferences, displayCurrency },
+    preferences: {
+      ...preferences,
+      ...(displayCurrency === null ? {} : { displayCurrency }),
+      ...(favoriteCurrencies === null ? {} : { favoriteCurrencies }),
+    },
   };
 };
 
@@ -119,7 +135,7 @@ export const mePaths: ZodOpenApiPathsObject = {
     patch: {
       operationId: "updateMe",
       summary:
-        "Change the signed-in user's time zone, language, formats and @usuario (HU-E1-14, HU-E1-15, P339)",
+        "Change the signed-in user's time zone, language, formats, @usuario and favorite currencies (HU-E1-14, HU-E1-15, P339, P342)",
       security,
       requestBody: { content: { "application/json": { schema: UpdateMeBodySchema } } },
       responses: {

@@ -67,6 +67,8 @@ export interface ProfileChange {
    * use case (`UnknownCurrency`).
    */
   readonly displayCurrency?: string | null;
+  /** P342: the person's favorite currencies, in their order; checked by `parseFavoriteCurrencies`. */
+  readonly favoriteCurrencies?: readonly string[];
 }
 
 const effective = <K extends FormatField>(

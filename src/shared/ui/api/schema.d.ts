@@ -48,7 +48,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Change the signed-in user's time zone, language, formats and @usuario (HU-E1-14, HU-E1-15, P339) */
+        /** Change the signed-in user's time zone, language, formats, @usuario and favorite currencies (HU-E1-14, HU-E1-15, P339, P342) */
         patch: operations["updateMe"];
         trace?: never;
     };
@@ -3108,6 +3108,8 @@ export interface operations {
                             locked: ("numberFormat" | "timeFormat" | "dateFormat" | "weekStart" | "timezone" | "locale")[];
                             /** @description D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency. */
                             displayCurrency?: string | null;
+                            /** @description P342: the person's favorite ISO 4217 currencies, in their order, sent once they chose some (an empty list is a choice); absent means their personal space's currency is the only favorite. */
+                            favoriteCurrencies?: string[];
                         };
                     };
                 };
@@ -3142,6 +3144,7 @@ export interface operations {
                     weekStart?: ("MONDAY" | "SUNDAY") | null;
                     displayCurrency?: string | null;
                     handle?: string | null;
+                    favoriteCurrencies?: string[];
                 };
             };
         };
@@ -3200,6 +3203,8 @@ export interface operations {
                             locked: ("numberFormat" | "timeFormat" | "dateFormat" | "weekStart" | "timezone" | "locale")[];
                             /** @description D29 (MC4): the person's display currency, sent once they chose one; absent means their personal space's currency. */
                             displayCurrency?: string | null;
+                            /** @description P342: the person's favorite ISO 4217 currencies, in their order, sent once they chose some (an empty list is a choice); absent means their personal space's currency is the only favorite. */
+                            favoriteCurrencies?: string[];
                         };
                     };
                 };

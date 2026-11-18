@@ -63,12 +63,27 @@ export class DrizzleUserProfiles implements UserProfiles, UserTimeZones, UserHan
     return row?.displayCurrency ?? null;
   }
 
+  /** P342: the stored favorite currencies in their order; an unknown user, or one who chose none yet, has null. */
+  async favoriteCurrenciesOf(userId: string): Promise<readonly string[] | null> {
+    const [row] = await this.tm
+      .executor()
+      .select({ favoriteCurrencies: user.favoriteCurrencies })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return row?.favoriteCurrencies ?? null;
+  }
+
   /** HU-E1-15: one UPDATE; drizzle leaves the undefined fields out of SET, and null clears a format. */
-  async saveProfile(userId: string, fields: ProfileChange): Promise<void> {
+  async saveProfile(userId: string, { favoriteCurrencies, ...fields }: ProfileChange): Promise<void> {
     await this.tm
       .executor()
       .update(user)
-      .set({ ...fields, updatedAt: new Date() })
+      .set({
+        ...fields,
+        ...(favoriteCurrencies === undefined ? {} : { favoriteCurrencies: [...favoriteCurrencies] }),
+        updatedAt: new Date(),
+      })
       .where(eq(user.id, userId));
   }
 

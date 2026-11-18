@@ -23,6 +23,9 @@ export const user = pgTable(
     // D29, slice MC4: the ISO 4217 currency of this person's totals and unified view; null means "my personal space's
     // currency". An open set (any circulating code), so no check constraint; the use case refuses unknown codes.
     displayCurrency: text("display_currency"),
+    // P342: the person's favorite ISO 4217 currencies, in their order; null until they choose some (an empty array is
+    // a choice). An open set like display_currency, so no check constraint; the use case refuses unknown codes.
+    favoriteCurrencies: text("favorite_currencies").array(),
     // Ruling P339: the person's @usuario, stored in lower case; null until they pick one. Better Auth never reads it.
     handle: text("handle"),
     createdAt: tz("created_at").notNull().defaultNow(),

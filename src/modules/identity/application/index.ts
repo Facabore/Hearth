@@ -20,6 +20,7 @@ export {
   type UserHandles,
 } from "./handles";
 export { parseHandle } from "../domain/handle";
+export { MAX_FAVORITE_CURRENCIES, parseFavoriteCurrencies } from "../domain/favorite-currencies";
 export {
   BUILT_IN_RULES,
   DATE_FORMATS,

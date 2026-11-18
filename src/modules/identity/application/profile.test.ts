@@ -28,15 +28,18 @@ const world = (
 ) => {
   const stored = new Map<string, StoredPreferences>();
   const currencies = new Map<string, string | null>();
+  const favorites = new Map<string, readonly string[]>();
   const writes: [string, ProfileChange][] = [];
   const profiles: UserProfiles = {
     setTimeZone: async () => undefined,
     preferencesOf: async (userId) => stored.get(userId) ?? NO_PREFERENCES,
     displayCurrencyOf: async (userId) => currencies.get(userId) ?? null,
+    favoriteCurrenciesOf: async (userId) => favorites.get(userId) ?? null,
     saveProfile: async (userId, fields) => {
       writes.push([userId, fields]);
       stored.set(userId, { ...(stored.get(userId) ?? NO_PREFERENCES), ...formatsIn(fields) });
       if (fields.displayCurrency !== undefined) currencies.set(userId, fields.displayCurrency);
+      if (fields.favoriteCurrencies !== undefined) favorites.set(userId, fields.favoriteCurrencies);
     },
   };
   const handles = { handleOf: async () => null, setHandle: async () => "saved" as const };
@@ -105,6 +108,7 @@ describe("formatting preferences (HU-E1-15)", () => {
       defaults: { ...RULES, timezone: "America/Bogota", locale: "es" },
       locked: [],
       displayCurrency: null,
+      favoriteCurrencies: null,
     });
   });
 
@@ -183,6 +187,58 @@ describe("formatting preferences (HU-E1-15)", () => {
     const { update, preferencesOf } = world();
     unwrap(await update({ user: ana, displayCurrency: "usd" }));
     expect((await preferencesOf()).displayCurrency).toBe("USD");
+  });
+
+  it("has no favorite currencies until the person chooses some, so Ajustes shows their personal space's (P342)", async () => {
+    expect((await world().preferencesOf()).favoriteCurrencies).toBe(null);
+  });
+
+  it("stores the favorite currencies in the person's order, as ISO 4217 codes (P342)", async () => {
+    const { update, preferencesOf, writes } = world();
+    unwrap(await update({ user: ana, favoriteCurrencies: ["COP", "usd", "EUR"] }));
+    expect((await preferencesOf()).favoriteCurrencies).toEqual(["COP", "USD", "EUR"]);
+    expect(writes).toEqual([["u-ana", { favoriteCurrencies: ["COP", "USD", "EUR"] }]]);
+    // An empty list is a choice of its own: no favorites, not "never chose".
+    unwrap(await update({ user: ana, favoriteCurrencies: [] }));
+    expect((await preferencesOf()).favoriteCurrencies).toEqual([]);
+  });
+
+  it("drops a repeated favorite currency, keeping its first place (P342)", async () => {
+    const { update, preferencesOf } = world();
+    unwrap(await update({ user: ana, favoriteCurrencies: ["USD", "COP", "usd", "COP"] }));
+    expect((await preferencesOf()).favoriteCurrencies).toEqual(["USD", "COP"]);
+  });
+
+  it("refuses an unknown favorite currency and writes nothing (P342)", async () => {
+    const { update, preferencesOf, writes } = world();
+    expect(await update({ user: ana, favoriteCurrencies: ["USD", "XYZ"], timeFormat: "H12" })).toEqual({
+      ok: false,
+      error: { code: "UnknownCurrency", details: { currency: "XYZ" } },
+    });
+    expect(writes).toEqual([]);
+    expect((await preferencesOf()).favoriteCurrencies).toBe(null);
+  });
+
+  it("keeps at most 20 favorite currencies, each counted once (P342)", async () => {
+    const { update, preferencesOf } = world();
+    const twenty = ["COP", "USD", "EUR", "MXN", "BRL", "JPY", "GBP", "CAD", "AUD", "CHF"].concat([
+      "CLP",
+      "PEN",
+      "ARS",
+      "UYU",
+      "CNY",
+      "INR",
+      "KRW",
+      "SEK",
+      "NOK",
+      "DKK",
+    ]);
+    unwrap(await update({ user: ana, favoriteCurrencies: [...twenty, "usd"] }));
+    expect((await preferencesOf()).favoriteCurrencies).toEqual(twenty);
+    expect(codeOf(await update({ user: ana, favoriteCurrencies: [...twenty, "PLN"] }))).toBe(
+      "TooManyFavoriteCurrencies",
+    );
+    expect((await preferencesOf()).favoriteCurrencies).toEqual(twenty);
   });
 
   it("keep the stored value under a lock and bring it back when the lock is lifted", async () => {

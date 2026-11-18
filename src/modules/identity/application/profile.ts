@@ -17,6 +17,7 @@ import {
   type ProfileChange,
   type StoredPreferences,
 } from "../domain/preferences";
+import { parseFavoriteCurrencies } from "../domain/favorite-currencies";
 import { parseHandle } from "../domain/handle";
 import type { UserHandles } from "./handles";
 import type { InstallationRulesReader } from "./installation-rules";
@@ -28,6 +29,8 @@ export interface UserProfiles {
   preferencesOf(userId: string): Promise<StoredPreferences>;
   /** D29, slice MC4: the person's stored display currency; null means "my personal space's currency". */
   displayCurrencyOf(userId: string): Promise<string | null>;
+  /** P342: the person's favorite currencies in their order; null until they choose some (an empty list is a choice). */
+  favoriteCurrenciesOf(userId: string): Promise<readonly string[] | null>;
   /** HU-E1-15: writes the fields present, in one go; a null format returns to the rule. */
   saveProfile(userId: string, fields: ProfileChange): Promise<void>;
 }
@@ -44,6 +47,8 @@ export interface ProfileView {
     readonly locked: readonly LockableField[];
     /** D29, slice MC4: the stored display currency; null means "my personal space's currency" (design §4). */
     readonly displayCurrency: string | null;
+    /** P342: the favorite currencies; null until the person chooses some, when the UI shows their personal space's. */
+    readonly favoriteCurrencies: readonly string[] | null;
   };
 }
 
@@ -52,15 +57,16 @@ export type GetProfile = (input: { readonly user: AuthUser }) => Promise<Result<
 /** HU-E1-15: the stored formats, the rules' defaults and locks, and what applies; never derived from `locale` (D23). */
 export const createGetProfile =
   (deps: {
-    readonly profiles: Pick<UserProfiles, "preferencesOf" | "displayCurrencyOf">;
+    readonly profiles: Pick<UserProfiles, "preferencesOf" | "displayCurrencyOf" | "favoriteCurrenciesOf">;
     readonly handles: Pick<UserHandles, "handleOf">;
     readonly rules: InstallationRulesReader;
     readonly regionDefaults: { readonly timezone: string; readonly locale: Locale };
   }): GetProfile =>
   async ({ user }) => {
-    const [stored, displayCurrency, handle, rules] = await Promise.all([
+    const [stored, displayCurrency, favoriteCurrencies, handle, rules] = await Promise.all([
       deps.profiles.preferencesOf(user.id),
       deps.profiles.displayCurrencyOf(user.id),
+      deps.profiles.favoriteCurrenciesOf(user.id),
       deps.handles.handleOf(user.id),
       deps.rules.rules(),
     ]);
@@ -73,6 +79,7 @@ export const createGetProfile =
         defaults: { ...rules.defaults, ...deps.regionDefaults },
         locked: rules.locked,
         displayCurrency,
+        favoriteCurrencies,
       },
     });
   };
@@ -89,7 +96,8 @@ export type UpdateProfile = (
  * field is PreferenceLocked, even to clear it or to repeat its value; then an unknown zone is InvalidTimeZone. Nothing
  * is written unless the whole change passes, and a zone or a language equal to the current one is not written.
  * Ruling P339: a handle outside the rules is InvalidHandle, and one someone else holds, ignoring case, is HandleTaken;
- * the handle is written first, so a taken one leaves everything else unwritten too.
+ * the handle is written first, so a taken one leaves everything else unwritten too. P342: favorite currencies pass
+ * `parseFavoriteCurrencies` (UnknownCurrency, TooManyFavoriteCurrencies) before anything is written.
  */
 export const createUpdateProfile =
   (deps: {
@@ -109,6 +117,11 @@ export const createUpdateProfile =
     if (typeof displayCurrency === "string" && knownCurrency(displayCurrency) === undefined) {
       return err(domainError("UnknownCurrency", { currency: change.displayCurrency }));
     }
+    const favorites =
+      change.favoriteCurrencies === undefined
+        ? ok(undefined)
+        : parseFavoriteCurrencies(change.favoriteCurrencies);
+    if (!favorites.ok) return favorites;
     const handle = rawHandle === undefined || rawHandle === null ? ok(rawHandle) : parseHandle(rawHandle);
     if (!handle.ok) return handle;
     const locale = change.locale ?? user.locale;
@@ -116,6 +129,7 @@ export const createUpdateProfile =
       ...(zone.value === user.timezone ? {} : { timezone: zone.value }),
       ...(locale === user.locale ? {} : { locale: change.locale }),
       ...(displayCurrency === undefined ? {} : { displayCurrency }),
+      ...(favorites.value === undefined ? {} : { favoriteCurrencies: favorites.value }),
       ...formatsIn(change),
     };
     if (handle.value !== undefined && (await deps.handles.setHandle(user.id, handle.value)) === "taken") {

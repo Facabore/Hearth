@@ -307,6 +307,13 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "favoriteCurrencies": {
+                          "description": "P342: the person's favorite ISO 4217 currencies, in their order, sent once they chose some (an empty list is a choice); absent means their personal space's currency is the only favorite.",
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
@@ -345,7 +352,7 @@
       },
       "patch": {
         "operationId": "updateMe",
-        "summary": "Change the signed-in user's time zone, language, formats and @usuario (HU-E1-14, HU-E1-15, P339)",
+        "summary": "Change the signed-in user's time zone, language, formats, @usuario and favorite currencies (HU-E1-14, HU-E1-15, P339, P342)",
         "security": [
           {
             "cookieAuth": []
@@ -452,6 +459,15 @@
                         "type": "null"
                       }
                     ]
+                  },
+                  "favoriteCurrencies": {
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 3
+                    }
                   }
                 }
               }
@@ -680,6 +696,13 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "favoriteCurrencies": {
+                          "description": "P342: the person's favorite ISO 4217 currencies, in their order, sent once they chose some (an empty list is a choice); absent means their personal space's currency is the only favorite.",
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         }
                       },
                       "required": [
