@@ -86,7 +86,7 @@ export function MemberMatrix({
   );
 }
 
-/** #213: a member's total gap as a sentence, "Le faltan $ 482.000", so its direction is never a sign or a color. */
+/** #213: a member's total gap as a sentence, "Le faltan 482.000 COP", so its direction is never a sign or a color. */
 function TotalGap({
   total,
   formats,
@@ -210,7 +210,7 @@ function MemberDetail({
 }
 
 /**
- * Board E9-10 03: a line as its name with the member's gap at the right ("+$ 312.000 de más"), and one caption of
+ * Board E9-10 03: a line as its name with the member's gap at the right ("+312.000 COP de más"), and one caption of
  * the figures the API answers, "Asignado · Aportó · Consumió", followed by why any of them is missing (ruling P217),
  * so a missing figure is written in words, never as a lone dash. A fund-level line links to the Fund view in place.
  */

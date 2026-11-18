@@ -6,7 +6,7 @@ import { formatPercent, formatSignedMoney, type Formats } from "@/shared/ui/form
 export type ChangeStatus = "NEW" | "INCREASED" | "DECREASED" | "UNCHANGED";
 
 /**
- * Ruling P219: a change's amount with its sign, and its percentage when the API could answer one ("−$ 50.000
+ * Ruling P219: a change's amount with its sign, and its percentage when the API could answer one ("−50.000 COP
  * (−3,70 %)"). Both are the API's (ruling P201).
  */
 export const changeFigure = (

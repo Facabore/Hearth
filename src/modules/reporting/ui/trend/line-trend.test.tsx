@@ -34,15 +34,15 @@ describe("line trend (HU-E9-11, board E9-11 04 under ruling P272)", () => {
         .map((item) => item.getAttribute("data-line")),
     ).toEqual(["l-home", "l-pets"]);
     expect(status("Home")).toBe("Bajó");
-    expect(text("Home")).toContain("Gastado en nov $ 1.300.000");
+    expect(text("Home")).toContain("Gastado en nov 1.300.000 COP");
     expect(normalized(card("Home").querySelector("[data-change]")?.textContent ?? null)).toBe(
-      "−$ 50.000 (−3,70 %)",
+      "−\u206050.000 COP (−3,70 %)",
     );
     // October then November, each bar named by its short month; October's figure is read, not only drawn.
     expect(
       [...card("Home").querySelectorAll("[data-compare] [data-period]")].map((p) => p.textContent),
     ).toEqual(["oct", "nov"]);
-    expect(text("Home")).toContain("Gastado en oct $ 1.350.000");
+    expect(text("Home")).toContain("Gastado en oct 1.350.000 COP");
     expect(card("Home").querySelectorAll("[data-bar]")).toHaveLength(2);
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -50,7 +50,7 @@ describe("line trend (HU-E9-11, board E9-11 04 under ruling P272)", () => {
   it("marks a new line with its badge and no previous period, without a percentage or bars", () => {
     show();
     expect(status("Pets")).toBe("Nueva");
-    expect(text("Pets")).toContain("Gastado en nov $ 80.000");
+    expect(text("Pets")).toContain("Gastado en nov 80.000 COP");
     expect(text("Pets")).toContain("Sin período anterior");
     expect(text("Pets")).not.toContain("%");
     expect(card("Pets").querySelector("[data-compare]")).toBeNull();
@@ -66,7 +66,9 @@ describe("line trend (HU-E9-11, board E9-11 04 under ruling P272)", () => {
   it("says an unchanged line is the same, with its zero change and no bars", () => {
     show(withHome({ change: cop(0), changePercent: "0.00", changeStatus: "UNCHANGED" }));
     expect(status("Home")).toBe("Igual");
-    expect(normalized(card("Home").querySelector("[data-change]")?.textContent ?? null)).toBe("$ 0 (0,00 %)");
+    expect(normalized(card("Home").querySelector("[data-change]")?.textContent ?? null)).toBe(
+      "0 COP (0,00 %)",
+    );
     expect(card("Home").querySelector("[data-compare]")).toBeNull();
   });
 
@@ -83,7 +85,7 @@ describe("line trend (HU-E9-11, board E9-11 04 under ruling P272)", () => {
     expect(card("Home").querySelector("[data-status] [data-tone]")).toHaveAttribute("data-tone", "owe");
     expect(card("Home").querySelector("[data-status] svg")).not.toBeNull();
     expect(normalized(card("Home").querySelector("[data-change]")?.textContent ?? null)).toBe(
-      "+$ 50.000 (+3,70 %)",
+      "+50.000 COP (+3,70 %)",
     );
   });
 

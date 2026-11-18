@@ -20,13 +20,13 @@ describe("unified personal view (HU-E9-11)", () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
     const hero = screen.getByRole("region", { name: "Lo que gastaste tú" });
     expect(normalized(hero.textContent)).toBe(
-      "Lo que gastaste tú$ 1.575.000Lo que fue para ti: tus gastos y tu parte de los compartidos.",
+      "Lo que gastaste tú1.575.000 COPLo que fue para ti: tus gastos y tu parte de los compartidos.",
     );
     const paid = screen.getByRole("region", { name: "Lo que pagaste" });
-    expect(normalized(paid.textContent)).toContain("Lo que pagaste$ 2.625.000");
+    expect(normalized(paid.textContent)).toContain("Lo que pagaste2.625.000 COP");
     // The hero is the only large figure: the paid amount is a line of body text.
-    expect(within(hero).getByText("$ 1.575.000").style.getPropertyValue("--amount-size")).toBe("1.875rem");
-    expect(within(paid).getByText("$ 2.625.000").style.getPropertyValue("--amount-size")).toBe("");
+    expect(within(hero).getByText("1.575.000 COP").style.getPropertyValue("--amount-size")).toBe("1.875rem");
+    expect(within(paid).getByText("2.625.000 COP").style.getPropertyValue("--amount-size")).toBe("");
     // Folded, the answer and the breakdown stay out of the way.
     const button = within(paid).getByRole("button", { name: "¿Por qué es distinto?" });
     expect(button).toHaveAttribute("aria-expanded", "false");
@@ -46,8 +46,8 @@ describe("unified personal view (HU-E9-11)", () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
     await why();
     const amounts = [
-      within(screen.getByRole("region", { name: "Lo que gastaste tú" })).getByText("$ 1.575.000"),
-      within(screen.getByRole("region", { name: "Lo que pagaste" })).getByText("$ 2.625.000"),
+      within(screen.getByRole("region", { name: "Lo que gastaste tú" })).getByText("1.575.000 COP"),
+      within(screen.getByRole("region", { name: "Lo que pagaste" })).getByText("2.625.000 COP"),
       ...screen.getByRole("region", { name: SOURCES }).querySelectorAll("dd"),
       ...[...container.querySelectorAll("li")].map((row) => row.lastElementChild!),
     ];
@@ -62,12 +62,12 @@ describe("unified personal view (HU-E9-11)", () => {
     const { container } = renderWithIntl(<UnifiedView view={e74Unified()} formats={BUILT_IN_FORMATS} />);
     await why();
     const outs = textOf(SOURCES);
-    expect(outs).toContain("Pagos de gastos$ 2.145.000");
-    expect(outs).toContain("Aportes al fondo$ 480.000");
+    expect(outs).toContain("Pagos de gastos2.145.000 COP");
+    expect(outs).toContain("Aportes al fondo480.000 COP");
     expect(outs).not.toContain("Pagado fuera de la app");
     const groceries = screen.getAllByRole("listitem", { name: "Groceries" });
     expect(groceries).toHaveLength(1);
-    expect(normalized(groceries[0]!.textContent)).toContain("$ 1.035.000");
+    expect(normalized(groceries[0]!.textContent)).toContain("1.035.000 COP");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -96,7 +96,7 @@ describe("unified personal view (HU-E9-11)", () => {
     });
     renderWithIntl(<UnifiedView view={pedro} formats={BUILT_IN_FORMATS} />);
     await why();
-    expect(textOf(SOURCES)).toContain("Pagado fuera de la app$ 300.000");
+    expect(textOf(SOURCES)).toContain("Pagado fuera de la app300.000 COP");
     expect(screen.getByRole("listitem", { name: "Household / Vet" })).toBeInTheDocument();
   });
 
@@ -106,7 +106,7 @@ describe("unified personal view (HU-E9-11)", () => {
     });
     renderWithIntl(<UnifiedView view={saver} formats={BUILT_IN_FORMATS} />);
     await why();
-    expect(textOf(SOURCES)).toContain("Transferencias a tus ahorros$ 150.000");
+    expect(textOf(SOURCES)).toContain("Transferencias a tus ahorros150.000 COP");
   });
 
   it("says which spaces in another currency it leaves out for want of a rate (D29, MC4)", () => {
@@ -139,9 +139,9 @@ describe("unified personal view (HU-E9-11)", () => {
       cashOut: { ...e74Unified().cashOut, total: cop(9) },
     });
     renderWithIntl(<UnifiedView view={view} formats={BUILT_IN_FORMATS} />);
-    expect(textOf("Lo que gastaste tú")).toContain("$ 7");
+    expect(textOf("Lo que gastaste tú")).toContain("7 COP");
     expect(textOf("Lo que gastaste tú")).not.toContain("1.575.000");
-    expect(textOf("Lo que pagaste")).toContain("$ 9");
+    expect(textOf("Lo que pagaste")).toContain("9 COP");
     expect(textOf("Lo que pagaste")).not.toContain("2.625.000");
   });
 
@@ -207,9 +207,9 @@ describe("unified personal view (HU-E9-11)", () => {
       "listitem",
     );
     expect(rows.map((row) => normalized(row.textContent))).toEqual([
-      "Groceries$ 1.035.000",
-      "Rent$ 480.000",
-      "Restaurants$ 60.000",
+      "Groceries1.035.000 COP",
+      "Rent480.000 COP",
+      "Restaurants60.000 COP",
     ]);
     expect(screen.queryByText("No consumiste nada en este período.")).not.toBeInTheDocument();
     cleanup();

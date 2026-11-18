@@ -36,7 +36,7 @@ const overOf = (lines: readonly Line[]) => {
  * On the personal Inicio (`line`) it is the last line of the page: "Tu plan de {mes} · Te quedan $ X de $ Y", or how
  * much the spending went past it ("Te pasaste $ X de $ Y planeados", in words, never a minus sign), and the line that
  * went over the most, in words (never color alone). On a shared space's Inicio (`hero`) it is the line under the hero,
- * "de $ 4.000.000 del plan", with a thin bar of what was spent: the plan's entry point there. A period without a plan
+ * "de 4.000.000 COP del plan", with a thin bar of what was spent: the plan's entry point there. A period without a plan
  * or without lines shows nothing: the first steps propose the plan.
  */
 export function PlanCard({

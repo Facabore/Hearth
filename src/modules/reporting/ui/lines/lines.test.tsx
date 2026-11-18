@@ -33,18 +33,18 @@ describe("line dashboard (HU-E9-10)", () => {
       />,
     );
     expect(lineRows()).toEqual([
-      ["Rent", "Cumplido", "Gastado $ 1.200.000 de $ 1.200.000"],
-      ["Home", "Disponible $ 170.000", "Gastado $ 1.300.000 de $ 1.470.000"],
-      ["Savings", "Disponible $ 600.000", "Ahorrado $ 0 de $ 600.000"],
-      ["Free", "Disponible $ 480.000", "Gastado $ 250.000 de $ 730.000"],
-      ["Sin presupuesto", "Disponible −$ 60.000", "Gastado $ 60.000 en categorías sin rubro"],
+      ["Rent", "Cumplido", "Gastado 1.200.000 COP de 1.200.000 COP"],
+      ["Home", "Disponible 170.000 COP", "Gastado 1.300.000 COP de 1.470.000 COP"],
+      ["Savings", "Disponible 600.000 COP", "Ahorrado 0 COP de 600.000 COP"],
+      ["Free", "Disponible 480.000 COP", "Gastado 250.000 COP de 730.000 COP"],
+      ["Sin presupuesto", "Disponible −\u206060.000 COP", "Gastado 60.000 COP en categorías sin rubro"],
     ]);
     // A line near its limit wears no chip on the board; its bar and figure say it.
     expect(screen.queryByText("Cerca del límite")).toBeNull();
     expect(screen.queryByText(/no están en ningún rubro/)).toBeNull();
     const summary = screen.getByRole("region", { name: "Resumen del plan" });
-    expect(normalized(summary.textContent)).toContain("Disponible$ 1.190.000");
-    expect(normalized(summary.textContent)).toContain("Gastado $ 2.810.000 de $ 4.000.000");
+    expect(normalized(summary.textContent)).toContain("Disponible1.190.000 COP");
+    expect(normalized(summary.textContent)).toContain("Gastado 2.810.000 COP de 4.000.000 COP");
     expect(container.querySelector("[data-line='l-home'] [data-bar]")).toHaveStyle({ width: "88%" });
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -78,8 +78,8 @@ describe("line dashboard (HU-E9-10)", () => {
     );
     expect(lineRows().at(-1)).toEqual([
       "Sin presupuesto",
-      "Disponible −$ 60.000",
-      "Gastado $ 60.000 en categorías sin rubro · Restaurantes, Taxis",
+      "Disponible −\u206060.000 COP",
+      "Gastado 60.000 COP en categorías sin rubro · Restaurantes, Taxis",
     ]);
   });
 
@@ -111,7 +111,7 @@ describe("line dashboard (HU-E9-10)", () => {
     );
     const home = screen.getByRole("listitem", { name: /^Home/ });
     expect(within(home).getByText("Excedida")).toBeInTheDocument();
-    expect(normalized(home.textContent)).toContain("−$ 130.000");
+    expect(normalized(home.textContent)).toContain("−\u2060130.000 COP");
     expect(within(screen.getByRole("listitem", { name: /^Rent/ })).queryByText("Excedida")).toBeNull();
   });
 
@@ -125,7 +125,7 @@ describe("line dashboard (HU-E9-10)", () => {
       expect(figureOf(row)).toHaveClass("text-owe-ink");
       expect(figureOf(row)).not.toHaveClass("text-owe");
       // The sign says it too, never the color alone.
-      expect(normalized(figureOf(row).textContent)).toMatch(/−\$/);
+      expect(normalized(figureOf(row).textContent)).toMatch(/^Disponible −\u2060[\d.]+ COP$/);
     }
     expect(figureOf(/^Rent/)).not.toHaveClass("text-owe-ink");
   });
@@ -140,8 +140,8 @@ describe("line dashboard (HU-E9-10)", () => {
       />,
     );
     const summary = screen.getByRole("region", { name: "Resumen del plan" });
-    expect(normalized(summary.textContent)).toContain("Disponible$ 3");
-    expect(normalized(summary.textContent)).toContain("Gastado $ 2 de $ 1");
+    expect(normalized(summary.textContent)).toContain("Disponible3 COP");
+    expect(normalized(summary.textContent)).toContain("Gastado 2 COP de 1 COP");
   });
 
   it("shows no Unbudgeted row nor note when the plan has a catch-all line, and a negative total in the owe colour", () => {
@@ -155,7 +155,7 @@ describe("line dashboard (HU-E9-10)", () => {
     );
     expect(screen.queryByText("Sin presupuesto")).toBeNull();
     expect(screen.queryByText(/categorías sin rubro/)).toBeNull();
-    expect(screen.getByText("−$ 50")).toHaveClass("text-owe");
+    expect(screen.getByText("−\u206050 COP")).toHaveClass("text-owe");
   });
 
   it("says when a line nears or passes its plan, the overage in words (#142, ruling P244 of M6c)", async () => {
@@ -183,7 +183,7 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(within(row(/^Rent/)).getByText("Al límite")).toHaveAttribute("data-tone", "owe");
     const home = normalized(row(/^Home/).textContent);
     expect(home).toContain("Excedida");
-    expect(home).toContain("Te pasaste por $ 130.000");
+    expect(home).toContain("Te pasaste por 130.000 COP");
     expect(home).not.toMatch(/%/);
     expect(within(row(/^Savings/)).queryByText(/límite|Te pasaste/)).toBeNull();
     expect(within(row(/^Sin presupuesto/)).queryByText(/límite|Te pasaste/)).toBeNull();
@@ -203,7 +203,7 @@ describe("line dashboard (HU-E9-10)", () => {
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
     expect(normalized(screen.getByRole("listitem", { name: /^Home/ }).textContent)).toContain(
-      "Te pasaste por $ 5",
+      "Te pasaste por 5 COP",
     );
   });
 
@@ -236,7 +236,9 @@ describe("line dashboard (HU-E9-10)", () => {
     expect(screen.getByText("Solo Propietario y Administrador ven estas acciones.")).toBeInTheDocument();
     // Board E9-10 02: no totals, and Unbudgeted as one compact card that names the month.
     expect(screen.queryByRole("region", { name: "Resumen del plan" })).toBeNull();
-    expect(lineRows()).toEqual([["Sin presupuesto", "Disponible −$ 100.000", "Gastado $ 100.000 en enero"]]);
+    expect(lineRows()).toEqual([
+      ["Sin presupuesto", "Disponible −\u2060100.000 COP", "Gastado 100.000 COP en enero"],
+    ]);
     expect(await axeViolations(owner.container)).toEqual([]);
     owner.unmount();
     renderWithIntl(
@@ -270,7 +272,7 @@ describe("line dashboard (HU-E9-10)", () => {
       screen.getByRole("button", { name: "Copiar el plan de 15/10/2026 – 14/11/2026" }),
     ).toBeInTheDocument();
     expect(lineRows()).toEqual([
-      ["Sin presupuesto", "Disponible −$ 100.000", "Gastado $ 100.000 en este período"],
+      ["Sin presupuesto", "Disponible −\u2060100.000 COP", "Gastado 100.000 COP en este período"],
     ]);
   });
 
@@ -310,10 +312,10 @@ describe("line dashboard (HU-E9-10)", () => {
       <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
     );
     const home = normalized(screen.getByRole("listitem", { name: /^Home/ }).textContent);
-    expect(home).toContain("+$ 200.000 de octubre 2026");
-    expect(home).toContain("$ 370.000");
+    expect(home).toContain("+200.000 COP de octubre 2026");
+    expect(home).toContain("370.000 COP");
     expect(normalized(screen.getByRole("listitem", { name: /^Free/ }).textContent)).toContain(
-      "−$ 130.000 de octubre 2026",
+      "−\u2060130.000 COP de octubre 2026",
     );
     expect(normalized(screen.getByRole("listitem", { name: /^Savings/ }).textContent)).toContain(
       "Se arrastra de octubre 2026 cuando ese plan se cierre.",
@@ -339,7 +341,7 @@ describe("line dashboard (HU-E9-10)", () => {
       { locale: "en" },
     );
     expect(normalized(screen.getByRole("listitem", { name: /^Home/ }).textContent)).toContain(
-      "+$ 200.000 from October 2026",
+      "+200.000 COP from October 2026",
     );
     expect(normalized(screen.getByRole("listitem", { name: /^Free/ }).textContent)).toContain(
       "Carries over from October 2026 once that plan is closed.",
@@ -418,8 +420,8 @@ describe("the plan in the household's words (#214)", () => {
 
   it("says what reached a savings line is saved, not spent", () => {
     show(withSaving());
-    expect(caption(/^Savings/)).toBe("Ahorrado $ 200.000 de $ 600.000");
-    expect(caption(/^Home/)).toBe("Gastado $ 1.300.000 de $ 1.470.000");
+    expect(caption(/^Savings/)).toBe("Ahorrado 200.000 COP de 600.000 COP");
+    expect(caption(/^Home/)).toBe("Gastado 1.300.000 COP de 1.470.000 COP");
   });
 
   /** The API's totals with 200,000 COP saved: spent counts it, withoutSavings does not (ruling P262). */
@@ -440,8 +442,8 @@ describe("the plan in the household's words (#214)", () => {
   it("keeps savings out of the Gastado headline, from the API's own figures (ruling P262)", async () => {
     const { container } = show(savedTotals());
     const summary = screen.getByRole("region", { name: "Resumen del plan" });
-    expect(normalized(summary.textContent)).toContain("Gastado $ 2.810.000 de $ 3.400.000");
-    expect(normalized(summary.textContent)).toContain("Ahorrado $ 200.000");
+    expect(normalized(summary.textContent)).toContain("Gastado 2.810.000 COP de 3.400.000 COP");
+    expect(normalized(summary.textContent)).toContain("Ahorrado 200.000 COP");
     expect(normalized(summary.textContent)).not.toContain("3.010.000");
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -456,7 +458,7 @@ describe("the plan in the household's words (#214)", () => {
       },
     });
     const summary = screen.getByRole("region", { name: "Resumen del plan" });
-    expect(normalized(summary.textContent)).toContain("Disponible$ 590.000");
+    expect(normalized(summary.textContent)).toContain("Disponible590.000 COP");
     expect(normalized(summary.textContent)).not.toContain("990.000");
   });
 
@@ -467,8 +469,8 @@ describe("the plan in the household's words (#214)", () => {
       totals: { ...dashboard.totals, saved: cop(7), withoutSavings: { planned: cop(5), spent: cop(3) } },
     });
     const summary = screen.getByRole("region", { name: "Resumen del plan" });
-    expect(normalized(summary.textContent)).toContain("Gastado $ 3 de $ 5");
-    expect(normalized(summary.textContent)).toContain("Ahorrado $ 7");
+    expect(normalized(summary.textContent)).toContain("Gastado 3 COP de 5 COP");
+    expect(normalized(summary.textContent)).toContain("Ahorrado 7 COP");
   });
 
   it("says nothing about savings when the plan has no savings line", () => {
@@ -481,14 +483,14 @@ describe("the plan in the household's words (#214)", () => {
   it("keeps the savings apart in English too", () => {
     show(savedTotals(), "en");
     const summary = screen.getByRole("region", { name: "Plan summary" });
-    expect(normalized(summary.textContent)).toContain("Spent $ 2.810.000 of $ 3.400.000");
-    expect(normalized(summary.textContent)).toContain("Saved $ 200.000");
+    expect(normalized(summary.textContent)).toContain("Spent 2.810.000 COP of 3.400.000 COP");
+    expect(normalized(summary.textContent)).toContain("Saved 200.000 COP");
   });
 
   it("reads the same in English", () => {
     show(withSaving(), "en");
     expect(within(row(/^Rent/)).getByText("On plan")).toBeInTheDocument();
-    expect(caption(/^Savings/)).toBe("Saved $ 200.000 of $ 600.000");
-    expect(caption(/^Home/)).toBe("Spent $ 1.300.000 of $ 1.470.000");
+    expect(caption(/^Savings/)).toBe("Saved 200.000 COP of 600.000 COP");
+    expect(caption(/^Home/)).toBe("Spent 1.300.000 COP of 1.470.000 COP");
   });
 });

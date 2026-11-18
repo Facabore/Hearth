@@ -32,16 +32,16 @@ describe("desktop overview (HU-E9-10, ruling P216)", () => {
     );
     expect(container.firstElementChild).toHaveClass("hidden", "lg:grid");
     const groups = normalized(screen.getByRole("region", { name: "Por grupo" }).textContent);
-    expect(groups).toContain("Housing$ 1.600.000");
+    expect(groups).toContain("Housing1.600.000 COP");
     expect(screen.getByRole("link", { name: "Ver por grupo" })).toHaveAttribute(
       "href",
       "/spaces/sp-household/plan/groups?period=2026-11",
     );
     expect(normalized(screen.getByRole("region", { name: "Aportes al fondo" }).textContent)).toContain(
-      "$ 980.000",
+      "980.000 COP",
     );
     const change = normalized(screen.getByRole("region", { name: "Contra el período anterior" }).textContent);
-    expect(change).toContain("−$ 50.000 (−3,70 %)");
+    expect(change).toContain("−\u206050.000 COP (−3,70 %)");
     expect(change).toContain("Nueva");
     const matrix = screen.getByRole("table", { name: "Miembros por rubro" });
     expect(within(matrix).getAllByRole("row")).toHaveLength(1 + 6);

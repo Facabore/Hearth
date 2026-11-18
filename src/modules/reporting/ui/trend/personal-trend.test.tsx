@@ -55,11 +55,11 @@ describe("personal trend (HU-E9-11, board E9-11 03 under ruling P272)", { timeou
       .slice(1)
       .map((row) => normalized(within(row).getAllByRole("cell").at(-1)!.textContent));
     expect(cells).toEqual([
-      "+$ 75.000 (+5,00 %)",
-      "+$ 200.000 (+15,38 %)",
-      "−$ 150.000 (−10,34 %)",
-      "$ 0 (0,00 %)",
-      "+$ 50.000 (+3,57 %)",
+      "+75.000 COP (+5,00 %)",
+      "+200.000 COP (+15,38 %)",
+      "−\u2060150.000 COP (−10,34 %)",
+      "0 COP (0,00 %)",
+      "+50.000 COP (+3,57 %)",
       "Sin período anterior",
     ]);
     expect(within(table).queryByText(/Subió|Bajó|Igual|Nueva/)).toBeNull();

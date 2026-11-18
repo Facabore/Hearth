@@ -25,10 +25,10 @@ describe("fund tracking (HU-E9-10)", () => {
   it("shows Juan expected 720.000, actual 500.000 and difference −220.000", async () => {
     const { container } = show();
     const juan = card("Juan");
-    expect(juan).toContain("Esperado$ 720.000");
-    expect(juan).toContain("Aportado$ 500.000");
-    expect(juan).toContain("Diferencia−$ 220.000");
-    expect(juan).toContain("Le faltan $ 220.000 para el fondo");
+    expect(juan).toContain("Esperado720.000 COP");
+    expect(juan).toContain("Aportado500.000 COP");
+    expect(juan).toContain("Diferencia−\u2060220.000 COP");
+    expect(juan).toContain("Le faltan 220.000 COP para el fondo");
     expect(card("Ana")).toContain("Al día con el fondo");
     expect(screen.queryByText("Sin plan, nadie tiene un aporte esperado.")).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
@@ -38,9 +38,9 @@ describe("fund tracking (HU-E9-10)", () => {
     const totals = { expected: cop(7), actual: cop(8), difference: cop(9) };
     show(e7Fund({ totals }));
     const summary = normalized(screen.getByRole("region", { name: "Aportes al fondo" }).textContent);
-    expect(summary).toContain("Esperado$ 7");
-    expect(summary).toContain("Aportado$ 8");
-    expect(summary).toContain("Diferencia+$ 9");
+    expect(summary).toContain("Esperado7 COP");
+    expect(summary).toContain("Aportado8 COP");
+    expect(summary).toContain("Diferencia+9 COP");
   });
 
   it("calls a member who paid more than expected up to date, and reads the sign of their difference", () => {
@@ -49,9 +49,9 @@ describe("fund tracking (HU-E9-10)", () => {
       { memberId: "m-juan", expected: cop(100_000), actual: cop(100_000), difference: cop(0) },
     ];
     show(e7Fund({ members }));
-    expect(card("Ana")).toContain("Diferencia+$ 50.000");
+    expect(card("Ana")).toContain("Diferencia+50.000 COP");
     expect(card("Ana")).toContain("Al día con el fondo");
-    expect(card("Juan")).toContain("Diferencia$ 0");
+    expect(card("Juan")).toContain("Diferencia0 COP");
     expect(card("Juan")).toContain("Al día con el fondo");
     expect(card("Juan")).not.toContain("Le faltan");
   });
@@ -61,9 +61,9 @@ describe("fund tracking (HU-E9-10)", () => {
     const summary = screen.getByRole("region", { name: "Aportes al fondo" });
     const tiles = [...summary.querySelectorAll("dl > div")];
     expect(tiles.map((tile) => normalized(tile.textContent))).toEqual([
-      "Esperado$ 1.200.000",
-      "Aportado$ 980.000",
-      "Falta$ 220.000",
+      "Esperado1.200.000 COP",
+      "Aportado980.000 COP",
+      "Falta220.000 COP",
     ]);
     expect(tiles[2]).toHaveClass("bg-owe-soft");
     expect(tiles[0]).not.toHaveClass("bg-owe-soft");
@@ -105,9 +105,9 @@ describe("fund tracking (HU-E9-10)", () => {
     const sheet = await screen.findByRole("dialog", { name: "Ana · noviembre" });
     const amounts = [...sheet.querySelectorAll("[data-amount]")];
     expect(amounts.map((amount) => normalized(amount.textContent))).toEqual([
-      "$ 123.456.789",
-      "$ 123.456.789",
-      "$ 23.456.789",
+      "123.456.789 COP",
+      "123.456.789 COP",
+      "23.456.789 COP",
     ]);
     for (const amount of amounts) {
       expect(amount).toHaveClass("whitespace-nowrap");
@@ -148,7 +148,7 @@ describe("fund tracking (HU-E9-10)", () => {
       }),
     );
     expect(screen.getByText("Sin plan, nadie tiene un aporte esperado.")).toBeInTheDocument();
-    expect(card("Ana")).toContain("Aportado$ 100.000");
+    expect(card("Ana")).toContain("Aportado100.000 COP");
   });
 
   it("explains what expected means under the cards, and names a member who is gone", () => {
@@ -158,7 +158,7 @@ describe("fund tracking (HU-E9-10)", () => {
         "Esperado: lo asignado a cada uno en los rubros pagados con el fondo. Cuentan los aportes fechados en el período.",
       ),
     ).toBeInTheDocument();
-    expect(card("Miembro anterior")).toContain("Aportado$ 500.000");
+    expect(card("Miembro anterior")).toContain("Aportado500.000 COP");
   });
 
   it("leaves out a member with nothing expected and nothing paid in, and keeps one who paid in (#217)", () => {
@@ -174,7 +174,7 @@ describe("fund tracking (HU-E9-10)", () => {
       spaceMemberDto({ id: "m-tomas", userId: "u-tomas", displayName: "Tomás", role: "VIEWER" }),
     ]);
     expect(screen.queryByRole("listitem", { name: "Sofi" })).toBeNull();
-    expect(card("Tomás")).toContain("Aportado$ 30.000");
+    expect(card("Tomás")).toContain("Aportado30.000 COP");
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
@@ -200,13 +200,13 @@ describe("fund tracking (HU-E9-10)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Ver lo que le toca a Ana" }));
       const sheet = await screen.findByRole("dialog", { name: "Ana · noviembre" });
       const text = normalized(sheet.textContent);
-      expect(text).toContain("Le toca$ 1.680.000");
+      expect(text).toContain("Le toca1.680.000 COP");
       // P328: the total is what the fund pays (the lines paid with it), never the whole plan.
-      expect(text).toContain("42 % de lo que sale del fondo ($ 4.000.000)");
+      expect(text).toContain("42 % de lo que sale del fondo (4.000.000 COP)");
       expect(text).not.toContain("del plan");
-      expect(text).toContain("Arriendolo paga directo · ya pagado$ 1.200.000");
-      expect(text).toContain("Al fondo de Householdaportó $ 160.000 de $ 480.000$ 480.000");
-      expect(text).toContain("Le faltan$ 320.000");
+      expect(text).toContain("Arriendolo paga directo · ya pagado1.200.000 COP");
+      expect(text).toContain("Al fondo de Householdaportó 160.000 COP de 480.000 COP480.000 COP");
+      expect(text).toContain("Le faltan320.000 COP");
       expect(await axeViolations(sheet)).toEqual([]);
     });
 
@@ -223,7 +223,7 @@ describe("fund tracking (HU-E9-10)", () => {
       await userEvent.click(screen.getByRole("button", { name: /Ana/ }));
       const sheet = await screen.findByRole("dialog");
       const text = normalized(sheet.textContent);
-      expect(text).toContain("42 % of what the fund pays ($ 4.000.000)");
+      expect(text).toContain("42 % of what the fund pays (4.000.000 COP)");
       expect(text).not.toContain("plan");
     });
 
@@ -233,7 +233,7 @@ describe("fund tracking (HU-E9-10)", () => {
       const sheet = await screen.findByRole("dialog", { name: "Juan · noviembre" });
       expect(within(sheet).getAllByRole("listitem")).toHaveLength(2);
       expect(normalized(sheet.textContent)).toContain(
-        "Al fondo de Householdaportó $ 2.320.000 de $ 2.320.000",
+        "Al fondo de Householdaportó 2.320.000 COP de 2.320.000 COP",
       );
       expect(within(sheet).getByText("Al día")).toBeVisible();
     });

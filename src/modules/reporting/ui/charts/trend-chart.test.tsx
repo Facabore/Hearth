@@ -60,6 +60,6 @@ describe("trend chart (issue #192)", { timeout: 60_000 }, () => {
     expect(ticks.map((tick) => tick.getAttribute("font-weight"))).toEqual(["400", "400", "700"]);
     const tooltip = chart.querySelector("[data-tooltip]");
     expect(tooltip?.querySelector("[data-period]")?.textContent).toBe("nov 2026");
-    expect(tooltip?.querySelector("[data-value]")?.textContent).toBe(`$${NBSP}300.000`);
+    expect(tooltip?.querySelector("[data-value]")?.textContent).toBe(`300.000${NBSP}COP`);
   });
 });

@@ -24,7 +24,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
     expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.getByText("Tu plan de noviembre")).toBeInTheDocument();
     expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe(
-      "Te quedan $ 1.190.000 de $ 4.000.000",
+      "Te quedan 1.190.000 COP de 4.000.000 COP",
     );
     expect(screen.queryByText(/se pasó/)).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
@@ -35,7 +35,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
       <PlanCard dashboard={personal()} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
     );
     expect(normalized(card().textContent)).toBe(
-      "Tu plan de noviembre · Te quedan $ 1.190.000 de $ 4.000.000",
+      "Tu plan de noviembre · Te quedan 1.190.000 COP de 4.000.000 COP",
     );
     expect(card()).not.toHaveClass("bg-surface");
     expect(card()).not.toHaveClass("rounded-2xl");
@@ -59,7 +59,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
       const { container } = shared();
       const link = screen.getByRole("link", { name: /del plan$/ });
       expect(link).toHaveAttribute("href", "/spaces/sp-hogar/plan");
-      expect(normalized(link.textContent)).toBe("de $ 4.000.000 del plan");
+      expect(normalized(link.textContent)).toBe("de 4.000.000 COP del plan");
       // The bar is decoration: the words say it.
       const bar = container.querySelector("[data-plan-bar]");
       expect(bar).toHaveAttribute("aria-hidden", "true");
@@ -71,7 +71,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
     it("says how much the spending went past the plan, in words", () => {
       shared({ totals: { planned: cop(4_000_000), spent: cop(4_250_000), available: cop(-250_000) } });
       expect(normalized(screen.getByRole("link").textContent)).toBe(
-        "$ 250.000 por encima de $ 4.000.000 del plan",
+        "250.000 COP por encima de 4.000.000 COP del plan",
       );
       expect(screen.getByRole("link").textContent).not.toMatch(/[−-]/);
     });
@@ -87,7 +87,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
         />,
         { locale: "en" },
       );
-      expect(normalized(screen.getByRole("link").textContent)).toBe("of the $ 4.000.000 plan");
+      expect(normalized(screen.getByRole("link").textContent)).toBe("of the 4.000.000 COP plan");
     });
   });
 
@@ -107,7 +107,9 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
         href={HREF}
       />,
     );
-    expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe("Te quedan $ 590.000 de $ 3.400.000");
+    expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe(
+      "Te quedan 590.000 COP de 3.400.000 COP",
+    );
   });
 
   it("names a period that is not a calendar month by its dates", () => {
@@ -135,7 +137,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
       <PlanCard dashboard={dashboard} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
     );
     expect(normalized(screen.getByText(/se pasó/).textContent)).toBe(
-      "Salidas se pasó: $ 45.000 más de lo planeado",
+      "Salidas se pasó: 45.000 COP más de lo planeado",
     );
   });
 
@@ -152,7 +154,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
       <PlanCard dashboard={dashboard} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
     );
     expect(normalized(screen.getByText(/se pasó/).textContent)).toBe(
-      "Salidas se pasó: $ 45.000 más de lo planeado · y 2 más",
+      "Salidas se pasó: 45.000 COP más de lo planeado · y 2 más",
     );
   });
 
@@ -183,14 +185,14 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
       totals: { planned: cop(4_000_000), spent: cop(4_250_000), available: cop(-250_000) },
     });
     /** No-break spaces between symbol and digits, and no minus sign: the words carry the direction. */
-    const NBSP_AMOUNT = /\$\u00A0250\.000/;
+    const NBSP_AMOUNT = /250\.000\u00A0COP/;
 
     it("says how much it went over, in words, never with a minus sign", () => {
       renderWithIntl(
         <PlanCard dashboard={overspent} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
       );
       const text = screen.getByText(/^Te pasaste/).textContent;
-      expect(normalized(text)).toBe("Te pasaste $ 250.000 de $ 4.000.000 planeados");
+      expect(normalized(text)).toBe("Te pasaste 250.000 COP de 4.000.000 COP planeados");
       expect(text).toMatch(NBSP_AMOUNT);
       expect(text).not.toMatch(/[−-]/);
       expect(screen.queryByText(/^Te quedan/)).toBeNull();
@@ -202,7 +204,7 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
         { locale: "en" },
       );
       expect(normalized(screen.getByText(/over the/).textContent)).toBe(
-        "$ 250.000 over the $ 4.000.000 planned",
+        "250.000 COP over the 4.000.000 COP planned",
       );
     });
   });
@@ -215,6 +217,6 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
       },
     );
     expect(screen.getByText("Your November plan")).toBeInTheDocument();
-    expect(normalized(screen.getByText(/left of/).textContent)).toBe("$ 1.190.000 left of $ 4.000.000");
+    expect(normalized(screen.getByText(/left of/).textContent)).toBe("1.190.000 COP left of 4.000.000 COP");
   });
 });

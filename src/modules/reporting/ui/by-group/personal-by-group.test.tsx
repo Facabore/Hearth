@@ -60,14 +60,14 @@ describe("personal spending by group (HU-E9-11)", () => {
       <SpendingChart tree={treeOf(data.groups)} total={data.total} formats={BUILT_IN_FORMATS} note="Nota" />,
     );
     expect(rows()).toEqual([
-      ["Food", "$ 1.095.000", "68,44 %"],
-      ["Housing", "$ 480.000", "30,00 %"],
-      ["Household / Pets", "$ 25.000", "1,56 %"],
+      ["Food", "1.095.000 COP", "68,44 %"],
+      ["Housing", "480.000 COP", "30,00 %"],
+      ["Household / Pets", "25.000 COP", "1,56 %"],
     ]);
     await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
     expect(rows()).toEqual([
-      ["Groceries", "$ 1.035.000", "94,52 %"],
-      ["Restaurants", "$ 60.000", "5,48 %"],
+      ["Groceries", "1.035.000 COP", "94,52 %"],
+      ["Restaurants", "60.000 COP", "5,48 %"],
     ]);
   });
 
@@ -93,7 +93,7 @@ describe("personal spending by group (HU-E9-11)", () => {
     const origins = () => [...container.querySelectorAll("[data-origin]")].map((o) => o.textContent);
     expect(origins()).toEqual(["Personal y Household", "Household", "Grupo creado en Household"]);
     // The figures stay where they were; the origin is a line under the name.
-    expect(rows()[0]).toEqual(["Food", "$ 1.095.000", "68,44 %"]);
+    expect(rows()[0]).toEqual(["Food", "1.095.000 COP", "68,44 %"]);
     expect(await axeViolations(container)).toEqual([]);
     // A category level says nothing more.
     await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
@@ -120,7 +120,7 @@ describe("personal spending by group (HU-E9-11)", () => {
       <SpendingChart tree={treeOf(data.groups)} total={data.total} formats={BUILT_IN_FORMATS} note="Nota" />,
     );
     await userEvent.click(screen.getByRole("button", { name: /^Household \/ Pets/ }));
-    expect(rows()).toEqual([["Household / Vet", "$ 25.000", "100,00 %"]]);
+    expect(rows()).toEqual([["Household / Vet", "25.000 COP", "100,00 %"]]);
     expect(screen.getByRole("list", { name: "Categorías de Household / Pets" })).toBeInTheDocument();
     // Vet holds only the entry of what was spent in the category itself: there is no level under it.
     expect(screen.queryByRole("button", { name: /^Household \/ Vet/ })).toBeNull();
@@ -165,8 +165,8 @@ describe("personal spending by group (HU-E9-11)", () => {
     const { container } = renderWithIntl(
       <SpendingChart tree={treeOf(data.groups)} total={data.total} formats={BUILT_IN_FORMATS} note="Nota" />,
     );
-    expect(normalized(screen.getByText("Gasto total").closest("p")?.textContent)).toContain("$ 7");
-    expect(rows()[0]).toEqual(["Food", "$ 5", "11,11 %"]);
+    expect(normalized(screen.getByText("Gasto total").closest("p")?.textContent)).toContain("7 COP");
+    expect(rows()[0]).toEqual(["Food", "5 COP", "11,11 %"]);
     const bars = [...container.querySelectorAll<HTMLElement>("[data-bar]")];
     expect(bars.map((bar) => bar.style.width)).toEqual(["11.11%", "30%", "1.56%"]);
   });

@@ -45,18 +45,18 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     expect(day("28/10/2026")).toContain("Household");
     expect(day("28/10/2026")).toContain("Pendiente desde el 20/10/2026");
     expect(day("28/10/2026")).toContain("Estimado");
-    expect(day("28/10/2026")).toContain("−$ 180.000");
-    expect(day("28/10/2026")).toContain("Saldo proyectado $ 1.820.000");
-    expect(day("30/10/2026")).toContain("+$ 3.000.000");
-    expect(day("1/11/2026")).toContain("$ 100.000");
+    expect(day("28/10/2026")).toContain("−\u2060180.000 COP");
+    expect(day("28/10/2026")).toContain("Saldo proyectado 1.820.000 COP");
+    expect(day("30/10/2026")).toContain("+3.000.000 COP");
+    expect(day("1/11/2026")).toContain("100.000 COP");
     expect(day("1/11/2026")).toContain("No cambia tu disponible");
     expect(day("1/11/2026")).not.toContain("+$");
     const summary = normalized(screen.getByRole("region", { name: "Resumen de lo que viene" }).textContent);
-    expect(summary).toContain("Disponible hoy$ 2.000.000");
-    expect(summary).toContain("Entra$ 3.000.000");
-    expect(summary).toContain("Sale$ 300.000");
-    expect(summary).toContain("Al final$ 4.700.000");
-    expect(summary).toContain("Lo más bajo: $ 1.820.000 el 28/10/2026");
+    expect(summary).toContain("Disponible hoy2.000.000 COP");
+    expect(summary).toContain("Entra3.000.000 COP");
+    expect(summary).toContain("Sale300.000 COP");
+    expect(summary).toContain("Al final4.700.000 COP");
+    expect(summary).toContain("Lo más bajo: 1.820.000 COP el 28/10/2026");
     expect(await axeViolations(container)).toEqual([]);
   });
 
@@ -76,9 +76,9 @@ describe("the cash-flow calendar (#150, ruling P241 of M6c)", () => {
     const flow = cashFlowDto();
     flow.dates[1] = { ...flow.dates[1]!, balanceAfter: cop(7) };
     show({ ...flow, lowest: { date: "2026-11-05", balance: cop(-1) } });
-    expect(day("30/10/2026")).toContain("Saldo proyectado $ 7");
+    expect(day("30/10/2026")).toContain("Saldo proyectado 7 COP");
     const lowest = screen.getByText(/Lo más bajo/);
-    expect(normalized(lowest.textContent)).toBe("Lo más bajo: −$ 1 el 5/11/2026");
+    expect(normalized(lowest.textContent)).toBe("Lo más bajo: −\u20601 COP el 5/11/2026");
     expect(lowest).toHaveClass("text-owe-ink");
   });
 

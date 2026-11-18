@@ -70,7 +70,7 @@ describe("lazy trend chart (ruling P202, P220)", { timeout: 60_000 }, () => {
     expect(wrapper).not.toBeNull();
     fireEvent.mouseMove(wrapper!, { clientX: 250, clientY: 100 });
     await waitFor(() =>
-      expect(chart.querySelector("[data-tooltip] [data-value]")?.textContent).toBe(`$${NBSP}80.000`),
+      expect(chart.querySelector("[data-tooltip] [data-value]")?.textContent).toBe(`80.000${NBSP}COP`),
     );
   });
 

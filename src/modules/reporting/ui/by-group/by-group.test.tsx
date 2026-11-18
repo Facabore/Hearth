@@ -58,24 +58,24 @@ describe("spending by group (HU-E9-10)", () => {
   it("drills from groups to categories to subcategories and back through the breadcrumb", async () => {
     const { container } = show();
     expect(rows()).toEqual([
-      ["Housing", "$ 1.600.000", "56,94 %"],
-      ["Food", "$ 960.000", "34,16 %"],
-      ["Leisure", "$ 250.000", "8,90 %"],
+      ["Housing", "1.600.000 COP", "56,94 %"],
+      ["Food", "960.000 COP", "34,16 %"],
+      ["Leisure", "250.000 COP", "8,90 %"],
     ]);
     expect(await axeViolations(container)).toEqual([]);
     await userEvent.click(screen.getByRole("button", { name: /^Food/ }));
     expect(rows()).toEqual([
-      ["Groceries", "$ 900.000", "93,75 %"],
-      ["Restaurants", "$ 60.000", "6,25 %"],
+      ["Groceries", "900.000 COP", "93,75 %"],
+      ["Restaurants", "60.000 COP", "6,25 %"],
     ]);
     const trail = trailNav();
     expect(within(trail).getByText("Food")).toHaveAttribute("aria-current", "location");
     expect(screen.queryByRole("button", { name: /^Restaurants/ })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /^Groceries/ }));
     expect(rows()).toEqual([
-      ["Sin subcategoría", "$ 450.000", "50,00 %"],
-      ["Vegetables", "$ 270.000", "30,00 %"],
-      ["Meat", "$ 180.000", "20,00 %"],
+      ["Sin subcategoría", "450.000 COP", "50,00 %"],
+      ["Vegetables", "270.000 COP", "30,00 %"],
+      ["Meat", "180.000 COP", "20,00 %"],
     ]);
     expect(
       within(trail)
@@ -84,7 +84,7 @@ describe("spending by group (HU-E9-10)", () => {
     ).toEqual(["Todos los grupos", "Food"]);
     expect(within(trail).getByText("Groceries")).toHaveAttribute("aria-current", "location");
     expect(normalized(screen.getByText(/Total de Groceries/).closest("p")?.textContent)).toContain(
-      "$ 900.000",
+      "900.000 COP",
     );
     await userEvent.click(within(trail).getByRole("button", { name: "Food" }));
     expect(rows().map((r) => r[0])).toEqual(["Groceries", "Restaurants"]);
@@ -195,8 +195,8 @@ describe("spending by group (HU-E9-10)", () => {
     data.total = cop(7);
     data.groups[0] = { ...data.groups[0]!, share: "11.11", total: cop(5) };
     const { container } = show(data);
-    expect(normalized(screen.getByText("Gasto total").closest("p")?.textContent)).toContain("$ 7");
-    expect(rows()[0]).toEqual(["Housing", "$ 5", "11,11 %"]);
+    expect(normalized(screen.getByText("Gasto total").closest("p")?.textContent)).toContain("7 COP");
+    expect(rows()[0]).toEqual(["Housing", "5 COP", "11,11 %"]);
     const bars = [...container.querySelectorAll<HTMLElement>("[data-bar]")];
     expect(bars.map((bar) => bar.style.width)).toEqual(["11.11%", "34.16%", "8.9%"]);
     for (const bar of bars) expect(bar.parentElement).toHaveAttribute("aria-hidden", "true");

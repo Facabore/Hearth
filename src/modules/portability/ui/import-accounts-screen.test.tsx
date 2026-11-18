@@ -88,12 +88,12 @@ describe("¿Qué es cada cuenta? (P337, board 1)", () => {
   it("says who owes whom for a Persona, and why for Archivar, never by color alone", () => {
     renderAccounts();
     const line = (name: string) => plain(rowOf(name).querySelector("p + p")!.textContent);
-    expect(line("Ahorros Bancolombia")).toBe("$ 1.469.600");
-    expect(line("Visa Oro")).toBe("−$ 500.000");
-    expect(line("Mom Loan")).toBe("$ 500.000 · te debe");
-    expect(line("Jhon López")).toBe("−$ 120.000 · le debes");
-    expect(line("Cash")).toBe("$ 0 · igual a Efectivo");
-    expect(line("Card")).toBe("$ 0 · sin movimientos");
+    expect(line("Ahorros Bancolombia")).toBe("1.469.600 COP");
+    expect(line("Visa Oro")).toBe("−500.000 COP");
+    expect(line("Mom Loan")).toBe("500.000 COP · te debe");
+    expect(line("Jhon López")).toBe("−120.000 COP · le debes");
+    expect(line("Cash")).toBe("0 COP · igual a Efectivo");
+    expect(line("Card")).toBe("0 COP · sin movimientos");
   });
 
   it("sends the mapping the preview offers for the choice, and keeps the row in its section", async () => {
@@ -152,6 +152,6 @@ describe("¿Qué es cada cuenta? (P337, board 1)", () => {
       "People · 2",
       "Archive · 2",
     ]);
-    expect(plain(rowOf("Mom Loan").querySelector("p + p")!.textContent)).toBe("$ 500.000 · owes you");
+    expect(plain(rowOf("Mom Loan").querySelector("p + p")!.textContent)).toBe("500.000 COP · owes you");
   });
 });

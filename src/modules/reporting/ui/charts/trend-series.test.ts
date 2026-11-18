@@ -8,7 +8,7 @@ describe("trend series (ruling P202)", () => {
   it("plots major units and keeps each point's text from the app's formatter", () => {
     expect(pointOf(cop(1_300_000), BUILT_IN_FORMATS)).toEqual({
       value: 1_300_000,
-      text: `$${NBSP}1.300.000`,
+      text: `1.300.000${NBSP}COP`,
     });
     expect(pointOf(null, BUILT_IN_FORMATS)).toEqual({ value: null, text: null });
   });
@@ -35,7 +35,7 @@ describe("trend series (ruling P202)", () => {
     ]);
     // Board E9-11 03 (ruling P272): a short label under the axis when the caller gives one.
     expect(chartRows({ ...data, ticks: ["oct", "nov"] }).map((row) => row.tick)).toEqual(["oct", "nov"]);
-    expect(textAt(data, "l-pets", "noviembre 2026")).toBe(`$${NBSP}80.000`);
+    expect(textAt(data, "l-pets", "noviembre 2026")).toBe(`80.000${NBSP}COP`);
     expect(textAt(data, "l-pets", "octubre 2026")).toBeNull();
   });
 });

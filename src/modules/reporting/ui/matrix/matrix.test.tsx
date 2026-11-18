@@ -64,8 +64,8 @@ describe("one row per member first (#213, ruling P262)", () => {
   it("shows each member's total gap in words, and no per-line figure until it is opened", async () => {
     const { container } = show();
     expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(["Ana", "Juan"]);
-    expect(totalOf("Ana")).toBe("Le sobran $ 312.000 sobre su parte");
-    expect(totalOf("Juan")).toBe("Le faltan $ 482.000 de su parte");
+    expect(totalOf("Ana")).toBe("Le sobran 312.000 COP sobre su parte");
+    expect(totalOf("Juan")).toBe("Le faltan 482.000 COP de su parte");
     expect(screen.queryByRole("list", { name: /por rubro$/ })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
   });
@@ -96,8 +96,8 @@ describe("one row per member first (#213, ruling P262)", () => {
     expect(button).toHaveAccessibleName("Ocultar detalle de Juan");
     expect(memberSection("Juan")).toContainElement(screen.getByRole("list", { name: "Juan por rubro" }));
     const home = lineOf("Juan", "Home");
-    expect(home.gap).toBe("−$ 482.000 de menos");
-    expect(home.caption).toBe("Asignado $ 882.000 · Aportó $ 400.000 · Consumió $ 780.000");
+    expect(home.gap).toBe("−\u2060482.000 COP de menos");
+    expect(home.caption).toBe("Asignado 882.000 COP · Aportó 400.000 COP · Consumió 780.000 COP");
     // Ana's stays closed.
     expect(screen.queryByRole("list", { name: "Ana por rubro" })).toBeNull();
     expect(await axeViolations(container)).toEqual([]);
@@ -107,7 +107,7 @@ describe("one row per member first (#213, ruling P262)", () => {
 
   it("writes the total the API answers, never a sum of the lines (ruling P201)", () => {
     show(withTotal({ memberId: "m-ana", gap: cop(7), status: "OVER_CONTRIBUTED" }));
-    expect(totalOf("Ana")).toBe("Le sobran $ 7 sobre su parte");
+    expect(totalOf("Ana")).toBe("Le sobran 7 COP sobre su parte");
   });
 
   it("says a member is on target in words, without an arrow", () => {
@@ -131,7 +131,7 @@ describe("one row per member first (#213, ruling P262)", () => {
   it("says when no line gives a member a gap, and when the API sends no totals", () => {
     show(withTotal({ memberId: "m-ana", gap: null, status: null }));
     expect(totalOf("Ana")).toBe("Sin diferencia que comparar");
-    expect(totalOf("Juan")).toBe("Le faltan $ 482.000 de su parte");
+    expect(totalOf("Juan")).toBe("Le faltan 482.000 COP de su parte");
     document.body.innerHTML = "";
     show({ ...e7Matrix(), members: undefined });
     expect(totalOf("Ana")).toBe("Sin diferencia que comparar");
@@ -156,12 +156,12 @@ describe("one row per member first (#213, ruling P262)", () => {
 
   it("reads in English with the same figures", async () => {
     const { container } = show(withTotals(), "en");
-    expect(totalOf("Ana")).toBe("Over their share by $ 312.000");
-    expect(totalOf("Juan")).toBe("Short of their share by $ 482.000");
+    expect(totalOf("Ana")).toBe("Over their share by 312.000 COP");
+    expect(totalOf("Juan")).toBe("Short of their share by 482.000 COP");
     open("Ana", "Show detail by line for");
     const home = lineOf("Ana", "Home", "Ana by line");
-    expect(home.gap).toBe("+$ 312.000 over-contributed");
-    expect(home.caption).toBe("Assigned $ 588.000 · Contributed $ 900.000 · Consumed $ 520.000");
+    expect(home.gap).toBe("+312.000 COP over-contributed");
+    expect(home.caption).toBe("Assigned 588.000 COP · Contributed 900.000 COP · Consumed 520.000 COP");
     expect(lineOf("Ana", "Rent", "Ana by line").caption).toContain(
       "Contributions and gaps are tracked at the fund, not per line.",
     );
@@ -178,8 +178,8 @@ describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
     show();
     open("Ana");
     const home = lineOf("Ana", "Home");
-    expect(home.gap).toBe("+$ 312.000 de más");
-    expect(home.caption).toBe("Asignado $ 588.000 · Aportó $ 900.000 · Consumió $ 520.000");
+    expect(home.gap).toBe("+312.000 COP de más");
+    expect(home.caption).toBe("Asignado 588.000 COP · Aportó 900.000 COP · Consumió 520.000 COP");
   });
 
   it("writes TRACKED_AT_FUND_LEVEL inside Rent's own caption, with the link to the fund in that line", () => {
@@ -188,7 +188,7 @@ describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
     const rent = lineOf("Ana", "Rent");
     expect(rent.gap).toBe("");
     expect(rent.caption).toBe(
-      "Asignado $ 480.000 · Consumió $ 480.000 · Aportó y diferencia se siguen en el fondo, no por rubro.",
+      "Asignado 480.000 COP · Consumió 480.000 COP · Aportó y diferencia se siguen en el fondo, no por rubro.",
     );
     const link = within(rent.item).getByRole("link", { name: "Ver fondo" });
     expect(link).toHaveAttribute("href", "/spaces/sp-household/plan/fund?period=2026-11");
@@ -199,7 +199,7 @@ describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
     show();
     open("Ana");
     expect(lineOf("Ana", "Free").caption).toBe(
-      "Consumió $ 125.000 · Sin asignación por persona: solo se muestra lo consumido.",
+      "Consumió 125.000 COP · Sin asignación por persona: solo se muestra lo consumido.",
     );
   });
 
@@ -236,7 +236,7 @@ describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
       }),
     );
     open("Ana");
-    expect(lineOf("Ana", "Home").caption).toBe("Asignado $ 1 · Consumió $ 2 · Sin dato");
+    expect(lineOf("Ana", "Home").caption).toBe("Asignado 1 COP · Consumió 2 COP · Sin dato");
   });
 
   it("writes a savings line's note inline in its caption", () => {
@@ -266,9 +266,9 @@ describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
     );
     open("Ana");
     const home = lineOf("Ana", "Home");
-    expect(home.gap).toBe("−$ 240.000 de menos");
+    expect(home.gap).toBe("−\u2060240.000 COP de menos");
     expect(home.caption).toBe(
-      "Asignado $ 240.000 · Aportó $ 0 · Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.",
+      "Asignado 240.000 COP · Aportó 0 COP · Cuenta lo que llegó a las cuentas de ahorro del rubro; no tiene consumo.",
     );
   });
 
@@ -285,8 +285,8 @@ describe("a member's per-line detail (HU-E9-10, board E9-10 03)", () => {
     show();
     open("Ana");
     open("Juan");
-    expect(lineOf("Ana", "Home").gap).toMatch(/^\+\$ .* de más$/);
-    expect(lineOf("Juan", "Home").gap).toMatch(/^−\$ .* de menos$/);
+    expect(lineOf("Ana", "Home").gap).toMatch(/^\+.* COP de más$/);
+    expect(lineOf("Juan", "Home").gap).toMatch(/^−\u2060.* COP de menos$/);
   });
 
   it("says a period without a plan has nothing to compare", async () => {
@@ -355,7 +355,7 @@ describe("members with nothing in the period (#213, #217)", () => {
     showWith(withSofi([null, null, 40_000, null]));
     expect(totalOf("Sofi")).toBe("Al día con su parte");
     open("Sofi");
-    expect(lineOf("Sofi", "Free").caption).toContain("Consumió $ 40.000");
-    expect(lineOf("Sofi", "Home").caption).toBe("Asignado $ 0 · Aportó $ 0 · Consumió $ 0");
+    expect(lineOf("Sofi", "Free").caption).toContain("Consumió 40.000 COP");
+    expect(lineOf("Sofi", "Home").caption).toBe("Asignado 0 COP · Aportó 0 COP · Consumió 0 COP");
   });
 });
