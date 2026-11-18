@@ -1,19 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useIdempotencyKey } from "@/modules/ledger/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, ChoiceGroup, Icon, NumberField, ProblemNotice, Sheet, SymbolIcon } from "@/shared/ui";
 import { currencyOf } from "@/shared/ui/format/currencies";
+import { currencyName } from "@/shared/ui/format/currency-names";
 import { useToast } from "@/shared/ui/molecules/toast";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto, MoneyDto, SpaceDto, SuggestionDto } from "@/shared/ui/api/dto";
 import { AmountText } from "@/shared/ui/atoms/amount";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
-import { formatMoney, formatNumber, type Formats } from "@/shared/ui/format/formatters";
+import { decimalOf, formatMoney, formatNumber, NBSP, type Formats } from "@/shared/ui/format/formatters";
 import { browserTimeZone } from "@/shared/ui/format/zones";
 import { nowIn, occurredAtOf } from "@/shared/ui/time/when";
 import {
@@ -22,6 +24,7 @@ import {
   type SettlementDraft,
   type SettlementField,
 } from "./settlement-request";
+import { useSettleRate } from "./use-settle-rate";
 
 /** A chip's label wraps inside the screen however long a stored name is (320 px). */
 const wrapped = (text: string): ReactNode => (
@@ -55,13 +58,27 @@ export interface SettleUpSheetProps {
   readonly suggested?: boolean;
   /** The account this browser last paid from (#219), as the screen read it when the sheet opened. */
   readonly lastAccountId: string | null;
-  /** The account a payment starts on, on either side, from `myAccounts` and `lastAccountId` (#219, P312). */
-  readonly preferredAccountId: string | null;
+  /**
+   * The account a payment in a currency starts on, on either side, among `myAccounts` in that currency and from
+   * `lastAccountId` (#219, P312, P342). The screen computes it, so this lazy chunk carries no copy of that code (#296).
+   */
+  readonly preferredAccountId: (currency: string) => string | null;
   readonly formats: Formats;
   /** The zone the payment is dated in; by default the browser's. */
   readonly timeZone?: string;
+  /**
+   * Ruling P342 (owner, "Pedir una cuenta en esa moneda"): where creating an account goes, with a way back to this
+   * Saldar for the payer named; without it, a missing account offers only to settle in the debt's currency.
+   */
+  readonly newAccountHref?: (payerMemberId: string | null) => string;
   readonly api?: Api;
 }
+
+/** Ruling P342 (S5): the payment's side the viewer is on, "in" when they receive and "out" when they pay. */
+type Side = "in" | "out";
+
+/** A quiet action under the main one: a full 44 px target that wraps inside the screen (320 px). */
+const QUIET = "min-h-11 w-full rounded-[14px] px-2 py-2.5 text-base text-muted [overflow-wrap:anywhere]";
 
 /**
  * HU-E9-07, the SettleUp artboard (rulings P174 and P175): who pays whom and how much, prefilled from a suggestion or
@@ -80,6 +97,12 @@ export interface SettleUpSheetProps {
  * a Ana", over the amount; the account is a flat two-line row that opens its chooser; "Saldar otro monto" goes to the
  * amount, and "Perdonar en vez de cobrar" is the quiet action under the main one. The chip groups stay wherever there
  * is a real choice. The board's date row is not drawn: a payment is always dated now, so there is no picker to open.
+ *
+ * Ruling P342 (S5, board 3): a payment is in the debt's currency, chosen among the pair's debts when they owe in more
+ * than one ("500.000 COP · 50 USD · 60 EUR"), and only accounts in that currency are offered. "Te pagó en …" (or
+ * "Pagaste en …") settles it in another currency as an explicit exchange: the viewer types what moved in it, suggested
+ * from the server's conversion at the day's rate, into one of their accounts in that currency. Without such an account
+ * (owner, "Pedir una cuenta en esa moneda") the sheet offers to settle in the debt's currency or to create one.
  */
 export function SettleUpSheet({
   open,
@@ -95,9 +118,12 @@ export function SettleUpSheet({
   preferredAccountId,
   formats,
   timeZone,
+  newAccountHref,
   api: injected,
 }: SettleUpSheetProps) {
   const t = useTranslations("balances.settle");
+  const tx = useTranslations("balances.settle.exchange");
+  const locale = useLocale();
   const tBalances = useTranslations("balances");
   const tForgive = useTranslations("balances.forgive");
   const form = useTranslations("ledger.form");
@@ -116,11 +142,17 @@ export function SettleUpSheet({
     const last = myAccounts.find((account) => account.id === lastAccountId);
     return last ? [last, ...myAccounts.filter((account) => account !== last)] : myAccounts;
   }, [myAccounts, lastAccountId]);
-  const [draft, setDraft] = useState<SettlementDraft>(() => ({
-    ...initial,
-    sourceAccountId: initial.sourceAccountId ?? preferredAccountId,
-    destinationAccountId: initial.destinationAccountId ?? preferredAccountId,
-  }));
+  // P342: money moves in an account of its own currency, so each side is offered only the accounts in that currency.
+  const accountsIn = (code: string) => accounts.filter((account) => account.balance.currency === code);
+  const pick = preferredAccountId;
+  const [draft, setDraft] = useState<SettlementDraft>(() => {
+    const preferred = pick(initial.currency ?? space.currency);
+    return {
+      ...initial,
+      sourceAccountId: initial.sourceAccountId ?? preferred,
+      destinationAccountId: initial.destinationAccountId ?? preferred,
+    };
+  });
   const [unbuilt, setUnbuilt] = useState<SettlementField | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
@@ -128,7 +160,9 @@ export function SettleUpSheet({
   const [picking, setPicking] = useState<"sourceAccountId" | "destinationAccountId" | null>(null);
   const amountInput = useRef<HTMLInputElement>(null);
 
-  const currency = currencyOf(space.currency);
+  const code = draft.currency ?? space.currency;
+  const currency = currencyOf(code);
+  const nameOf = (one: string) => currencyName(one, locale);
   const meMemberId = members.find((member) => member.userId === meUserId)?.id ?? "";
   const memberOf = (id: string | null | undefined) => members.find((member) => member.id === id);
   const payer = memberOf(draft.payerMemberId);
@@ -136,22 +170,60 @@ export function SettleUpSheet({
   // P322: whose debt the viewer pays ("Lo pago yo"), and whether the sheet now forgives instead (board B8).
   const payingFor = memberOf(draft.onBehalfOfMemberId);
   const forgiving = draft.reason === "FORGIVENESS";
-  const request = (when: { date: string; occurredAt: string; timeZone: string }) =>
-    settlementRequestOf(draft, {
+  // P342 (board 3): the viewer's side of a plain payment between two people, where an exchange may be recorded.
+  const side: Side | null =
+    !forgiving && !payingFor && payer && receiver && payer.id !== receiver.id
+      ? receiver.id === meMemberId
+        ? "in"
+        : payer.id === meMemberId
+          ? "out"
+          : null
+      : null;
+  const sideField = side === "in" ? "destinationAccountId" : "sourceAccountId";
+  const legCode = side && draft.legCurrency && draft.legCurrency !== code ? draft.legCurrency : null;
+  const legAccounts = legCode ? accountsIn(legCode) : [];
+  const build = (from: SettlementDraft, when: { date: string; occurredAt: string; timeZone: string }) =>
+    settlementRequestOf(from, {
       currency: space.currency,
       numberFormat: formats.numberFormat,
       meMemberId,
       when,
     });
+  // What is settled, in the debt's currency, whatever moved in another.
+  const settled = build({ ...draft, legCurrency: null }, NO_TIME);
+  const amount = settled.ok ? (settled.body.amount as MoneyDto) : null;
+  const money = amount ? formatMoney(amount, formats) : "";
+  const zone = timeZone ?? browserTimeZone();
+  const rate = useSettleRate(
+    api,
+    legCode && amount && legAccounts.length > 0
+      ? { base: code, quote: legCode, on: nowIn(new Date(), zone).date, amount: amount.amount }
+      : null,
+  );
+  // The server's conversion is the suggestion until the person types their own figure.
+  const legShown =
+    draft.legAmount ??
+    (legCode && rate?.status === "found" && rate.converted !== null
+      ? formatNumber(decimalOf(rate.converted, currencyOf(legCode).exponent), formats)
+      : "");
+  const effective: SettlementDraft = legCode
+    ? { ...draft, legAmount: legShown }
+    : { ...draft, legCurrency: null };
+  const request = (when: { date: string; occurredAt: string; timeZone: string }) => build(effective, when);
   const preview = request(NO_TIME);
   const { key, renew } = useIdempotencyKey(preview.ok ? JSON.stringify(preview.body) : "");
-  const amount = preview.ok ? (preview.body.amount as MoneyDto) : null;
-  const money = amount ? formatMoney(amount, formats) : "";
+  const leg = preview.ok
+    ? (preview.body[side === "in" ? "destinationAmount" : "sourceAmount"] as MoneyDto | undefined)
+    : undefined;
+  const legMoney = leg ? formatMoney(leg, formats) : "";
 
   const debtOf = (from: MemberDto | undefined, to: MemberDto | undefined) =>
     from && to && from.id !== to.id
       ? suggestions.find(
-          (suggestion) => suggestion.payerMemberId === from.id && suggestion.receivingMemberId === to.id,
+          (suggestion) =>
+            suggestion.payerMemberId === from.id &&
+            suggestion.receivingMemberId === to.id &&
+            suggestion.amount.currency === code,
         )
       : undefined;
   const debt = debtOf(payer, receiver);
@@ -186,6 +258,8 @@ export function SettleUpSheet({
     debtOf(debtor, receiver) !== undefined &&
     (receiver.id === meMemberId || (receiver.kind === "GUEST" && manager));
 
+  // P342: while exchanging, what was received or paid is the only field shown, so the amount's problems go under it.
+  const legProblem = (field: SettlementField | "form" | null) => field === "leg" || field === "amount";
   const errorOf = (field: SettlementField): string | undefined => {
     if (unbuilt === field)
       return field === "payer"
@@ -195,18 +269,24 @@ export function SettleUpSheet({
             ? errors("InvalidSettlementParties")
             : t("receiverRequired")
           : form("amountUnreadable", { example: formatNumber("85000", formats) });
-    return problem && found === field ? messageOf(problem).message : undefined;
+    if (!problem) return undefined;
+    if (legCode && field === "leg") return legProblem(found) ? messageOf(problem).message : undefined;
+    return found === field ? messageOf(problem).message : undefined;
   };
   // A problem whose field the sheet does not show at the moment is shown over the form.
   const onForm =
     problem !== null &&
-    (found === "form" || (found === "gift" && (forgiving || !payingFor)) || (found === "payer" && forgiving));
+    (legCode
+      ? !legProblem(found)
+      : found === "form" ||
+        found === "leg" ||
+        (found === "gift" && (forgiving || !payingFor)) ||
+        (found === "payer" && forgiving));
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (pending) return;
     setProblem(null);
-    const zone = timeZone ?? browserTimeZone();
     const now = nowIn(new Date(), zone);
     const built = request({
       date: now.date,
@@ -299,15 +379,81 @@ export function SettleUpSheet({
       payerMemberId: debtor.id,
       receivingMemberId: receiver.id,
       amount: draft.amount,
+      currency: code,
       sourceAccountId: null,
       destinationAccountId: null,
       reason: "FORGIVENESS",
     });
   };
 
+  // P342 (S5): the debts the payer owes the receiver, one per currency; a choice among them when there is more than one
+  // currency to pay in, the one the sheet is on included.
+  const pairDebts =
+    payer && receiver
+      ? suggestions.filter(
+          (suggestion) =>
+            suggestion.payerMemberId === payer.id && suggestion.receivingMemberId === receiver.id,
+        )
+      : [];
+  const debtChoices = [
+    ...pairDebts.map((owed) => ({
+      value: owed.amount.currency,
+      label: (
+        <span className="block py-2.5 whitespace-nowrap tabular-nums">
+          {formatMoney(owed.amount, formats)}
+        </span>
+      ),
+    })),
+    ...(pairDebts.some((owed) => owed.amount.currency === code)
+      ? []
+      : [{ value: code, label: <span className="block py-2.5">{code}</span> }]),
+  ];
+  const chooseDebt = (chosen: string) => {
+    const owed = pairDebts.find((one) => one.amount.currency === chosen);
+    setProblem(null);
+    setUnbuilt(null);
+    setDraft({
+      ...draft,
+      currency: chosen,
+      amount: owed
+        ? formatNumber(decimalOf(owed.amount.amount, currencyOf(chosen).exponent), formats)
+        : draft.amount,
+      legCurrency: null,
+      legAmount: undefined,
+      sourceAccountId: pick(chosen),
+      destinationAccountId: pick(chosen),
+    });
+  };
+  // P342 (board 3): the other currencies the money may have moved in, the space's and those of the viewer's accounts.
+  const otherCurrencies =
+    side && amount
+      ? [...new Set([space.currency, ...myAccounts.map((account) => account.balance.currency)])].filter(
+          (one) => one !== code,
+        )
+      : [];
+  /** Settles in `chosen` as an exchange, or back in the debt's currency with null; the viewer's account follows it. */
+  const exchangeIn = (chosen: string | null) => {
+    setProblem(null);
+    setUnbuilt(null);
+    const account = pick(chosen ?? code);
+    setDraft({
+      ...draft,
+      legCurrency: chosen,
+      legAmount: undefined,
+      ...(side === "in" ? { destinationAccountId: account } : { sourceAccountId: account }),
+    });
+  };
+
   // P324: the account is a flat two-line row, the one chosen over its term; tapping it opens the chooser under it.
-  const accountsOf = (field: "sourceAccountId" | "destinationAccountId", label: string, visible: string) => {
-    const chosen = accounts.find((account) => account.id === draft[field])?.name ?? t("none");
+  // P342: only the accounts in the currency the money moved in; an exchange needs one, so it offers no Ninguna.
+  const accountsOf = (
+    field: "sourceAccountId" | "destinationAccountId",
+    label: string,
+    visible: string,
+    offered: readonly AccountDto[],
+    none = true,
+  ) => {
+    const chosen = offered.find((account) => account.id === draft[field])?.name ?? t("none");
     const open = picking === field;
     const pickerId = `settle-${field}-picker`;
     return (
@@ -334,8 +480,8 @@ export function SettleUpSheet({
               value={draft[field] ?? ""}
               onValueChange={(value) => setDraft({ ...draft, [field]: value === "" ? null : value })}
               options={[
-                { value: "", label: wrapped(t("none")) },
-                ...accounts.map((account) => ({
+                ...(none ? [{ value: "", label: wrapped(t("none")) }] : []),
+                ...offered.map((account) => ({
                   value: account.id,
                   label: (
                     <span className="flex max-w-full items-center gap-2 py-2.5 text-left [overflow-wrap:anywhere]">
@@ -380,7 +526,7 @@ export function SettleUpSheet({
       kind="money"
       numberFormat={formats.numberFormat}
       decimals={currency.exponent}
-      currency={space.currency}
+      currency={code}
       value={draft.amount}
       // Board 02: a prefilled amount needs no example; an empty one shows how to write one (#164).
       example={draft.amount === "" ? undefined : false}
@@ -410,46 +556,144 @@ export function SettleUpSheet({
       : t("save");
   const owedForgiven = forgiving ? debt : undefined;
 
+  // P342 (board 3): what an exchange says. The hint gives the day's rate as the server sent it, never computed here.
+  const exchangeHint = (base: string, quote: string) => {
+    const one = formatMoney(
+      { amount: (10n ** BigInt(currency.exponent)).toString(), currency: base },
+      formats,
+    );
+    const rated =
+      rate?.status === "found"
+        ? `${tx("rate", { one, rate: `${formatNumber(rate.rate, formats)}${NBSP}${quote}` })} ${tx("only")}`
+        : rate?.status === "missing"
+          ? `${tx("noRate")} ${tx("only")}`
+          : "";
+    return `${tx("write", { side: side ?? "in" })} ${rated}`.trim();
+  };
+  const joined = (amounts: readonly string[]) =>
+    amounts.length > 1
+      ? `${amounts.slice(0, -1).join(", ")} ${tx("and")} ${amounts.at(-1)}`
+      : (amounts[0] ?? "");
+  /** What the payer still owes the receiver once this is saved, in every currency, never converted. */
+  const remaining = pairDebts.flatMap((owed) => {
+    if (owed.amount.currency !== code) return [formatMoney(owed.amount, formats)];
+    const rest = amount ? BigInt(owed.amount.amount) - BigInt(amount.amount) : 0n;
+    return rest > 0n ? [formatMoney({ amount: rest.toString(), currency: code }, formats)] : [];
+  });
+  const legAccount = legAccounts.find((account) => account.id === draft[sideField]);
+  const exchangeSummary =
+    legCode && side && payer && receiver ? (
+      <p data-testid="exchange-summary" className={NOTE}>
+        <strong className="font-semibold">
+          <AmountText
+            text={
+              remaining.length > 0
+                ? tx("remaining", {
+                    me: side === "out" ? "yes" : "no",
+                    debtor: payer.displayName,
+                    amounts: joined(remaining),
+                  })
+                : tx("even", {
+                    me: side === "out" ? "yes" : "no",
+                    debtor: payer.displayName,
+                    receiver: receiver.displayName,
+                  })
+            }
+          />
+        </strong>
+        {legMoney && legAccount ? (
+          <>
+            {" "}
+            <AmountText
+              text={tx("moves", {
+                settles: settles(debt),
+                settled: money,
+                side,
+                account: legAccount.name,
+                amount: legMoney,
+              })}
+            />
+          </>
+        ) : null}
+      </p>
+    ) : null;
+  /** The way to settle in the debt's currency again, quiet under the main action. */
+  const backToDebt = (
+    <button type="button" onClick={() => exchangeIn(null)} className={QUIET}>
+      {tx("to", { side: side ?? "in", currency: nameOf(code) })}
+    </button>
+  );
+
   return (
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
       title={forgiving && payer ? tForgive("title", { name: payer.displayName }) : t("title")}
       description={
-        forgiving && payer && receiver && owedForgiven
-          ? tForgive("subtitle", {
-              space: space.name,
-              debtor: payer.displayName,
-              receiver: receiver.displayName,
-              amount: formatMoney(owedForgiven.amount, formats),
+        legCode && payer
+          ? tx("subtitle", {
+              side: side ?? "in",
+              amount: money,
+              payer: payer.displayName,
+              currency: nameOf(legCode),
             })
-          : suggested
-            ? t("prefilled", { space: space.name })
-            : space.name
+          : forgiving && payer && receiver && owedForgiven
+            ? tForgive("subtitle", {
+                space: space.name,
+                debtor: payer.displayName,
+                receiver: receiver.displayName,
+                amount: formatMoney(owedForgiven.amount, formats),
+              })
+            : suggested
+              ? t("prefilled", { space: space.name })
+              : space.name
       }
       footer={
-        <div className="flex flex-col gap-1">
-          <Button
-            type="submit"
-            form="settle-up-form"
-            // A label that names a member may wrap at 320 px: the button grows with it, never shorter than 56 px.
-            size={plain ? "lg" : "lgFlow"}
-            className={plain ? undefined : "min-h-14 py-3 [overflow-wrap:anywhere]"}
-            disabled={pending}
-          >
-            {footerLabel}
-          </Button>
-          {/* P324: forgiving is the quiet way out under the main action. */}
-          {forgivable ? (
-            <button
+        legCode && legAccounts.length === 0 ? (
+          // Owner ("Pedir una cuenta en esa moneda"): without an account in that currency, the debt's or a new account.
+          <div className="flex flex-col gap-1">
+            <Button
               type="button"
-              onClick={startForgiving}
-              className="min-h-11 w-full rounded-[14px] px-2 py-2.5 text-base text-muted [overflow-wrap:anywhere]"
+              size="lgFlow"
+              className="min-h-14 py-3 [overflow-wrap:anywhere]"
+              onClick={() => exchangeIn(null)}
             >
-              {t("forgive")}
-            </button>
-          ) : null}
-        </div>
+              {tx("settleIn", { currency: nameOf(code) })}
+            </Button>
+            {newAccountHref ? (
+              <Link
+                href={newAccountHref(draft.payerMemberId)}
+                className={`${QUIET} flex items-center justify-center font-semibold text-accent`}
+              >
+                {tx("createAccount", { currency: nameOf(legCode) })}
+              </Link>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <Button
+              type="submit"
+              form="settle-up-form"
+              // A label that names a member may wrap at 320 px: the button grows with it, never shorter than 56 px.
+              size={plain && !legCode ? "lg" : "lgFlow"}
+              className={plain && !legCode ? undefined : "min-h-14 py-3 [overflow-wrap:anywhere]"}
+              disabled={pending}
+            >
+              {legCode
+                ? legMoney
+                  ? tx("save", { amount: money, leg: legMoney })
+                  : tx("saveBare", { amount: money })
+                : footerLabel}
+            </Button>
+            {legCode ? backToDebt : null}
+            {/* P324: forgiving is the quiet way out under the main action. */}
+            {forgivable && !legCode ? (
+              <button type="button" onClick={startForgiving} className={QUIET}>
+                {t("forgive")}
+              </button>
+            ) : null}
+          </div>
+        )
       }
     >
       <form
@@ -474,6 +718,46 @@ export function SettleUpSheet({
               />
             ) : null}
           </>
+        ) : legCode && side ? (
+          // P342 (board 3): what moved in the other currency, against what is settled in the debt's.
+          legAccounts.length === 0 ? (
+            <p className={NOTE}>{tx("noAccount", { currency: nameOf(legCode) })}</p>
+          ) : (
+            <>
+              {/* The settled amount reads over the field, so the field keeps the screen's width at 320 px. */}
+              <div className="flex flex-col gap-1">
+                <p data-testid="exchange-equals" className="text-lg font-semibold text-ink tabular-nums">
+                  <AmountText text={tx("equals", { amount: money })} />
+                </p>
+                <div>
+                  <NumberField
+                    id="settle-leg"
+                    label={tx("label", { side })}
+                    kind="money"
+                    numberFormat={formats.numberFormat}
+                    decimals={currencyOf(legCode).exponent}
+                    currency={legCode}
+                    value={legShown}
+                    example={false}
+                    hint={<AmountText text={exchangeHint(code, legCode)} />}
+                    error={errorOf("leg")}
+                    onChange={(typed) => setDraft({ ...draft, legAmount: typed })}
+                    large
+                  />
+                </div>
+              </div>
+              {legAccounts.length > 1
+                ? accountsOf(
+                    sideField,
+                    side === "in" ? t("toName") : t("fromName"),
+                    side === "in" ? t("toName") : t("fromName"),
+                    legAccounts,
+                    false,
+                  )
+                : null}
+              {exchangeSummary}
+            </>
+          )
         ) : (
           <>
             {fixed && payer && receiver ? (
@@ -535,6 +819,18 @@ export function SettleUpSheet({
                 <FieldError id="settle-gift-error" message={errorOf("gift")} />
               </div>
             ) : null}
+            {!payingFor && new Set(debtChoices.map((choice) => choice.value)).size > 1 ? (
+              <div className="flex flex-col gap-2">
+                <FieldLabel>{t("debts")}</FieldLabel>
+                <ChoiceGroup
+                  label={t("debts")}
+                  layout="chips"
+                  value={code}
+                  onValueChange={chooseDebt}
+                  options={debtChoices}
+                />
+              </div>
+            ) : null}
             <div className="flex flex-col gap-1.5">
               {amountField}
               {/* P324: on a fixed suggestion the line and the amount already say it, so the sentence is not repeated. */}
@@ -586,11 +882,26 @@ export function SettleUpSheet({
                 </span>
               </p>
             ) : null}
-            {payer?.id === meMemberId && myAccounts.length > 0
-              ? accountsOf("sourceAccountId", t("from"), t("fromName"))
+            {payer?.id === meMemberId && accountsIn(code).length > 0
+              ? accountsOf("sourceAccountId", t("from"), t("fromName"), accountsIn(code))
               : null}
-            {receiver?.id === meMemberId && myAccounts.length > 0
-              ? accountsOf("destinationAccountId", t("to"), t("toName"))
+            {receiver?.id === meMemberId && accountsIn(code).length > 0
+              ? accountsOf("destinationAccountId", t("to"), t("toName"), accountsIn(code))
+              : null}
+            {/* P342 (board 3): each other currency the money may have moved in, as a link of its own. */}
+            {side
+              ? otherCurrencies.map((other) => (
+                  <Button
+                    key={other}
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    className="-ml-2 self-start"
+                    onClick={() => exchangeIn(other)}
+                  >
+                    {tx("to", { side, currency: nameOf(other) })}
+                  </Button>
+                ))
               : null}
             {suggested ? (
               <Button

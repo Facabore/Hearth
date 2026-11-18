@@ -6,7 +6,13 @@ import type { SettlementDraft } from "./settlement-prefill";
 
 export { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
-export type SettlementField = "payer" | "receiver" | "amount" | "gift";
+export type SettlementField = "payer" | "receiver" | "amount" | "gift" | "leg";
+
+/** Minor units of a typed amount in `currency`, or null when it does not read as one. */
+const minorIn = (typed: string, currency: string, numberFormat: NumberFormat): string | null => {
+  const decimal = parseDecimal(typed, numberFormat);
+  return decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
+};
 
 /**
  * HU-E5-02, ruling P174: a settlement recorded now. An account is named only on the viewer's own side, where it is one
@@ -14,6 +20,10 @@ export type SettlementField = "payer" | "receiver" | "amount" | "gift";
  *
  * Ruling P322: a payment for someone else names that member and whether it is a gift; a forgiveness names no account,
  * since no money moves. A draft with neither sends exactly the body it sent before.
+ *
+ * Ruling P342 (S5): the amount is in the draft's currency (the debt's), the space's when it has none. An exchange
+ * (board 3) sends what really moved in the other currency on the viewer's side, `destinationAmount` when they received
+ * into their account and `sourceAmount` when they paid from theirs; it needs that account, in that currency.
  */
 export const settlementRequestOf = (
   draft: SettlementDraft,
@@ -27,12 +37,12 @@ export const settlementRequestOf = (
   const { payerMemberId, receivingMemberId } = draft;
   if (!payerMemberId) return { ok: false, field: "payer" };
   if (!receivingMemberId || receivingMemberId === payerMemberId) return { ok: false, field: "receiver" };
-  const decimal = parseDecimal(draft.amount, input.numberFormat);
-  const minor = decimal === null ? null : minorOf(decimal, currencyOf(input.currency).exponent);
+  const currency = draft.currency ?? input.currency;
+  const minor = minorIn(draft.amount, currency, input.numberFormat);
   if (minor === null) return { ok: false, field: "amount" };
   const body: Record<string, unknown> = {
     ...input.when,
-    amount: { amount: minor, currency: input.currency },
+    amount: { amount: minor, currency },
     payerMemberId,
     receivingMemberId,
   };
@@ -45,12 +55,26 @@ export const settlementRequestOf = (
     body.sourceAccountId = draft.sourceAccountId;
   if (receivingMemberId === input.meMemberId && draft.destinationAccountId)
     body.destinationAccountId = draft.destinationAccountId;
+  const { legCurrency } = draft;
+  if (!legCurrency || legCurrency === currency || draft.onBehalfOfMemberId) return { ok: true, body };
+  const side =
+    receivingMemberId === input.meMemberId
+      ? ({ account: "destinationAccountId", leg: "destinationAmount" } as const)
+      : payerMemberId === input.meMemberId
+        ? ({ account: "sourceAccountId", leg: "sourceAmount" } as const)
+        : null;
+  if (side === null) return { ok: true, body };
+  const leg = minorIn(draft.legAmount ?? "", legCurrency, input.numberFormat);
+  if (leg === null || body[side.account] === undefined) return { ok: false, field: "leg" };
+  body[side.leg] = { amount: leg, currency: legCurrency };
   return { ok: true, body };
 };
 
 const BY_CODE: Readonly<Record<string, SettlementField>> = {
   InvalidAmount: "amount",
   CurrencyMismatch: "amount",
+  ExchangeAccountRequired: "leg",
+  ExchangeRateRequired: "leg",
   InvalidSettlementParties: "receiver",
   NotASpaceMember: "payer",
   GuestHasNoAccounts: "payer",
@@ -67,6 +91,8 @@ const BY_PATH: Readonly<Record<string, SettlementField>> = {
   destinationAccountId: "receiver",
   onBehalfOfMemberId: "payer",
   gift: "gift",
+  sourceAmount: "leg",
+  destinationAmount: "leg",
 };
 
 /** Ruling P118: the field an API problem belongs to, else the form. */

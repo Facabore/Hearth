@@ -12,38 +12,51 @@ import {
 } from "../recurring-pending/queries";
 import { myBalancesQuery, myFriendsQuery } from "../shell";
 
+/** Ruling P342 (S4): a balance's nets, one per currency and never converted; an older API's `net` alone otherwise. */
+const netsOf = (b: MyBalanceDto): readonly MyBalanceDto["net"][] =>
+  b.nets ?? (BigInt(b.net.amount) === 0n ? [] : [b.net]);
+
 /**
  * Board B1 · 03 (ruling P278): each space where it is the person's turn to put money in, and whom she pays first:
- * every shared one on the personal home, this one on a shared home.
+ * every shared one on the personal home, this one on a shared home. Ruling P342: in any currency, the space's first;
+ * one line per space, in the first currency she owes in (the line opens that space's Saldos, where each one shows).
  */
 const owesOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], space: SpaceDto) =>
   balances
-    .filter((b) => BigInt(b.net.amount) < 0n && (space.kind === "PERSONAL" || b.spaceId === space.id))
+    .filter((b) => space.kind === "PERSONAL" || b.spaceId === space.id)
     .flatMap((b) => {
       const named = spaces.find((s) => s.id === b.spaceId);
-      if (!named) return [];
-      const first = b.payments[0];
+      const owed = netsOf(b).find((net) => BigInt(net.amount) < 0n);
+      if (!named || !owed) return [];
+      const first = b.payments.find((p) => p.amount.currency === owed.currency) ?? b.payments[0];
       return [
         {
           spaceId: b.spaceId,
           space: named.name,
           memberId: b.memberId,
-          amount: { amount: (-BigInt(b.net.amount)).toString(), currency: b.net.currency },
+          amount: { amount: (-BigInt(owed.amount)).toString(), currency: owed.currency },
           to: b.members.find((m) => m.memberId === first?.receivingMemberId)?.name,
         },
       ];
     });
 
-/** #288: each space where the others owe the person: every one on the personal home, this one on a shared home. */
+/**
+ * #288: each space where the others owe the person: every one on the personal home, this one on a shared home. Ruling
+ * P342: one figure per currency owed to her, never converted.
+ */
 const owedOf = (balances: readonly MyBalanceDto[], spaces: readonly SpaceDto[], space: SpaceDto) =>
   balances
-    .filter((b) => BigInt(b.net.amount) > 0n && (space.kind === "PERSONAL" || b.spaceId === space.id))
+    .filter((b) => space.kind === "PERSONAL" || b.spaceId === space.id)
     .flatMap((b) => {
       const named = spaces.find((s) => s.id === b.spaceId);
       // The API names no debtor; in a space of two, it can only be the other member.
       const others = b.members.filter((m) => m.memberId !== b.memberId);
       const from = others.length === 1 ? others[0]!.name : undefined;
-      return named ? [{ spaceId: b.spaceId, space: named.name, amount: b.net, from }] : [];
+      return named
+        ? netsOf(b)
+            .filter((net) => BigInt(net.amount) > 0n)
+            .map((amount) => ({ spaceId: b.spaceId, space: named.name, amount, from }))
+        : [];
     });
 
 /**

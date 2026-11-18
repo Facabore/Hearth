@@ -95,6 +95,7 @@ function SpaceBalances({ spaceId }: { readonly spaceId: string }) {
         myAccounts={[...myAccounts]}
         settle={settle}
         timeZone={me.timezone}
+        personalSpaceId={personalSpaceOf(spaces).id}
       />
     </div>
   );

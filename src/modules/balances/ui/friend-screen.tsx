@@ -326,9 +326,16 @@ export function FriendScreen({
           initial={settling.draft}
           suggested={settling.suggested}
           lastAccountId={settling.lastAccountId}
-          preferredAccountId={preferredAccountId(myAccounts, settling.lastAccountId)}
+          preferredAccountId={(currency) =>
+            preferredAccountId(
+              myAccounts.filter((account) => account.balance.currency === currency),
+              settling.lastAccountId,
+            )
+          }
           formats={formats}
           timeZone={timeZone}
+          // P342 (owner): a new account in the personal space comes back to this person's screen.
+          newAccountHref={() => withReturnTo(`/spaces/${personalSpaceId}/accounts/new`, here)}
           api={api}
         />
       ) : null}

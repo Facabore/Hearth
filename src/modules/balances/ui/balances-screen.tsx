@@ -26,6 +26,7 @@ import {
 } from "@/shared/ui/atoms/amount";
 import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatSignedMoney, type Formats } from "@/shared/ui/format/formatters";
+import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { absolute, memberSentence, netsOf, netState } from "./net-state";
 import { prefillOf, type SettlementDraft } from "./settlement-prefill";
 
@@ -94,6 +95,7 @@ export function BalancesScreen({
   myAccounts = [],
   settle,
   timeZone,
+  personalSpaceId,
   api,
 }: {
   readonly space: SpaceDto;
@@ -107,6 +109,8 @@ export function BalancesScreen({
   /** A member id from `?settle=`: the sheet opens with that member paying. */
   readonly settle?: string | undefined;
   readonly timeZone?: string;
+  /** The viewer's personal space, where Saldar's "Crear una cuenta" creates one (P342, owner decision). */
+  readonly personalSpaceId?: string;
   readonly api?: Api;
 }) {
   const t = useTranslations("balances");
@@ -342,9 +346,24 @@ export function BalancesScreen({
           initial={settling.draft}
           suggested={settling.suggested}
           lastAccountId={settling.lastAccountId}
-          preferredAccountId={preferredAccountId(myAccounts, settling.lastAccountId)}
+          preferredAccountId={(currency) =>
+            preferredAccountId(
+              myAccounts.filter((account) => account.balance.currency === currency),
+              settling.lastAccountId,
+            )
+          }
           formats={formats}
           timeZone={timeZone}
+          // P342 (owner): a new account in the personal space comes back to Saldar, with the same payer.
+          newAccountHref={
+            personalSpaceId
+              ? (payer) =>
+                  withReturnTo(
+                    `/spaces/${personalSpaceId}/accounts/new`,
+                    `/spaces/${space.id}/balances${payer ? `?settle=${encodeURIComponent(payer)}` : ""}`,
+                  )
+              : undefined
+          }
           api={api}
         />
       ) : null}

@@ -153,7 +153,27 @@
       "givingFor": "{settles, select, yes {Le pagas {amount} a {receiver} por {debtor} y se los regalas. {receiver} y {debtor} quedan al día; nadie te debe.} other {Le pagas {amount} a {receiver} por {debtor} y se los regalas; nadie te debe.}}",
       "payFor": "Pagar por {name}",
       "payAndGive": "Pagar y regalar",
-      "forgive": "Perdonar en vez de cobrar"
+      "forgive": "Perdonar en vez de cobrar",
+      "debts": "Qué deuda saldas",
+      "exchange": {
+        "to": "{side, select, out {Pagaste en {currency}} other {Te pagó en {currency}}}",
+        "subtitle": "{side, select, out {Saldas {amount} · Pagaste en {currency}} other {Saldas {amount} · {payer} te pagó en {currency}}}",
+        "label": "{side, select, out {Pagaste} other {Te pagó}}",
+        "equals": "{amount} =",
+        "write": "{side, select, out {Escribe lo que pagaste.} other {Escribe lo que recibiste.}}",
+        "rate": "Tasa del día: {one} = {rate}.",
+        "noRate": "No hay tasa del día entre estas monedas; escribe la cifra.",
+        "only": "Nada más se convierte.",
+        "remaining": "{me, select, yes {Quedas debiendo {amounts}.} other {{debtor} queda debiendo {amounts}.}}",
+        "even": "{me, select, yes {Quedas al día con {receiver}.} other {{debtor} queda al día contigo.}}",
+        "moves": "{settles, select, yes {Los {settled} quedan saldados;} other {Abonas {settled};}} {side, select, out {{account} baja {amount}.} other {{account} sube {amount}.}}",
+        "and": "y",
+        "save": "Saldar {amount} con {leg}",
+        "saveBare": "Saldar {amount}",
+        "noAccount": "Para saldar en {currency} necesitas una cuenta tuya en {currency}, donde queda el cambio.",
+        "settleIn": "Saldar en {currency}",
+        "createAccount": "Crear una cuenta en {currency}"
+      }
     },
     "forgive": {
       "title": "¿Perdonar la deuda de {name}?",

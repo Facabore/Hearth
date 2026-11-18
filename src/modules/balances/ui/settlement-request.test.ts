@@ -120,10 +120,10 @@ describe("settlement request (HU-E9-07, ruling P174)", () => {
     };
     expect(
       prefillOf({ suggestion, meMemberId: "m-juan", currency: "COP", numberFormat: "DOT_COMMA" }),
-    ).toEqual(draft());
+    ).toEqual(draft({ currency: "COP" }));
     expect(
       prefillOf({ suggestion: null, meMemberId: "m-ana", currency: "COP", numberFormat: "DOT_COMMA" }),
-    ).toEqual(draft({ payerMemberId: null, receivingMemberId: "m-ana", amount: "" }));
+    ).toEqual(draft({ payerMemberId: null, receivingMemberId: "m-ana", amount: "", currency: "COP" }));
     expect(
       prefillOf({
         suggestion: null,
@@ -133,5 +133,43 @@ describe("settlement request (HU-E9-07, ruling P174)", () => {
         numberFormat: "DOT_COMMA",
       }),
     ).toMatchObject({ payerMemberId: "m-pedro", receivingMemberId: "m-ana" });
+  });
+
+  it("prefills a suggestion in its own currency, not the space's (ruling P342, S5)", () => {
+    const suggestion = {
+      payerMemberId: "m-juan",
+      receivingMemberId: "m-ana",
+      amount: { amount: "5000", currency: "USD" },
+    };
+    expect(
+      prefillOf({ suggestion, meMemberId: "m-ana", currency: "COP", numberFormat: "DOT_COMMA" }),
+    ).toMatchObject({ amount: "50", currency: "USD" });
+  });
+
+  it("sends the explicit leg on the viewer's side only, with its account, or asks for it (ruling P342, S5)", () => {
+    const usd = { currency: "USD", amount: "50", legCurrency: "COP", legAmount: "205.000" };
+    const received = settlementRequestOf(
+      draft({ ...usd, payerMemberId: "m-ana", receivingMemberId: "m-juan", destinationAccountId: "a-bank" }),
+      input,
+    );
+    expect(received.ok && received.body).toMatchObject({
+      amount: { amount: "5000", currency: "USD" },
+      destinationAccountId: "a-bank",
+      destinationAmount: { amount: "20500000", currency: "COP" },
+    });
+    const paid = settlementRequestOf(draft({ ...usd, sourceAccountId: "a-davi" }), input);
+    expect(paid.ok && paid.body).toMatchObject({ sourceAmount: { amount: "20500000", currency: "COP" } });
+    expect(settlementRequestOf(draft(usd), input)).toEqual({ ok: false, field: "leg" });
+    expect(settlementRequestOf(draft({ ...usd, sourceAccountId: "a-davi", legAmount: "" }), input)).toEqual({
+      ok: false,
+      field: "leg",
+    });
+    const others = settlementRequestOf(draft({ ...usd, payerMemberId: "m-luis" }), input);
+    expect(others.ok && others.body).not.toHaveProperty("sourceAmount");
+  });
+
+  it("puts the exchange's API problems on the leg", () => {
+    for (const code of ["ExchangeAccountRequired", "ExchangeRateRequired"])
+      expect(settlementFieldOf({ code, status: 422, title: code, errors: [] } as never)).toBe("leg");
   });
 });

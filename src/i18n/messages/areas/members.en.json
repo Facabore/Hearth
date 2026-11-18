@@ -153,7 +153,27 @@
       "givingFor": "{settles, select, yes {You pay {receiver} {amount} for {debtor} as a gift. {receiver} and {debtor} are settled up; nobody owes you.} other {You pay {receiver} {amount} for {debtor} as a gift; nobody owes you.}}",
       "payFor": "Pay for {name}",
       "payAndGive": "Pay as a gift",
-      "forgive": "Forgive instead of collecting"
+      "forgive": "Forgive instead of collecting",
+      "debts": "Which debt you settle",
+      "exchange": {
+        "to": "{side, select, out {You paid in {currency}} other {Paid you in {currency}}}",
+        "subtitle": "{side, select, out {You settle {amount} · You paid in {currency}} other {You settle {amount} · {payer} paid you in {currency}}}",
+        "label": "{side, select, out {You paid} other {Paid you}}",
+        "equals": "{amount} =",
+        "write": "{side, select, out {Enter what you paid.} other {Enter what you received.}}",
+        "rate": "Today's rate: {one} = {rate}.",
+        "noRate": "There's no rate for today between these currencies; enter the figure.",
+        "only": "Nothing else is converted.",
+        "remaining": "{me, select, yes {You still owe {amounts}.} other {{debtor} still owes {amounts}.}}",
+        "even": "{me, select, yes {You're even with {receiver}.} other {{debtor} is even with you.}}",
+        "moves": "{settles, select, yes {The {settled} are settled;} other {You pay {settled} of it;}} {side, select, out {{account} goes down {amount}.} other {{account} goes up {amount}.}}",
+        "and": "and",
+        "save": "Settle {amount} with {leg}",
+        "saveBare": "Settle {amount}",
+        "noAccount": "To settle in {currency} you need an account of yours in {currency}, where the exchange is recorded.",
+        "settleIn": "Settle in {currency}",
+        "createAccount": "Create an account in {currency}"
+      }
     },
     "forgive": {
       "title": "Forgive {name}'s debt?",

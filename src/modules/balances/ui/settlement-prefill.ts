@@ -8,8 +8,16 @@ import { decimalOf, formatNumber, type NumberFormat } from "@/shared/ui/format/f
 export interface SettlementDraft {
   readonly payerMemberId: string | null;
   readonly receivingMemberId: string | null;
-  /** As typed, in the person's number format. */
+  /** As typed, in the person's number format, in `currency`. */
   readonly amount: string;
+  /** Ruling P342 (S5): the debt's currency, the payment's; absent, the space's. */
+  readonly currency?: string;
+  /**
+   * Ruling P342 (S5, board 3): the other currency the money really moved in, an explicit exchange, and what moved in
+   * it as typed (absent until typed: the sheet then shows the server's conversion). Only the viewer's side has one.
+   */
+  readonly legCurrency?: string | null;
+  readonly legAmount?: string;
   readonly sourceAccountId: string | null;
   readonly destinationAccountId: string | null;
   /** Ruling P322 ("Lo pago yo"): the member whose debt the viewer pays; absent when the payer pays their own. */
@@ -20,7 +28,10 @@ export interface SettlementDraft {
   readonly reason?: "PAYMENT" | "FORGIVENESS";
 }
 
-/** Ruling P175: a suggestion fills in payer, receiver and amount; otherwise the viewer receives, from `payerMemberId`. */
+/**
+ * Ruling P175: a suggestion fills in payer, receiver and amount; otherwise the viewer receives, from `payerMemberId`.
+ * Ruling P342 (S5): a suggestion's amount stays in its own currency; with none, the payment is in the space's.
+ */
 export const prefillOf = (input: {
   readonly suggestion: SuggestionDto | null;
   readonly payerMemberId?: string | null;
@@ -29,13 +40,15 @@ export const prefillOf = (input: {
   readonly numberFormat: NumberFormat;
 }): SettlementDraft => {
   const { suggestion } = input;
+  const currency = suggestion?.amount.currency ?? input.currency;
   const amount = suggestion
-    ? formatNumber(decimalOf(suggestion.amount.amount, currencyOf(input.currency).exponent), input)
+    ? formatNumber(decimalOf(suggestion.amount.amount, currencyOf(currency).exponent), input)
     : "";
   return {
     payerMemberId: suggestion?.payerMemberId ?? input.payerMemberId ?? null,
     receivingMemberId: suggestion?.receivingMemberId ?? input.meMemberId,
     amount,
+    currency,
     sourceAccountId: null,
     destinationAccountId: null,
   };
