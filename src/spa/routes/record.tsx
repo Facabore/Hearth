@@ -98,7 +98,12 @@ function RecordFormScreen({
         returnTo={returnTo ?? null}
         holdNavigation={holdNavigation}
         api={api}
-        spaces={viewer.spaces.filter((space) => controlsFor(space.role, space.kind).recordMoney)}
+        // Ruling P338: a pair's direct space lives in Amigos, not among the spaces; only the one the form is in stays.
+        spaces={viewer.spaces.filter(
+          (space) =>
+            controlsFor(space.role, space.kind).recordMoney &&
+            (space.kind !== "DIRECT" || space.id === spaceId),
+        )}
         onCategoryCreated={(made) => {
           // Ruling P308: the space's trees hold the new category at once (the form's and the one the screens behind
           // it name rows with), and every read of them is redone.

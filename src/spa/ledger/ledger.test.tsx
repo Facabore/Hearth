@@ -418,6 +418,30 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.querySelector('button[aria-pressed="true"]')).toBeNull();
   });
 
+  it("leaves a pair's direct space out of the space picker, unless the form is in it (P338)", async () => {
+    const mama = spaceDto({ id: "sp-mama", name: "Ana & Mamá", kind: "DIRECT", role: "OWNER" });
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace(), mama] }),
+    });
+    renderSpa("/spaces/sp-personal/new", routes);
+    await userEvent.click(await screen.findByRole("button", { name: /^Espacio: Personal/ }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.form.spaceTitle });
+    expect(within(sheet).getByRole("button", { name: /Household/ })).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: /Ana & Mamá/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the direct space a friend's Registrar con opened in the picker, marked as the current one (P338)", async () => {
+    const mama = spaceDto({ id: "sp-mama", name: "Ana & Mamá", kind: "DIRECT", role: "OWNER" });
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces": () => jsonResponse({ items: [spaceDto(), householdSpace(), mama] }),
+    });
+    renderSpa("/spaces/sp-mama/new", routes);
+    await userEvent.click(await screen.findByRole("button", { name: /^Espacio: Ana & Mamá/ }));
+    const sheet = await screen.findByRole("dialog", { name: es.ledger.form.spaceTitle });
+    expect(within(sheet).getByRole("button", { name: /Ana & Mamá/ })).toHaveAttribute("aria-current", "true");
+    expect(within(sheet).getByRole("button", { name: /Personal/ })).toBeVisible();
+  });
+
   it("creates a category in the form's space from its picker, chooses it, and reads the space's tree again (P308)", async () => {
     let tree = rowContext.groups;
     // A MEMBER, who does not manage the tree, creates one (P308).
