@@ -6,12 +6,15 @@ import {
   positiveAmount,
   recordExpense,
   recordFundContribution,
+  withLegs,
+  type AccountLeg,
   type Expense,
   type Payment,
+  type Transfer,
 } from "../domain/transaction";
-import { authorizeWriter, openPeriod, usableCategory } from "./checks";
+import { authorizeWriter, fundAccount, openPeriod, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { baseAmountOf, withAccountLegs } from "./foreign-amount";
+import { recordedLegOf } from "./foreign-amount";
 import { resolvePayments, type PaymentInput } from "./payments";
 import { contributionParties } from "./record-fund-contribution";
 import type { DefaultSplitQuery } from "./ports";
@@ -19,21 +22,32 @@ import { whenOf, type WhenInput } from "./when";
 
 export type { PaymentInput } from "./payments";
 
+/** Spec 5.2, P342: one requested payment, in the expense's currency, and what its account moved in its own currency. */
+export interface ExpensePaymentInput extends PaymentInput {
+  /**
+   * P342 (S3): what the paying account really moved, in the account's currency, when that is not the expense's; when
+   * absent, the payment at the date's rate. Only for a payment from an account.
+   */
+  readonly accountAmount?: Money;
+}
+
 export interface RecordExpenseInput extends Omit<WhenInput, "userId"> {
   readonly spaceId: string;
   readonly userId: string;
   readonly description?: string;
   readonly categoryId?: string;
+  /** P342 (S3): what was charged, in its own currency, which the expense, its payments and its shares keep. */
   readonly amount: Money;
   /**
-   * D29, slice MC3: the real amount in the space's base currency the bank charged, when `amount` is in another
-   * currency; it wins over the rate. Ignored when `amount` is already in the base currency.
+   * P342 (S3): what the sole paying account really moved, in the account's currency, when that is not `amount`'s ("Tu
+   * Visa Oro en pesos pagó 205.000 COP"); when absent, `amount` at the date's rate. It goes with `accountId`, a sole
+   * entry of `payments` that has none of its own, or, with `paidForFund`, the contributor's account.
    */
-  readonly convertedAmount?: Money;
+  readonly accountAmount?: Money;
   /** HU-E4-01 shorthand: the requester pays the whole amount from this account of theirs. Ignored with `payments`. */
   readonly accountId?: string;
   /** HU-E4-07: who paid, registered members, guests or the shared fund; the v1 UI offers one payer. */
-  readonly payments?: readonly PaymentInput[];
+  readonly payments?: readonly ExpensePaymentInput[];
   /** HU-E4-07/08: how the amount is shared; when absent, the default split (spec 5.3, HU-E6-08). */
   readonly split?: SplitInput;
   /**
@@ -79,6 +93,21 @@ const defaultSplit = async (
     : { method: "BY_ALLOCATION", participants: weights };
 };
 
+/**
+ * P342 (S3): each requested payment's account amount, in order: its own, or for a sole payment the expense's
+ * `accountAmount` (never the fund's payment when paying for it: that one is the contributor's); with several payments
+ * the expense's one names none of them (InvalidTransferLeg).
+ */
+const paymentAccountAmounts = (
+  input: RecordExpenseInput,
+  requested: readonly ExpensePaymentInput[],
+): Result<(Money | undefined)[]> => {
+  const own = requested.map((payment) => payment.accountAmount);
+  if (input.accountAmount === undefined || input.paidForFund !== undefined) return ok(own);
+  if (requested.length !== 1) return err(domainError("InvalidTransferLeg"));
+  return ok([own[0] ?? input.accountAmount]);
+};
+
 /** HU-E4-10: the fund may go negative; the expense is recorded and the response warns. */
 export const fundWarnings = async (
   deps: Pick<LedgerDeps, "accountBalances">,
@@ -118,55 +147,31 @@ export const createRecordExpense =
       if (forFund !== undefined && (input.accountId !== undefined || input.payments !== undefined)) {
         return err(domainError("InvalidPaidForFund", { reason: "payerGiven" }));
       }
-      // D29, slice MC3, section 4.3: this slice converts one paying account only. A foreign amount split across several
-      // payers, or paid for the fund, is not yet supported (shares, Saldos and the plan stay in the base currency).
-      const foreign = input.amount.currency.code !== space.currency;
-      if (foreign && (forFund !== undefined || (input.payments !== undefined && input.payments.length > 1))) {
-        return err(
-          domainError("MultiCurrencyUnsupported", {
-            reason: forFund !== undefined ? "paidForFund" : "multiPayer",
-          }),
-        );
-      }
-      // D29, spec 5.2: a foreign expense's single payment, when given, is what was entered, as the base path's payments
-      // must be in its currency (CurrencyMismatch) and add up to its amount (SharesDoNotMatchAmount).
-      const sole = foreign ? input.payments?.[0] : undefined;
-      if (sole !== undefined && sole.amount.currency.code !== input.amount.currency.code) {
-        return err(
-          domainError("CurrencyMismatch", {
-            expected: input.amount.currency.code,
-            actual: sole.amount.currency.code,
-          }),
-        );
-      }
-      if (sole !== undefined && sole.amount.minor !== input.amount.minor) {
-        return err(domainError("SharesDoNotMatchAmount"));
+      // P342 (S3): the expense, its payments and its shares are in the currency it was charged in. Paying for the fund
+      // is the fund's own payment, so it takes only an expense in the fund's currency (no exchange inside the pair).
+      const currency = input.amount.currency.code;
+      if (forFund !== undefined) {
+        const fund = await fundAccount(deps, forFund.fundAccountId, space.spaceId);
+        if (fund.ok && fund.value.currency !== currency) {
+          return err(domainError("MultiCurrencyUnsupported", { reason: "paidForFund" }));
+        }
       }
       // HU-E4-14: the recorder's zone unless the request names one (ruling P41).
       const when = await whenOf(deps, input);
       if (!when.ok) return when;
       const { date, occurredAt, timeZone } = when.value;
-      // D29 section 4.2: the stored base amount (space currency) and, for a foreign amount, the original kept with it;
-      // the rate lookup is a read inside the already-held space lock (#89).
-      const base = await baseAmountOf(deps, space, input.amount, input.convertedAmount, date);
-      if (!base.ok) return base;
-      // D26: for the fund, the fund pays the expense with what the member contributes to it. The payment amount is the
-      // base (space currency); a foreign amount becomes a single base payment, its account leg attached below.
-      const requested: readonly PaymentInput[] = foreign
-        ? [
-            {
-              memberId: input.payments?.[0]?.memberId ?? space.memberId,
-              accountId: input.payments?.[0]?.accountId ?? input.accountId ?? null,
-              amount: base.value.base,
-            },
-          ]
-        : forFund === undefined
+      // D26: for the fund, the fund pays the expense with what the member contributes to it.
+      const requested: readonly ExpensePaymentInput[] =
+        forFund === undefined
           ? (input.payments ?? [
               { memberId: space.memberId, accountId: input.accountId ?? null, amount: input.amount },
             ])
           : [{ memberId: null, accountId: forFund.fundAccountId, amount: input.amount }];
-      const resolved = await resolvePayments(deps, space, members, requested, input.userId);
+      // P342: every payment is in the expense's currency (CurrencyMismatch), which resolvePayments checks as `currency`.
+      const resolved = await resolvePayments(deps, { ...space, currency }, members, requested, input.userId);
       if (!resolved.ok) return resolved;
+      const accountAmounts = paymentAccountAmounts(input, requested);
+      if (!accountAmounts.ok) return accountAmounts;
       const contributor =
         forFund === undefined
           ? ok(null)
@@ -185,15 +190,15 @@ export const createRecordExpense =
           date,
           ...defaultSplitMembers(members),
         }));
-      const shares = splitShares(base.value.base, split, memberIds);
+      const shares = splitShares(input.amount, split, memberIds);
       if (!shares.ok) return shares;
       const expense = recordExpense({
         id: deps.ids.next<"Transaction">(),
         spaceId: space.spaceId,
         description: input.description,
         date,
-        amount: base.value.base.minor,
-        currency: space.currency,
+        amount: input.amount.minor,
+        currency,
         createdBy: input.userId,
         occurredAt,
         timeZone,
@@ -201,13 +206,23 @@ export const createRecordExpense =
         categoryId: category.value,
         payments: resolved.value,
         shares: shares.value,
-        ...(base.value.original === undefined
-          ? {}
-          : { originalAmount: base.value.original.amount, originalCurrency: base.value.original.currency }),
       });
       if (!expense.ok) return expense;
-      // D29, section 4.1: each paying account's leg in its own currency whenever it is not the base.
-      const legged = await withAccountLegs(deps, space, expense.value, [input.amount]);
+      // P342 (S3): each paying account in another currency keeps what it moved; the rate lookup is a read inside the
+      // already-held space lock (#89).
+      const legs: (AccountLeg | null)[] = [];
+      for (const [index, payment] of requested.entries()) {
+        const leg = await recordedLegOf(
+          deps,
+          resolved.value[index]!.accountId,
+          payment.amount,
+          accountAmounts.value[index],
+          date,
+        );
+        if (!leg.ok) return leg;
+        legs.push(leg.value);
+      }
+      const legged = withLegs(expense.value, { payments: legs }) as Result<Expense>;
       if (!legged.ok) return legged;
       if (contributor.value === null) {
         await deps.transactions.add(legged.value);
@@ -222,7 +237,7 @@ export const createRecordExpense =
         description: input.description,
         date,
         amount: amount.value,
-        currency: space.currency,
+        currency,
         createdBy: input.userId,
         occurredAt,
         timeZone,
@@ -232,7 +247,19 @@ export const createRecordExpense =
         destinationAccountId: contributor.value.fundAccountId,
       });
       if (!contribution.ok) return contribution;
-      const contributed = await withAccountLegs(deps, space, contribution.value, []);
+      // P342: the contributor's account keeps what it moved when it is not in the fund's (the expense's) currency.
+      const source = await recordedLegOf(
+        deps,
+        contributor.value.sourceAccountId,
+        input.amount,
+        input.accountAmount,
+        date,
+      );
+      if (!source.ok) return source;
+      const contributed = withLegs(contribution.value, {
+        source: source.value,
+        destination: null,
+      }) as Result<Transfer>;
       if (!contributed.ok) return contributed;
       const pair = payForFund(contributed.value, legged.value);
       if (!pair.ok) return pair;

@@ -2,7 +2,7 @@ import { flatMap, type Money, type Result } from "@/shared/kernel";
 import { positiveAmount, recordIncome, type Income } from "../domain/transaction";
 import { accountInSpace, authorizeWriter, openPeriod, ownAccount, usableCategory } from "./checks";
 import type { LedgerDeps } from "./deps";
-import { accountLegOf, baseAmountOf } from "./foreign-amount";
+import { recordedLegOf } from "./foreign-amount";
 import { whenOf, type WhenInput } from "./when";
 
 export interface RecordIncomeInput extends Omit<WhenInput, "userId"> {
@@ -10,14 +10,15 @@ export interface RecordIncomeInput extends Omit<WhenInput, "userId"> {
   readonly userId: string;
   readonly description?: string;
   readonly categoryId?: string;
+  /** P342 (S3): what was received, in its own currency, which the income keeps. */
   readonly amount: Money;
   /** The requester's own account in this space that receives the money. */
   readonly accountId: string;
   /**
-   * D29, slice MC3: the real amount in the space's base currency the bank credited, when `amount` is in another
-   * currency; it wins over the rate. Ignored when `amount` is already in the base currency.
+   * P342 (S3): what the account really received, in the account's currency, when that is not `amount`'s; when absent,
+   * `amount` at the date's rate.
    */
-  readonly convertedAmount?: Money;
+  readonly accountAmount?: Money;
 }
 
 export type RecordIncome = (input: RecordIncomeInput) => Promise<Result<Income>>;
@@ -43,18 +44,13 @@ export const createRecordIncome =
       const { date, occurredAt, timeZone } = when.value;
       const open = await openPeriod(deps, space.spaceId, date);
       if (!open.ok) return open;
-      // D29 section 4.2: the stored base amount (space currency) and, for a foreign amount, the original kept with it;
-      // the rate lookup is a read inside the already-held space lock (#89).
-      const base = await baseAmountOf(deps, space, input.amount, input.convertedAmount, date);
-      if (!base.ok) return base;
-      // D29, section 4.1: the destination leg in the account's own currency whenever it is not the base: what was
-      // entered when the account holds that currency, else the base amount at the date's rate.
-      const destination = await accountLegOf(
+      // P342 (S3): the destination account keeps what it received when it is not in the income's currency; the rate
+      // lookup is a read inside the already-held space lock (#89).
+      const destination = await recordedLegOf(
         deps,
-        space,
         account.value.id,
-        base.value.base,
-        [input.amount],
+        input.amount,
+        input.accountAmount,
         date,
       );
       if (!destination.ok) return destination;
@@ -63,8 +59,8 @@ export const createRecordIncome =
         spaceId: space.spaceId,
         description: input.description,
         date,
-        amount: base.value.base.minor,
-        currency: space.currency,
+        amount: input.amount.minor,
+        currency: input.amount.currency.code,
         createdBy: input.userId,
         occurredAt,
         timeZone,
@@ -72,9 +68,6 @@ export const createRecordIncome =
         categoryId: category.value,
         destinationAccountId: account.value.id,
         receivingMemberId: space.memberId,
-        ...(base.value.original === undefined
-          ? {}
-          : { originalAmount: base.value.original.amount, originalCurrency: base.value.original.currency }),
         destination: destination.value,
       });
       if (!income.ok) return income;

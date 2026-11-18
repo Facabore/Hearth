@@ -12,13 +12,10 @@ export interface BaseAmount {
 }
 
 /**
- * D29 section 4.2, D30: the base amount (the space's base currency) a recorded movement stores, and its original.
+ * D29 section 4.2, D30: the base amount (the space's base currency) an edit of a movement stores, and its original.
  *
- * - An amount already in the base currency is unchanged: the base is it, and nothing original is kept (the path every
- *   caller before MC3 takes, byte for byte).
- * - An amount in another currency keeps the original, and its base is the real `convertedAmount` when the person gave
- *   one (what the bank charged, which must be in the base currency, else `CurrencyMismatch`), otherwise the date's rate
- *   (`ExchangeRateRequired` when no rate connects the currencies that day). The base's positivity is the domain's.
+ * @deprecated P342 (S3): recording no longer converts (an expense or income keeps its own currency); only the edit path
+ * (`edited-amount.ts`) still calls this, until its slice drops it. Do not add callers.
  */
 export const baseAmountOf = async (
   deps: Pick<LedgerDeps, "rates">,
@@ -57,25 +54,59 @@ export const convertedAt = async (
 };
 
 /**
- * D29, section 4.1: an account's leg, what the movement moves it by in its own currency. Null when the account is in the
- * base currency (it moves by `base`) or there is no account. Otherwise the amount `known` in the account's currency
- * (what was entered, or what arrived), else `base` converted at the date's rate (ExchangeRateRequired without one).
+ * D29 section 4.1, P342: an account's leg, what the movement moves it by in its own currency. Null when there is no
+ * account or the account is in the movement's own currency (`amount`'s, which is what it moves by). Otherwise the amount
+ * `known` in the account's currency (what was entered, or what arrived), else `amount` converted at the date's rate
+ * (ExchangeRateRequired without one). `space` is no longer read (P342: the movement's currency decides, not the space's);
+ * it stays for the callers that still pass it.
  */
 export const accountLegOf = async (
   deps: Pick<LedgerDeps, "accounts" | "rates">,
   space: Pick<SpaceMembership, "currency">,
   accountId: string | null,
-  base: Money,
+  amount: Money,
   known: readonly Money[],
   date: LocalDate,
 ): Promise<Result<AccountLeg | null>> => {
   if (accountId === null) return ok(null);
   const account = await deps.accounts.find(accountId);
-  if (account === null || account.currency === space.currency) return ok(null);
+  if (account === null || account.currency === amount.currency.code) return ok(null);
   const currency = account.currency;
-  const entered = known.find((amount) => amount.currency.code === currency);
+  const entered = known.find((money) => money.currency.code === currency);
   if (entered !== undefined) return ok({ amount: entered.minor, currency });
-  return map(await convertedAt(deps, base, currency, date), (leg) => ({ amount: leg.minor, currency }));
+  return map(await convertedAt(deps, amount, currency, date), (leg) => ({ amount: leg.minor, currency }));
+};
+
+/**
+ * P342 (S3): the leg of an account that pays or receives `amount` (in the movement's own currency) when a person records
+ * it. Exchange is explicit: an account in the movement's currency moves by `amount` (no leg); one in another currency
+ * moves by `accountAmount`, what it really moved, which must be in the account's currency (CurrencyMismatch), else by
+ * `amount` at the date's rate, the suggestion (ExchangeRateRequired when no rate connects them that day). An
+ * `accountAmount` on an account in the movement's currency must be `amount` itself, and one without an account has
+ * nothing to move (both InvalidTransferLeg). The leg's positivity is the domain's.
+ */
+export const recordedLegOf = async (
+  deps: Pick<LedgerDeps, "accounts" | "rates">,
+  accountId: string | null,
+  amount: Money,
+  accountAmount: Money | undefined,
+  date: LocalDate,
+): Promise<Result<AccountLeg | null>> => {
+  if (accountId === null)
+    return accountAmount === undefined ? ok(null) : err(domainError("InvalidTransferLeg"));
+  const account = await deps.accounts.find(accountId);
+  if (account === null) return ok(null);
+  const currency = account.currency;
+  if (accountAmount !== undefined && accountAmount.currency.code !== currency) {
+    return err(domainError("CurrencyMismatch", { expected: currency, actual: accountAmount.currency.code }));
+  }
+  if (currency === amount.currency.code) {
+    return accountAmount === undefined || accountAmount.minor === amount.minor
+      ? ok(null)
+      : err(domainError("InvalidTransferLeg"));
+  }
+  if (accountAmount !== undefined) return ok({ amount: accountAmount.minor, currency });
+  return map(await convertedAt(deps, amount, currency, date), (leg) => ({ amount: leg.minor, currency }));
 };
 
 /**
@@ -88,11 +119,10 @@ export const legsOf = async (
   tx: Transaction,
   known: readonly Money[],
 ): Promise<Result<TransactionLegs>> => {
-  const inBase = (minor: bigint) => Money.ofMinor(minor, tx.currency);
   const legOf = async (accountId: string | null, minor: bigint, knownHere: readonly Money[]) => {
-    const base = inBase(minor);
-    if (!base.ok) return base;
-    return accountLegOf(deps, space, accountId, base.value, knownHere, tx.date);
+    const moved = Money.ofMinor(minor, tx.currency);
+    if (!moved.ok) return moved;
+    return accountLegOf(deps, space, accountId, moved.value, knownHere, tx.date);
   };
   if (tx.type === "EXPENSE") {
     const payments: (AccountLeg | null)[] = [];

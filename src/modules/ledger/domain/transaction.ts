@@ -211,14 +211,12 @@ interface NewTransaction {
   /** HU-E4-14: both absent for a transaction without a time. */
   readonly occurredAt?: Date | null;
   readonly timeZone?: string | null;
-  /** D29, slice MC3: what was charged, in `originalCurrency`, when it differs from the base `amount`; both or neither. */
-  readonly originalAmount?: bigint;
-  readonly originalCurrency?: string;
 }
 
 /**
  * D29, slice MC3: the original amount and its currency come together and are positive, or neither is present (the
- * movement is wholly in the base currency).
+ * movement is wholly in the base currency). P342: a new movement is stored in its own currency and keeps no original;
+ * only an edit of a movement recorded before it still sets or clears one (`withOriginal`).
  */
 const originalOf = (
   amount: bigint | undefined,
@@ -240,8 +238,6 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
   if ((occurredAt === null) !== (timeZone === null)) return err(domainError("InvalidTransactionTime"));
   const description = descriptionOf(input.description);
   if (!description.ok) return description;
-  const original = originalOf(input.originalAmount, input.originalCurrency);
-  if (!original.ok) return original;
   return ok({
     id: input.id,
     spaceId: input.spaceId,
@@ -256,7 +252,6 @@ const baseOf = (input: NewTransaction): Result<TransactionBase> => {
     updatedAt: input.now,
     deletedAt: null,
     version: 1,
-    ...original.value,
   });
 };
 
@@ -285,7 +280,7 @@ export const recordIncome = (
     readonly categoryId: string;
     readonly destinationAccountId: string;
     readonly receivingMemberId: string;
-    /** D29, slice MC3: the destination account's leg in its own currency, when that currency is not the base. */
+    /** D29, P342: the destination account's leg in its own currency, when that is not the income's. */
     readonly destination?: AccountLeg | null;
   },
 ): Result<Income> => {
@@ -502,15 +497,15 @@ export const mayForgive = (
     ? recorder.role === "OWNER" || recorder.role === "ADMIN"
     : receiver.userId === recorder.userId;
 
-/** D29, section 4.1: an account's leg, the movement in that account's own currency when it is not the base. */
+/** D29 section 4.1, P342: an account's leg, the movement in that account's own currency when it is not the movement's. */
 export interface AccountLeg {
   readonly amount: bigint;
   readonly currency: string;
 }
 
 /**
- * D29, section 4.1: the legs of a transaction's accounts, null for an account in the base currency (its leg is the base
- * amount) or no account: an expense's in payment order, the others' source and destination.
+ * D29 section 4.1, P342: the legs of a transaction's accounts, null for an account in the movement's own currency (it
+ * moves by the amount) or no account: an expense's in payment order, the others' source and destination.
  */
 export interface TransactionLegs {
   readonly payments?: readonly (AccountLeg | null)[];

@@ -19,7 +19,11 @@ export const authorizeWriter = async (
   return authorizeSpaceAction(deps.access, spaceId, userId, "money.record");
 };
 
-/** D6, D29: the base `amount` is in the space's base currency (a later slice keeps the original in another currency). */
+/**
+ * D6, D29: `money` is in the space's currency. P342: expenses and incomes no longer pass through it (they keep their own
+ * currency; an expense's payments are checked against the expense's); settlements, contributions, recurrences and edits
+ * still do until their slices.
+ */
 export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<Money> =>
   money.currency.code === space.currency
     ? ok(money)
