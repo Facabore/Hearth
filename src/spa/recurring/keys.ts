@@ -10,4 +10,6 @@ export const recurrenceKeys = {
     ["recurrences", spaceId, "upcoming", recurrenceId] as const,
   /** "Por confirmar" (P270), under the same space key, so a confirmation or a skip invalidates it with the rest. */
   pending: (spaceId: string) => ["recurrences", spaceId, "pending"] as const,
+  /** #338: every space's "Por confirmar" in one read, for the personal Inicio; a write in any space invalidates it. */
+  minePending: () => ["recurrences", "mine", "pending"] as const,
 };

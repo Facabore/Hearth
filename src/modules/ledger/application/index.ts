@@ -188,6 +188,12 @@ export {
   type SkipOccurrence,
 } from "./pending-occurrences";
 export {
+  createListMyPendingOccurrences,
+  type ListMyPendingOccurrences,
+  type MyPendingOccurrence,
+  type MyPendingOccurrencesDeps,
+} from "./list-my-pending-occurrences";
+export {
   createGetAccountUsage,
   USAGE_WINDOW_DAYS,
   type AccountUsage,

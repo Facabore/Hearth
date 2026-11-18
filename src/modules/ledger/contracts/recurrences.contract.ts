@@ -387,6 +387,14 @@ export const extensionEndDateFromBody = (
 /** HU-E4-13: the space's pending occurrences, earliest date first (not paginated, ruling P28). */
 export const PendingOccurrenceListSchema = z.object({ items: z.array(OccurrenceSchema) });
 
+/**
+ * #338: the person's pending occurrences in every current space of hers, each with its space: space by space in the
+ * order of her space list, each space's earliest date first.
+ */
+export const MyPendingOccurrenceListSchema = z.object({
+  items: z.array(OccurrenceSchema.extend({ spaceId: z.string() })),
+});
+
 /** HU-E4-13: the real amount, and optionally another day of the occurrence's period. */
 export const ConfirmOccurrenceBodySchema = z.object({
   amount: MoneySchema,
@@ -625,6 +633,23 @@ export const recurrencesPaths: ZodOpenApiPathsObject = {
           content: jsonContent(PendingOccurrenceListSchema),
         },
         ...problems({ "401": "Unauthenticated", "404": "SpaceNotFound" }),
+      },
+    },
+  },
+  "/api/v1/me/pending-occurrences": {
+    get: {
+      operationId: "listMyPendingOccurrences",
+      summary:
+        "The signed-in person's pending occurrences in every one of her current spaces, each with its space (#338)",
+      description:
+        "What each space's pending-occurrences read answers, in one request: space by space in the order of the person's space list, each space's earliest first. Archived spaces are not listed, and a space whose own read refuses the person is left out.",
+      ...securedByUser,
+      responses: {
+        "200": {
+          description: "Pending occurrences of the person's current spaces",
+          content: jsonContent(MyPendingOccurrenceListSchema),
+        },
+        ...problems({ "401": "Unauthenticated" }),
       },
     },
   },

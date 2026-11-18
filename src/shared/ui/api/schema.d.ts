@@ -1168,6 +1168,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/pending-occurrences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The signed-in person's pending occurrences in every one of her current spaces, each with its space (#338)
+         * @description What each space's pending-occurrences read answers, in one request: space by space in the order of the person's space list, each space's earliest first. Archived spaces are not listed, and a space whose own read refuses the person is left out.
+         */
+        get: operations["listMyPendingOccurrences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/spaces/{spaceId}/pending-occurrences/{occurrenceId}/skip": {
         parameters: {
             query?: never;
@@ -8495,6 +8515,52 @@ export interface operations {
             };
             /** @description SpaceNotFound */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    listMyPendingOccurrences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending occurrences of the person's current spaces */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            recurrenceId: string;
+                            /** @enum {string} */
+                            type: "EXPENSE" | "INCOME" | "TRANSFER" | "FUND_CONTRIBUTION";
+                            description: string;
+                            /** Format: date */
+                            date: string;
+                            /** @enum {string} */
+                            status: "RECORDED" | "PENDING" | "SKIPPED";
+                            amount: components["schemas"]["MoneyOutput"];
+                            categoryId: string | null;
+                            transactionId: string | null;
+                            reason: string | null;
+                            spaceId: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

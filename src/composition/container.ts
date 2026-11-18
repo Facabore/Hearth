@@ -152,8 +152,10 @@ import {
   occurrenceRecorders,
   type MaterializeDeps,
   type MaterializeDueOccurrences,
+  createListMyPendingOccurrences,
   createListPendingOccurrences,
   createSkipOccurrence,
+  type ListMyPendingOccurrences,
   type ListPendingOccurrences,
   type SkipOccurrence,
   createConfirmOccurrence,
@@ -499,6 +501,7 @@ export interface Container extends RouteDeps {
     readonly extendRecurrence: ExtendRecurrence;
     readonly materializeDueOccurrences: MaterializeDueOccurrences;
     readonly listPendingOccurrences: ListPendingOccurrences;
+    readonly listMyPendingOccurrences: ListMyPendingOccurrences;
     readonly skipOccurrence: SkipOccurrence;
     readonly confirmOccurrence: ConfirmOccurrence;
   };
@@ -1442,6 +1445,10 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       extendRecurrence: createExtendRecurrence(recurrenceDeps),
       materializeDueOccurrences: createMaterializeDueOccurrences(materializeDeps),
       listPendingOccurrences: createListPendingOccurrences(recurrenceDeps),
+      listMyPendingOccurrences: createListMyPendingOccurrences({
+        ...recurrenceDeps,
+        spaces: spaceRepository,
+      }),
       skipOccurrence: createSkipOccurrence(recurrenceDeps),
       confirmOccurrence: createConfirmOccurrence(materializeDeps),
     },
