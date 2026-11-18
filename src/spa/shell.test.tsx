@@ -36,6 +36,7 @@ describe("useShell", () => {
         name: "Ana",
         email: "ana@example.com",
         locale: "en",
+        handle: "ana_4821",
         formats: meDto().preferences.effective,
       },
       spaces: [spaceDto(), householdSpace()],
