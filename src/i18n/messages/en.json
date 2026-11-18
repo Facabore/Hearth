@@ -763,7 +763,19 @@
         "two": "for {a} and {b}",
         "many": "for {count} people"
       },
-      "hint": "Each debt stays in your space with that person and in Balances. Someone who doesn't use Hearth is added as a guest."
+      "hint": "Each debt stays in your space with that person and in Balances. Someone who doesn't use Hearth is added as a guest.",
+      "find": "Search or add someone",
+      "findPayer": "Search who paid",
+      "findNote": "You see who you recorded with lately. Search your {count} friends by name, nickname or @.",
+      "otherPayer": "Someone else",
+      "addNamed": "Add “{name}” as a guest",
+      "guest": "Guest",
+      "guestLast": "Guest · last movement {date}",
+      "kept": {
+        "one": "You already ticked {a}.",
+        "two": "You already ticked {a} and {b}.",
+        "many": "You already ticked {count} people."
+      }
     },
     "personTransfer": {
       "mode": "Who the transfer is with",

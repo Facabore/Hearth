@@ -763,7 +763,19 @@
         "two": "para {a} y {b}",
         "many": "para {count} personas"
       },
-      "hint": "Cada deuda queda en tu espacio con esa persona y en Saldos. Si alguien no usa Hearth, se agrega como invitado."
+      "hint": "Cada deuda queda en tu espacio con esa persona y en Saldos. Si alguien no usa Hearth, se agrega como invitado.",
+      "find": "Buscar o agregar a alguien",
+      "findPayer": "Buscar quién pagó",
+      "findNote": "Ves a quienes registraste hace poco. Busca entre tus {count} amigos por nombre, apodo o @.",
+      "otherPayer": "Otra persona",
+      "addNamed": "Agregar «{name}» como invitado",
+      "guest": "Invitado",
+      "guestLast": "Invitado · último movimiento {date}",
+      "kept": {
+        "one": "Ya marcaste a {a}.",
+        "two": "Ya marcaste a {a} y {b}.",
+        "many": "Ya marcaste a {count} personas."
+      }
     },
     "personTransfer": {
       "mode": "A quién va la transferencia",

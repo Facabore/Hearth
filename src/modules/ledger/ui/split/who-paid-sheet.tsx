@@ -17,7 +17,27 @@ import { splitCheckOf, type ShareDraft } from "./split-request";
 export interface WhoPaidPerson {
   readonly id: string;
   readonly name: string;
+  /** P340: what tells them apart in a search ("@juan", "Invitado · último movimiento 3/11/2026"). */
+  readonly detail?: string | undefined;
+  /** P340: other words a search finds them by (their apodo, their @). */
+  readonly keys?: readonly string[] | undefined;
+  /** P340: the date of their newest movement with the recorder (ISO), which orders who is recent. */
+  readonly recent?: string | null | undefined;
 }
+
+/** P340: past this many other people, the sheet shows the recent ones and a search instead of everyone. */
+export const CROWD = 5;
+const RECENT_FOR_WHOM = 3;
+const RECENT_PAYERS = 2;
+
+/** Case and accents never stop a search, nor a leading @. */
+const fold = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+const matches = (person: WhoPaidPerson, query: string) => {
+  const needle = fold(query.trim().replace(/^@/, ""));
+  return needle !== "" && [person.name, ...(person.keys ?? [])].some((key) => fold(key).includes(needle));
+};
+/** The newest movement first; people with none keep the order given, after the rest. */
+const byRecent = (a: WhoPaidPerson, b: WhoPaidPerson) => (b.recent ?? "").localeCompare(a.recent ?? "");
 
 export type PlanShares = readonly { readonly memberId: string; readonly amount: string }[];
 
@@ -68,6 +88,8 @@ export interface WhoPaidSheetProps {
   readonly hint?: string | undefined;
   /** Under "Desde": a link to create an account that comes back to the form (N7), and what to say when there is none. */
   readonly newAccount?: { readonly href: string; readonly label: string; readonly empty: string } | undefined;
+  /** P340: with more than `CROWD` other people, show the recent ones and a search instead of everyone. */
+  readonly findable?: boolean | undefined;
 }
 
 /** A choice that may be a long stored name: it wraps inside its pill instead of widening the sheet. */
@@ -86,6 +108,9 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
   const common = useTranslations("common");
   const [naming, setNaming] = useState<"payer" | "person" | null>(null);
   const [name, setName] = useState("");
+  // P340: what "Buscar o agregar a alguien" holds, and whether "Otra persona" opened its own search under Pagó.
+  const [query, setQuery] = useState("");
+  const [payerQuery, setPayerQuery] = useState<string | null>(null);
 
   const planned = draft.method === "BY_ALLOCATION";
   const check = splitCheckOf(draft, {
@@ -193,6 +218,77 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
   );
   const onAddPayer = props.onAddPayer ?? (props.onAddPayerByName ? () => setNaming("payer") : undefined);
 
+  // P340: with many people, "Para quién fue" shows Tú, whoever is ticked and the most recent, then a search.
+  const others = people.filter((p) => p.id !== meId);
+  const crowded = props.findable === true && others.length > CROWD;
+  const searching = crowded && query.trim().replace(/^@/, "") !== "";
+  const ticked = others.filter((p) => selected.includes(p.id));
+  const shown: readonly WhoPaidPerson[] = !crowded
+    ? people
+    : searching
+      ? others.filter((p) => matches(p, query))
+      : [
+          ...people.filter((p) => p.id === meId),
+          ...ticked,
+          ...others
+            .filter((p) => !selected.includes(p.id))
+            .sort(byRecent)
+            .slice(0, RECENT_FOR_WHOM),
+        ];
+  const kept = searching ? ticked.filter((p) => !shown.includes(p)).map((p) => p.name) : [];
+  const keptLine =
+    kept.length === 0
+      ? null
+      : kept.length === 1
+        ? t("kept.one", { a: kept[0]! })
+        : kept.length === 2
+          ? t("kept.two", { a: kept[0]!, b: kept[1]! })
+          : t("kept.many", { count: kept.length });
+  // P340: Pagó offers Tú, whoever paid and the two most recent; "Otra persona" searches the rest.
+  const payersCrowded = props.findable === true && props.payers.length - 1 > CROWD;
+  const recentOf = (id: string) => people.find((p) => p.id === id) ?? { id, name: "" };
+  const shownPayers = !payersCrowded
+    ? props.payers
+    : [
+        ...props.payers.filter((o) => o.value === meId || o.value === props.payer),
+        ...props.payers
+          .filter((o) => o.value !== meId && o.value !== props.payer)
+          .sort((a, b) => byRecent(recentOf(a.value), recentOf(b.value)))
+          .slice(0, RECENT_PAYERS),
+      ];
+  const payerMatches =
+    payerQuery === null
+      ? []
+      : props.payers
+          .filter((o) => o.value !== meId)
+          .map((o) => ({ ...recentOf(o.value), name: o.label }))
+          .filter((p) => matches(p, payerQuery));
+  const addGuestButton = (typed: string, add: (name: string) => void) => (
+    <button
+      type="button"
+      onClick={() => add(typed.trim())}
+      className="flex min-h-11 items-center gap-2 self-start text-base font-semibold text-accent"
+    >
+      <Icon name="plus" size={18} />
+      {t("addNamed", { name: typed.trim() })}
+    </button>
+  );
+  const searchField = (id: string, label: string, value: string, onChange: (next: string) => void) => (
+    <label className="relative flex items-center">
+      <span className="sr-only">{label}</span>
+      <Icon name="search" size={20} className="pointer-events-none absolute left-3 text-muted" />
+      <input
+        id={id}
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={label}
+        autoComplete="off"
+        className="h-12 w-full rounded-xl border border-line bg-surface pr-3 pl-10 text-base text-ink placeholder:text-muted"
+      />
+    </label>
+  );
+
   return (
     <Sheet
       open={props.open}
@@ -225,9 +321,18 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               label={t("paid")}
               value={props.payer}
               onValueChange={props.onPayer}
-              options={props.payers.map((option) => ({ value: option.value, label: wrapped(option.label) }))}
+              options={shownPayers.map((option) => ({ value: option.value, label: wrapped(option.label) }))}
             />
-            {onAddPayer ? (
+            {payersCrowded ? (
+              <button
+                type="button"
+                aria-expanded={payerQuery !== null}
+                onClick={() => setPayerQuery(payerQuery === null ? "" : null)}
+                className="flex min-h-11 items-center rounded-full border border-line bg-surface px-4 text-sm font-medium text-ink"
+              >
+                {t("otherPayer")}
+              </button>
+            ) : onAddPayer ? (
               <button
                 type="button"
                 aria-label={t("addPayer")}
@@ -271,6 +376,34 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               </Link>
             </>
           ) : null}
+          {payerQuery !== null ? (
+            <div className="flex flex-col gap-1">
+              {searchField("who-find-payer", t("findPayer"), payerQuery, setPayerQuery)}
+              <ul aria-label={t("findPayer")} className="flex flex-col">
+                {payerMatches.map((match) => (
+                  <li key={match.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        props.onPayer(match.id);
+                        setPayerQuery(null);
+                      }}
+                      className="flex min-h-row w-full flex-col justify-center py-1 text-left"
+                    >
+                      <span className="break-words text-base text-ink">{match.name}</span>
+                      {match.detail ? <span className="text-sm text-muted">{match.detail}</span> : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {payerQuery.trim() !== "" && props.onAddPayerByName
+                ? addGuestButton(payerQuery, (typed) => {
+                    props.onAddPayerByName?.(typed);
+                    setPayerQuery(null);
+                  })
+                : null}
+            </div>
+          ) : null}
           {naming === "payer" ? nameField : null}
           {props.payerNote ? <p className="text-sm text-muted">{props.payerNote}</p> : null}
         </section>
@@ -282,7 +415,7 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
             </p>
           ) : null}
           <ul aria-label={t("forWhom")} className="flex flex-col">
-            {people.map((person) => {
+            {shown.map((person) => {
               const ticked = selected.includes(person.id);
               const share = shares.find((s) => s.memberId === person.id);
               const typed = !planned && draft.method !== "EQUAL" && ticked;
@@ -307,7 +440,8 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
                         {person.name}
                       </span>
                       <span id={`who-line-${person.id}`} className="text-sm text-muted">
-                        {locked ?? lineOf(person.id, ticked)}
+                        {locked ??
+                          (searching && !ticked && person.detail ? person.detail : lineOf(person.id, ticked))}
                       </span>
                     </span>
                   </label>
@@ -342,7 +476,24 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               );
             })}
           </ul>
-          {props.onAddByName && naming === "person" ? (
+          {crowded ? (
+            <div className="flex flex-col gap-2">
+              {searchField("who-find", t("find"), query, setQuery)}
+              {searching ? (
+                <>
+                  {props.onAddByName
+                    ? addGuestButton(query, (typed) => {
+                        props.onAddByName?.(typed);
+                        setQuery("");
+                      })
+                    : null}
+                  {keptLine ? <p className="text-sm text-muted">{keptLine}</p> : null}
+                </>
+              ) : (
+                <p className="text-sm text-muted">{t("findNote", { count: others.length })}</p>
+              )}
+            </div>
+          ) : props.onAddByName && naming === "person" ? (
             nameField
           ) : props.onAddPerson || props.onAddByName ? (
             <button

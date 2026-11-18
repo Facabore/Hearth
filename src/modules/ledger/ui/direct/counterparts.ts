@@ -24,6 +24,12 @@ export interface Person {
   readonly directSpace: string | null;
   /** P334: where a transfer with them can be recorded, their direct space first. */
   readonly places: readonly Place[];
+  /** P340: their @, for a registered friend who picked one. */
+  readonly handle?: string | undefined;
+  /** P340: the viewer's own apodo for them, when it is not their name. */
+  readonly nickname?: string | null | undefined;
+  /** P340: the date of the newest movement in their direct space (ISO), or null when there is none. */
+  readonly lastMovement?: string | null | undefined;
 }
 
 /**
@@ -39,7 +45,12 @@ export interface DirectPeer {
     readonly displayName: string;
     /** Absent for a guest. */
     readonly userId?: string;
+    /** P340: what a search also finds them by. */
+    readonly nickname?: string | null;
+    readonly handle?: string;
   };
+  /** P340: the space's newest movement, which says who is recent. */
+  readonly lastMovement?: { readonly date: string } | null;
 }
 
 /**
@@ -67,6 +78,9 @@ export const peopleOf = (input: {
     const person: Building = {
       memberId: other.memberId,
       name: other.displayName,
+      handle: other.handle,
+      nickname: other.nickname ?? null,
+      lastMovement: peer.lastMovement?.date ?? null,
       isGuest: other.kind === "GUEST",
       directSpace: space.name,
       places: [

@@ -1203,10 +1203,14 @@ describe("Registrar's reads do not grow with the person's friends (#338)", () =>
     expect(calls(spa.requests, "GET", /\/me\/friends$/)).toHaveLength(1);
     expect(calls(spa.requests, "GET", /\/spaces\/sp-household\/members$/)).toHaveLength(1);
     expect(calls(spa.requests, "GET", /\/spaces\/sp-friend-\d+\/members$/)).toHaveLength(0);
-    // "Para quién fue" still offers each friend and the group's member.
+    // "Para quién fue" still offers each friend and the group's member, through its search past a few (P340).
     await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    const find = within(sheet).getByRole("searchbox", { name: es.ledger.who.find });
+    await userEvent.type(find, "Amigo 12");
     expect(within(sheet).getByRole("checkbox", { name: /^Amigo 12/ })).toBeInTheDocument();
+    await userEvent.clear(find);
+    await userEvent.type(find, "juan");
     expect(within(sheet).getByRole("checkbox", { name: /^Juan/ })).toBeInTheDocument();
   });
 

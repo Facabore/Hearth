@@ -34,6 +34,7 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
             displayName: "Juan",
             nickname: "Juancho",
             userId: "u-juan",
+            handle: "juanp",
           },
           name: "Juancho",
         }),
@@ -80,6 +81,10 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
         isGuest: true,
         directSpace: "Ana & Carlos",
         places: [direct("sp-ana-carlos", "Ana & Carlos", "m-carlos", "m-ana-c")],
+        // P340: what a search finds them by and how recent they are, from Amigos' read.
+        handle: undefined,
+        nickname: null,
+        lastMovement: "2025-03-12",
       },
       {
         memberId: "m-juan-d",
@@ -87,6 +92,9 @@ describe("peopleOf (HU-E1-13, ruling P172)", () => {
         isGuest: false,
         directSpace: "Ana & Juan",
         places: [direct("sp-ana-juan", "Ana & Juan", "m-juan-d", "m-ana-d"), household("m-juan-h")],
+        handle: "juanp",
+        nickname: "Juancho",
+        lastMovement: "2025-03-12",
       },
       {
         memberId: "m-luis",

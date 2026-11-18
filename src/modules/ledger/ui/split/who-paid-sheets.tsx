@@ -5,7 +5,7 @@ import { useState } from "react";
 import { controlsFor, LazyAddGuestsSheet, memberLabel } from "@/modules/spaces/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
-import type { Formats } from "@/shared/ui/format/formatters";
+import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import type { Person } from "../direct/counterparts";
 import type { PersonalForWhom } from "../direct/personal-split";
 import { preferredAccountId, readLastAccount } from "../record/last-account";
@@ -217,8 +217,24 @@ export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
   const names = useTranslations("members");
   const tAccounts = useTranslations("accounts");
   const guestName = (name: string) => `${name} ${names("guestSuffix")}`;
+  // P340: what tells same-name people apart in a search, what else finds them, and how recent they are.
+  const detailOf = (p: Person) =>
+    p.handle
+      ? `@${p.handle}`
+      : p.isGuest
+        ? p.lastMovement
+          ? t("guestLast", { date: formatDate(p.lastMovement, props.formats) })
+          : t("guest")
+        : undefined;
   const everyone = [
-    ...people.map((p) => ({ id: p.memberId, name: p.isGuest ? guestName(p.name) : p.name, first: p.name })),
+    ...people.map((p) => ({
+      id: p.memberId,
+      name: p.isGuest ? guestName(p.name) : p.name,
+      first: p.name,
+      detail: detailOf(p),
+      keys: [p.nickname, p.handle].filter((key): key is string => typeof key === "string" && key !== ""),
+      recent: p.lastMovement ?? null,
+    })),
     ...forWhom.guests.map((g) => ({ id: g.id, name: guestName(g.name), first: g.name })),
   ];
   const paying = everyone.find((p) => p.id === forWhom.payer);
@@ -275,6 +291,7 @@ export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
             }
       }
       hint={t("hint")}
+      findable
       newAccount={
         props.newAccountHref && !paying
           ? { href: props.newAccountHref, label: tAccounts("new"), empty: tAccounts("picker.empty") }
