@@ -184,7 +184,7 @@ const movementOf = (data: unknown): TransactionDto => {
 
 /**
  * The ledger's writes in the SPA: recording (P195), editing (P191), deleting and restoring (P194), converting and
- * undoing it (#195), and a split with one person (P172).
+ * undoing it (#195), and a split with or a transfer to one person (P172, P334).
  */
 export const ledgerWrites: WritePlanner = (call): WritePlan | null => {
   const { spaceId = "", transactionId = "" } = call.params;
@@ -200,6 +200,16 @@ export const ledgerWrites: WritePlanner = (call): WritePlan | null => {
         // A first split with someone opens a direct space, which the space switcher lists.
         if (split.created) void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
         saved(queryClient, split.spaceId, movementOf(split.expense));
+      },
+    };
+  // P334, #338: a transfer to a person lands in their direct space as a split does, opening it on first use; planned,
+  // the form's refresh() after it reads nothing more than this.
+  if (call.method === "POST" && call.path === "/api/v1/direct-settlements")
+    return {
+      accepted: (queryClient, data) => {
+        const paid = data as { spaceId: string; created: boolean; settlement: TransactionDto };
+        if (paid.created) void queryClient.invalidateQueries({ queryKey: queryKeys.spaces });
+        saved(queryClient, paid.spaceId, paid.settlement);
       },
     };
   if (call.method === "PATCH" && call.path === ONE)

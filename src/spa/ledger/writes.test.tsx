@@ -13,6 +13,7 @@ import {
   octoberPage,
   rowContext,
   spaceDto,
+  transactionDto,
 } from "../../../tests/support/ui/dto";
 import { jsonResponse, problemResponse, type FakeHandler } from "../../../tests/support/ui/fake-api";
 import { renderSpa } from "../../../tests/support/ui/spa";
@@ -346,5 +347,23 @@ describe("the ledger's write planner (ruling P321)", () => {
       ledgerWrites({ method: "POST", path, params: { spaceId: "s-home" }, body: {} }, queryClient);
     for (const kind of ["expenses", "incomes", "transfers", "fund-contributions"])
       expect(planOf(`/api/v1/spaces/{spaceId}/${kind}`), kind).not.toBeNull();
+  });
+
+  it("settles with a person as it splits with one: the direct space's movement and, when it is new, the spaces (#338)", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["spaces", "list"], []);
+    queryClient.setQueryData(["balances", "mine", "friends"], []);
+    const plan = ledgerWrites(
+      { method: "POST", path: "/api/v1/direct-settlements", params: {}, body: {} },
+      queryClient,
+    );
+    expect(plan).not.toBeNull();
+    const settlement = transactionDto({ id: "t-paid", type: "SETTLEMENT" });
+    plan!.accepted(queryClient, { spaceId: "sp-mama", created: true, settlement });
+    expect(queryClient.getQueryData(["ledger", "sp-mama", "transaction", "t-paid"])).toMatchObject({
+      tx: { id: "t-paid" },
+    });
+    expect(queryClient.getQueryState(["spaces", "list"])?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(["balances", "mine", "friends"])?.isInvalidated).toBe(true);
   });
 });
