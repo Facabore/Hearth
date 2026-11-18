@@ -73,22 +73,18 @@ const timeOf = (movement: SourceMovement, timeZone: string): MovementTime =>
     : { date: movement.date, untimed: true };
 
 /**
- * D29 section 4.2, as MC3 records it: `amount` is what was entered and `convertedAmount` the base amount when they
- * differ. In an account of the base currency, the source's original (if any) is what was entered and its account
- * amount the base. In an account of another currency, the account amount is entered (its leg stays exact), and an
- * original in the base currency is the base; otherwise the base follows the date's rate (ExchangeRateRequired when
- * none), and an original in a third currency is not kept.
+ * P342 (S3): a movement is recorded in the currency it was entered in at the source (its original, else its amount),
+ * with no base. When the account is in another currency and the source says what the account moved in it, that is the
+ * account's leg (`accountAmount`); otherwise the ledger suggests the leg from the date's rate (ExchangeRateRequired when
+ * none).
  */
-const amountsOf = (movement: SourceMovement, accountCurrency: string, base: string) => {
-  const original = movement.originalAmount;
-  if (accountCurrency === base) {
-    return original === null
-      ? { amount: movement.amount }
-      : { amount: original, convertedAmount: movement.amount };
-  }
-  return original !== null && original.currency.code === base
-    ? { amount: movement.amount, convertedAmount: original }
-    : { amount: movement.amount };
+const amountsOf = (movement: SourceMovement, accountCurrency: string) => {
+  const amount = movement.originalAmount ?? movement.amount;
+  if (amount.currency.code === accountCurrency) return { amount };
+  const moved = [movement.amount, movement.originalAmount].find(
+    (money) => money?.currency.code === accountCurrency,
+  );
+  return moved === undefined || moved === null ? { amount } : { amount, accountAmount: moved };
 };
 
 interface Resolved {
@@ -400,7 +396,7 @@ const record = async (
     ...base,
     categoryId,
     accountId: account.id,
-    ...amountsOf(movement, account.currency, space.currency),
+    ...amountsOf(movement, account.currency),
   };
   return movement.kind === "EXPENSE" ? deps.writer.recordExpense(write) : deps.writer.recordIncome(write);
 };

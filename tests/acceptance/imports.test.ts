@@ -374,18 +374,18 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
         // P337: Food, Supermercado, Guitarra and Salary, in three groups of their own.
         categoriesCreated: 4,
         categoriesRestored: 0,
-        movementsImported: 6,
+        // P342 (S3): the USD expense from the USD account needs no rate any more, so every movement comes in.
+        movementsImported: 7,
         alreadyImported: 0,
         duplicatesSkipped: 0,
         adjustmentsInOpeningBalance: 1,
         adjustmentsNotImported: 0,
-        rowErrors: 1,
+        rowErrors: 0,
         peopleCreated: 0,
         accountsArchived: 1,
         hearthCategoriesArchived: (await seededGroups(ana.spaceId)).length,
       },
-      // A USD expense from the USD account needs a USD→COP rate for its date, and there is none: that row only.
-      rowErrors: [expect.objectContaining({ code: "ExchangeRateRequired", sourceKey: "m6" })],
+      rowErrors: [],
     });
 
     const bank = await accountNamed(ana.spaceId, "Banco Uno");
@@ -401,9 +401,10 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
     });
 
     const { rows } = await app.pool.query(
-      `SELECT type, description, date::text, occurred_at, time_zone, amount, currency, original_amount, original_currency,
-              source_amount, destination_amount, destination_currency
-         FROM transactions WHERE space_id = $1 AND deleted_at IS NULL ORDER BY date, type`,
+      `SELECT t.type, t.description, t.date::text, t.occurred_at, t.time_zone, t.amount, t.currency, t.original_amount,
+              t.original_currency, t.source_amount, t.destination_amount, t.destination_currency,
+              (SELECT p.account_amount FROM payments p WHERE p.transaction_id = t.id) AS account_amount
+         FROM transactions t WHERE t.space_id = $1 AND t.deleted_at IS NULL ORDER BY t.date, t.type`,
       [ana.spaceId],
     );
     expect(rows).toEqual([
@@ -428,13 +429,24 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
         destination_amount: "10000",
         destination_currency: "USD",
       }),
-      // 20.00 USD charged as 80,000.00 COP on the COP bank: the base is what the bank charged, the original kept.
+      // P342 (S3): 20.00 USD charged as 80,000.00 COP on the COP bank: the expense is in USD, with no base and no
+      // original, and the bank's payment keeps what it moved, in the bank's COP.
       expect.objectContaining({
         type: "EXPENSE",
         date: "2025-02-05",
-        amount: "8000000",
-        original_amount: "2000",
-        original_currency: "USD",
+        amount: "2000",
+        currency: "USD",
+        original_amount: null,
+        account_amount: "8000000",
+      }),
+      // P342 (S3): 15.00 USD from the USD account, in USD, with no leg and no rate needed.
+      expect.objectContaining({
+        type: "EXPENSE",
+        date: "2025-02-06",
+        amount: "1500",
+        currency: "USD",
+        original_amount: null,
+        account_amount: null,
       }),
       // Design Q4 (#329): the bank's later adjustment, -1,000.00 COP, is a balance adjustment out of it.
       expect.objectContaining({
@@ -452,7 +464,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
 
     const again = await uploaded(ana);
     expect(again.previouslyImportedAt).toBe("2026-11-16T15:00:00.000Z");
-    expect(again.plan.alreadyImported.sort()).toEqual(["adj0", "adj1", "m1", "m2", "m5", "m7", "t1"]);
+    expect(again.plan.alreadyImported.sort()).toEqual(["adj0", "adj1", "m1", "m2", "m5", "m6", "m7", "t1"]);
     // P337: the archived Visa stays the one its movements would go to, never a new one beside it.
     const visa = await accountNamed(ana.spaceId, "Visa");
     expect(Object.fromEntries(again.accounts.map((a) => [a.sourceId, a.mapping.kind]))).toEqual({
@@ -468,8 +480,8 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
       accountsCreated: 0,
       categoriesCreated: 0,
       movementsImported: 0,
-      alreadyImported: 7,
-      rowErrors: 1,
+      alreadyImported: 8,
+      rowErrors: 0,
     });
     expect(await liveMovements(ana.spaceId)).toBe(before);
   });
@@ -519,7 +531,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/confirm (D28, design 
     expect(((await included.json()) as Preview).plan.duplicatesSkipped).toBe(0);
 
     const result = await confirmed(ana, preview.id);
-    expect(result.counts).toMatchObject({ movementsImported: 6, duplicatesSkipped: 0 });
+    expect(result.counts).toMatchObject({ movementsImported: 7, duplicatesSkipped: 0 });
   });
 
   it("finds a likely duplicate transfer by what reached an account already in Hearth", async () => {
@@ -649,7 +661,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
     expect(await response.json()).toEqual({
       id: preview.id,
       status: "UNDONE",
-      movementsDeleted: 6,
+      movementsDeleted: 7,
       // Visa was archived by the confirm already (P337): only the bank and the USD account are archived now.
       accountsArchived: 2,
       categoriesArchived: 4,
@@ -667,7 +679,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       "SELECT count(*) FROM transactions WHERE space_id = $1 AND deleted_at IS NOT NULL",
       [ana.spaceId],
     );
-    expect(Number(rows[0].count)).toBe(6);
+    expect(Number(rows[0].count)).toBe(7);
     expect((await accountNamed(ana.spaceId, "Banco Uno"))?.archived_at).not.toBeNull();
     // The starter account the import only used stays as it was.
     expect((await accountNamed(ana.spaceId, "Efectivo"))?.id).toBe(cash);
@@ -706,7 +718,7 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
       params: { spaceId: ana.spaceId, importId: preview.id },
     });
 
-    expect(await response.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 5 });
+    expect(await response.json()).toMatchObject({ status: "UNDONE", movementsDeleted: 6 });
     expect(await liveMovements(ana.spaceId)).toBe(0);
   });
 
@@ -781,7 +793,7 @@ describe("a re-import after an undo, and names the space already holds (D28, des
       categoriesCreated: 0,
       // P337: the groups the undo archived come back with their categories, never made again.
       categoriesRestored: 4,
-      movementsImported: 6,
+      movementsImported: 7,
       // The restored bank still holds adj0 in its opening balance: kept there, never recorded on top of it.
       adjustmentsInOpeningBalance: 1,
     });
@@ -790,7 +802,7 @@ describe("a re-import after an undo, and names the space already holds (D28, des
       archived_at: null,
       opening_balance: "5000000",
     });
-    expect(await liveMovements(ana.spaceId)).toBe(6);
+    expect(await liveMovements(ana.spaceId)).toBe(7);
   });
 
   it("gives a new account a name no archived one holds, and says so in the preview", async () => {
@@ -807,7 +819,7 @@ describe("a re-import after an undo, and names the space already holds (D28, des
     });
     const result = await confirmed(ana, preview.id);
 
-    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 4, movementsImported: 6 });
+    expect(result.counts).toMatchObject({ accountsCreated: 3, categoriesCreated: 4, movementsImported: 7 });
     expect(await accountNamed(ana.spaceId, "Banco Uno (Money Manager)")).toMatchObject({ archived_at: null });
   });
 });

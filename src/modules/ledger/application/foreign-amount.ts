@@ -3,42 +3,6 @@ import { domainError, err, map, Money, ok, type LocalDate, type Result } from "@
 import { withLegs, type AccountLeg, type Transaction, type TransactionLegs } from "../domain/transaction";
 import type { LedgerDeps } from "./deps";
 
-/** D29 section 4.2: the base amount a movement is stored in, and the original it was entered in when they differ. */
-export interface BaseAmount {
-  /** The stored base amount, always in the space's base currency. */
-  readonly base: Money;
-  /** D29: what was charged and in which currency; present only when the entered amount was in another currency. */
-  readonly original?: { readonly amount: bigint; readonly currency: string };
-}
-
-/**
- * D29 section 4.2, D30: the base amount (the space's base currency) an edit of a movement stores, and its original.
- *
- * @deprecated P342 (S3): recording no longer converts (an expense or income keeps its own currency); only the edit path
- * (`edited-amount.ts`) still calls this, until its slice drops it. Do not add callers.
- */
-export const baseAmountOf = async (
-  deps: Pick<LedgerDeps, "rates">,
-  space: SpaceMembership,
-  amount: Money,
-  convertedAmount: Money | undefined,
-  date: LocalDate,
-): Promise<Result<BaseAmount>> => {
-  if (amount.currency.code === space.currency) return ok({ base: amount });
-  const original = { amount: amount.minor, currency: amount.currency.code };
-  if (convertedAmount !== undefined) {
-    return convertedAmount.currency.code === space.currency
-      ? ok({ base: convertedAmount, original })
-      : err(
-          domainError("CurrencyMismatch", {
-            expected: space.currency,
-            actual: convertedAmount.currency.code,
-          }),
-        );
-  }
-  return map(await convertedAt(deps, amount, space.currency, date), (base) => ({ base, original }));
-};
-
 /** D29, section 4.1: converts `amount` into `to` at the date's rate; ExchangeRateRequired when none connects them. */
 export const convertedAt = async (
   deps: Pick<LedgerDeps, "rates">,

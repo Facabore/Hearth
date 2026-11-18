@@ -115,16 +115,20 @@ export interface ImportWriter {
     input: MovementBase & {
       readonly categoryId: string;
       readonly accountId: string;
+      /** P342 (S3): what was entered, in its own currency, which the movement keeps. */
       readonly amount: Money;
-      readonly convertedAmount?: Money;
+      /** P342 (S3): what the account moved in its own currency, when that is not `amount`'s. */
+      readonly accountAmount?: Money;
     },
   ): Promise<Result<string>>;
   recordIncome(
     input: MovementBase & {
       readonly categoryId: string;
       readonly accountId: string;
+      /** P342 (S3): what was entered, in its own currency, which the movement keeps. */
       readonly amount: Money;
-      readonly convertedAmount?: Money;
+      /** P342 (S3): what the account moved in its own currency, when that is not `amount`'s. */
+      readonly accountAmount?: Money;
     },
   ): Promise<Result<string>>;
   recordTransfer(

@@ -202,3 +202,71 @@ describe("an account's movements in a new currency (P336)", () => {
     expect(accountMovement(income(), X)).toBe(10_000n);
   });
 });
+
+/**
+ * P342 (S3): a movement keeps its own currency, which need not be its space's. Ana's personal space is COP; these
+ * movements are in USD, and the conversion is relative to the movement's currency, never the space's.
+ */
+describe("a movement in another currency than its space's, when its account changes currency (P336, P342)", () => {
+  const copToUsd = (rate: string, open = true): AccountConversion => ({
+    accountId: X,
+    accountSpaceId: OWN,
+    from: "COP",
+    to: "USD",
+    rate: unwrap(ExchangeRate.of("COP", "USD", rate)),
+    periodOpen: () => open,
+  });
+  const usdExpense = (payment: Partial<Expense["payments"][number]>): Expense => ({
+    ...base,
+    type: "EXPENSE",
+    amount: 5_000n,
+    currency: "USD",
+    categoryId: "restaurants",
+    payments: [{ memberId: "ana", accountId: X, amount: 5_000n, ...payment }],
+    shares: [{ memberId: "ana", amount: 5_000n, splitMethod: "EQUAL" }],
+  });
+
+  it("a USD expense paid from a USD account that moves to COP keeps its USD amount; the payment gets a COP leg", () => {
+    const after = convert(usdExpense({}), usdToCop("4000")) as Expense;
+    expect(after).toMatchObject({ amount: 5_000n, currency: "USD" });
+    expect(after.payments).toEqual([
+      { memberId: "ana", accountId: X, amount: 5_000n, accountAmount: 20_000_000n, accountCurrency: "COP" },
+    ]);
+    expect(after.shares).toEqual([{ memberId: "ana", amount: 5_000n, splitMethod: "EQUAL" }]);
+    expect(accountMovement(after, X)).toBe(-20_000_000n);
+  });
+
+  it("a USD expense paid from a COP account that moves to USD follows the account: its amount is what the account moved", () => {
+    const expense = usdExpense({ accountAmount: 20_500_000n, accountCurrency: "COP" });
+    const after = convert(expense, copToUsd("0.00025")) as Expense;
+    // 205.000,00 COP at 0,00025 is 51,25 USD, which becomes the expense's amount, its payment's and its share's.
+    expect(after).toMatchObject({ amount: 5_125n, currency: "USD" });
+    expect(after.payments).toEqual([{ memberId: "ana", accountId: X, amount: 5_125n }]);
+    expect(after.shares).toEqual([{ memberId: "ana", amount: 5_125n, splitMethod: "EQUAL" }]);
+  });
+
+  it("the same USD expense in a closed period keeps its amount; only the COP leg becomes USD and is dropped when equal", () => {
+    const expense = usdExpense({ accountAmount: 20_000_000n, accountCurrency: "COP" });
+    const after = convert(expense, copToUsd("0.00025", false)) as Expense;
+    expect(after).toMatchObject({ amount: 5_000n, currency: "USD" });
+    expect(after.payments).toEqual([{ memberId: "ana", accountId: X, amount: 5_000n }]);
+  });
+
+  it("a USD income into a USD account that moves to COP keeps its amount, with the account's COP leg", () => {
+    const after = convert(
+      income({
+        amount: 10_000n,
+        currency: "USD",
+        destinationAmount: undefined,
+        destinationCurrency: undefined,
+      }),
+      usdToCop("4000"),
+    ) as Income;
+    expect(after).toMatchObject({
+      amount: 10_000n,
+      currency: "USD",
+      destinationAmount: 40_000_000n,
+      destinationCurrency: "COP",
+    });
+  });
+});

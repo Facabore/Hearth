@@ -1,40 +1,59 @@
-import type { SpaceMembership } from "@/modules/spaces/application";
 import { domainError, err, Money, ok, type LocalDate, type Result } from "@/shared/kernel";
 import type { Transaction } from "../domain/transaction";
-import { inSpaceCurrency } from "./checks";
+import { inCurrency } from "./checks";
 import type { LedgerDeps } from "./deps";
 import type { EditChanges } from "./edited-parts";
-import { baseAmountOf, convertedAt } from "./foreign-amount";
+import { convertedAt } from "./foreign-amount";
 import { resolveAmounts } from "./record-transfer";
 
-/** D29, section 4.1: a new amount as recording reads it. */
+/** What an edit sends about money: the parts' own `EditChanges` and what an account moved (P342). */
+export type AmountChanges = Pick<
+  EditChanges,
+  "amount" | "convertedAmount" | "destinationAmount" | "sourceAccountId" | "destinationAccountId"
+> & {
+  /**
+   * P342 (S3): what the paying or receiving account really moved, in the account's own currency, when that is not the
+   * movement's; an expense's with a sole payment, or an income's. When absent, the date's rate decides.
+   */
+  readonly accountAmount?: Money;
+};
+
+/** D29, P342: a new amount as recording reads it. */
 export interface EditedAmount {
-  /** The base amount the row stores, in the space's base currency. */
-  readonly base: Money;
-  /** What was entered when it is not in the base currency; null when it is (the row keeps no original). */
-  readonly original: { readonly amount: bigint; readonly currency: string } | null;
-  /** The amounts the edit gives in an account's own currency, which that account's leg takes as they are. */
+  /** P342 (S3): the movement's amount, in the currency it is stored in from now on. */
+  readonly amount: Money;
+  /** What the edit gives in an account's own currency (a transfer's "Sale" and "Llega", an adjustment's size). */
   readonly known: readonly Money[];
+  /** P342 (S3): an expense's or income's `accountAmount` (or the deprecated `convertedAmount`), checked by recording. */
+  readonly accountAmount?: Money;
 }
 
 /**
- * D29: the amount an edit's `convertedAmount` or `destinationAmount` sent alone goes with: what a foreign expense or
- * income was entered in, or an own transfer's "Sale" (its source leg, else the base amount). `destinationAmount` fits
- * an own transfer only (InvalidTransferLeg) and `convertedAmount` a foreign expense or income only
- * (InvalidOriginalAmount); null when the edit sends none of the three.
+ * P342: what the account moved, typed: `accountAmount`, else the deprecated `convertedAmount`, which the edit request
+ * still sends for the same figure until its contract follows. Each fits an expense or income only, as before
+ * (`accountAmount` InvalidTransferLeg, `convertedAmount` InvalidOriginalAmount).
  */
-const amountOf = (current: Transaction, changes: EditChanges): Result<Money | null> => {
-  const ownTransfer = current.type === "TRANSFER" && current.payerMemberId === null;
+const typedAccountAmount = (current: Transaction, changes: AmountChanges): Result<Money | undefined> => {
   const entered = current.type === "EXPENSE" || current.type === "INCOME";
-  if (changes.destinationAmount !== undefined && !ownTransfer) return err(domainError("InvalidTransferLeg"));
+  if (changes.accountAmount !== undefined && !entered) return err(domainError("InvalidTransferLeg"));
   if (changes.convertedAmount !== undefined && !entered) return err(domainError("InvalidOriginalAmount"));
+  return ok(changes.accountAmount ?? changes.convertedAmount);
+};
+
+/**
+ * D29, P342: the amount an edit's money fields go with: the new `amount`, else the movement's own (what an account moved
+ * or what arrived is about the current amount), or an own transfer's "Sale" (its source leg, else the amount).
+ * `destinationAmount` fits an own transfer only (InvalidTransferLeg); null when the edit sends no money field.
+ */
+const amountOf = (
+  current: Transaction,
+  changes: AmountChanges,
+  typed: Money | undefined,
+): Result<Money | null> => {
+  const ownTransfer = current.type === "TRANSFER" && current.payerMemberId === null;
+  if (changes.destinationAmount !== undefined && !ownTransfer) return err(domainError("InvalidTransferLeg"));
   if (changes.amount !== undefined) return ok(changes.amount);
-  if (changes.convertedAmount !== undefined) {
-    if (current.originalAmount === undefined || current.originalCurrency === undefined) {
-      return err(domainError("InvalidOriginalAmount"));
-    }
-    return Money.ofMinor(current.originalAmount, current.originalCurrency);
-  }
+  if (typed !== undefined) return Money.ofMinor(current.amount, current.currency);
   if (changes.destinationAmount === undefined || current.type !== "TRANSFER") return ok(null);
   return current.sourceAmount === undefined || current.sourceCurrency === undefined
     ? Money.ofMinor(current.amount, current.currency)
@@ -42,72 +61,69 @@ const amountOf = (current: Transaction, changes: EditChanges): Result<Money | nu
 };
 
 /**
- * D29, sections 4.1 and 4.2: an edit's new `amount` read by the rules of recording its type, at the edited date's rate;
- * null when the edit sends no amount nor what goes with one (`amountOf`). An expense or income takes
- * any currency and keeps the original (the converted amount wins over the rate); an own transfer's amount is "Sale" in
- * the source account's currency, with "Llega" given or at the rate; an adjustment's is in its account's currency, its
- * size only (positive, its direction kept); a fund contribution or settlement stays in the base.
+ * D29 sections 4.1 and 4.2, P342 (S3): an edit's new `amount` read by the rules of recording its type, at the edited
+ * date's rate; null when the edit sends no money field (`amountOf`). Nothing converts into the space's currency: an
+ * expense or income is stored in the currency of its new amount (the edit decides whether its parts can follow); an
+ * own transfer's amount is "Sale" in the source account's currency, with "Llega" given or at the rate, and stays in the
+ * movement's own currency; an adjustment's is its size in its account's currency (its direction kept), converted into
+ * the movement's own when the account's differs; a fund contribution or settlement keeps the movement's own currency.
  */
 export const editedAmountOf = async (
   deps: Pick<LedgerDeps, "accounts" | "rates">,
-  space: SpaceMembership,
   current: Transaction,
-  changes: EditChanges,
+  changes: AmountChanges,
   date: LocalDate,
 ): Promise<Result<EditedAmount | null>> => {
-  const sent = amountOf(current, changes);
+  const typed = typedAccountAmount(current, changes);
+  if (!typed.ok) return typed;
+  const sent = amountOf(current, changes, typed.value);
   if (!sent.ok) return sent;
   if (sent.value === null) return ok(null);
   const amount = sent.value;
   if (current.type === "EXPENSE" || current.type === "INCOME") {
-    const base = await baseAmountOf(deps, space, amount, changes.convertedAmount, date);
-    if (!base.ok) return base;
-    const original = base.value.original ?? null;
-    return ok({ base: base.value.base, original, known: original === null ? [] : [amount] });
+    return ok({ amount, known: [], ...(typed.value === undefined ? {} : { accountAmount: typed.value }) });
   }
+  const currencyOf = async (accountId: string | null) =>
+    accountId === null
+      ? current.currency
+      : ((await deps.accounts.find(accountId))?.currency ?? current.currency);
   if (current.type === "TRANSFER" && current.payerMemberId === null) {
-    const currencyOf = async (accountId: string | null) =>
-      accountId === null
-        ? space.currency
-        : ((await deps.accounts.find(accountId))?.currency ?? space.currency);
     const sourceCurrency = await currencyOf(changes.sourceAccountId ?? current.sourceAccountId);
     const destinationCurrency = await currencyOf(
       changes.destinationAccountId ?? current.destinationAccountId,
     );
-    if (amount.currency.code !== sourceCurrency) {
-      return err(domainError("CurrencyMismatch", { expected: sourceCurrency, actual: amount.currency.code }));
-    }
+    const leaving = inCurrency(sourceCurrency, amount);
+    if (!leaving.ok) return leaving;
     const arriving = changes.destinationAmount;
-    if (arriving !== undefined && arriving.currency.code !== destinationCurrency) {
-      return err(
-        domainError("CurrencyMismatch", { expected: destinationCurrency, actual: arriving.currency.code }),
-      );
+    if (arriving !== undefined) {
+      const arrived = inCurrency(destinationCurrency, arriving);
+      if (!arrived.ok) return arrived;
     }
+    // P342: the transfer stays in its own currency; "Sale" converts into it only when the source account's differs.
     const resolved = await resolveAmounts(
       deps,
-      space.currency,
+      current.currency,
       { amount, destinationAmount: arriving },
       sourceCurrency,
       destinationCurrency,
       date,
     );
     if (!resolved.ok) return resolved;
-    return ok({ base: resolved.value.base, original: null, known: [amount, resolved.value.arrive] });
+    return ok({ amount: resolved.value.base, known: [amount, resolved.value.arrive] });
   }
   if (current.type === "ADJUSTMENT") {
     // Design Q4: the new size of the adjustment, in its account's own currency; its direction stays as recorded.
-    const accountId = current.destinationAccountId ?? current.sourceAccountId;
-    const currency =
-      (accountId === null ? null : (await deps.accounts.find(accountId))?.currency) ?? space.currency;
-    if (amount.currency.code !== currency) {
-      return err(domainError("CurrencyMismatch", { expected: currency, actual: amount.currency.code }));
-    }
-    if (currency === space.currency) return ok({ base: amount, original: null, known: [] });
-    const converted = await convertedAt(deps, amount, space.currency, date);
+    const size = inCurrency(
+      await currencyOf(current.destinationAccountId ?? current.sourceAccountId),
+      amount,
+    );
+    if (!size.ok) return size;
+    if (amount.currency.code === current.currency) return ok({ amount, known: [] });
+    const converted = await convertedAt(deps, amount, current.currency, date);
     if (!converted.ok) return converted;
-    return ok({ base: converted.value, original: null, known: [amount] });
+    return ok({ amount: converted.value, known: [amount] });
   }
-  const base = inSpaceCurrency(space, amount);
-  if (!base.ok) return base;
-  return ok({ base: base.value, original: null, known: [] });
+  const own = inCurrency(current.currency, amount);
+  if (!own.ok) return own;
+  return ok({ amount: own.value, known: [] });
 };
