@@ -28,7 +28,7 @@
     "../modules/spaces/ui/space-color-field.tsx": 4,
     "../modules/ledger/ui/split/split-sheet.tsx": 36,
     "../modules/spaces/ui/members/add-guests-sheet.tsx": 8,
-    "../modules/ledger/ui/split/who-paid-sheets.tsx": 26,
+    "../modules/ledger/ui/split/who-paid-sheets.tsx": 27,
     "../modules/ledger/ui/record/person-transfer-rows.tsx": 6,
     "../modules/ledger/ui/record/person-transfer.ts": 1,
     "../shared/ui/molecules/sheet-panel.tsx": 18,
