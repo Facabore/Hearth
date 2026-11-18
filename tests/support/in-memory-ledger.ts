@@ -25,7 +25,7 @@ import type {
 } from "@/modules/ledger/application";
 import type { SpaceDebtMovements } from "@/modules/ledger/application/ports";
 import { createSpaceAccess, type SpaceMember } from "@/modules/spaces/application";
-import { FixedClock, type LocalDate } from "@/shared/kernel";
+import { FixedClock, Money, type LocalDate } from "@/shared/kernel";
 import {
   fakeRates,
   fakeSpaceAccess,
@@ -180,11 +180,17 @@ export class InMemoryTransactions
       .slice(0, limit);
   }
 
-  async totals(filter: TransactionFilter) {
+  /** Ruling P342 (S7): counted in `currency`, the space's own when absent, as DrizzleLedgerQueries.totals counts. */
+  async totals(filter: TransactionFilter, currency?: string) {
     const rows = this.matching(filter);
+    const c = currency ?? this.currencyOf(filter.spaceId);
     const total = (type: Transaction["type"]) =>
-      rows.filter((t) => t.type === type).reduce((sum, t) => sum + t.amount, 0n);
+      rows.filter((t) => t.type === type).reduce((sum, t) => sum + (countedIn(t, c) ?? 0n), 0n);
     return { expenses: total("EXPENSE"), income: total("INCOME") };
+  }
+
+  private currencyOf(spaceId: string): string {
+    return this.spaceCurrencies.get(spaceId) ?? "COP";
   }
 
   /** Ruling P319: `list` over several spaces, as DrizzleLedgerQueries.listAcross reads them. */
@@ -196,14 +202,19 @@ export class InMemoryTransactions
   }
 
   /** Ruling P319: the members' shares of the expenses and the incomes they received, as the PostgreSQL query sums them. */
-  async memberTotalsAcross(filter: TransactionsAcrossFilter, memberIds: readonly string[]) {
+  async memberTotalsAcross(
+    filter: TransactionsAcrossFilter,
+    memberIds: readonly string[],
+    currency?: string,
+  ) {
     let share = 0n;
     let income = 0n;
     for (const t of this.matchingIn(filter.spaceIds, filter)) {
       if (filter.involving !== undefined && !involves(t, filter.involving)) continue;
+      const c = currency ?? this.currencyOf(t.spaceId);
       if (t.type === "EXPENSE")
-        for (const s of t.shares) if (memberIds.includes(s.memberId)) share += s.amount;
-      if (t.type === "INCOME" && memberIds.includes(t.receivingMemberId)) income += t.amount;
+        for (const part of countedShares(t, c)) if (memberIds.includes(part.memberId)) share += part.amount;
+      if (t.type === "INCOME" && memberIds.includes(t.receivingMemberId)) income += countedIn(t, c) ?? 0n;
     }
     return { share, income };
   }
@@ -412,6 +423,39 @@ const paidBy = (t: Transaction, memberId: string): boolean =>
     : "payerMemberId" in t && t.payerMemberId === memberId;
 
 /** Ruling P329: the movement involves one of the member rows, or belongs to an `alwaysIn` space, as PostgreSQL reads it. */
+/**
+ * Ruling P342 (S7, "Contar lo que pagó la cuenta"): the in-memory twin of DrizzleLedgerQueries' `countedIn`. A movement
+ * in `c` counts its amount; one in another currency its account leg in `c` (an expense's payments, a transfer's source,
+ * else a destination); one without such a leg nothing (null).
+ */
+export const countedIn = (t: Transaction, c: string): bigint | null => {
+  if (t.currency === c) return t.amount;
+  if (t.type === "EXPENSE") {
+    const legs = t.payments.filter((p) => p.accountAmount !== undefined && p.accountCurrency === c);
+    return legs.length === 0 ? null : legs.reduce((sum, p) => sum + p.accountAmount!, 0n);
+  }
+  const source = "sourceAmount" in t ? { amount: t.sourceAmount, currency: t.sourceCurrency } : undefined;
+  if (source?.amount !== undefined && source.currency === c) return source.amount;
+  const destination =
+    "destinationAmount" in t ? { amount: t.destinationAmount, currency: t.destinationCurrency } : undefined;
+  if (destination?.amount !== undefined && destination.currency === c) return destination.amount;
+  return null;
+};
+
+/**
+ * Ruling P342 (S7): an expense's shares as a sum in `c` counts them: as they are when it is in `c`, else what accounts in
+ * `c` paid allocated over them (`Money.allocate`), as DrizzleLedgerQueries' `foreignSharesIn` does; none without a leg.
+ */
+export const countedShares = (t: Expense, c: string): { memberId: string; amount: bigint }[] => {
+  if (t.currency === c) return t.shares.map((s) => ({ memberId: s.memberId, amount: s.amount }));
+  const counted = countedIn(t, c);
+  if (counted === null || counted <= 0n || t.shares.length === 0) return [];
+  const parts = Money.ofMinor(counted, c);
+  const split = parts.ok ? parts.value.allocate(t.shares.map((s) => s.amount)) : parts;
+  if (!split.ok) throw new Error(`Cannot allocate expense ${t.id}: ${split.error.code}`);
+  return t.shares.map((s, i) => ({ memberId: s.memberId, amount: split.value[i]!.minor }));
+};
+
 const involves = (t: Transaction, f: Involving): boolean => {
   if (f.alwaysIn.includes(t.spaceId)) return true;
   const theirs = (memberId: string | null | undefined) => memberId != null && f.memberIds.includes(memberId);

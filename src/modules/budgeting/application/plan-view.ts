@@ -167,11 +167,14 @@ const figuresOf = async (
   const spending = {
     // HU-E3-04: a subcategory's expenses count where its category is mapped, the catch-all and Unbudgeted included.
     byCategory: rolledUpSpending(
-      await deps.spending.expensesByCategory(space.spaceId, start, end),
+      // Ruling P342 (S7): every figure in the space's currency, another one counted by its account leg in it.
+      await deps.spending.expensesByCategory(space.spaceId, start, end, space.currency),
       categories,
     ),
     byAccount:
-      accountIds.length === 0 ? [] : await deps.spending.transfersIntoAccounts(accountIds, start, end),
+      accountIds.length === 0
+        ? []
+        : await deps.spending.transfersIntoAccounts(accountIds, start, end, space.currency),
   };
   const carry = await carryOf(deps, space, plan, { parts, reads, walk });
   return planFigures({
@@ -249,17 +252,17 @@ const historyReads = (deps: ViewDeps, spaceId: string, history: PlanHistory): Ch
       contents: async (planId) => history.contents.get(planId) ?? deps.plans.contents(planId),
     },
     spending: {
-      expensesByCategory: async (space, from, to) => {
+      expensesByCategory: async (space, from, to, currency) => {
         const plan = space === spaceId ? planOf(from, to) : undefined;
         const rows = plan === undefined ? undefined : history.expenses.get(plan.id);
-        return rows === undefined ? deps.spending.expensesByCategory(space, from, to) : [...rows];
+        return rows === undefined ? deps.spending.expensesByCategory(space, from, to, currency) : [...rows];
       },
-      transfersIntoAccounts: async (accountIds, from, to) => {
+      transfersIntoAccounts: async (accountIds, from, to, currency) => {
         const plan = planOf(from, to);
         const rows = plan === undefined ? undefined : history.transfers.get(plan.id);
         const known = plan === undefined ? undefined : named.get(plan.id);
         return rows === undefined || known === undefined || !accountIds.every((id) => known.has(id))
-          ? deps.spending.transfersIntoAccounts(accountIds, from, to)
+          ? deps.spending.transfersIntoAccounts(accountIds, from, to, currency)
           : rows.filter((row) => accountIds.includes(row.accountId));
       },
     },

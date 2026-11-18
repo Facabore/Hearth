@@ -143,7 +143,8 @@ export const createListMyTransactions =
       deps.query.listAcross({ ...filter, involving }, input.after, input.limit + 1),
       summed.size === 0
         ? { share: 0n, income: 0n }
-        : deps.query.memberTotalsAcross({ ...filter, spaceIds: [...summed] }, memberIds),
+        : // Ruling P342 (S7): in the home currency, a movement in another one by its account leg in it.
+          deps.query.memberTotalsAcross({ ...filter, spaceIds: [...summed] }, memberIds, home.currency),
     ]);
     const shown = rows.slice(0, input.limit);
     const last = shown.at(-1);

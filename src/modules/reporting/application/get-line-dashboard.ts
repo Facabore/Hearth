@@ -111,7 +111,8 @@ const unbudgetedIn = async (
 ): Promise<readonly string[]> => {
   if (view.figures.unbudgeted?.spent === 0n) return [];
   const { spaceId, period } = view.plan;
-  const spending = await ledger.expensesByCategory(spaceId, period.start, period.end);
+  // Ruling P342 (S7): counted in the plan's currency, as its figures were.
+  const spending = await ledger.expensesByCategory(spaceId, period.start, period.end, view.currency);
   return unbudgetedCategoriesOf(view, categories, spending);
 };
 
@@ -130,7 +131,12 @@ export const createGetLineDashboard =
     // The categories and the spending the view was figured from, read once in the request.
     if (view === null) {
       const categories = await deps.categories.list(space.spaceId);
-      const spending = await deps.spending.expensesByCategory(space.spaceId, period.start, period.end);
+      const spending = await deps.spending.expensesByCategory(
+        space.spaceId,
+        period.start,
+        period.end,
+        space.currency,
+      );
       const rest = unbudgeted(
         spending.reduce((sum, c) => sum + c.amount, 0n),
         unbudgetedCategoriesOf(null, categories, spending),

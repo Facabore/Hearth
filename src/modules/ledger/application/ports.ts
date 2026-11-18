@@ -139,8 +139,12 @@ export interface TransactionPosition {
 export interface TransactionQuery {
   /** Live matching transactions, newest first, strictly after `after`, at most `limit`. */
   list(filter: TransactionFilter, after: TransactionPosition | null, limit: number): Promise<Transaction[]>;
-  /** Σ EXPENSE and Σ INCOME amounts of every live matching transaction; transfers are not spending. */
-  totals(filter: TransactionFilter): Promise<{ expenses: bigint; income: bigint }>;
+  /**
+   * Σ EXPENSE and Σ INCOME amounts of every live matching transaction; transfers are not spending. Ruling P342 (S7,
+   * "Contar lo que pagó la cuenta"): counted in `currency`, the space's own when absent: a movement in it by its amount,
+   * one in another currency by its account leg in it, one without such a leg not at all.
+   */
+  totals(filter: TransactionFilter, currency?: string): Promise<{ expenses: bigint; income: bigint }>;
 }
 
 /** Ruling P319: the list's filter (P277) over several spaces at once, as the personal Movimientos reads them. */
@@ -170,11 +174,13 @@ export interface TransactionsAcrossQuery {
   ): Promise<Transaction[]>;
   /**
    * Over every live matching transaction: Σ the shares of `memberIds` in the expenses, and Σ the incomes one of
-   * `memberIds` received.
+   * `memberIds` received. Ruling P342 (S7): counted in `currency` (else each space's own), as `totals` counts; a share
+   * of an expense in another currency is its part of what accounts in `currency` paid, allocated over the shares.
    */
   memberTotalsAcross(
     filter: TransactionsAcrossFilter,
     memberIds: readonly string[],
+    currency?: string,
   ): Promise<{ share: bigint; income: bigint }>;
 }
 

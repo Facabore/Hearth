@@ -54,6 +54,7 @@ const savingsByMember = async (
   members: readonly SpaceMember[],
   line: BudgetLine,
   period: Period,
+  currency: string,
 ): Promise<Map<string, bigint>> => {
   const counts = ownedByRegisteredMember(members);
   const owned = await Promise.all(
@@ -72,6 +73,8 @@ const savingsByMember = async (
           counted.map((a) => a.accountId),
           period.start,
           period.end,
+          // Ruling P342 (S7): in the plan's currency.
+          currency,
         );
   const byMember = new Map<string, bigint>();
   for (const transfer of transfers) {
@@ -105,7 +108,12 @@ export const createGetMemberLineMatrix =
       ),
     };
     const sums = new Map<string, { paid: bigint; consumed: bigint }>();
-    for (const row of await deps.sums.memberSumsByCategory(space.spaceId, period.start, period.end)) {
+    for (const row of await deps.sums.memberSumsByCategory(
+      space.spaceId,
+      period.start,
+      period.end,
+      space.currency,
+    )) {
       // HU-E3-04: a subcategory's payments and shares count on the line its category consumes, as its spending does.
       const lineId = lineForCategory(rolledUpCategory(row.categoryId, categories), parts);
       if (lineId === null) continue;
@@ -116,7 +124,9 @@ export const createGetMemberLineMatrix =
     const lines = await Promise.all(
       figures.map(async ({ line, allocation }): Promise<MatrixLine> => {
         const savings =
-          line.funding === "SAVINGS" ? await savingsByMember(reads, members, line, period) : null;
+          line.funding === "SAVINGS"
+            ? await savingsByMember(reads, members, line, period, space.currency)
+            : null;
         const row = matrixRow({
           funding: line.funding,
           allocated: allocation.rule !== "NONE",

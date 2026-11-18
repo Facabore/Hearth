@@ -316,6 +316,38 @@ describe("unified personal view (HU-E7-04)", () => {
       expect(view.bySpace.find((s) => s.space.id === "space-trip")).toBeUndefined();
     });
 
+    // Ruling P342: a COP space holds a movement in USD; it converts from USD, never read as COP.
+    const withDollarsAtHome = () => {
+      const w = background();
+      w.sums.consumption[NOVEMBER]!.push({
+        spaceId: "space-household",
+        categoryId: "cat-groceries",
+        amount: 1_000n,
+        currency: "USD",
+      });
+      return w;
+    };
+
+    it("converts a USD movement of a COP space from USD at its day's rate (P342)", async () => {
+      const w = withDollarsAtHome();
+      const deps = { ...w.deps, rates: ratesOf({ "USD>COP": "4100" }) };
+      const view = unwrap(await createGetUnifiedPersonalView(deps)({ userId: "u-ana", period: "2026-11" }));
+      expect(view.consumption.total).toBe(pesos(1_575_000 + 41_000));
+      expect(view.bySpace.find((s) => s.space.id === "space-household")?.consumed).toBe(
+        pesos(1_430_000 + 41_000),
+      );
+      expect([view.otherCurrencySpaces, view.converted]).toEqual([[], true]);
+    });
+
+    it("leaves a USD movement of a COP space out without a rate, naming the space and USD (P342)", async () => {
+      const view = unwrap(await read(withDollarsAtHome()));
+      expect(view.consumption.total).toBe(pesos(1_575_000));
+      expect(view.otherCurrencySpaces).toEqual([
+        { spaceId: "space-household", name: "Household", currency: "USD" },
+      ]);
+      expect(view.converted).toBe(false);
+    });
+
     it("shows a person with USD as their display currency their whole view in USD", async () => {
       const w = withTrip();
       const deps = {

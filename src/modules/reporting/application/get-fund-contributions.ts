@@ -64,7 +64,7 @@ const paidDirectlyByMember = async (
   cache: ReturnType<typeof planViewCache>,
 ): Promise<(memberId: string) => PaidDirectly[]> => {
   if (figures.length === 0) return () => [];
-  const rows = await deps.sums.paidForFundByCategory(space.spaceId, period.start, period.end);
+  const rows = await deps.sums.paidForFundByCategory(space.spaceId, period.start, period.end, space.currency);
   const { categories } = await viewReadsOf(deps, space, cache);
   const parts = {
     lines: figures.map((f) => f.line),
@@ -105,7 +105,12 @@ export const createGetFundContributions =
     const fundLines = (view?.figures.lines ?? [])
       .filter((f) => f.line.funding === "SHARED_FUND")
       .map((f) => ({ members: f.allocation.members }));
-    const actual = await deps.sums.fundContributionsByMember(space.spaceId, period.start, period.end);
+    const actual = await deps.sums.fundContributionsByMember(
+      space.spaceId,
+      period.start,
+      period.end,
+      space.currency,
+    );
     const rows = fundContributions(
       members.map((m) => m.id),
       fundLines,

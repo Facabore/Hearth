@@ -60,7 +60,12 @@ export const createGetSpendingByGroup =
         },
       });
     }
-    const spent = await deps.spending.expensesByCategory(space.spaceId, period.start, period.end);
+    const spent = await deps.spending.expensesByCategory(
+      space.spaceId,
+      period.start,
+      period.end,
+      space.currency,
+    );
     const rows = spent.map((row) => ({
       spaceId: space.spaceId,
       categoryId: row.categoryId,

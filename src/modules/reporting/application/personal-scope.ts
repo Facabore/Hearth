@@ -13,25 +13,45 @@ import {
 import type { PaletteKey } from "@/shared/kernel/style";
 import type { DisplayCurrencyOf, ReportRates } from "./conversion";
 
+/** Ruling P342: what members paid out in one movement currency, never converted. */
+export interface PaidOutIn {
+  readonly currency: string;
+  readonly payments: bigint;
+  readonly paymentsOutsideTheApp: bigint;
+  readonly fundContributions: bigint;
+  readonly contributionsOutsideTheApp: bigint;
+}
+
 /** HU-E7-04: one user's sums across their member rows, by the ledger on read (D7). */
 export interface PersonalSums {
-  /** Σ the members' shares of live expenses per space and category. */
+  /**
+   * Σ the members' shares of live expenses per space and category. Ruling P342 (S7, "Contar lo que pagó la cuenta"):
+   * counted in `currency`: a share of an expense in another currency is its part of what accounts in `currency` paid.
+   */
   consumptionByCategory(
     memberIds: readonly string[],
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<readonly { readonly spaceId: string; readonly categoryId: string; readonly amount: bigint }[]>;
-  /** Σ the members' payments and fund contributions, each with the part without an account. */
-  cashOut(
+  /** Ruling P342: Σ the members' shares per space, category and movement currency, never converted. */
+  consumptionByCurrency(
     memberIds: readonly string[],
     from: LocalDate,
     to: LocalDate,
-  ): Promise<{
-    readonly payments: bigint;
-    readonly paymentsOutsideTheApp: bigint;
-    readonly fundContributions: bigint;
-    readonly contributionsOutsideTheApp: bigint;
-  }>;
+  ): Promise<
+    readonly {
+      readonly spaceId: string;
+      readonly categoryId: string;
+      readonly currency: string;
+      readonly amount: bigint;
+    }[]
+  >;
+  /**
+   * Σ the members' payments and fund contributions, each with the part without an account. Ruling P342: one entry per
+   * movement currency with anything paid, never converted.
+   */
+  cashOut(memberIds: readonly string[], from: LocalDate, to: LocalDate): Promise<readonly PaidOutIn[]>;
 }
 
 /**
@@ -110,7 +130,10 @@ export const personalScope = async (
   });
 };
 
-/** The caller's shares of live expenses within `period` across `scope.places`, per space and category (spec 5.4). */
+/**
+ * The caller's shares of live expenses within `period` across `scope.places`, per space and category (spec 5.4).
+ * Ruling P342 (S7): counted in the personal space's currency, as a plan counts.
+ */
 export const consumptionRows = (
   deps: PersonalDeps,
   scope: PersonalScope,
@@ -120,6 +143,7 @@ export const consumptionRows = (
     scope.places.map((p) => p.memberId),
     period.start,
     period.end,
+    scope.personal.currency,
   );
 
 /** Σ the caller's consumption within `period` across `scope.places` (spec 5.4). */

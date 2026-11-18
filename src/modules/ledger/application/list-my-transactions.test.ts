@@ -174,7 +174,7 @@ const world = (personalPolicy: PeriodPolicy = { kind: "MONTHLY", day: 1 }) => {
     createListMyTransactions(deps)({ userId: "u-ana", after: null, limit: 50, ...extra });
   const idsOf = async (extra: Partial<MyTransactionsInput> = {}) =>
     unwrap(await list(extra)).items.map((i) => i.transaction.id as string);
-  return { m, list, idsOf };
+  return { m, list, idsOf, add: (...txs: Transaction[]) => store.rows.push(...txs) };
 };
 
 const idsOf = (...txs: Transaction[]) => txs.map((tx) => tx.id as string);
@@ -279,5 +279,21 @@ describe("ListMyTransactions (ruling P319)", () => {
     expect(viaje.items[0]!.you.share).toBe(7_000n);
     expect(viaje.totals).toEqual({ share: 0n, income: 0n });
     expect(viaje.currency).toBe("COP");
+  });
+
+  it("counts a USD expense of a COP space by what her COP account paid, and not one paid in USD (P342, S7)", async () => {
+    const { list, add } = world();
+    const usd = (amount: bigint, leg: { accountAmount?: bigint; accountCurrency?: string }) =>
+      anExpense("2026-10-11", amount, {
+        spaceId: "sp-ana",
+        currency: "USD",
+        categoryId: "cat-veg-personal",
+        payments: [{ memberId: "m-ana-personal", accountId: ACCOUNTS.bancolombia.id, amount, ...leg }],
+        shares: [{ memberId: "m-ana-personal", amount, splitMethod: "EQUAL" }],
+      });
+    // 10 USD paid from Bancolombia, which moved 41.000 COP; 5 USD from a dollar account, with no COP leg.
+    add(usd(1_000n, { accountAmount: pesos(41_000), accountCurrency: "COP" }), usd(500n, {}));
+    const page = unwrap(await list());
+    expect(page.totals).toEqual({ share: pesos(130_000 + 41_000), income: pesos(3_000_000) });
   });
 });

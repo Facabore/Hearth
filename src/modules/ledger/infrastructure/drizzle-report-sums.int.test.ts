@@ -355,18 +355,17 @@ describe("one user's sums across their places (HU-E7-04)", () => {
         }),
       ),
     );
-    expect(await queries.cashOut([anaAtHome, ana], nov1, nov30)).toEqual({
-      payments: pesos(2_115_000n),
-      paymentsOutsideTheApp: pesos(30_000n),
-      fundContributions: pesos(500_000n),
-      contributionsOutsideTheApp: pesos(20_000n),
-    });
-    expect(await queries.cashOut([], nov1, nov30)).toEqual({
-      payments: 0n,
-      paymentsOutsideTheApp: 0n,
-      fundContributions: 0n,
-      contributionsOutsideTheApp: 0n,
-    });
+    // Ruling P342: one entry per movement currency, every movement here being in COP.
+    expect(await queries.cashOut([anaAtHome, ana], nov1, nov30)).toEqual([
+      {
+        currency: "COP",
+        payments: pesos(2_115_000n),
+        paymentsOutsideTheApp: pesos(30_000n),
+        fundContributions: pesos(500_000n),
+        contributionsOutsideTheApp: pesos(20_000n),
+      },
+    ]);
+    expect(await queries.cashOut([], nov1, nov30)).toEqual([]);
   });
 });
 

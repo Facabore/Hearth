@@ -166,7 +166,7 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
       { accountId: "acc-other", amount: 5_000_000n },
     ];
     const view = unwrap(await read({ spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id }));
-    expect(transfers).toHaveBeenCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
+    expect(transfers).toHaveBeenCalledWith(["acc-savings"], "2026-11-01", "2026-11-30", "COP");
     expect(view.figures.lines.find((l) => l.line.name === "Savings")!.spent).toBe(60_000_000n);
   });
 
@@ -193,13 +193,14 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
       ["acc-savings", "acc-luis-savings"],
       "2026-11-01",
       "2026-11-30",
+      "COP",
     );
 
     expect(await spaces.markLeft(HOUSEHOLD, "member-luis", "USER", NOW)).toBe(true);
     // Sofi the VIEWER and Ana read the same figure, with nothing from the account of the owner who left.
     expect(await spentAs("u-sofi")).toBe(10_000_000n);
     expect(await spentAs("u-ana")).toBe(10_000_000n);
-    expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
+    expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30", "COP");
 
     // The filter runs on every read, over the whole period: Luis rejoins and his transfers count again.
     expect(await spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 5))).toBe("rejoined");
@@ -229,7 +230,7 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     pending.get("acc-reserve")!(await savingsAccounts.find("acc-reserve"));
     pending.get("acc-savings")!(await savingsAccounts.find("acc-savings"));
     unwrap(await read);
-    expect(transfers).toHaveBeenCalledWith(named, "2026-11-01", "2026-11-30");
+    expect(transfers).toHaveBeenCalledWith(named, "2026-11-01", "2026-11-30", "COP");
   });
 
   it("derives the figures from the current lines, mappings, allocations and members only (D8, D15)", async () => {

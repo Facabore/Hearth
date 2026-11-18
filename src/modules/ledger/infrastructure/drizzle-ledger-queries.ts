@@ -19,7 +19,7 @@ import {
 } from "drizzle-orm";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
-import { isUuid, type LocalDate } from "@/shared/kernel";
+import { isUuid, Money, type LocalDate } from "@/shared/kernel";
 import type { AccountUsageQuery, AccountUse, CategoryAccount } from "../application/get-account-usage";
 import type { RecentQuery } from "../application/list-my-activity";
 import type {
@@ -50,6 +50,71 @@ const sumAsText = (column: AnyColumn) => sql<string>`sum(${column})::text`;
 const legSumAsText = (leg: AnyColumn, base: AnyColumn) => sql<string>`sum(coalesce(${leg}, ${base}))::text`;
 const negatedLegSumAsText = (leg: AnyColumn, base: AnyColumn) =>
   sql<string>`(-sum(coalesce(${leg}, ${base})))::text`;
+
+/**
+ * Ruling P342 (S7, owner: "Contar lo que pagó la cuenta"): the currency a plan's or a report's sums count in: `currency`
+ * when given, else the space's own. The spaces table by name, as `memberHistory` reads it (ADR 0001).
+ */
+const countedCurrency = (currency: string | undefined, spaceId: string | AnyColumn): SQL =>
+  currency === undefined
+    ? sql`(SELECT s.currency FROM spaces s WHERE s.id = ${spaceId})`
+    : sql`${currency}::text`;
+
+/** Ruling P342 (S7): `currency` when given, else the receiving account's own (accounts table by name). */
+const intoCurrency = (currency: string | undefined): SQL =>
+  currency === undefined
+    ? sql`(SELECT a.currency FROM accounts a WHERE a.id = ${transactions.destinationAccountId})`
+    : sql`${currency}::text`;
+
+/**
+ * Ruling P342 (S7): what an expense's payments moved from accounts in `c` when the expense is in another currency: the
+ * legs in `c` (an account leg is stored exactly when the account's currency differs from the movement's). The accounts
+ * table by name, as transaction-rows.ts reads it.
+ */
+const paymentLegsIn = (c: SQL) =>
+  sql`(SELECT sum(p.account_amount) FROM ${payments} p JOIN accounts a ON a.id = p.account_id
+    WHERE p.transaction_id = ${transactions.id} AND p.account_amount IS NOT NULL AND a.currency = ${c})`;
+
+/**
+ * Ruling P342 (S7, owner: "Contar lo que pagó la cuenta"): a movement's amount as a sum in `c` counts it until plans
+ * count several currencies (T6). One in `c` counts its amount; one in another currency counts its account leg in `c`:
+ * what the paying accounts moved (an expense's payments, a transfer's source) or, failing that, what the receiving
+ * account got (an income's or a transfer's destination). One without a leg in `c` counts nothing yet (null).
+ */
+const countedIn = (c: SQL) =>
+  sql`(CASE WHEN ${transactions.currency} = ${c} THEN ${transactions.amount}
+    WHEN ${transactions.type} = 'EXPENSE' THEN ${paymentLegsIn(c)}
+    WHEN ${transactions.sourceAmount} IS NOT NULL AND ${transactions.sourceCurrency} = ${c} THEN ${transactions.sourceAmount}
+    WHEN ${transactions.destinationAmount} IS NOT NULL AND ${transactions.destinationCurrency} = ${c}
+      THEN ${transactions.destinationAmount}
+  END)`;
+
+/** Ruling P342 (S7): one payment as a sum in `c` counts it: its amount in `c`, else its account leg in `c`, else null. */
+const paymentCountedIn = (c: SQL) =>
+  sql`(CASE WHEN ${transactions.currency} = ${c} THEN ${payments.amount}
+    WHEN ${payments.accountAmount} IS NOT NULL AND (SELECT a.currency FROM accounts a WHERE a.id = ${payments.accountId}) = ${c}
+      THEN ${payments.accountAmount}
+  END)`;
+
+/** Σ of a counted amount as text, null when nothing counted. */
+const countedSumAsText = (amount: SQL) => sql<string | null>`sum(${amount})::text`;
+
+/** Ruling P342: what members paid out in one movement currency (`cashOut`). */
+interface CashOutByCurrency {
+  readonly currency: string;
+  readonly payments: bigint;
+  readonly paymentsOutsideTheApp: bigint;
+  readonly fundContributions: bigint;
+  readonly contributionsOutsideTheApp: bigint;
+}
+
+/** A member's part of an expense in another currency, as `foreignSharesIn` allocates it. */
+interface CountedShare {
+  readonly spaceId: string;
+  readonly categoryId: string | null;
+  readonly memberId: string;
+  readonly amount: bigint;
+}
 
 // HU-E4-14, ruling P43: untimed rows sort as the earliest time of their day, so they come last in DESC order.
 // The cursor round-trips only because writers store millisecond instants: never write occurred_at with now(), defaultNow() or SQL.
@@ -211,17 +276,24 @@ export class DrizzleLedgerQueries
   async memberTotalsAcross(
     filter: TransactionsAcrossFilter,
     memberIds: readonly string[],
+    currency?: string,
   ): Promise<{ share: bigint; income: bigint }> {
     const spaceIds = filter.spaceIds.filter(isUuid);
     const members = memberIds.filter(isUuid);
     if (spaceIds.length === 0 || members.length === 0) return { share: 0n, income: 0n };
+    // Ruling P342 (S7): counted in `currency`, else in each movement's space's own.
+    const c = countedCurrency(currency, transactions.spaceId);
+    const where = and(
+      this.matchingIn(inArray(transactions.spaceId, spaceIds), filter),
+      this.involving(filter.involving),
+    );
     // Aliased, so the filter's own subqueries on `shares` never read the joined rows.
     const theirs = alias(shares, "their_shares");
     const [row] = await this.tm
       .executor()
       .select({
-        share: sql<string>`coalesce(sum(${theirs.amount}), 0)::text`,
-        income: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.type} = 'INCOME' and ${inArray(transactions.receivingMemberId, members)}), 0)::text`,
+        share: sql<string>`coalesce(sum(${theirs.amount}) filter (where ${transactions.currency} = ${c}), 0)::text`,
+        income: sql<string>`coalesce(sum(${countedIn(c)}) filter (where ${transactions.type} = 'INCOME' and ${inArray(transactions.receivingMemberId, members)}), 0)::text`,
       })
       .from(transactions)
       .leftJoin(
@@ -232,13 +304,59 @@ export class DrizzleLedgerQueries
           inArray(theirs.memberId, members),
         ),
       )
+      .where(where);
+    const foreign = (await this.foreignSharesIn(c, where)).filter((part) => members.includes(part.memberId));
+    return {
+      share: BigInt(row?.share ?? "0") + foreign.reduce((sum, part) => sum + part.amount, 0n),
+      income: BigInt(row?.income ?? "0"),
+    };
+  }
+
+  /**
+   * Ruling P342 (S7): the members' parts of the live expenses matching `where` that are in another currency than `c` but
+   * were paid from accounts in `c`. What those accounts moved is allocated over the expense's shares in proportion to
+   * them, as `Money.allocate` splits (largest remainder, ties to the earlier share), so the parts sum to what is counted
+   * for the expense and a plan's consumption agrees with its spending. An expense with no leg in `c` has no parts.
+   */
+  private async foreignSharesIn(c: SQL, where: SQL | undefined): Promise<CountedShare[]> {
+    const every = alias(shares, "every_share");
+    const rows = await this.tm
+      .executor()
+      .select({
+        id: transactions.id,
+        spaceId: transactions.spaceId,
+        categoryId: transactions.categoryId,
+        currency: sql<string>`${c}`,
+        counted: sql<string>`${paymentLegsIn(c)}::text`,
+        memberId: every.memberId,
+        amount: every.amount,
+      })
+      .from(transactions)
+      .innerJoin(every, eq(every.transactionId, transactions.id))
       .where(
         and(
-          this.matchingIn(inArray(transactions.spaceId, spaceIds), filter),
-          this.involving(filter.involving),
+          where,
+          eq(transactions.type, "EXPENSE"),
+          sql`${transactions.currency} <> ${c}`,
+          sql`${paymentLegsIn(c)} > 0`,
         ),
-      );
-    return { share: BigInt(row?.share ?? "0"), income: BigInt(row?.income ?? "0") };
+      )
+      .orderBy(transactions.id, every.position);
+    const byExpense = new Map<string, (typeof rows)[number][]>();
+    for (const row of rows) byExpense.set(row.id, [...(byExpense.get(row.id) ?? []), row]);
+    return [...byExpense.values()].flatMap((parts) => {
+      const [first] = parts as [(typeof rows)[number]];
+      const money = Money.ofMinor(BigInt(first.counted), first.currency);
+      const split = money.ok ? money.value.allocate(parts.map((part) => part.amount)) : money;
+      // A broken invariant (an unknown currency, shares that do not weigh): loud, never a silent zero.
+      if (!split.ok) throw new Error(`Cannot allocate expense ${first.id}: ${split.error.code}`);
+      return parts.map((part, i) => ({
+        spaceId: part.spaceId,
+        categoryId: part.categoryId,
+        memberId: part.memberId,
+        amount: split.value[i]!.minor,
+      }));
+    });
   }
 
   /**
@@ -286,12 +404,14 @@ export class DrizzleLedgerQueries
     return rows.map((row) => ({ ...row, date: row.date as LocalDate }));
   }
 
-  async totals(filter: TransactionFilter): Promise<{ expenses: bigint; income: bigint }> {
+  /** Ruling P342 (S7): counted in `currency`, the space's own when absent (`countedIn`). */
+  async totals(filter: TransactionFilter, currency?: string): Promise<{ expenses: bigint; income: bigint }> {
+    const counted = countedIn(countedCurrency(currency, filter.spaceId));
     const [row] = await this.tm
       .executor()
       .select({
-        expenses: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.type} = 'EXPENSE'), 0)::text`,
-        income: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.type} = 'INCOME'), 0)::text`,
+        expenses: sql<string>`coalesce(sum(${counted}) filter (where ${transactions.type} = 'EXPENSE'), 0)::text`,
+        income: sql<string>`coalesce(sum(${counted}) filter (where ${transactions.type} = 'INCOME'), 0)::text`,
       })
       .from(transactions)
       .where(this.matching(filter));
@@ -576,16 +696,21 @@ export class DrizzleLedgerQueries
     return { memberPaid, settlements: and(live, eq(transactions.type, "SETTLEMENT")) };
   }
 
-  /** Spec 5.4, HU-E6-04: Σ live expenses of the space per category within [from, to], for budget lines (D7). */
+  /**
+   * Spec 5.4, HU-E6-04: Σ live expenses of the space per category within [from, to], for budget lines (D7). Ruling P342
+   * (S7): counted in `currency`, the space's own when absent (`countedIn`); a category where nothing counts is absent.
+   */
   async expensesByCategory(
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ categoryId: string; amount: bigint }[]> {
     if (!isUuid(spaceId)) return [];
+    const counted = countedIn(countedCurrency(currency, spaceId));
     const rows = await this.tm
       .executor()
-      .select({ categoryId: transactions.categoryId, total: sumAsText(transactions.amount) })
+      .select({ categoryId: transactions.categoryId, total: countedSumAsText(counted) })
       .from(transactions)
       .where(
         and(
@@ -598,24 +723,31 @@ export class DrizzleLedgerQueries
       .groupBy(transactions.categoryId)
       .orderBy(asc(transactions.categoryId));
     return rows.flatMap((row) =>
-      row.categoryId === null ? [] : [{ categoryId: row.categoryId, amount: BigInt(row.total) }],
+      row.categoryId === null || row.total === null
+        ? []
+        : [{ categoryId: row.categoryId, amount: BigInt(row.total) }],
     );
   }
 
   /**
    * Spec 5.4, HU-E6-03: Σ live transfers into each account within [from, to], for SAVINGS lines. Not scoped to a
-   * space: a savings account lives in its owner's personal space while the line may belong to a shared space.
+   * space: a savings account lives in its owner's personal space while the line may belong to a shared space. Ruling
+   * P342 (S7): counted in `currency` (the plan's), else in each receiving account's own: what arrived there.
    */
   async transfersIntoAccounts(
     accountIds: readonly string[],
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ accountId: string; amount: bigint }[]> {
     const ids = accountIds.filter(isUuid);
     if (ids.length === 0) return [];
     const rows = await this.tm
       .executor()
-      .select({ accountId: transactions.destinationAccountId, total: sumAsText(transactions.amount) })
+      .select({
+        accountId: transactions.destinationAccountId,
+        total: countedSumAsText(countedIn(intoCurrency(currency))),
+      })
       .from(transactions)
       .where(
         and(
@@ -628,7 +760,9 @@ export class DrizzleLedgerQueries
       .groupBy(transactions.destinationAccountId)
       .orderBy(asc(transactions.destinationAccountId));
     return rows.flatMap((row) =>
-      row.accountId === null ? [] : [{ accountId: row.accountId, amount: BigInt(row.total) }],
+      row.accountId === null || row.total === null
+        ? []
+        : [{ accountId: row.accountId, amount: BigInt(row.total) }],
     );
   }
 
@@ -639,11 +773,13 @@ export class DrizzleLedgerQueries
   async expensesByCategoryIn(
     spaceId: string,
     ranges: readonly DateRange[],
+    currency?: string,
   ): Promise<{ categoryId: string; amount: bigint }[][]> {
     const found = ranges.map((): { categoryId: string; amount: bigint }[] => []);
     if (!isUuid(spaceId) || ranges.length === 0) return found;
-    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string }>(sql`
-      SELECT r.i AS i, ${transactions.categoryId} AS key, sum(${transactions.amount})::text AS total
+    const counted = countedIn(countedCurrency(currency, spaceId));
+    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string | null }>(sql`
+      SELECT r.i AS i, ${transactions.categoryId} AS key, sum(${counted})::text AS total
       FROM (VALUES ${rangeRows(ranges)}) AS r(i, start_date, end_date)
       JOIN ${transactions} ON ${transactions.date} BETWEEN r.start_date AND r.end_date
       WHERE ${and(
@@ -654,7 +790,8 @@ export class DrizzleLedgerQueries
       )}
       GROUP BY r.i, ${transactions.categoryId}
       ORDER BY r.i, ${transactions.categoryId}`);
-    for (const row of rows) found[row.i]?.push({ categoryId: row.key, amount: BigInt(row.total) });
+    for (const row of rows)
+      if (row.total !== null) found[row.i]?.push({ categoryId: row.key, amount: BigInt(row.total) });
     return found;
   }
 
@@ -665,12 +802,14 @@ export class DrizzleLedgerQueries
   async transfersIntoAccountsIn(
     accountIds: readonly string[],
     ranges: readonly DateRange[],
+    currency?: string,
   ): Promise<{ accountId: string; amount: bigint }[][]> {
     const found = ranges.map((): { accountId: string; amount: bigint }[] => []);
     const ids = accountIds.filter(isUuid);
     if (ids.length === 0 || ranges.length === 0) return found;
-    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string }>(sql`
-      SELECT r.i AS i, ${transactions.destinationAccountId} AS key, sum(${transactions.amount})::text AS total
+    const counted = countedIn(intoCurrency(currency));
+    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string | null }>(sql`
+      SELECT r.i AS i, ${transactions.destinationAccountId} AS key, sum(${counted})::text AS total
       FROM (VALUES ${rangeRows(ranges)}) AS r(i, start_date, end_date)
       JOIN ${transactions} ON ${transactions.date} BETWEEN r.start_date AND r.end_date
       WHERE ${and(
@@ -680,7 +819,8 @@ export class DrizzleLedgerQueries
       )}
       GROUP BY r.i, ${transactions.destinationAccountId}
       ORDER BY r.i, ${transactions.destinationAccountId}`);
-    for (const row of rows) found[row.i]?.push({ accountId: row.key, amount: BigInt(row.total) });
+    for (const row of rows)
+      if (row.total !== null) found[row.i]?.push({ accountId: row.key, amount: BigInt(row.total) });
     return found;
   }
 
@@ -784,15 +924,19 @@ export class DrizzleLedgerQueries
   /**
    * HU-E7-02, spec 5.4: per category and member, Σ the member's payments and Σ their shares over the live expenses of
    * the space dated within [from, to]. A fund payment has no member, so it counts for nobody (D5). One statement, so
-   * both sums come from one snapshot; sorted by category, then member; `[]` for malformed ids.
+   * both sums come from one snapshot; sorted by category, then member; `[]` for malformed ids. Ruling P342 (S7): counted
+   * in `currency`, the space's own when absent: a payment by its leg in it (`paymentCountedIn`), and a share of an
+   * expense in another currency by its part of what was counted (`foreignSharesIn`, read in a second statement).
    */
   async memberSumsByCategory(
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ categoryId: string; memberId: string; paid: bigint; consumed: bigint }[]> {
     if (!isUuid(spaceId)) return [];
     const db = this.tm.executor();
+    const c = countedCurrency(currency, spaceId);
     type Field = "paid" | "consumed";
     // Same selection shape in both branches of the UNION ALL.
     const idOf = (column: AnyColumn) => sql<string | null>`${column}`;
@@ -808,7 +952,7 @@ export class DrizzleLedgerQueries
           categoryId: idOf(transactions.categoryId),
           memberId: idOf(payments.memberId),
           field: sql<Field>`'paid'::text`,
-          total: sumAsText(payments.amount),
+          total: countedSumAsText(paymentCountedIn(c)),
         })
         .from(payments)
         .innerJoin(transactions, eq(transactions.id, payments.transactionId))
@@ -819,16 +963,22 @@ export class DrizzleLedgerQueries
           categoryId: idOf(transactions.categoryId),
           memberId: idOf(shares.memberId),
           field: sql<Field>`'consumed'::text`,
-          total: sumAsText(shares.amount),
+          total: countedSumAsText(sql`${shares.amount}`),
         })
         .from(shares)
         .innerJoin(transactions, eq(transactions.id, shares.transactionId))
-        .where(expenses)
+        .where(and(expenses, sql`${transactions.currency} = ${c}`))
         .groupBy(transactions.categoryId, shares.memberId),
     );
+    const foreign = (await this.foreignSharesIn(c, expenses)).map((part) => ({
+      categoryId: part.categoryId,
+      memberId: part.memberId as string | null,
+      field: "consumed" as Field,
+      total: String(part.amount) as string | null,
+    }));
     const sums = new Map<string, { categoryId: string; memberId: string; paid: bigint; consumed: bigint }>();
-    for (const row of rows) {
-      if (row.categoryId === null || row.memberId === null) continue;
+    for (const row of [...rows, ...foreign]) {
+      if (row.categoryId === null || row.memberId === null || row.total === null) continue;
       const key = `${row.categoryId}/${row.memberId}`;
       const entry = sums.get(key) ?? {
         categoryId: row.categoryId,
@@ -845,16 +995,19 @@ export class DrizzleLedgerQueries
   /**
    * HU-E7-03, spec 5.4: Σ the live fund contributions of the space (transfers with a contributing member, HU-E4-09)
    * dated within [from, to], per member, those from outside the app included; sorted by member; `[]` for malformed ids.
+   * Ruling P342 (S7): counted in `currency`, the space's own when absent (`countedIn`).
    */
   async fundContributionsByMember(
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ memberId: string; amount: bigint }[]> {
     if (!isUuid(spaceId)) return [];
+    const counted = countedIn(countedCurrency(currency, spaceId));
     const rows = await this.tm
       .executor()
-      .select({ memberId: transactions.payerMemberId, total: sumAsText(transactions.amount) })
+      .select({ memberId: transactions.payerMemberId, total: countedSumAsText(counted) })
       .from(transactions)
       .where(
         and(
@@ -869,27 +1022,32 @@ export class DrizzleLedgerQueries
       .groupBy(transactions.payerMemberId)
       .orderBy(asc(transactions.payerMemberId));
     return rows.flatMap((row) =>
-      row.memberId === null ? [] : [{ memberId: row.memberId, amount: BigInt(row.total) }],
+      row.memberId === null || row.total === null
+        ? []
+        : [{ memberId: row.memberId, amount: BigInt(row.total) }],
     );
   }
 
   /**
    * D26: per category and contributor, Σ the live contributions to the fund dated within [from, to] whose linked
    * expense (the one they paid for the fund) is live too, by that expense's category; sorted by category, then member.
+   * Ruling P342 (S7): each contribution counted in `currency`, the space's own when absent (`countedIn`).
    */
   async paidForFundByCategory(
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ categoryId: string; memberId: string; amount: bigint }[]> {
     if (!isUuid(spaceId)) return [];
+    const counted = countedIn(countedCurrency(currency, spaceId));
     const expense = alias(transactions, "paid_expense");
     const rows = await this.tm
       .executor()
       .select({
         categoryId: expense.categoryId,
         memberId: transactions.payerMemberId,
-        total: sumAsText(transactions.amount),
+        total: countedSumAsText(counted),
       })
       .from(transactions)
       .innerJoin(
@@ -913,7 +1071,7 @@ export class DrizzleLedgerQueries
       .groupBy(expense.categoryId, transactions.payerMemberId)
       .orderBy(asc(expense.categoryId), asc(transactions.payerMemberId));
     return rows.flatMap((row) =>
-      row.memberId === null || row.categoryId === null
+      row.memberId === null || row.categoryId === null || row.total === null
         ? []
         : [{ categoryId: row.categoryId, memberId: row.memberId, amount: BigInt(row.total) }],
     );
@@ -922,17 +1080,26 @@ export class DrizzleLedgerQueries
   /**
    * HU-E7-04, spec 5.4 (D11): Σ the shares of `memberIds`, one user's member rows, over live expenses dated within
    * [from, to], per space and category, whatever space recorded them; sorted by space, then category; `[]` without
-   * well-formed ids.
+   * well-formed ids. Ruling P342 (S7): counted in `currency`, else in each space's own: a share of an expense in it as
+   * is, a share of one in another currency by its part of what accounts in it moved (`foreignSharesIn`).
    */
   async consumptionByCategory(
     memberIds: readonly string[],
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ spaceId: string; categoryId: string; amount: bigint }[]> {
     const ids = memberIds.filter(isUuid);
     if (ids.length === 0) return [];
-    const rows = await this.tm
-      .executor()
+    const db = this.tm.executor();
+    const c = countedCurrency(currency, transactions.spaceId);
+    const expenses = and(
+      // Defensive: only expenses carry shares today, so this never drops a row.
+      eq(transactions.type, "EXPENSE"),
+      isNull(transactions.deletedAt),
+      between(transactions.date, from, to),
+    );
+    const rows = await db
       .select({
         spaceId: transactions.spaceId,
         categoryId: transactions.categoryId,
@@ -940,88 +1107,136 @@ export class DrizzleLedgerQueries
       })
       .from(shares)
       .innerJoin(transactions, eq(transactions.id, shares.transactionId))
+      .where(and(inArray(shares.memberId, ids), expenses, sql`${transactions.currency} = ${c}`))
+      .groupBy(transactions.spaceId, transactions.categoryId);
+    const theirs = db
+      .select({ one: sql`1` })
+      .from(shares)
+      .where(and(eq(shares.transactionId, transactions.id), inArray(shares.memberId, ids)));
+    const foreign = (await this.foreignSharesIn(c, and(expenses, exists(theirs)))).filter((part) =>
+      ids.includes(part.memberId),
+    );
+    const sums = new Map<string, { spaceId: string; categoryId: string; amount: bigint }>();
+    const add = (spaceId: string, categoryId: string | null, amount: bigint) => {
+      if (categoryId === null) return;
+      const key = `${spaceId}/${categoryId}`;
+      const entry = sums.get(key) ?? { spaceId, categoryId, amount: 0n };
+      entry.amount += amount;
+      sums.set(key, entry);
+    };
+    for (const row of rows) add(row.spaceId, row.categoryId, BigInt(row.total));
+    for (const part of foreign) add(part.spaceId, part.categoryId, part.amount);
+    return [...sums.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, entry]) => entry);
+  }
+
+  /**
+   * Ruling P342: `consumptionByCategory` for the unified view, which converts: Σ the shares of `memberIds` per space,
+   * category and the movement's own currency, never counted in another; sorted by space, category, then currency.
+   */
+  async consumptionByCurrency(
+    memberIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ spaceId: string; categoryId: string; currency: string; amount: bigint }[]> {
+    const ids = memberIds.filter(isUuid);
+    if (ids.length === 0) return [];
+    const rows = await this.tm
+      .executor()
+      .select({
+        spaceId: transactions.spaceId,
+        categoryId: transactions.categoryId,
+        currency: transactions.currency,
+        total: sumAsText(shares.amount),
+      })
+      .from(shares)
+      .innerJoin(transactions, eq(transactions.id, shares.transactionId))
       .where(
         and(
           inArray(shares.memberId, ids),
-          // Defensive: only expenses carry shares today, so this never drops a row.
           eq(transactions.type, "EXPENSE"),
           isNull(transactions.deletedAt),
           between(transactions.date, from, to),
         ),
       )
-      .groupBy(transactions.spaceId, transactions.categoryId)
-      .orderBy(asc(transactions.spaceId), asc(transactions.categoryId));
+      .groupBy(transactions.spaceId, transactions.categoryId, transactions.currency)
+      .orderBy(asc(transactions.spaceId), asc(transactions.categoryId), asc(transactions.currency));
     return rows.flatMap((row) =>
       row.categoryId === null
         ? []
-        : [{ spaceId: row.spaceId, categoryId: row.categoryId, amount: BigInt(row.total) }],
+        : [
+            {
+              spaceId: row.spaceId,
+              categoryId: row.categoryId,
+              currency: row.currency,
+              amount: BigInt(row.total),
+            },
+          ],
     );
   }
 
   /**
    * HU-E7-04, spec 5.4: what `memberIds` paid out within [from, to]: their payments of live expenses and their live
    * fund contributions, each with the part without an account ("outside the app": a guest's history before a claim).
+   * Ruling P342: one entry per movement currency with anything paid, sorted by currency, never converted (the unified
+   * view converts each from its own currency).
    */
-  async cashOut(
-    memberIds: readonly string[],
-    from: LocalDate,
-    to: LocalDate,
-  ): Promise<{
-    payments: bigint;
-    paymentsOutsideTheApp: bigint;
-    fundContributions: bigint;
-    contributionsOutsideTheApp: bigint;
-  }> {
+  async cashOut(memberIds: readonly string[], from: LocalDate, to: LocalDate): Promise<CashOutByCurrency[]> {
     const ids = memberIds.filter(isUuid);
-    if (ids.length === 0) {
-      return {
+    if (ids.length === 0) return [];
+    const db = this.tm.executor();
+    const live = and(isNull(transactions.deletedAt), between(transactions.date, from, to));
+    type Kind = "payment" | "contribution";
+    // One statement, so both sums come from one snapshot; same selection shape in both branches of the UNION ALL.
+    const rows = await unionAll(
+      db
+        .select({
+          kind: sql<Kind>`'payment'::text`,
+          currency: transactions.currency,
+          total: sumAsText(payments.amount),
+          outside: sql<string>`coalesce(sum(${payments.amount}) filter (where ${payments.accountId} is null), 0)::text`,
+        })
+        .from(payments)
+        .innerJoin(transactions, eq(transactions.id, payments.transactionId))
+        .where(and(live, eq(transactions.type, "EXPENSE"), inArray(payments.memberId, ids)))
+        .groupBy(transactions.currency),
+      db
+        .select({
+          kind: sql<Kind>`'contribution'::text`,
+          currency: transactions.currency,
+          total: sumAsText(transactions.amount),
+          outside: sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.sourceAccountId} is null), 0)::text`,
+        })
+        .from(transactions)
+        .where(and(live, eq(transactions.type, "TRANSFER"), inArray(transactions.payerMemberId, ids)))
+        .groupBy(transactions.currency),
+    );
+    const byCurrency = new Map<string, CashOutByCurrency>();
+    for (const row of rows) {
+      const entry = byCurrency.get(row.currency) ?? {
+        currency: row.currency,
         payments: 0n,
         paymentsOutsideTheApp: 0n,
         fundContributions: 0n,
         contributionsOutsideTheApp: 0n,
       };
+      byCurrency.set(
+        row.currency,
+        row.kind === "payment"
+          ? {
+              ...entry,
+              payments: entry.payments + BigInt(row.total),
+              paymentsOutsideTheApp: entry.paymentsOutsideTheApp + BigInt(row.outside),
+            }
+          : {
+              ...entry,
+              fundContributions: entry.fundContributions + BigInt(row.total),
+              contributionsOutsideTheApp: entry.contributionsOutsideTheApp + BigInt(row.outside),
+            },
+      );
     }
-    const db = this.tm.executor();
-    const live = and(isNull(transactions.deletedAt), between(transactions.date, from, to));
-    // One statement, so both sums come from one snapshot: each derived table is a single aggregate row.
-    const paid = db
-      .select({
-        total: sql<string>`coalesce(sum(${payments.amount}), 0)::text`.as("paid_total"),
-        outside:
-          sql<string>`coalesce(sum(${payments.amount}) filter (where ${payments.accountId} is null), 0)::text`.as(
-            "paid_outside",
-          ),
-      })
-      .from(payments)
-      .innerJoin(transactions, eq(transactions.id, payments.transactionId))
-      .where(and(live, eq(transactions.type, "EXPENSE"), inArray(payments.memberId, ids)))
-      .as("paid");
-    const contributed = db
-      .select({
-        total: sql<string>`coalesce(sum(${transactions.amount}), 0)::text`.as("contributed_total"),
-        outside:
-          sql<string>`coalesce(sum(${transactions.amount}) filter (where ${transactions.sourceAccountId} is null), 0)::text`.as(
-            "contributed_outside",
-          ),
-      })
-      .from(transactions)
-      .where(and(live, eq(transactions.type, "TRANSFER"), inArray(transactions.payerMemberId, ids)))
-      .as("contributed");
-    const [row] = await db
-      .select({
-        payments: paid.total,
-        paymentsOutside: paid.outside,
-        contributions: contributed.total,
-        contributionsOutside: contributed.outside,
-      })
-      .from(paid)
-      .crossJoin(contributed);
-    return {
-      payments: BigInt(row?.payments ?? "0"),
-      paymentsOutsideTheApp: BigInt(row?.paymentsOutside ?? "0"),
-      fundContributions: BigInt(row?.contributions ?? "0"),
-      contributionsOutsideTheApp: BigInt(row?.contributionsOutside ?? "0"),
-    };
+    return [...byCurrency.values()].sort((a, b) =>
+      a.currency < b.currency ? -1 : a.currency > b.currency ? 1 : 0,
+    );
   }
 
   /**

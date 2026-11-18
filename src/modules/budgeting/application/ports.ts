@@ -51,19 +51,26 @@ export interface BudgetPlanRepository {
   lockCopiesOf(spaceId: string, planId: string): Promise<BudgetPlan[]>;
 }
 
-/** Spec 5.4, D7: spending within dates, summed on read by the ledger and bound by the composition root. */
+/**
+ * Spec 5.4, D7: spending within dates, summed on read by the ledger and bound by the composition root. Ruling P342 (S7,
+ * owner: "Contar lo que pagó la cuenta"): until plans count several currencies, each sum is in `currency`, the plan's
+ * (its space's): a movement in it counts its amount, one in another currency what its account in `currency` moved, and
+ * one with no such account nothing yet.
+ */
 export interface PlanSpending {
   /** Σ live expenses of the space dated within [from, to] per category; categories without any are absent. */
   expensesByCategory(
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ categoryId: string; amount: bigint }[]>;
   /** Σ live transfers dated within [from, to] into each of the accounts, whatever space recorded them. */
   transfersIntoAccounts(
     accountIds: readonly string[],
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<{ accountId: string; amount: bigint }[]>;
 }
 

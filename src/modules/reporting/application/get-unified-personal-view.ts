@@ -3,7 +3,7 @@ import { ok, type Period, type Result } from "@/shared/kernel";
 import type { PaletteKey } from "@/shared/kernel/style";
 import { cashOutOf, consumptionGroups, type CashOut } from "../domain/unified-view";
 import { converterInto, daysOf } from "./conversion";
-import { personalScope, type PersonalDeps } from "./personal-scope";
+import { personalScope, type PaidOutIn, type PersonalDeps } from "./personal-scope";
 
 /** One group of the caller's consumption: a catalog key, or a custom category with its space ("space / category"). */
 export interface UnifiedGroup {
@@ -99,8 +99,8 @@ export type GetUnifiedPersonalView = (input: {
   readonly period: string;
 }) => Promise<Result<UnifiedPersonalView>>;
 
-/** Spec 5.4: what one set of member rows paid out, as `PersonalSums.cashOut` answers it. */
-type PaidOut = Awaited<ReturnType<PersonalDeps["sums"]["cashOut"]>>;
+/** Spec 5.4: what one set of member rows paid out in one currency, as `PersonalSums.cashOut` answers it. */
+type PaidOut = Omit<PaidOutIn, "currency">;
 const NOTHING_PAID: PaidOut = {
   payments: 0n,
   paymentsOutsideTheApp: 0n,
@@ -115,6 +115,17 @@ const addPaid = (a: PaidOut, b: PaidOut): PaidOut => ({
   contributionsOutsideTheApp: a.contributionsOutsideTheApp + b.contributionsOutsideTheApp,
 });
 type Row = { readonly spaceId: string; readonly categoryId: string; readonly amount: bigint };
+/** Ruling P342: one currency's figures without it, nothing paid when absent. */
+const withoutCurrency = (out: PaidOutIn | undefined): PaidOut =>
+  out === undefined
+    ? NOTHING_PAID
+    : {
+        payments: out.payments,
+        paymentsOutsideTheApp: out.paymentsOutsideTheApp,
+        fundContributions: out.fundContributions,
+        contributionsOutsideTheApp: out.contributionsOutsideTheApp,
+      };
+const rowOf = (row: Row): Row => ({ spaceId: row.spaceId, categoryId: row.categoryId, amount: row.amount });
 
 /**
  * HU-E7-04, spec 5.4, D11: everything the caller consumed in a personal period (their shares in every space they are
@@ -123,7 +134,8 @@ type Row = { readonly spaceId: string; readonly categoryId: string; readonly amo
  * D29, slice MC4 (design §4.1): every amount is in the caller's display currency (their personal space's unless they
  * chose one). A space in another currency is read day by day and each day's figures convert at that day's rate,
  * through `Money.convert`; a day with no rate is left out of every sum and its space named in `otherCurrencySpaces`,
- * never counted at 1:1. This ends ruling P37's "other currencies apart".
+ * never counted at 1:1. This ends ruling P37's "other currencies apart". Ruling P342: a space holds movements in several
+ * currencies, so each converts from the movement's own currency, not from its space's.
  */
 export const createGetUnifiedPersonalView =
   (deps: PersonalDeps): GetUnifiedPersonalView =>
@@ -134,81 +146,74 @@ export const createGetUnifiedPersonalView =
     const currency = (await deps.displayCurrencyOf?.(userId)) ?? personal.currency;
     const converter = converterInto(deps.rates, currency);
     const allPlaces = [...scope.value.places, ...scope.value.otherCurrencies];
-    const inCurrency = allPlaces.filter((p) => p.currency === currency);
     const unconverted = new Map<string, { spaceId: string; name: string; currency: string }>();
-    const apart = (p: MemberPlace) =>
-      unconverted.set(p.spaceId, { spaceId: p.spaceId, name: p.spaceName, currency: p.currency });
+    // Ruling P342: named with the movement currency that had no rate, once per space.
+    const apart = (p: MemberPlace, from: string) =>
+      unconverted.set(p.spaceId, { spaceId: p.spaceId, name: p.spaceName, currency: from });
 
-    // The spaces already in the display currency: one read for their consumption, as before.
-    const rows: Row[] =
-      inCurrency.length === 0
-        ? []
-        : (
-            await deps.sums.consumptionByCategory(
-              inCurrency.map((p) => p.memberId),
-              period.start,
-              period.end,
-            )
-          ).filter((row) => inCurrency.some((p) => p.spaceId === row.spaceId));
     // Ruling P306: one read per space, over every member row of the caller there (a former one included).
     // The personal space first, even when a claimed guest place is older than the person's sign-up; then the others.
     const spacesOf = [...new Map(allPlaces.map((p) => [p.spaceId as string, p])).values()].sort(
       (a, b) => Number(b.spaceId === personal.spaceId) - Number(a.spaceId === personal.spaceId),
     );
-    // What the caller paid out in those spaces, in one read too; each space's own part is read below (ruling P306).
-    let paidOut =
-      inCurrency.length === 0
-        ? NOTHING_PAID
-        : await deps.sums.cashOut(
-            inCurrency.map((p) => p.memberId),
-            period.start,
-            period.end,
-          );
+    // Ruling P342: every movement keeps its own currency, whatever its space's. What is in the display currency adds up
+    // as it is; what the caller consumed and paid out is read once over every member row, each space's own paid part
+    // below.
+    const memberIds = allPlaces.map((p) => p.memberId);
+    const consumed = await deps.sums.consumptionByCurrency(memberIds, period.start, period.end);
+    const rows: Row[] = [];
+    let paidOut = withoutCurrency(
+      (await deps.sums.cashOut(memberIds, period.start, period.end)).find((out) => out.currency === currency),
+    );
     const figures = new Map<string, PaidOut>();
     for (const place of spacesOf) {
       const rowsIn = allPlaces.filter((p) => p.spaceId === place.spaceId).map((p) => p.memberId);
+      const own = <T extends { readonly spaceId: string }>(list: readonly T[]) =>
+        list.filter((row) => row.spaceId === place.spaceId);
+      const whole = own(consumed);
       const out = await deps.sums.cashOut(rowsIn, period.start, period.end);
-      if (place.currency === currency) {
-        figures.set(place.spaceId, out);
-        continue;
-      }
-      // D29 (MC4): another currency. Nothing to convert unless the period holds something; then day by day.
-      const own = (list: readonly Row[]) => list.filter((row) => row.spaceId === place.spaceId);
-      const whole = own(await deps.sums.consumptionByCategory(rowsIn, period.start, period.end));
-      let paid = NOTHING_PAID;
-      if (whole.length > 0 || paidSomething(out)) {
-        for (const day of daysOf(period.start, period.end)) {
-          const dayRows = own(await deps.sums.consumptionByCategory(rowsIn, day, day));
-          const dayOut = await deps.sums.cashOut(rowsIn, day, day);
-          if (dayRows.length === 0 && !paidSomething(dayOut)) continue;
-          if ((await converter.rateOn(place.currency, day)) === null) {
-            apart(place);
+      for (const row of whole) if (row.currency === currency) rows.push(rowOf(row));
+      let paid = withoutCurrency(out.find((o) => o.currency === currency));
+      // D29 (MC4), P342: another currency. Nothing to convert unless the period holds something; then day by day, each
+      // movement from its own currency.
+      const foreign =
+        whole.some((row) => row.currency !== currency) || out.some((o) => o.currency !== currency);
+      let converted = NOTHING_PAID;
+      for (const day of foreign ? daysOf(period.start, period.end) : []) {
+        const dayRows = own(await deps.sums.consumptionByCurrency(rowsIn, day, day)).filter(
+          (row) => row.currency !== currency,
+        );
+        const dayOut = (await deps.sums.cashOut(rowsIn, day, day)).filter((o) => o.currency !== currency);
+        for (const from of new Set([...dayRows, ...dayOut].map((x) => x.currency))) {
+          const rowsFrom = dayRows.filter((row) => row.currency === from);
+          const outFrom = withoutCurrency(dayOut.find((o) => o.currency === from));
+          if (rowsFrom.length === 0 && !paidSomething(outFrom)) continue;
+          if ((await converter.rateOn(from, day)) === null) {
+            apart(place, from);
             continue;
           }
-          // Every amount of the day converts, or the whole day is left out and the space named: never a 0 in its place.
-          const to = (minor: bigint) => converter.convert(minor, place.currency, day);
-          const dayRowsIn = await Promise.all(
-            dayRows.map(async (row) => ({ ...row, amount: await to(row.amount) })),
+          // Every amount of the day in `from` converts, or they are all left out and the space named: never a 0.
+          const to = (minor: bigint) => converter.convert(minor, from, day);
+          const rowsTo = await Promise.all(
+            rowsFrom.map(async (row) => ({ ...row, amount: await to(row.amount) })),
           );
-          const dayOutIn = {
-            payments: await to(dayOut.payments),
-            paymentsOutsideTheApp: await to(dayOut.paymentsOutsideTheApp),
-            fundContributions: await to(dayOut.fundContributions),
-            contributionsOutsideTheApp: await to(dayOut.contributionsOutsideTheApp),
+          const outIn = {
+            payments: await to(outFrom.payments),
+            paymentsOutsideTheApp: await to(outFrom.paymentsOutsideTheApp),
+            fundContributions: await to(outFrom.fundContributions),
+            contributionsOutsideTheApp: await to(outFrom.contributionsOutsideTheApp),
           };
-          if (
-            dayRowsIn.some((row) => row.amount === null) ||
-            Object.values(dayOutIn).some((v) => v === null)
-          ) {
-            apart(place);
+          if (rowsTo.some((row) => row.amount === null) || Object.values(outIn).some((v) => v === null)) {
+            apart(place, from);
             continue;
           }
-          for (const row of dayRowsIn) rows.push({ ...row, amount: row.amount! });
-          paid = addPaid(paid, dayOutIn as PaidOut);
+          for (const row of rowsTo) rows.push(rowOf({ ...row, amount: row.amount! }));
+          converted = addPaid(converted, outIn as PaidOut);
         }
       }
+      paid = addPaid(paid, converted);
       figures.set(place.spaceId, paid);
-      paidOut = addPaid(paidOut, paid);
+      paidOut = addPaid(paidOut, converted);
     }
 
     // The personal space's categories name the merged groups, even without consumption there (ruling P76).
@@ -222,7 +227,7 @@ export const createGetUnifiedPersonalView =
     const spaceNames = new Map(allPlaces.map((p) => [p.spaceId as string, p.spaceName]));
     const savings = await deps.savingsAccountsOf(userId);
     const savingsTransfers = await savingsInto(deps, savings, period, personal.currency, currency, converter);
-    if (savingsTransfers === null) apart(personal);
+    if (savingsTransfers === null) apart(personal, personal.currency);
     const bySpace = spacesOf.map((place): SpaceFigures => {
       const out = figures.get(place.spaceId) ?? NOTHING_PAID;
       return {
@@ -273,12 +278,13 @@ const savingsInto = async (
   if (savings.length === 0) return 0n;
   const sum = (list: readonly { readonly amount: bigint }[]) =>
     list.reduce((total, t) => total + t.amount, 0n);
-  const whole = sum(await deps.spending.transfersIntoAccounts(savings, period.start, period.end));
+  // Ruling P342 (S7): counted in the personal space's currency, as a SAVINGS line counts them, then converted.
+  const whole = sum(await deps.spending.transfersIntoAccounts(savings, period.start, period.end, from));
   if (from === currency || whole === 0n) return whole;
   let total = 0n;
   let missing = false;
   for (const day of daysOf(period.start, period.end)) {
-    const amount = sum(await deps.spending.transfersIntoAccounts(savings, day, day));
+    const amount = sum(await deps.spending.transfersIntoAccounts(savings, day, day, from));
     if (amount === 0n) continue;
     const value = await converter.convert(amount, from, day);
     if (value === null) missing = true;

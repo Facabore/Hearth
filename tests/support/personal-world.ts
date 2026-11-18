@@ -10,31 +10,67 @@ const NOTHING_PAID = {
   contributionsOutsideTheApp: 0n,
 };
 
-/** One user's sums per period, keyed by the first day asked for, as the ledger sums them; records every question. */
+/**
+ * One user's sums per period, keyed by the first day asked for, as the ledger sums them; records every question. Ruling
+ * P342: a row or a payout is in its movement currency, its space's (COP unless `currencies` says) unless it names one.
+ */
 export class PersonalSumsByPeriod implements PersonalSums {
-  readonly consumption: Record<string, { spaceId: string; categoryId: string; amount: bigint }[]> = {};
+  readonly consumption: Record<
+    string,
+    { spaceId: string; categoryId: string; amount: bigint; currency?: string }[]
+  > = {};
   readonly paidOut: Record<string, typeof NOTHING_PAID> = {};
   /** Ruling P306: what single member rows paid, keyed by member id; a question about them sums these instead. */
   readonly paidOutBy: Record<string, Partial<typeof NOTHING_PAID>> = {};
   readonly asked: { memberIds: readonly string[]; from: LocalDate; to: LocalDate }[] = [];
 
+  constructor(private readonly places: readonly MemberPlace[] = []) {}
+
+  private currencyOfSpace(spaceId: string): string {
+    return this.places.find((p) => p.spaceId === spaceId)?.currency ?? "COP";
+  }
+
+  private currencyOfMember(memberId: string): string {
+    return this.places.find((p) => p.memberId === memberId)?.currency ?? "COP";
+  }
+
   async consumptionByCategory(memberIds: readonly string[], from: LocalDate, to: LocalDate) {
     this.asked.push({ memberIds, from, to });
-    return [...(this.consumption[from] ?? [])];
+    return (this.consumption[from] ?? []).map(({ spaceId, categoryId, amount }) => ({
+      spaceId,
+      categoryId,
+      amount,
+    }));
+  }
+
+  async consumptionByCurrency(memberIds: readonly string[], from: LocalDate, to: LocalDate) {
+    this.asked.push({ memberIds, from, to });
+    return (this.consumption[from] ?? []).map((row) => ({
+      ...row,
+      currency: row.currency ?? this.currencyOfSpace(row.spaceId),
+    }));
   }
 
   async cashOut(memberIds: readonly string[], from: LocalDate, to: LocalDate) {
     this.asked.push({ memberIds, from, to });
-    const own = memberIds.flatMap((id) => (this.paidOutBy[id] ? [this.paidOutBy[id]] : []));
-    if (own.length === 0) return this.paidOut[from] ?? NOTHING_PAID;
-    const sum = (field: keyof typeof NOTHING_PAID) =>
-      own.reduce((total, part) => total + (part[field] ?? 0n), 0n);
-    return {
-      payments: sum("payments"),
-      paymentsOutsideTheApp: sum("paymentsOutsideTheApp"),
-      fundContributions: sum("fundContributions"),
-      contributionsOutsideTheApp: sum("contributionsOutsideTheApp"),
-    };
+    const own = memberIds.filter((id) => this.paidOutBy[id] !== undefined);
+    if (own.length === 0) {
+      const out = this.paidOut[from];
+      return out === undefined ? [] : [{ currency: this.currencyOfMember(memberIds[0] ?? ""), ...out }];
+    }
+    const byCurrency = new Map<string, typeof NOTHING_PAID>();
+    for (const id of own) {
+      const currency = this.currencyOfMember(id);
+      const sum = byCurrency.get(currency) ?? NOTHING_PAID;
+      const part = this.paidOutBy[id]!;
+      byCurrency.set(currency, {
+        payments: sum.payments + (part.payments ?? 0n),
+        paymentsOutsideTheApp: sum.paymentsOutsideTheApp + (part.paymentsOutsideTheApp ?? 0n),
+        fundContributions: sum.fundContributions + (part.fundContributions ?? 0n),
+        contributionsOutsideTheApp: sum.contributionsOutsideTheApp + (part.contributionsOutsideTheApp ?? 0n),
+      });
+    }
+    return [...byCurrency.entries()].map(([currency, out]) => ({ currency, ...out }));
   }
 }
 
@@ -68,7 +104,7 @@ export const ANA_PLACES: readonly MemberPlace[] = [
  */
 export const personalWorld = (places: readonly MemberPlace[] = ANA_PLACES) => {
   const plans = new InMemoryBudgetPlans();
-  const sums = new PersonalSumsByPeriod();
+  const sums = new PersonalSumsByPeriod(places);
   /** Transfers keyed by the first day asked for; one with `on` counts only when that date is within the range asked. */
   const transfers: Record<string, { accountId: string; amount: bigint; on?: LocalDate }[]> = {};
   const transfersAsked: { accountIds: readonly string[]; from: LocalDate; to: LocalDate }[] = [];

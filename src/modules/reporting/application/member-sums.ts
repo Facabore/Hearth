@@ -1,13 +1,17 @@
 import type { LocalDate } from "@/shared/kernel";
 import type { ReportingDeps } from "./deps";
 
-/** HU-E7-02, HU-E7-03: per-member sums of a space's live ledger within dates (spec 5.4, D7); bound to the ledger. */
+/**
+ * HU-E7-02, HU-E7-03: per-member sums of a space's live ledger within dates (spec 5.4, D7); bound to the ledger. Ruling
+ * P342 (S7): counted in `currency` (the space's), as `PlanSpending` counts.
+ */
 export interface SpaceMemberSums {
   /** Per category and member: Σ the member's payments and Σ their shares of the space's expenses. */
   memberSumsByCategory(
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<
     readonly {
       readonly categoryId: string;
@@ -21,6 +25,7 @@ export interface SpaceMemberSums {
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<readonly { readonly memberId: string; readonly amount: bigint }[]>;
   /**
    * D26: per category and member, Σ the contributions that paid an expense for the fund (the expense's category, the
@@ -30,6 +35,7 @@ export interface SpaceMemberSums {
     spaceId: string,
     from: LocalDate,
     to: LocalDate,
+    currency?: string,
   ): Promise<readonly { readonly categoryId: string; readonly memberId: string; readonly amount: bigint }[]>;
 }
 
