@@ -24,6 +24,7 @@ const CurrencySheet = dynamic(
 export function CurrencySection({
   displayCurrency,
   personalSpace,
+  favorites = [],
   onChoose,
   problem,
   saved = false,
@@ -31,6 +32,8 @@ export function CurrencySection({
   /** The stored display currency; null follows the personal space's. */
   readonly displayCurrency: string | null;
   readonly personalSpace: { readonly name: string; readonly currency: string };
+  /** P342: the person's favorite currencies, offered after the personal space's. */
+  readonly favorites?: readonly string[];
   readonly onChoose: (currency: string | null) => void;
   readonly problem: Problem | null;
   readonly saved?: boolean;
@@ -66,6 +69,8 @@ export function CurrencySection({
           value={shown}
           primary={personalSpace.currency}
           primaryNote={t("displayCurrency.spaceNote", { space: personalSpace.name })}
+          primaryHeading={t("displayCurrency.personalHeading", { space: personalSpace.name })}
+          favorites={favorites}
           onChoose={(code) => onChoose(code === personalSpace.currency ? null : code)}
         />
       ) : null}

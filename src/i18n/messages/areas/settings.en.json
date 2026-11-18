@@ -12,7 +12,8 @@
       "timezone": "Time zone",
       "theme": "Theme",
       "language": "Language",
-      "displayCurrency": "Currency of your totals"
+      "displayCurrency": "Currency of your totals",
+      "favoriteCurrencies": "Favorite currencies"
     },
     "timeFormat": {
       "H24": "24-hour",
@@ -50,11 +51,21 @@
       "value": "{name} ({code})",
       "followsPersonal": "{value} · like your {space} space",
       "hint": "Your accounts and movements keep their own currency. This is the one we add everything up in, on Home and in your personal view.",
-      "spaceNote": "{space}'s currency"
+      "spaceNote": "{space}'s currency",
+      "personalHeading": "From your {space} space"
     },
     "handle": {
       "label": "Your @username",
       "hint": "This is how people find you to add you to Friends: only by your exact @. Leave it empty and nobody finds you."
+    },
+    "favoriteCurrencies": {
+      "hint": "They come first when you pick a currency. Each space's own currency is always the default.",
+      "none": "None",
+      "search": "Add a currency",
+      "chosen": "Favorites · shown first",
+      "all": "All · tap the star to add",
+      "add": "Add {code} to favorites",
+      "remove": "Remove {code} from favorites"
     }
   }
 }

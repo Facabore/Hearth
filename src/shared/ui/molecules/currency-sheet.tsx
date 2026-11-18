@@ -8,6 +8,7 @@ import { cn } from "../cn";
 import { currencyOf } from "../format/currencies";
 import { currencyTitle } from "../format/currency-names";
 import { knownCurrencyCodes } from "../format/known-currencies";
+import { StarIcon } from "../icons/star-icon";
 import { Sheet } from "./sheet";
 
 const searchable = (text: string): string =>
@@ -194,6 +195,90 @@ export function CurrencySheet({
         sections={sections}
         row={row}
       />
+    </Sheet>
+  );
+}
+
+/**
+ * P342 (S2, board 6): the favorite currencies sheet, kept with the picker so both load as one chunk (ADR 0004). A
+ * search over every currency, `favorites` first in the person's order with a filled star, then every other one with an
+ * empty star. A star adds or removes its currency and `onChange` gets the whole list; `noteOf` adds a line under a
+ * currency's name, and `problem` is a refused change's message.
+ */
+export function FavoriteCurrenciesSheet({
+  open,
+  onOpenChange,
+  labels,
+  favorites,
+  noteOf,
+  onChange,
+  problem,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly labels: {
+    readonly title: string;
+    readonly search: string;
+    readonly favorites: string;
+    readonly others: string;
+    /** The star's accessible name: "Agregar USD a favoritas" or "Quitar USD de favoritas". */
+    readonly star: (code: string, favorite: boolean) => string;
+  };
+  readonly favorites: readonly string[];
+  readonly noteOf?: (code: string) => string | undefined;
+  readonly onChange: (favorites: readonly string[]) => void;
+  readonly problem: string | null;
+}) {
+  const locale = useLocale();
+  const [query, setQuery] = useState("");
+  const close = (next: boolean) => {
+    if (!next) setQuery("");
+    onOpenChange(next);
+  };
+  const row = (code: string) => {
+    const favorite = favorites.includes(code);
+    return (
+      <li key={code} className="flex min-h-14 items-center gap-3 border-b border-line py-2 last:border-b-0">
+        <CurrencyLabel code={code} note={noteOf?.(code)} />
+        <button
+          type="button"
+          aria-pressed={favorite}
+          aria-label={labels.star(code, favorite)}
+          onClick={() => onChange(favorite ? favorites.filter((c) => c !== code) : [...favorites, code])}
+          className={cn(
+            "flex size-11 shrink-0 items-center justify-center rounded-full",
+            favorite ? "text-accent" : "text-muted",
+          )}
+        >
+          <StarIcon filled={favorite} size={22} />
+        </button>
+      </li>
+    );
+  };
+  return (
+    <Sheet open={open} onOpenChange={close} title={labels.title}>
+      <div className="flex flex-col gap-3">
+        {problem ? (
+          <p role="alert" className="text-sm text-danger">
+            {problem}
+          </p>
+        ) : null}
+        <CurrencyList
+          id="favorite-currencies"
+          searchLabel={labels.search}
+          query={query}
+          onQuery={setQuery}
+          sections={[
+            { id: "favorite-currencies-chosen", heading: labels.favorites, codes: favorites },
+            {
+              id: "favorite-currencies-all",
+              heading: labels.others,
+              codes: otherCurrencies(favorites, locale),
+            },
+          ]}
+          row={row}
+        />
+      </div>
     </Sheet>
   );
 }

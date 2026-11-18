@@ -12,7 +12,9 @@ import type { paths } from "@/shared/ui/api/schema";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { Icon, ScreenHeader, Sheet } from "@/shared/ui";
 import { AppearanceSection, appLocaleOf, useDeviceTheme } from "./appearance-section";
+import { favoriteCurrenciesOf } from "../favorite-currencies";
 import { CurrencySection } from "./currency-section";
+import { FavoriteCurrenciesSection } from "./favorite-currencies-section";
 import { HandleSection } from "./handle-section";
 import { formatSample } from "./format-preview";
 import { RegionSection } from "./region-section";
@@ -25,7 +27,7 @@ import { chooseRegion, regionState, type FormatField, type RegionField } from ".
 const FormatsFields = dynamic(() => import("./formats-fields").then((module) => module.FormatsFields), {
   ssr: false,
 });
-type Field = FormatField | RegionField | "displayCurrency" | "handle";
+type Field = FormatField | RegionField | "displayCurrency" | "favoriteCurrencies" | "handle";
 type MePatch = NonNullable<paths["/api/v1/me"]["patch"]["requestBody"]>["content"]["application/json"];
 
 /** Rulings P149 and P152: the stored language changes only here; the visitor cookie follows it. */
@@ -107,6 +109,15 @@ export function SettingsForm({
     const next: MeDto = { ...current, preferences: { ...current.preferences, displayCurrency: currency } };
     void send("displayCurrency", next, { displayCurrency: currency } as MePatch);
   };
+  // P342: the whole list of favorites, on the same optimistic path.
+  const favorites = favoriteCurrenciesOf(current, personalSpace?.currency);
+  const sendFavorites = (list: readonly string[]) => {
+    const next: MeDto = {
+      ...current,
+      preferences: { ...current.preferences, favoriteCurrencies: [...list] },
+    };
+    void send("favoriteCurrencies", next, { favoriteCurrencies: [...list] } as MePatch);
+  };
   // P339: the @ is not shown ahead of the API, which normalizes it and may refuse it: what was typed stays until then.
   const sendHandle = (handle: string | null) => void send("handle", current, { handle });
 
@@ -148,10 +159,18 @@ export function SettingsForm({
           displayCurrency={preferences.displayCurrency ?? null}
           personalSpace={personalSpace}
           onChoose={sendCurrency}
+          favorites={favorites}
           problem={problems.displayCurrency ?? null}
           saved={saved === "displayCurrency"}
         />
       ) : null}
+      <FavoriteCurrenciesSection
+        favorites={favorites}
+        personalSpace={personalSpace}
+        onChange={sendFavorites}
+        problem={problems.favoriteCurrencies ?? null}
+        saved={saved === "favoriteCurrencies"}
+      />
       {/* Ruling P290: drawn as a summary row, a link to a page instead of a sheet. */}
       <Link
         href={trustFromSpaceHref(backHref)}
