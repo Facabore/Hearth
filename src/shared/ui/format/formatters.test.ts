@@ -3,6 +3,7 @@ import {
   BUILT_IN_FORMATS,
   decimalOf,
   formatDate,
+  formatDirectedMoney,
   formatMoney,
   formatNumber,
   formatPercent,
@@ -11,6 +12,7 @@ import {
   formatTimeAt,
   MINUS,
   NBSP,
+  WORD_JOINER,
   type Formats,
 } from "./formatters";
 
@@ -29,9 +31,9 @@ const formats = (
 describe("formatters (HU-E9-02 outline, ruling P121): the preferences, never the language", () => {
   // The outline's three rows; the locale column is absent on purpose: no formatter takes one.
   it.each([
-    ["DOT_COMMA", "DMY", "H24", "$ 1.600.000", "5/10/2026", "14:30"],
-    ["COMMA_DOT", "MDY", "H12", "$ 1,600,000", "10/5/2026", "2:30 PM"],
-    ["DOT_COMMA", "DMY", "H24", "$ 1.600.000", "5/10/2026", "14:30"],
+    ["DOT_COMMA", "DMY", "H24", "1.600.000 COP", "5/10/2026", "14:30"],
+    ["COMMA_DOT", "MDY", "H12", "1,600,000 COP", "10/5/2026", "2:30 PM"],
+    ["DOT_COMMA", "DMY", "H24", "1.600.000 COP", "5/10/2026", "14:30"],
   ] as const)("%s %s %s → %s, %s, %s", (numberFormat, dateFormat, timeFormat, amount, date, time) => {
     const f = formats(numberFormat, dateFormat, timeFormat);
     expect(norm(formatMoney({ amount: "160000000", currency: "COP" }, f))).toBe(amount);
@@ -47,28 +49,64 @@ describe("formatters (HU-E9-02 outline, ruling P121): the preferences, never the
     expect(formatDate("2026-10-16", BUILT_IN_FORMATS)).toBe("16/10/2026");
   });
 
-  it("drops a zero fraction, keeps another one whole and puts the minus before the symbol", () => {
+  it("drops a zero fraction and keeps another one whole", () => {
     expect(norm(formatMoney({ amount: "123456789", currency: "COP" }, BUILT_IN_FORMATS))).toBe(
-      "$ 1.234.567,89",
+      "1.234.567,89 COP",
     );
     expect(norm(formatMoney({ amount: "123456780", currency: "COP" }, BUILT_IN_FORMATS))).toBe(
-      "$ 1.234.567,80",
+      "1.234.567,80 COP",
     );
-    expect(norm(formatMoney({ amount: "-35000000", currency: "COP" }, BUILT_IN_FORMATS))).toBe("−$ 350.000");
-    expect(norm(formatMoney({ amount: "0", currency: "COP" }, BUILT_IN_FORMATS))).toBe("$ 0");
     expect(norm(formatMoney({ amount: "1250", currency: "USD" }, formats("COMMA_DOT", "MDY", "H12")))).toBe(
-      "US$ 12.50",
+      "12.50 USD",
     );
     expect(decimalOf("5", 2)).toBe("0.05");
     expect(decimalOf("-922337203685477580", 2)).toBe("-9223372036854775.80");
   });
 
-  it("writes any ISO 4217 currency with its own exponent, and its code where Hearth has no symbol (D29)", () => {
-    expect(norm(formatMoney({ amount: "150000", currency: "JPY" }, BUILT_IN_FORMATS))).toBe("JPY 150.000");
-    expect(norm(formatMoney({ amount: "1500", currency: "KWD" }, BUILT_IN_FORMATS))).toBe("KWD 1,500");
-    expect(norm(formatMoney({ amount: "-1999", currency: "MXN" }, BUILT_IN_FORMATS))).toBe("−MXN 19,99");
+  it("writes any ISO 4217 currency with its own exponent (D29)", () => {
+    expect(norm(formatMoney({ amount: "150000", currency: "JPY" }, BUILT_IN_FORMATS))).toBe("150.000 JPY");
+    expect(norm(formatMoney({ amount: "1500", currency: "KWD" }, BUILT_IN_FORMATS))).toBe("1,500 KWD");
+  });
+});
+
+describe("an amount reads number, no-break space, ISO code and no symbol (P342)", () => {
+  const money = (amount: string, currency: string) => formatMoney({ amount, currency }, BUILT_IN_FORMATS);
+
+  it("writes a positive amount with the code after it", () => {
+    expect(money("50000000", "COP")).toBe(`500.000${NBSP}COP`);
+    expect(money("5000", "USD")).toBe(`50${NBSP}USD`);
+    expect(money("6000", "EUR")).toBe(`60${NBSP}EUR`);
   });
 
+  it("writes a negative amount with U+2212 and a word joiner before the digits", () => {
+    expect(WORD_JOINER).toBe("\u2060");
+    expect(money("-5000", "USD")).toBe(`${MINUS}${WORD_JOINER}50${NBSP}USD`);
+    expect(money("-35000000", "COP")).toBe(`${MINUS}${WORD_JOINER}350.000${NBSP}COP`);
+  });
+
+  it("writes zero as a bare 0 with its code", () => {
+    expect(money("0", "COP")).toBe(`0${NBSP}COP`);
+  });
+
+  it("keeps the currency's own decimals: two for USD, none for JPY", () => {
+    expect(money("5050", "USD")).toBe(`50,50${NBSP}USD`);
+    expect(money("150000", "JPY")).toBe(`150.000${NBSP}JPY`);
+  });
+
+  it("writes a currency Hearth never had a symbol for the same way", () => {
+    expect(money("100000", "MXN")).toBe(`1.000${NBSP}MXN`);
+    expect(money("-1999", "MXN")).toBe(`${MINUS}${WORD_JOINER}19,99${NBSP}MXN`);
+  });
+
+  it("follows the person's number format for the digits", () => {
+    const amount = { amount: "123456750", currency: "COP" };
+    expect(formatMoney(amount, { numberFormat: "DOT_COMMA" })).toBe(`1.234.567,50${NBSP}COP`);
+    expect(formatMoney(amount, { numberFormat: "COMMA_DOT" })).toBe(`1,234,567.50${NBSP}COP`);
+    expect(formatMoney(amount, { numberFormat: "SPACE_COMMA" })).toBe(`1${NBSP}234${NBSP}567,50${NBSP}COP`);
+  });
+});
+
+describe("times (HU-E9-02 outline, ruling P121)", () => {
   it("writes 24-hour times with two-digit hours and 12-hour times with AM and PM", () => {
     expect(formatTime({ hour: 8, minute: 10 }, BUILT_IN_FORMATS)).toBe("08:10");
     const twelve = formats("DOT_COMMA", "DMY", "H12");
@@ -99,13 +137,18 @@ describe("percentages and signed amounts (ruling P204)", () => {
     expect(formatPercent("-0.00", BUILT_IN_FORMATS)).toBe(`0,00${NBSP}%`);
   });
 
-  it("signs an amount of change: + above zero, U+2212 below, nothing at zero", () => {
-    expect(formatSignedMoney({ amount: "5000000", currency: "COP" }, BUILT_IN_FORMATS)).toBe(
-      `+$${NBSP}50.000`,
+  it("signs an amount of change: + above zero, U+2212 and a word joiner below, nothing at zero (P342)", () => {
+    expect(formatSignedMoney({ amount: "6000", currency: "EUR" }, BUILT_IN_FORMATS)).toBe(`+60${NBSP}EUR`);
+    expect(formatSignedMoney({ amount: "-5000", currency: "USD" }, BUILT_IN_FORMATS)).toBe(
+      `${MINUS}${WORD_JOINER}50${NBSP}USD`,
     );
-    expect(formatSignedMoney({ amount: "-5000000", currency: "COP" }, BUILT_IN_FORMATS)).toBe(
-      `${MINUS}$${NBSP}50.000`,
-    );
-    expect(formatSignedMoney({ amount: "0", currency: "COP" }, BUILT_IN_FORMATS)).toBe(`$${NBSP}0`);
+    expect(formatSignedMoney({ amount: "0", currency: "COP" }, BUILT_IN_FORMATS)).toBe(`0${NBSP}COP`);
+  });
+
+  it("writes an amount in the direction its movement goes: − out, + in, nothing for a move (P342)", () => {
+    const money = { amount: "5000", currency: "USD" };
+    expect(formatDirectedMoney(money, "-", BUILT_IN_FORMATS)).toBe(`${MINUS}${WORD_JOINER}50${NBSP}USD`);
+    expect(formatDirectedMoney(money, "+", BUILT_IN_FORMATS)).toBe(`+50${NBSP}USD`);
+    expect(formatDirectedMoney(money, null, BUILT_IN_FORMATS)).toBe(`50${NBSP}USD`);
   });
 });

@@ -37,11 +37,12 @@ export function Amount({
 }
 
 /**
- * A formatted amount inside a sentence, as `src/shared/ui/format/` writes it: an optional sign and the currency's
- * symbol, a no-break space, then the digits with their group and decimal separators (a no-break space in SPACE_COMMA).
- * A separator counts only before another digit, so a sentence's own period or comma stays outside.
+ * A formatted amount inside a sentence, as `src/shared/ui/format/` writes it (P342): an optional sign (a minus is
+ * followed by a word joiner), the digits with their group and decimal separators (a no-break space in SPACE_COMMA),
+ * a no-break space and the ISO code. A separator counts only before another digit, so a sentence's own period or
+ * comma stays outside.
  */
-const MONEY = /([\u2212+]?[^\s\d]+\u00a0\d(?:[.,\u00a0]?\d)*)/;
+const MONEY = /((?:\u2212\u2060?|\+)?\d(?:[.,\u00a0]?\d)*\u00a0[A-Z]{3}\b)/;
 
 /**
  * A sentence whose words wrap as they may while each amount in it stays whole (P335). It is one inline element, so a

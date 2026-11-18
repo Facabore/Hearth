@@ -24,9 +24,13 @@ export interface Wall {
   readonly minute: number;
 }
 
-/** A non-breaking space keeps "$ 1.600.000" and "2:30 PM" on one line; U+2212 is the typographic minus. */
+/**
+ * A non-breaking space keeps "1.600.000 COP" and "2:30 PM" on one line; U+2212 is the typographic minus, and a word
+ * joiner (U+2060) after it keeps "−50 USD" from breaking after the sign (P342).
+ */
 export const NBSP = " ";
 export const MINUS = "−";
+export const WORD_JOINER = "\u2060";
 const SEPARATORS: Readonly<Record<NumberFormat, readonly [group: string, point: string]>> = {
   DOT_COMMA: [".", ","],
   COMMA_DOT: [",", "."],
@@ -51,14 +55,18 @@ export const decimalOf = (minor: string, exponent: number): string => {
   return `${value < 0n ? "-" : ""}${whole}${exponent > 0 ? "." + digits.slice(digits.length - exponent) : ""}`;
 };
 
-/** "$ 1.600.000", "−$ 350.000": the currency's symbol, never the language's (P68). */
+/**
+ * Ruling P342 (owner: "que siga una misma estructura"): every amount reads the number, a no-break space and the ISO
+ * 4217 code, never a symbol: "1.600.000 COP", "50 USD", "−350.000 COP" (a word joiner after the minus). The digits
+ * follow the person's number format and the currency's own exponent (D29); the code never comes from the language (P68).
+ */
 export const formatMoney = (
   money: { readonly amount: string; readonly currency: string },
   f: Pick<Formats, "numberFormat">,
 ): string => {
-  const { symbol, exponent } = currencyOf(money.currency);
-  const text = formatNumber(decimalOf(money.amount, exponent), f);
-  return text.startsWith(MINUS) ? `${MINUS}${symbol}${NBSP}${text.slice(1)}` : `${symbol}${NBSP}${text}`;
+  const text = formatNumber(decimalOf(money.amount, currencyOf(money.currency).exponent), f);
+  // Only a leading minus is ever in the text.
+  return `${text.replace(MINUS, MINUS + WORD_JOINER)}${NBSP}${money.currency}`;
 };
 
 /**
@@ -79,14 +87,21 @@ export const formatPercent = (
   return `${sign}${grouped}${fraction === "" ? "" : point + fraction}${NBSP}%`;
 };
 
-/** A change of money: "+$ 50.000" above zero, "−$ 50.000" below, "$ 0" at zero (ruling P204). */
+/**
+ * An amount in the direction its movement goes, which the amount itself does not carry: "−50 USD" out (a word joiner
+ * after the minus), "+50 USD" in, "50 USD" for a move between one's own accounts (design Q4, P342).
+ */
+export const formatDirectedMoney = (
+  money: { readonly amount: string; readonly currency: string },
+  direction: "+" | "-" | null,
+  f: Pick<Formats, "numberFormat">,
+): string => (direction === "-" ? MINUS + WORD_JOINER : (direction ?? "")) + formatMoney(money, f);
+
+/** A change of money: "+50.000 COP" above zero, "−50.000 COP" below, "0 COP" at zero (rulings P204, P342). */
 export const formatSignedMoney = (
   money: { readonly amount: string; readonly currency: string },
   f: Pick<Formats, "numberFormat">,
-): string => {
-  const text = formatMoney(money, f);
-  return BigInt(money.amount) > 0n ? `+${text}` : text;
-};
+): string => formatDirectedMoney(money, BigInt(money.amount) > 0n ? "+" : null, f);
 
 /** Numeric, with "/" and no leading zeros: 5/10/2026, 10/5/2026 or 2026/10/5. */
 export const formatDate = (isoDate: string, f: Pick<Formats, "dateFormat">): string => {

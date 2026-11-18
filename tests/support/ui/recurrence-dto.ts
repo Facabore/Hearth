@@ -4,7 +4,7 @@ import { cop } from "./dto";
 type RecurrenceDto = components["schemas"]["Recurrence"];
 
 /**
- * HU-E9-09's "Arriendo": Ana's ACTIVE AUTO expense of $ 1.200.000 in "Rent", paid from Bancolombia on day 1 of every
+ * HU-E9-09's "Arriendo": Ana's ACTIVE AUTO expense of 1.200.000 COP in "Rent", paid from Bancolombia on day 1 of every
  * month from 2026-12-01, next due that day.
  */
 export const recurrenceDto = (overrides: Partial<RecurrenceDto> = {}): RecurrenceDto => ({

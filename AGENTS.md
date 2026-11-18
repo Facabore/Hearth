@@ -41,7 +41,7 @@ These are the rules the code review (gga) checks staged files against. When a ch
 - Copy comes from `src/i18n/messages/{es,en}.json`, with both languages. Spanish uses neutral Latin American tú, never voseo. Prefer "pagó por ti" and "tu parte"; never frame a shared bill as a loan.
 - Regional words ("paz y salvo", "a mano") belong to the regional variants of D24, not to the base `es.json`.
 - Formats never come from the language (D23). Only `src/shared/ui/format/` formats numbers, dates and times, from the person's effective preferences (P121); no other `Intl` or `toLocale*` call.
-- An amount never breaks across lines: a no-break space between the symbol and the digits, and a word joiner (U+2060) after a minus sign.
+- An amount reads the number, then its ISO 4217 code, never a symbol: "500.000 COP", "−50 USD" (P342). It never breaks across lines: a no-break space between the digits and the code, and a word joiner (U+2060) after a minus sign.
 - Money direction is never shown by color alone. It always carries a sign or a word.
 - Route script budgets in `tests/performance/budgets.json` and the SPA chunk budgets in `tests/performance/spa-budgets.json` are not raised to fit a change when lazy loading fits it. Only the owner changes a budget, recorded in ADR 0004; since 2026-11-11 the owner's standing authorization in ADR 0004 covers small raises (a chunk at most 1 KiB over, to the next KiB; a route at most 3 KiB over, to its CI measurement plus 3 KiB), each still recorded there.
 

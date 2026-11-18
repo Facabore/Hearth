@@ -39,8 +39,8 @@ export type NumberFieldProps = Omit<
     readonly example?: string | false;
     /** A unit after what is typed ("%"). */
     readonly unit?: string;
-    /** A currency's symbol, before what is typed. */
-    readonly symbol?: string;
+    /** A currency's ISO 4217 code, after what is typed as every amount reads it ("COP", P342). */
+    readonly currency?: string;
   };
 
 /**
@@ -57,13 +57,15 @@ export function NumberField({
   onChange,
   example,
   unit,
-  symbol,
+  currency,
   hint,
   error,
   trailing,
   ...field
 }: NumberFieldProps) {
   const t = useTranslations("common");
+  // P342: a currency's code reads after the figure, at its size; the input keeps clear of the code's three letters.
+  const suffix = unit ?? currency;
   const rule = { kind, numberFormat, decimals, maxLength };
   const sample = example === false || error ? null : exampleOf(rule, example);
   const line = sample ? t("numberExample", { example: sample }) : null;
@@ -71,6 +73,7 @@ export function NumberField({
     <TextField
       {...field}
       {...numberInputProps(rule, { value, onChange })}
+      style={{ paddingRight: currency && "calc(1.75rem + 3ch)", ...field.style }}
       hint={
         hint && line ? (
           <>
@@ -81,11 +84,13 @@ export function NumberField({
         )
       }
       error={error}
-      leading={symbol}
       trailing={
-        unit ? (
-          <span aria-hidden="true" className="px-3 text-muted">
-            {unit}
+        suffix ? (
+          <span
+            aria-hidden="true"
+            className={currency && field.large ? "px-3 text-2xl font-semibold text-muted" : "px-3 text-muted"}
+          >
+            {suffix}
           </span>
         ) : (
           trailing

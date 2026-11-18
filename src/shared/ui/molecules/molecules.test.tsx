@@ -142,13 +142,13 @@ describe("molecules", () => {
     renderWithIntl(
       <ProblemNotice
         problem={{ code: "OutstandingBalance", status: 409, requestId: "r", errors: [], field: null }}
-        detail="Saldo pendiente: $ 100.000"
+        detail="Saldo pendiente: 100.000 COP"
       />,
     );
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(
       "Para salir del espacio, quitar a alguien o archivar el espacio, los saldos tienen que quedar en cero. Registra los pagos que falten para quedar al día y vuelve a intentarlo.",
     );
-    expect(alert).toHaveTextContent("Saldo pendiente: $ 100.000");
+    expect(alert).toHaveTextContent("Saldo pendiente: 100.000 COP");
   });
 });

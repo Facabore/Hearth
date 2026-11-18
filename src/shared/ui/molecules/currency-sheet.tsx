@@ -13,12 +13,6 @@ import { Sheet } from "./sheet";
 /** Board 13: after the primary currency, the ones most people hold. */
 const COMMON = ["USD", "EUR"] as const;
 
-/** A currency's badge: its symbol when Hearth has one, else the first two letters of its code (board 13: "MX"). */
-const badgeOf = (code: string): string => {
-  const { symbol } = currencyOf(code);
-  return symbol === code ? code.slice(0, 2) : symbol;
-};
-
 const searchable = (text: string): string =>
   text
     .normalize("NFD")
@@ -86,11 +80,12 @@ export function CurrencySheet({
           onClick={() => choose(code)}
           className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
         >
+          {/* P342 (board 7): the badge is the code itself, as every amount reads it. */}
           <span
             aria-hidden="true"
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-sm font-semibold text-ink"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-ink"
           >
-            {badgeOf(code)}
+            {code}
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className={cn("text-ink [overflow-wrap:anywhere]", chosen && "font-semibold")}>

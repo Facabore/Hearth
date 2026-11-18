@@ -148,7 +148,7 @@
       "title": "Nueva moneda: {name} ({code})",
       "subtitle": "{account} · hoy en {code}",
       "rate": "Tasa",
-      "rateFrom": "1 {symbol} =",
+      "rateFrom": "1 {code} =",
       "hintStored": "La tasa del {date}. Puedes cambiarla; escribe 1 si solo quieres cambiar la moneda, sin convertir.",
       "hintNone": "No tenemos una tasa entre estas monedas: escríbela. Escribe 1 si solo quieres cambiar la moneda, sin convertir.",
       "balance": "Saldo hoy: {before} → {after}",

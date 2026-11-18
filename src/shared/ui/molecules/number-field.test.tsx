@@ -8,7 +8,13 @@ import type { NumberRule } from "../format/number-input";
 import { NumberField } from "./number-field";
 
 function Harness(
-  props: NumberRule & { hint?: string; unit?: string; symbol?: string; example?: string | false },
+  props: NumberRule & {
+    hint?: string;
+    unit?: string;
+    currency?: string;
+    example?: string | false;
+    large?: boolean;
+  },
 ) {
   const [value, setValue] = useState("");
   return <NumberField id="n" label="Valor" value={value} onChange={setValue} {...props} />;
@@ -31,13 +37,26 @@ describe("NumberField (issue #164)", () => {
   });
 
   it("groups money while typing and keeps the caret after the digit typed", async () => {
-    renderWithIntl(<Harness kind="money" numberFormat="DOT_COMMA" decimals={2} symbol="$" />);
+    renderWithIntl(<Harness kind="money" numberFormat="DOT_COMMA" decimals={2} currency="COP" />);
     await userEvent.type(field(), "6000");
     expect(field()).toHaveValue("6.000");
     field().setSelectionRange(1, 1);
     await userEvent.keyboard("5");
     expect(field()).toHaveValue("65.000");
     expect(field().selectionStart).toBe(2);
+  });
+
+  it("writes a currency's ISO code after what is typed, at the figure's size in a large field (P342)", () => {
+    const { unmount } = renderWithIntl(
+      <Harness kind="money" numberFormat="DOT_COMMA" decimals={2} currency="USD" />,
+    );
+    const code = screen.getByText("USD");
+    expect(code).toHaveAttribute("aria-hidden", "true");
+    expect(field().compareDocumentPosition(code) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText("$")).toBeNull();
+    unmount();
+    renderWithIntl(<Harness kind="money" numberFormat="DOT_COMMA" decimals={0} currency="COP" large />);
+    expect(screen.getByText("COP")).toHaveClass("text-2xl", "font-semibold");
   });
 
   it("does not move the caret when a dropped character is typed in the middle", async () => {
@@ -51,7 +70,7 @@ describe("NumberField (issue #164)", () => {
 
   it("shows the expected format before typing, in Spanish with the person's format", async () => {
     const { container } = renderWithIntl(
-      <Harness kind="money" numberFormat="DOT_COMMA" decimals={2} symbol="$" />,
+      <Harness kind="money" numberFormat="DOT_COMMA" decimals={2} currency="COP" />,
     );
     expect(field()).toHaveAccessibleDescription("Ej: 1.250,50");
     expect(await axeViolations(container)).toEqual([]);

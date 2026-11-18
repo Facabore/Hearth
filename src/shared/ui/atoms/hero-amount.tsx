@@ -1,4 +1,5 @@
 import type { CSSProperties, HTMLAttributes } from "react";
+import { WORD_JOINER } from "../format/formatters";
 import { AMOUNT } from "./amount";
 
 /**
@@ -8,7 +9,8 @@ import { AMOUNT } from "./amount";
  * wrapping or overflowing. Nothing is measured: the size divides the width by the amount's own length.
  *
  * Each character is counted at 0.68 em, the most an amount's characters take on average in the widest face the layout
- * checks run (Verdana bold: digits of 0.71 em, separators of half that).
+ * checks run (Verdana bold: digits of 0.71 em, separators of half that, a code's capitals a little more than a digit).
+ * The word joiner after a minus (P342) takes no room, so it is not counted.
  */
 const SCALED =
   "block text-[length:clamp(1rem,calc((100cqi_-_var(--amount-inset,0px))/var(--amount-ems)),var(--amount-size))]";
@@ -33,7 +35,7 @@ export function HeroAmount({
   const style = {
     "--amount-size": size,
     "--amount-inset": inset,
-    "--amount-ems": (amount.length * 0.68).toFixed(2),
+    "--amount-ems": (amount.split(WORD_JOINER).join("").length * 0.68).toFixed(2),
   } as CSSProperties;
   const figure = (
     <span data-amount="" style={style} className={`${SCALED} ${AMOUNT} ${className ?? ""}`} {...rest}>

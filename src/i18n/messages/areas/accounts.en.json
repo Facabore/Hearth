@@ -148,7 +148,7 @@
       "title": "New currency: {name} ({code})",
       "subtitle": "{account} · in {code} today",
       "rate": "Rate",
-      "rateFrom": "1 {symbol} =",
+      "rateFrom": "1 {code} =",
       "hintStored": "The rate of {date}. You can change it; type 1 to only change the currency, without converting.",
       "hintNone": "We have no rate between these currencies: type it. Type 1 to only change the currency, without converting.",
       "balance": "Balance today: {before} → {after}",

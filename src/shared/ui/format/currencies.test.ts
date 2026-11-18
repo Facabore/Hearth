@@ -14,13 +14,7 @@ describe("currencies (ruling P183, D29)", () => {
     }
   });
 
-  it("shows Hearth's symbols, and the code itself for any other currency", () => {
-    expect(["COP", "USD", "EUR", "JPY"].map((code) => currencyOf(code).symbol)).toEqual([
-      "$",
-      "US$",
-      "€",
-      "JPY",
-    ]);
-    expect(currencyOf("XYZ")).toEqual({ symbol: "XYZ", exponent: 2, roundingUnit: 1n });
+  it("carries no symbol: an amount shows its code (P342), and an unknown code takes two decimals", () => {
+    expect(currencyOf("XYZ")).toEqual({ exponent: 2, roundingUnit: 1n });
   });
 });

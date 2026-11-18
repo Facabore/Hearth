@@ -4,7 +4,7 @@ import { formatMoney, NBSP, type Formats } from "./formatters";
 export const APPROX = "≈";
 
 /**
- * D29, slice MC4 (design §4): a total converted from other currencies, written “≈ $ 6.000.000”: the “almost equal to”
+ * D29, slice MC4 (design §4): a total converted from other currencies, written “≈ 6.000.000 COP”: the “almost equal to”
  * sign, a no-break space, then the amount, all one unbreakable run. The amount’s own sign and spacing are formatMoney’s.
  * It lives apart from formatters so only screens that show a converted total (the accounts list) carry it (ADR 0004).
  */

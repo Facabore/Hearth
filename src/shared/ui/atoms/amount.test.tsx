@@ -10,8 +10,8 @@ const money = (pesos: number) =>
 /** Ruling P335: an amount never breaks across lines and never overflows; the layout around it adapts. */
 describe("Amount (P335)", () => {
   it("keeps an amount on one line, in tabular figures, and marks it for the layout checks", () => {
-    render(<Amount className="font-semibold">{"−$ 1.234.567"}</Amount>);
-    const amount = screen.getByText("−$ 1.234.567");
+    render(<Amount className="font-semibold">{"−\u20601.234.567 COP"}</Amount>);
+    const amount = screen.getByText("−\u20601.234.567 COP");
     expect(amount.tagName).toBe("SPAN");
     expect(amount).toHaveClass("whitespace-nowrap", "tabular-nums", "font-semibold");
     expect(amount).toHaveAttribute("data-amount");
@@ -22,10 +22,10 @@ describe("Amount (P335)", () => {
     render(
       <dl>
         <dt>Total</dt>
-        <Amount as="dd">{"$ 5.000"}</Amount>
+        <Amount as="dd">{"5.000 COP"}</Amount>
       </dl>,
     );
-    expect(screen.getByText("$ 5.000").tagName).toBe("DD");
+    expect(screen.getByText("5.000 COP").tagName).toBe("DD");
   });
 
   it("keeps each amount of a sentence whole, sign and all, while the words around it wrap", () => {
@@ -75,8 +75,8 @@ describe("Amount (P335)", () => {
 
 describe("HeroAmount (P335)", () => {
   it("scales with the width of its own container, between a minimum and its design size, on one line", () => {
-    render(<HeroAmount amount={"$ 1.234.567"} size="2.25rem" className="font-semibold" />);
-    const figure = screen.getByText("$ 1.234.567");
+    render(<HeroAmount amount={"1.234.567 COP"} size="2.25rem" className="font-semibold" />);
+    const figure = screen.getByText("1.234.567 COP");
     expect(figure).toHaveClass("whitespace-nowrap", "tabular-nums", "font-semibold");
     expect(figure).toHaveAttribute("data-amount");
     // A container query: the wrapper is the container, and the size is in container units, never in vw.
@@ -90,23 +90,26 @@ describe("HeroAmount (P335)", () => {
   it("divides the width by the amount's own length, so a longer amount gets a smaller size and never overflows", () => {
     render(
       <>
-        <HeroAmount amount={"$ 1.000"} size="2.25rem" />
-        <HeroAmount amount={"−$ 9.999.999.999.999"} size="2.25rem" />
+        <HeroAmount amount={"1.000 COP"} size="2.25rem" />
+        <HeroAmount amount={"−\u20609.999.999.999.999 COP"} size="2.25rem" />
       </>,
     );
-    const short = Number(screen.getByText("$ 1.000").style.getPropertyValue("--amount-ems"));
-    const long = Number(screen.getByText("−$ 9.999.999.999.999").style.getPropertyValue("--amount-ems"));
+    const short = Number(screen.getByText("1.000 COP").style.getPropertyValue("--amount-ems"));
+    const long = Number(
+      screen.getByText("−\u20609.999.999.999.999 COP").style.getPropertyValue("--amount-ems"),
+    );
     expect(long).toBeGreaterThan(short);
-    expect(long / short).toBeCloseTo(20 / 7, 1);
+    // 22 characters against 9: the word joiner after the minus takes no room, so it is not counted (P342).
+    expect(long / short).toBeCloseTo(22 / 9, 1);
   });
 
   it("can take an ancestor as its container, minus the room around it", () => {
     render(
       <div className="@container">
-        <HeroAmount amount={"$ 22.000"} size="22px" contained={false} inset="30px" />
+        <HeroAmount amount={"22.000 COP"} size="22px" contained={false} inset="30px" />
       </div>,
     );
-    const figure = screen.getByText("$ 22.000");
+    const figure = screen.getByText("22.000 COP");
     // No wrapper of its own: its parent is the ancestor that is the container.
     expect(figure.parentElement?.tagName).toBe("DIV");
     expect(figure.parentElement).toHaveClass("@container");

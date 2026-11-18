@@ -41,6 +41,15 @@ describe("currency sheet (D29, board 13)", () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("badges each currency with its own code, never a symbol (P342, board 7)", () => {
+    sheet();
+    const mostUsed = within(screen.getByRole("dialog")).getByRole("region", { name: "Más usadas" });
+    const badges = within(mostUsed)
+      .getAllByRole("button")
+      .map((b) => b.querySelector("[aria-hidden]")?.textContent);
+    expect(badges).toEqual(["COP", "USD", "EUR"]);
+  });
+
   it("finds a currency by its name or its code, accents ignored, and chooses it", async () => {
     const onChoose = vi.fn();
     sheet(onChoose);
