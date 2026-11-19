@@ -11,6 +11,7 @@ import {
   referencePlanDto,
   savingsAccountDto,
   spaceMemberDto,
+  twoCurrencyPlanDto,
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
@@ -920,5 +921,166 @@ describe("viewers in a line's allocation (#217)", () => {
         { memberId: "m-tomas", percent: "15" },
       ],
     });
+  });
+});
+
+describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupuesto por moneda")', () => {
+  const PATCH = "PATCH /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}";
+  const ALLOCATION = "PUT /api/v1/spaces/{spaceId}/plans/{planId}/lines/{lineId}/allocation";
+  const usd = (major: number) => ({ amount: String(major * 100), currency: "USD" });
+  const twoCurrencies = () => twoCurrencyPlanDto();
+  const free = () => twoCurrencies().lines.find((line) => line.id === "l-free")!;
+  const edit = (api?: Api, line = free(), plan = twoCurrencies()) =>
+    renderWithIntl(
+      <LineEditor
+        space={householdDto()}
+        plan={plan}
+        line={line}
+        savingsAccounts={[]}
+        groups={[]}
+        members={HOUSEHOLD_MEMBERS}
+        formats={BUILT_IN_FORMATS}
+        favorites={["USD"]}
+        api={api}
+      />,
+    );
+  const addCurrency = async (name: RegExp) => {
+    await userEvent.click(screen.getByRole("button", { name: "Agregar presupuesto en otra moneda" }));
+    const sheet = await screen.findByRole("dialog", { name: "Moneda del presupuesto" });
+    await userEvent.click(within(sheet).getAllByRole("button", { name })[0]!);
+  };
+
+  it("adds a budget in another currency, each amount beside its currency, and sends every budget", async () => {
+    const { api, requests } = fakeApi({ [ADD]: added });
+    const { container } = renderWithIntl(
+      <LineEditor
+        space={householdDto()}
+        plan={empty}
+        line={null}
+        savingsAccounts={[]}
+        groups={[]}
+        members={HOUSEHOLD_MEMBERS}
+        formats={BUILT_IN_FORMATS}
+        favorites={["USD"]}
+        api={api}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Nombre"), "Salidas");
+    await userEvent.type(screen.getByLabelText("Planeado"), "300.000");
+    await addCurrency(/^Dólar estadounidense/);
+    expect(screen.getByLabelText("Presupuesto en COP")).toHaveValue("300.000");
+    await userEvent.type(screen.getByLabelText("Presupuesto en USD"), "100");
+    expect(screen.getByRole("button", { name: /Moneda del presupuesto: .*\(USD\)/ })).toBeInTheDocument();
+    expect(
+      screen.getByText("No se convierte entre monedas: un gasto en USD solo cuenta contra el tope en USD."),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Agregar rubro" }));
+    const body = await requests[0]!.json();
+    expect(body.budgets).toEqual([
+      { amount: "30000000", currency: "COP" },
+      { amount: "10000", currency: "USD" },
+    ]);
+    expect(body).not.toHaveProperty("plannedAmount");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows a line's budgets one per currency, and its ✕ drops one, sending the set that remains", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(twoCurrencies()) });
+    edit(api);
+    expect(screen.getByLabelText("Presupuesto en COP")).toHaveValue("730.000");
+    expect(screen.getByLabelText("Presupuesto en USD")).toHaveValue("100");
+    await userEvent.click(screen.getByRole("button", { name: "Quitar el presupuesto en USD" }));
+    // One budget in the space currency left: the line reads as before, "Planeado" with no ✕.
+    expect(screen.getByLabelText("Planeado")).toHaveValue("730.000");
+    expect(screen.queryByRole("button", { name: /Quitar el presupuesto/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    expect(await requests[0]!.json()).toEqual({ budgets: [{ amount: "73000000", currency: "COP" }] });
+  });
+
+  it("sends the whole set when one budget changes", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(twoCurrencies()) });
+    edit(api);
+    await userEvent.clear(screen.getByLabelText("Presupuesto en USD"));
+    await userEvent.type(screen.getByLabelText("Presupuesto en USD"), "150");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    expect(await requests[0]!.json()).toEqual({
+      budgets: [
+        { amount: "73000000", currency: "COP" },
+        { amount: "15000", currency: "USD" },
+      ],
+    });
+  });
+
+  it("shows a running plan's figures for each currency, never converted", () => {
+    const plan = twoCurrencyPlanDto({ status: "ACTIVE" });
+    edit(
+      undefined,
+      plan.lines.find((line) => line.id === "l-free")!,
+      plan,
+    );
+    const figures = screen.getByRole("region", { name: "Cifras del rubro" });
+    expect([...figures.querySelectorAll("dl")].map((dl) => normalized(dl.textContent))).toEqual([
+      "Planeado730.000 COPGastado0 COPDisponible730.000 COP",
+      "Planeado100 USDGastado0 USDDisponible100 USD",
+    ]);
+  });
+
+  it("keeps one budget at least: a line only in another currency has no ✕", () => {
+    const line = { ...free(), plannedAmount: cop(0), budgets: [free().budgets![1]!] };
+    edit(undefined, line);
+    expect(screen.getByLabelText("Presupuesto en USD")).toHaveValue("100");
+    expect(screen.queryByRole("button", { name: /Quitar el presupuesto/ })).toBeNull();
+  });
+
+  it("names the currency whose contributions a budget exceeds", async () => {
+    const { api } = fakeApi({ [PATCH]: () => problemResponse(409, "PlanExceedsCapacity") });
+    edit(api);
+    await userEvent.clear(screen.getByLabelText("Presupuesto en USD"));
+    await userEvent.type(screen.getByLabelText("Presupuesto en USD"), "150");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Presupuesto en USD")).toHaveAccessibleDescription(
+        /Lo planeado supera lo que aportan en USD\./,
+      ),
+    );
+    expect(screen.getByLabelText("Presupuesto en COP")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows what each member is assigned in each currency by the line's rule", async () => {
+    edit();
+    await more();
+    expect(normalized(screen.getByText(/^En USD:/).textContent)).toBe("En USD: Ana 0 USD · Juan 100 USD");
+  });
+
+  it("takes a fixed amount per member in each currency and sends them all", async () => {
+    const { api, requests } = fakeApi({ [ALLOCATION]: () => jsonResponse(twoCurrencies()) });
+    edit(api);
+    await more();
+    await userEvent.click(screen.getByRole("radio", { name: "Monto fijo" }));
+    await userEvent.type(screen.getByLabelText("Valor de Ana"), "300.000");
+    await userEvent.type(screen.getByLabelText("Valor de Juan"), "430.000");
+    await userEvent.type(screen.getByLabelText("Valor de Juan en USD"), "100");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    expect(await requests[0]!.json()).toEqual({
+      rule: "FIXED",
+      members: [
+        { memberId: "m-ana", amount: { amount: "30000000", currency: "COP" } },
+        { memberId: "m-juan", amount: { amount: "43000000", currency: "COP" } },
+        { memberId: "m-juan", amount: usd(100) },
+      ],
+    });
+  });
+
+  it("blocks the save while a currency's fixed amounts do not add up to its budget", async () => {
+    const { api, requests } = fakeApi({});
+    edit(api);
+    await more();
+    await userEvent.click(screen.getByRole("radio", { name: "Monto fijo" }));
+    await userEvent.type(screen.getByLabelText("Valor de Ana"), "300.000");
+    await userEvent.type(screen.getByLabelText("Valor de Juan"), "430.000");
+    await userEvent.type(screen.getByLabelText("Valor de Juan en USD"), "90");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
+    expect(requests).toHaveLength(0);
+    expect(screen.getByText(/Suma: 90 USD/)).toBeInTheDocument();
   });
 });

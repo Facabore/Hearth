@@ -52,7 +52,10 @@ export const lineDraftOf = (line: PlanLineDto | null, formats: Pick<Formats, "nu
 
 export interface LineBody {
   readonly name: string;
-  readonly plannedAmount: MoneyDto;
+  /** One budget, in the space currency as before. */
+  readonly plannedAmount?: MoneyDto;
+  /** Ruling P342 (S7): the line's whole set of budgets, one per currency, in place of `plannedAmount`. */
+  readonly budgets?: MoneyDto[];
   readonly funding: Funding;
   readonly rolloverMode: RolloverMode;
   readonly isCatchAll: boolean;
@@ -62,13 +65,17 @@ export interface LineBody {
   readonly payersScope?: PayersScope;
 }
 
-/** Spec 5.4: a SAVINGS line consumes transfers into its accounts, so it is never the catch-all; others name none. */
+/**
+ * Spec 5.4: a SAVINGS line consumes transfers into its accounts, so it is never the catch-all; others name none.
+ * Ruling P342 (S7): given `budgets`, the line sends them in place of the one planned amount.
+ */
 export const lineBodyOf = (
   draft: LineDraft,
   currency: string,
   numberFormat: NumberFormat,
+  budgets?: MoneyDto[],
 ): { ok: true; body: LineBody } | { ok: false; field: "planned" } => {
-  const decimal = parseDecimal(draft.planned, numberFormat);
+  const decimal = budgets ? "0" : parseDecimal(draft.planned, numberFormat);
   const minor = decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
   if (minor === null) return { ok: false, field: "planned" };
   const savings = draft.funding === "SAVINGS";
@@ -76,7 +83,7 @@ export const lineBodyOf = (
     ok: true,
     body: {
       name: draft.name.trim(),
-      plannedAmount: { amount: minor, currency },
+      ...(budgets ? { budgets } : { plannedAmount: { amount: minor, currency } }),
       funding: draft.funding,
       rolloverMode: draft.rolloverMode,
       isCatchAll: savings ? false : draft.isCatchAll,
@@ -95,7 +102,7 @@ export const sameSet = (a: readonly string[], b: readonly string[]) =>
 /** HU-E6-03: an edit sends only the fields that changed (the PATCH keeps the rest). */
 export const lineChanges = (line: PlanLineDto, body: LineBody): Partial<LineBody> => ({
   ...(body.name !== line.name ? { name: body.name } : {}),
-  ...(body.plannedAmount.amount !== line.plannedAmount.amount ? { plannedAmount: body.plannedAmount } : {}),
+  ...budgetChanges(line, body),
   ...(body.funding !== line.funding ? { funding: body.funding } : {}),
   ...(body.rolloverMode !== line.rolloverMode ? { rolloverMode: body.rolloverMode } : {}),
   ...(body.isCatchAll !== line.isCatchAll ? { isCatchAll: body.isCatchAll } : {}),
@@ -104,6 +111,23 @@ export const lineChanges = (line: PlanLineDto, body: LineBody): Partial<LineBody
     : {}),
   ...payerChanges(line, body),
 });
+
+/**
+ * Ruling P342 (S7): the budgets' part of an edit. A line with one budget in the space currency that keeps it sends
+ * `plannedAmount` when it changed, as before; any other change sends the whole set (`budgets` replaces it), so a
+ * budget removed with its ✕ is dropped.
+ */
+const budgetChanges = (line: PlanLineDto, body: LineBody): Partial<LineBody> => {
+  const stored = (line.budgets ?? []).filter((budget) => budget.budgeted).map((budget) => budget.planned);
+  const { plannedAmount } = body;
+  if (plannedAmount && stored.every((money) => money.currency === plannedAmount.currency))
+    return plannedAmount.amount !== line.plannedAmount.amount ? { plannedAmount } : {};
+  const sent = body.budgets ?? (plannedAmount ? [plannedAmount] : []);
+  const same =
+    sent.length === stored.length &&
+    sent.every((money, i) => money.currency === stored[i]!.currency && money.amount === stored[i]!.amount);
+  return same ? {} : { budgets: sent };
+};
 
 /**
  * D26: the payers' part of an edit. The whole set is sent when it changed (empty clears it), the scope when it

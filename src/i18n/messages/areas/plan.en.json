@@ -181,6 +181,17 @@
           "othersMany": "{names} put their part into the fund.",
           "direct": "{count, plural, one {{names} usually pays {line}.} other {{names} usually pay {line}.}} When the expense is recorded they show as who paid, and debts stay in Balances."
         }
+      },
+      "budgets": {
+        "heading": "Budget",
+        "field": "Budget in {currency}",
+        "chip": "Budget currency: {name} ({code})",
+        "sheetTitle": "Budget currency",
+        "add": "Add a budget in another currency",
+        "remove": "Remove the budget in {currency}",
+        "note": "Nothing converts between currencies: a {currency} expense only counts against the {currency} cap.",
+        "subtitle": "Each currency has its own cap",
+        "exceeds": "The plan exceeds what the members put in, in {currency}."
       }
     },
     "mapping": {
@@ -206,7 +217,11 @@
         "PERCENT": "Percentages that add up to 100%.",
         "FIXED": "Amounts that add up to the {planned} planned.",
         "NONE": "Group money with no one answering per person: the line shows planned, spent and available, without amounts per member."
-      }
+      },
+      "valueIn": "{name}'s value in {currency}",
+      "inCurrency": "In {currency}: {amounts}",
+      "inCurrencyHeading": "In {currency}",
+      "noCapacityIn": "In {currency}: nobody puts in this currency."
     }
   },
   "reports": {

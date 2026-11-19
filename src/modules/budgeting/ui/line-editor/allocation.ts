@@ -137,12 +137,16 @@ export type AllocationBody =
   | { rule: "PERCENT"; members: { memberId: string; percent: string }[] }
   | { rule: "FIXED"; members: { memberId: string; amount: MoneyDto }[] };
 
-/** The PUT body: only members with a value; null while the values do not hold (the save is blocked). */
+/**
+ * The PUT body: only members with a value; null while the values do not hold (the save is blocked). Ruling P342 (S7,
+ * "Misma regla, por moneda"): a FIXED line also sends each member's amount in its other currencies (`others`).
+ */
 export const allocationBodyOf = (
   draft: AllocationDraft,
   memberIds: readonly string[],
   currency: string,
   numberFormat: NumberFormat,
+  others: readonly { readonly currency: string; readonly values: AllocationDraft["values"] }[] = [],
 ): AllocationBody | null => {
   if (draft.rule === "PROPORTIONAL" || draft.rule === "NONE") return { rule: draft.rule };
   const values = valuesOf(draft, memberIds, currencyOf(currency).exponent, numberFormat);
@@ -159,10 +163,40 @@ export const allocationBodyOf = (
       })),
     };
   }
-  return {
-    rule: "FIXED",
-    members: listed.map((v) => ({ memberId: v.memberId, amount: { amount: String(v.value), currency } })),
-  };
+  const members = listed.map((v) => ({
+    memberId: v.memberId,
+    amount: { amount: String(v.value), currency },
+  }));
+  for (const other of others) {
+    const values = valuesOf(
+      { rule: "FIXED", values: other.values },
+      memberIds,
+      currencyOf(other.currency).exponent,
+      numberFormat,
+    );
+    if ("unreadable" in values) return null;
+    for (const v of values)
+      if (v.value > 0n)
+        members.push({ memberId: v.memberId, amount: { amount: String(v.value), currency: other.currency } });
+  }
+  return { rule: "FIXED", members };
+};
+
+/** Ruling P342 (S7): a FIXED line's stored amounts in `currency`, as their fields start. */
+export const fixedValuesOf = (
+  line: PlanLineDto | null,
+  currency: string,
+  formats: Pick<Formats, "numberFormat">,
+): Record<string, string> => {
+  const budget = line?.budgets?.find((b) => b.planned.currency === currency);
+  if (line?.allocation.rule !== "FIXED" || budget === undefined) return {};
+  return Object.fromEntries(
+    budget.allocation.members.flatMap((m) =>
+      m.amount === null
+        ? []
+        : [[m.memberId, formatNumber(decimalOf(m.amount.amount, currencyOf(currency).exponent), formats)]],
+    ),
+  );
 };
 
 /** Whether `body` would change what the line stores; a new line's PROPORTIONAL default sends nothing. */
@@ -170,20 +204,27 @@ export const allocationChanged = (line: PlanLineDto | null, body: AllocationBody
   if (line === null) return body.rule !== "PROPORTIONAL";
   if (line.allocation.rule !== body.rule) return true;
   if (body.rule === "PROPORTIONAL" || body.rule === "NONE") return false;
+  // Ruling P342 (S7): a FIXED amount is one member's in one currency, each budget's apart.
+  const fixed =
+    line.budgets?.flatMap((budget) =>
+      budget.allocation.members.map(
+        (m) => [`${m.memberId}:${budget.planned.currency}`, m.amount?.amount ?? null] as const,
+      ),
+    ) ??
+    line.allocation.members.map(
+      (m) => [`${m.memberId}:${m.amount?.currency}`, m.amount?.amount ?? null] as const,
+    );
   const stored = new Map(
-    line.allocation.members.map((m) => [
-      m.memberId,
-      body.rule === "PERCENT"
-        ? m.percent === null
-          ? null
-          : minorOf(m.percent, 2)
-        : (m.amount?.amount ?? null),
-    ]),
+    body.rule === "PERCENT"
+      ? line.allocation.members.map(
+          (m) => [m.memberId, m.percent === null ? null : minorOf(m.percent, 2)] as const,
+        )
+      : fixed,
   );
   const sent =
     body.rule === "PERCENT"
       ? body.members.map((m) => [m.memberId, minorOf(m.percent, 2)] as const)
-      : body.members.map((m) => [m.memberId, m.amount.amount] as const);
+      : body.members.map((m) => [`${m.memberId}:${m.amount.currency}`, m.amount.amount] as const);
   return (
     sent.length !== [...stored.values()].filter((v) => v !== null && v !== "0").length ||
     sent.some(([id, value]) => stored.get(id) !== value)

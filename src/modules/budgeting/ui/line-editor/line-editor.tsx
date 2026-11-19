@@ -20,6 +20,7 @@ import type {
   AccountDto,
   BudgetPlanDto,
   CategoryGroupDto,
+  MoneyDto,
   PlanLineDto,
   SpaceDto,
   SpaceMemberDto,
@@ -41,9 +42,13 @@ import {
   allocationBodyOf,
   allocationChanged,
   allocationDraftOf,
+  fixedValuesOf,
   previewOf,
   type AllocationDraft,
 } from "./allocation";
+import { budgetRowsOf, budgetsOf, exceededCurrency, type BudgetRow } from "./budget-draft";
+import { BudgetFields } from "./budget-fields";
+import { OtherAllocations } from "./other-allocations";
 import {
   lineBodyOf,
   lineChanges,
@@ -124,6 +129,7 @@ export function LineEditor({
   hasFund = false,
   viewerMemberId = null,
   formats,
+  favorites = [],
   api: injected,
 }: {
   readonly space: SpaceDto;
@@ -141,6 +147,8 @@ export function LineEditor({
   /** The viewer's member id, so the sheet says "(tú)". */
   readonly viewerMemberId?: string | null;
   readonly formats: Formats;
+  /** Ruling P342 (S2): the person's favorite currencies, which the currency sheet lists after the space's. */
+  readonly favorites?: readonly string[];
   readonly api?: Api;
 }) {
   const t = useTranslations("budgeting.lineEditor");
@@ -163,8 +171,23 @@ export function LineEditor({
   const [plan, setPlan] = useState(initial);
   const [draft, setDraft] = useState<LineDraft>(() => lineDraftOf(line, formats));
   const [categoryIds, setCategoryIds] = useState<readonly string[]>(() => line?.categoryIds ?? []);
-  const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>(() =>
-    allocationDraftOf(line, formats),
+  // Ruling P342 (S7): the line's budgets one per currency, or null while its one budget is the space currency's.
+  const [rows, setRows] = useState<readonly BudgetRow[] | null>(() => budgetRowsOf(line, formats));
+  const [budgetError, setBudgetError] = useState<{ currency: string; text: string } | null>(null);
+  // The allocation draft is the first budget's; a FIXED line's amounts in its other currencies are kept apart.
+  const [allocationDraft, setAllocationDraft] = useState<AllocationDraft>(() => {
+    const first = budgetRowsOf(line, formats)?.[0];
+    return first && line?.allocation.rule === "FIXED"
+      ? { rule: "FIXED", values: fixedValuesOf(line, first.currency, formats) }
+      : allocationDraftOf(line, formats);
+  });
+  const [otherValues, setOtherValues] = useState<Readonly<Record<string, Readonly<Record<string, string>>>>>(
+    () =>
+      Object.fromEntries(
+        (budgetRowsOf(line, formats) ?? [])
+          .slice(1)
+          .map((row) => [row.currency, fixedValuesOf(line, row.currency, formats)]),
+      ),
   );
   const [mapping, setMapping] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -193,19 +216,45 @@ export function LineEditor({
   const lineId = stored?.id ?? null;
   // Issue #175: a personal plan's line answers to its one member, so it has no "Quién responde" nor capacity check.
   const personal = space.kind === "PERSONAL";
-  const plannedMinor = (() => {
-    const decimal = parseDecimal(draft.planned, formats.numberFormat);
-    return decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
-  })();
-  const plannedNow = { amount: plannedMinor ?? stored?.plannedAmount.amount ?? "0", currency };
+  // Ruling P342 (S7): the allocation editor speaks of the first budget; each other currency's comes after it.
+  const primary = rows?.[0]?.currency ?? currency;
+  const minorIn = (text: string, of: string) => {
+    const decimal = parseDecimal(text, formats.numberFormat);
+    return decimal === null ? null : minorOf(decimal, currencyOf(of).exponent);
+  };
+  const plannedMinor = minorIn(rows?.[0]?.text ?? draft.planned, primary);
+  const plannedNow = {
+    amount: plannedMinor ?? (rows === null ? stored?.plannedAmount.amount : undefined) ?? "0",
+    currency: primary,
+  };
+  /** Each member's contribution in `of`, the plan's figures per currency ("Misma regla, por moneda"). */
+  const capacitiesIn = (of: string) =>
+    members.map((member) => ({
+      memberId: member.id,
+      capacity:
+        (
+          (plan.currencies ?? []).find((c) => c.totalCapacity.currency === of)?.capacities ??
+          (of === currency ? plan.capacities : [])
+        ).find((capacity) => capacity.memberId === member.id)?.amount.amount ?? "0",
+    }));
   const preview = previewOf(allocationDraft, {
     planned: plannedNow.amount,
-    currency,
-    members: members.map((member) => ({
-      memberId: member.id,
-      capacity: plan.capacities.find((capacity) => capacity.memberId === member.id)?.amount.amount ?? "0",
-    })),
+    currency: primary,
+    members: capacitiesIn(primary),
     numberFormat: formats.numberFormat,
+  });
+  const otherCurrencies = (rows ?? []).slice(1).map((row) => {
+    const values = otherValues[row.currency] ?? {};
+    return {
+      currency: row.currency,
+      values,
+      preview: previewOf(allocationDraft.rule === "FIXED" ? { rule: "FIXED", values } : allocationDraft, {
+        planned: minorIn(row.text, row.currency) ?? "0",
+        currency: row.currency,
+        members: capacitiesIn(row.currency),
+        numberFormat: formats.numberFormat,
+      }),
+    };
   });
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
@@ -241,7 +290,20 @@ export function LineEditor({
     setFormProblem(null);
     setFieldError(null);
     setSectionError(null);
-    const built = lineBodyOf(draft, currency, formats.numberFormat);
+    setBudgetError(null);
+    let budgets: MoneyDto[] | undefined;
+    if (rows !== null) {
+      const read = budgetsOf(rows, formats.numberFormat);
+      if (!read.ok) {
+        setBudgetError({
+          currency: read.currency,
+          text: t("unreadable", { example: formatNumber("1500000", formats) }),
+        });
+        return;
+      }
+      budgets = read.budgets;
+    }
+    const built = lineBodyOf(draft, currency, formats.numberFormat, budgets);
     if (!built.ok) {
       setFieldError({
         field: built.field,
@@ -253,7 +315,10 @@ export function LineEditor({
     // A personal space has no one to share a line with, so it never asks (issue #175).
     if (
       !personal &&
-      (preview.kind === "invalid" || preview.kind === "noCapacity" || preview.kind === "unreadable")
+      (preview.kind === "invalid" ||
+        preview.kind === "noCapacity" ||
+        preview.kind === "unreadable" ||
+        otherCurrencies.some(({ preview: other }) => other.kind === "invalid" || other.kind === "unreadable"))
     ) {
       if (moreOpen) allocationSection.current?.focus();
       else {
@@ -265,8 +330,9 @@ export function LineEditor({
     const allocation = allocationBodyOf(
       allocationDraft,
       members.map((member) => member.id),
-      currency,
+      primary,
       formats.numberFormat,
+      otherCurrencies,
     );
     // A savings line takes no categories (ruling P212).
     const mapped = savings
@@ -304,11 +370,54 @@ export function LineEditor({
       } else {
         const field = lineFieldOf(outcome.problem);
         if (field === "form") setFormProblem(outcome.problem);
-        else setFieldError({ field, text: messageOf(outcome.problem).message });
+        else if (field === "planned" && rows !== null) {
+          // P342: the problem names no currency; the budget that passes what is left to assign in its own does.
+          const over =
+            outcome.problem.code === "PlanExceedsCapacity"
+              ? exceededCurrency(budgets ?? [], plan, stored)
+              : null;
+          setBudgetError({
+            currency: over ?? rows[0]!.currency,
+            text:
+              over === null ? messageOf(outcome.problem).message : t("budgets.exceeds", { currency: over }),
+          });
+        } else setFieldError({ field, text: messageOf(outcome.problem).message });
       }
     }
     inFlight.current = false;
     setPending(false);
+  };
+
+  /** A budget in another currency joins the line; the one "Planeado" field becomes its first row. */
+  const addBudget = (code: string) => {
+    if (rows === null && code !== currency)
+      setRows([
+        { currency, text: draft.planned },
+        { currency: code, text: "" },
+      ]);
+    else if (rows !== null) setRows([...rows, { currency: code, text: "" }]);
+  };
+  const renameBudget = (index: number, code: string) => {
+    if (rows === null) return;
+    const from = rows[index]!.currency;
+    setRows(rows.map((row, i) => (i === index ? { ...row, currency: code } : row)));
+    if (index > 0)
+      setOtherValues(({ [from]: values, ...rest }) => (values ? { ...rest, [code]: values } : rest));
+  };
+  /** A ✕ drops a budget; one left in the space currency is the line's one "Planeado" again. */
+  const removeBudget = (index: number) => {
+    if (rows === null) return;
+    const next = rows.filter((_, i) => i !== index);
+    const first = next[0]!;
+    // The allocation editor follows the first budget: a FIXED line's amounts in the new first move into it.
+    if (index === 0 && allocationDraft.rule === "FIXED")
+      setAllocationDraft({ rule: "FIXED", values: otherValues[first.currency] ?? {} });
+    if (next.length === 1 && first.currency === currency) {
+      change({ planned: first.text }, "planned");
+      setRows(null);
+      setOtherValues({});
+    } else setRows(next);
+    setBudgetError(null);
   };
 
   const remove = async () => {
@@ -367,7 +476,7 @@ export function LineEditor({
     others.length === 1
       ? ` ${tPay("note.otherOne", {
           name: others[0]!.displayName,
-          amount: money({ amount: String(assignedTo(others[0]!.id)), currency }),
+          amount: money({ amount: String(assignedTo(others[0]!.id)), currency: primary }),
         })}`
       : others.length > 1
         ? ` ${tPay("note.othersMany", {
@@ -394,7 +503,7 @@ export function LineEditor({
   const allocationError = sectionError?.section === "allocation" ? sectionError.text : undefined;
   const allocationSummary = personal
     ? null
-    : (foldSummary(allocationDraft, members, currency, formats) ?? tRule(allocationDraft.rule));
+    : (foldSummary(allocationDraft, members, primary, formats) ?? tRule(allocationDraft.rule));
   const summary =
     allocationSummary === null
       ? tRollover(draft.rolloverMode)
@@ -402,7 +511,11 @@ export function LineEditor({
 
   return (
     <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 py-4">
-      <ScreenHeader backHref={back} title={line === null ? t("newTitle") : t("title", { name: line.name })} />
+      <ScreenHeader
+        backHref={back}
+        title={line === null ? t("newTitle") : t("title", { name: line.name })}
+        subtitle={rows === null ? undefined : t("budgets.subtitle")}
+      />
 
       {/* Board 05: a draft counts no expenses yet, so its line has no figures to show. */}
       {line !== null && plan.status !== "DRAFT" ? (
@@ -412,30 +525,39 @@ export function LineEditor({
           </h2>
           {/* P335: each figure keeps to one line, and one that does not fit beside the others moves whole to the next
               row; `flex-1` keeps the ones on a row equally wide. */}
-          <dl className="flex flex-wrap gap-2">
-            {(
-              [
-                ["planned", line.plannedAmount],
-                ["spent", line.spent],
-                ["available", line.available],
-              ] as const
-            ).map(([key, value]) => (
-              <div key={key} className="flex flex-1 flex-col">
-                <dt className="text-sm text-muted">{tReports(key)}</dt>
-                <Amount as="dd" className="font-semibold text-ink">
-                  {money(value)}
-                </Amount>
-              </div>
-            ))}
-            {line.carryOverFrom ? (
-              <div className="flex min-w-0 basis-full flex-col">
-                <dt className="text-sm text-muted">{t("carryOver")}</dt>
-                <dd>
-                  <CarryText line={line} policy={space.periodPolicy} formats={formats} />
-                </dd>
-              </div>
-            ) : null}
-          </dl>
+          {/* Ruling P342 (S7): a line in several currencies shows each currency's figures, a row each. */}
+          {(budgetRowsOf(line, formats) === null
+            ? [line]
+            : (line.budgets ?? []).map((budget) => ({ ...budget, plannedAmount: budget.planned }))
+          ).map((figures, index) => (
+            <dl
+              key={figures.plannedAmount.currency}
+              className={`flex flex-wrap gap-2${index > 0 ? " mt-2" : ""}`}
+            >
+              {(
+                [
+                  ["planned", figures.plannedAmount],
+                  ["spent", figures.spent],
+                  ["available", figures.available],
+                ] as const
+              ).map(([key, value]) => (
+                <div key={key} className="flex flex-1 flex-col">
+                  <dt className="text-sm text-muted">{tReports(key)}</dt>
+                  <Amount as="dd" className="font-semibold text-ink">
+                    {money(value)}
+                  </Amount>
+                </div>
+              ))}
+              {index === 0 && line.carryOverFrom ? (
+                <div className="flex min-w-0 basis-full flex-col">
+                  <dt className="text-sm text-muted">{t("carryOver")}</dt>
+                  <dd>
+                    <CarryText line={line} policy={space.periodPolicy} formats={formats} />
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ))}
         </section>
       ) : null}
 
@@ -447,9 +569,9 @@ export function LineEditor({
           void save();
         }}
       >
-        {/* Board 05: Nombre and Planeado share a row; what Planeado leaves to assign is said under both. */}
-        <div className="flex flex-col gap-1.5">
-          <div className="grid grid-cols-2 items-start gap-3">
+        {rows !== null ? (
+          // Ruling P342 (S7), board "Editar rubro · presupuesto por moneda": the name, then one budget per currency.
+          <div className="flex flex-col gap-3">
             <TextField
               id={`${ids}-name`}
               label={t("field.name")}
@@ -458,39 +580,80 @@ export function LineEditor({
               onChange={(event) => change({ name: event.target.value }, "name")}
               error={name}
             />
-            <NumberField
-              id={`${ids}-planned`}
-              label={t("field.planned")}
-              kind="money"
-              numberFormat={formats.numberFormat}
-              decimals={currencyOf(currency).exponent}
-              currency={currency}
-              example={false}
-              className="font-semibold"
-              aria-describedby={[`${ids}-planned-note`, planned ? `${ids}-planned-error` : null]
-                .filter(Boolean)
-                .join(" ")}
-              value={draft.planned}
-              onChange={(planned) => change({ planned }, "planned")}
-              error={planned}
+            <BudgetFields
+              idPrefix={ids}
+              rows={rows}
+              spaceCurrency={currency}
+              favorites={favorites}
+              formats={formats}
+              errorOf={(of) => (budgetError?.currency === of ? budgetError.text : undefined)}
+              onText={(index, text) => {
+                setRows(rows.map((row, i) => (i === index ? { ...row, text } : row)));
+                if (budgetError?.currency === rows[index]?.currency) setBudgetError(null);
+              }}
+              onAdd={addBudget}
+              onCurrency={renameBudget}
+              onRemove={removeBudget}
             />
           </div>
-          <p id={`${ids}-planned-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
-            <AmountText
-              text={
-                // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
-                !personal && preview.kind === "noCapacity"
-                  ? tAllocation("noCapacity")
-                  : line?.capacityShare != null
-                    ? t("field.plannedHint", {
-                        share: formatPercent(line.capacityShare, formats),
-                        unallocated: money(plan.unallocated),
-                      })
-                    : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
-              }
+        ) : (
+          /* Board 05: Nombre and Planeado share a row; what Planeado leaves to assign is said under both. */
+          <div className="flex flex-col gap-1.5">
+            <div className="grid grid-cols-2 items-start gap-3">
+              <TextField
+                id={`${ids}-name`}
+                label={t("field.name")}
+                autoComplete="off"
+                value={draft.name}
+                onChange={(event) => change({ name: event.target.value }, "name")}
+                error={name}
+              />
+              <NumberField
+                id={`${ids}-planned`}
+                label={t("field.planned")}
+                kind="money"
+                numberFormat={formats.numberFormat}
+                decimals={currencyOf(currency).exponent}
+                currency={currency}
+                example={false}
+                className="font-semibold"
+                aria-describedby={[`${ids}-planned-note`, planned ? `${ids}-planned-error` : null]
+                  .filter(Boolean)
+                  .join(" ")}
+                value={draft.planned}
+                onChange={(planned) => change({ planned }, "planned")}
+                error={planned}
+              />
+            </div>
+            <p id={`${ids}-planned-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
+              <AmountText
+                text={
+                  // Issue #175: in a shared plan the capacity check speaks here too, not only at the form's end.
+                  !personal && preview.kind === "noCapacity"
+                    ? tAllocation("noCapacity")
+                    : line?.capacityShare != null
+                      ? t("field.plannedHint", {
+                          share: formatPercent(line.capacityShare, formats),
+                          unallocated: money(plan.unallocated),
+                        })
+                      : t("field.plannedNewHint", { unallocated: money(plan.unallocated) })
+                }
+              />
+            </p>
+            <BudgetFields
+              idPrefix={ids}
+              rows={null}
+              spaceCurrency={currency}
+              favorites={favorites}
+              formats={formats}
+              errorOf={() => undefined}
+              onText={() => undefined}
+              onAdd={addBudget}
+              onCurrency={() => undefined}
+              onRemove={() => undefined}
             />
-          </p>
-        </div>
+          </div>
+        )}
 
         {/* P328, board "Editar rubro · lo paga Ana": one row says how the line is paid and opens the sheet; a note
             under it says what that does. */}
@@ -685,8 +848,20 @@ export function LineEditor({
                 preview={preview}
                 members={members}
                 formats={formats}
-                currency={currency}
+                currency={primary}
                 planned={plannedNow}
+              />
+            )}
+            {personal ? null : (
+              <OtherAllocations
+                rule={allocationDraft.rule}
+                currencies={otherCurrencies}
+                members={members}
+                formats={formats}
+                onValues={(of, values) => {
+                  setOtherValues((current) => ({ ...current, [of]: values }));
+                  setSectionError(null);
+                }}
               />
             )}
             {allocationError ? (

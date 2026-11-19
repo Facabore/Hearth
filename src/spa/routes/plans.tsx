@@ -197,6 +197,8 @@ function LineEditorScreen({
       hasFund={spaceAccounts.data.some((account) => account.type === "SHARED_FUND")}
       viewerMemberId={viewerMemberId}
       formats={me.preferences.effective}
+      // P342 (S2): the currency sheet lists the person's favorites after the space's currency, the default.
+      favorites={favoriteCurrenciesOf(me, personalSpaceOf(spaces).currency)}
     />
   );
 }

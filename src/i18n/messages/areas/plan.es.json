@@ -181,6 +181,17 @@
           "othersMany": "{names} ponen su parte en el fondo.",
           "direct": "{count, plural, one {{names} suele pagar {line}.} other {{names} suelen pagar {line}.}} Al registrar el gasto aparece como quien pagó, y las deudas quedan en Saldos."
         }
+      },
+      "budgets": {
+        "heading": "Presupuesto",
+        "field": "Presupuesto en {currency}",
+        "chip": "Moneda del presupuesto: {name} ({code})",
+        "sheetTitle": "Moneda del presupuesto",
+        "add": "Agregar presupuesto en otra moneda",
+        "remove": "Quitar el presupuesto en {currency}",
+        "note": "No se convierte entre monedas: un gasto en {currency} solo cuenta contra el tope en {currency}.",
+        "subtitle": "Cada moneda tiene su propio tope",
+        "exceeds": "Lo planeado supera lo que aportan en {currency}."
       }
     },
     "mapping": {
@@ -206,7 +217,11 @@
         "PERCENT": "Porcentajes que suman 100 %.",
         "FIXED": "Montos que suman los {planned} planeados.",
         "NONE": "Plata del grupo, sin responsable por persona: el rubro muestra planeado, gastado y disponible, sin montos por miembro."
-      }
+      },
+      "valueIn": "Valor de {name} en {currency}",
+      "inCurrency": "En {currency}: {amounts}",
+      "inCurrencyHeading": "En {currency}",
+      "noCapacityIn": "En {currency}: nadie aporta en esta moneda."
     }
   },
   "reports": {
