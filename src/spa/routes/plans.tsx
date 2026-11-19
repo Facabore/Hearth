@@ -11,6 +11,7 @@ import {
   ownSuggestion,
   Planner,
 } from "@/modules/budgeting/ui/screens";
+import { favoriteCurrenciesOf } from "@/modules/identity/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { NotFoundScreen, ScreenHeader } from "@/shared/ui";
 import { nowIn } from "@/shared/ui/time/when";
@@ -83,7 +84,7 @@ export function CapacitiesRoute() {
   useTitle(useTranslations("budgeting.capacity")("title"));
   const { spaceId, planId } = capacities.useParams();
   const { api } = useApis();
-  const { me, space } = useViewer(spaceId);
+  const { me, space, spaces } = useViewer(spaceId);
   const [plan, list, groups, suggestion] = useSuspenseQueries({
     queries: [
       planQuery(api, spaceId, planId),
@@ -113,6 +114,8 @@ export function CapacitiesRoute() {
         viewerUserId={me.id}
         suggestion={ownSuggestion(suggestion.data, memberOf(list.data, me.id))}
         formats={me.preferences.effective}
+        // P342 (S2): the currency sheet lists the person's favorites after the space's currency, the default.
+        favorites={favoriteCurrenciesOf(me, personalSpaceOf(spaces).currency)}
       />
     </>
   );

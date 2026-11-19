@@ -4,6 +4,7 @@ import type { MoneyDto } from "@/shared/ui/api/dto";
 import { AmountText } from "@/shared/ui/atoms/amount";
 import { HeroAmount } from "@/shared/ui/atoms/hero-amount";
 import { formatMoney, formatPercent, type Formats } from "@/shared/ui/format/formatters";
+import { joinNames } from "../line-editor/payers";
 
 export interface CapacityRow {
   readonly memberId: string;
@@ -11,6 +12,14 @@ export interface CapacityRow {
   readonly amount: MoneyDto;
   /** The member's share of the total as the API's two-decimal percent ("40.00"), or null when nobody puts in. */
   readonly share: string | null;
+  /** Ruling P342 (S7): what the member puts in in each other currency, never converted ("y 100 USD"). */
+  readonly others?: readonly MoneyDto[];
+}
+
+/** Ruling P342 (S7): the plan's figures in one of its other currencies. */
+export interface CapacityCurrency {
+  readonly total: MoneyDto;
+  readonly unallocated: MoneyDto;
 }
 
 /** The bar's tones, one per member in turn: two members read as the board's dark and light green. */
@@ -29,6 +38,7 @@ export function CapacityCard({
   formats,
   action,
   personal = false,
+  others = [],
 }: {
   readonly headingId: string;
   readonly total: MoneyDto;
@@ -38,8 +48,11 @@ export function CapacityCard({
   readonly action?: ReactNode;
   /** #286 (audit pass 3, A11): the personal space's one person reads her own words, not a household's. */
   readonly personal?: boolean;
+  /** Ruling P342 (S7): the plan's other currencies, after the space's ("4.000.000 COP / 100 USD"). */
+  readonly others?: readonly CapacityCurrency[];
 }) {
   const t = useTranslations("budgeting.planner");
+  const and = useTranslations("budgeting.lineEditor.pay")("and");
   const money = (value: MoneyDto) => formatMoney(value, formats);
   const shared = rows.filter((row) => row.share !== null && !/^0*\.?0*$/.test(row.share));
   return (
@@ -53,11 +66,23 @@ export function CapacityCard({
         </h2>
         <p className="text-sm [overflow-wrap:anywhere] text-muted">
           <AmountText
-            text={t(personal ? "unallocatedPersonal" : "unallocated", { amount: money(unallocated) })}
+            text={t(personal ? "unallocatedPersonal" : "unallocated", {
+              amount: [unallocated, ...others.map((other) => other.unallocated)].map(money).join(" · "),
+            })}
           />
         </p>
       </div>
-      <HeroAmount amount={money(total)} size="1.875rem" className="leading-[1.2] font-semibold text-ink" />
+      <div className="flex flex-col">
+        {[total, ...others.map((other) => other.total)].map((amount) => (
+          <HeroAmount
+            key={amount.currency}
+            data-total
+            amount={money(amount)}
+            size="1.875rem"
+            className="leading-[1.2] font-semibold text-ink"
+          />
+        ))}
+      </div>
       {shared.length > 0 ? (
         <div data-share-bar aria-hidden="true" className="flex h-2 gap-0.5 overflow-hidden rounded-full">
           {shared.map((row, index) => (
@@ -72,7 +97,12 @@ export function CapacityCard({
       <p className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm text-ink">
         {rows.map((row) => (
           <span key={row.memberId} className="[overflow-wrap:anywhere]">
-            <AmountText text={t("memberAmount", { name: row.name, amount: money(row.amount) })} />
+            <AmountText
+              text={t("memberAmount", {
+                name: row.name,
+                amount: joinNames([row.amount, ...(row.others ?? [])].map(money), and),
+              })}
+            />
             {row.share === null ? null : (
               <>
                 {" · "}

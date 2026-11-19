@@ -1,9 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useId, useMemo, useRef, useState } from "react";
-import { Button, NumberField, ProblemNotice, Sheet, usePeriodText } from "@/shared/ui";
+import { Button, Icon, NumberField, ProblemNotice, Sheet, usePeriodText } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { BudgetPlanDto, CapacitySuggestionDto, SpaceDto, SpaceMemberDto } from "@/shared/ui/api/dto";
 import { Amount, AmountText } from "@/shared/ui/atoms/amount";
@@ -21,7 +22,21 @@ import {
 } from "@/shared/ui/format/formatters";
 import { capacityEditable, isEditable, takesPart } from "../plan-access";
 import { ifMatch, planWrite, rereadPlan } from "../plan-write";
-import { capacityBodyOf, capacityFieldOf, draftsOf } from "./capacity-draft";
+import {
+  capacityBodyOf,
+  capacityFieldOf,
+  draftsOf,
+  otherCapacitiesOf,
+  otherDraftsOf,
+  otherKey,
+  type OtherDraft,
+} from "./capacity-draft";
+
+/** Every currency loads with the sheet, on the first tap, never with the planner (ADR 0004). */
+const CurrencySheet = dynamic(
+  () => import("@/shared/ui/molecules/currency-sheet").then((module) => module.CurrencySheet),
+  { ssr: false },
+);
 
 /** Where the last attempt failed: a member's field (unreadable text, or a refused amount) or the form. */
 type Failure =
@@ -42,6 +57,7 @@ export function CapacityForm({
   viewerUserId,
   suggestion,
   formats,
+  favorites = [],
   api: injected,
 }: {
   readonly space: SpaceDto;
@@ -51,6 +67,8 @@ export function CapacityForm({
   /** The viewer's own suggestion, or null: the container never hands over anyone else's (ruling P208). */
   readonly suggestion: CapacitySuggestionDto | null;
   readonly formats: Formats;
+  /** Ruling P342 (S2): the person's favorite currencies, which the currency sheet lists after the space's. */
+  readonly favorites?: readonly string[];
   readonly api?: Api;
 }) {
   const t = useTranslations("budgeting");
@@ -64,6 +82,10 @@ export function CapacityForm({
   const members = useMemo(() => everyone.filter((member) => takesPart(initial, member)), [everyone, initial]);
   const [plan, setPlan] = useState(initial);
   const [drafts, setDrafts] = useState(() => draftsOf(initial, members, formats));
+  // Ruling P342 (S7): each member's contributions in other currencies, and the member choosing one to add.
+  const [others, setOthers] = useState(() => otherDraftsOf(initial, members, formats));
+  const [choosingFor, setChoosingFor] = useState<string | null>(null);
+  const [sheetLoaded, setSheetLoaded] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [formProblem, setFormProblem] = useState<Problem | null>(null);
   const [pending, setPending] = useState(false);
@@ -88,6 +110,13 @@ export function CapacityForm({
       setFailure({ field: built.memberId, unreadable: true });
       return;
     }
+    const stored = otherDraftsOf(plan, members, formats);
+    const extra = otherCapacitiesOf(others, stored, editableIds, formats.numberFormat);
+    if (!extra.ok) {
+      setFailure({ field: extra.key, unreadable: true });
+      return;
+    }
+    const sentIds = [...editableIds, ...extra.rows.map((row) => otherKey(row.memberId, row.amount.currency))];
     inFlight.current = true;
     setPending(true);
     setFailure(null);
@@ -95,7 +124,7 @@ export function CapacityForm({
       api.PUT("/api/v1/spaces/{spaceId}/plans/{planId}/capacities", {
         params: { path: { spaceId: space.id, planId: plan.id } },
         headers: ifMatch(plan),
-        body: built.body,
+        body: { capacities: [...built.body.capacities, ...extra.rows] },
       }),
     );
     if (result.ok) {
@@ -109,9 +138,10 @@ export function CapacityForm({
       if (fresh !== null) {
         setPlan(fresh);
         setDrafts(draftsOf(fresh, members, formats));
+        setOthers(otherDraftsOf(fresh, members, formats));
       }
     } else {
-      const field = capacityFieldOf(result.problem, editableIds);
+      const field = capacityFieldOf(result.problem, sentIds);
       if (field === "form") setFormProblem(result.problem);
       else setFailure({ field, unreadable: false, problem: result.problem });
     }
@@ -119,8 +149,8 @@ export function CapacityForm({
     setPending(false);
   };
 
-  const errorOf = (member: SpaceMemberDto) => {
-    if (failure === null || failure.field !== member.id) return undefined;
+  const errorOf = (field: string) => {
+    if (failure === null || failure.field !== field) return undefined;
     return failure.unreadable
       ? t("capacity.unreadable", { example: formatNumber("1500000", formats) })
       : messageOf(failure.problem).message;
@@ -177,7 +207,7 @@ export function CapacityForm({
                       setDrafts((current) => ({ ...current, [member.id]: next }));
                       if (failure?.field === member.id) setFailure(null);
                     }}
-                    error={errorOf(member)}
+                    error={errorOf(member.id)}
                   />
                 </div>
               ) : (
@@ -187,6 +217,29 @@ export function CapacityForm({
                   className="leading-[1.333] font-semibold text-ink"
                 />
               )}
+              <OtherContributions
+                idPrefix={`${ids}-field-${member.id}`}
+                name={member.displayName}
+                editable={editable}
+                stored={(plan.currencies ?? [])
+                  .slice(1)
+                  .flatMap(({ capacities }) =>
+                    capacities
+                      .filter((c) => c.memberId === member.id && BigInt(c.amount.amount) !== 0n)
+                      .map((c) => c.amount),
+                  )}
+                drafts={others[member.id] ?? []}
+                formats={formats}
+                errorOf={(other) => errorOf(otherKey(member.id, other))}
+                onChange={(next) => {
+                  setOthers((current) => ({ ...current, [member.id]: next }));
+                  if (failure?.field.startsWith(`${member.id}:`)) setFailure(null);
+                }}
+                onAdd={() => {
+                  setSheetLoaded(true);
+                  setChoosingFor(member.id);
+                }}
+              />
               {suggested !== null ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-accent-soft p-3 text-sm text-ink">
                   <p className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
@@ -247,6 +300,103 @@ export function CapacityForm({
 
         {formProblem !== null ? <ProblemNotice problem={formProblem} /> : null}
       </div>
+      {sheetLoaded ? (
+        <CurrencySheet
+          open={choosingFor !== null}
+          onOpenChange={(open) => {
+            if (!open) setChoosingFor(null);
+          }}
+          title={t("capacity.currencyTitle")}
+          value={currency}
+          primary={currency}
+          favorites={favorites}
+          onChoose={(code) => {
+            const memberId = choosingFor;
+            if (memberId === null || code === currency) return;
+            setOthers((current) => {
+              const fields = current[memberId] ?? [];
+              return fields.some((field) => field.currency === code)
+                ? current
+                : { ...current, [memberId]: [...fields, { currency: code, text: "" }] };
+            });
+          }}
+        />
+      ) : null}
     </Sheet>
+  );
+}
+
+/**
+ * Ruling P342 (S7, "Juan 2.400.000 COP y 100 USD"): a member's contributions in other currencies than the space's,
+ * each in its own field with a ✕ that clears it, then "Aportar en otra moneda"; read only, each stored amount.
+ */
+function OtherContributions({
+  idPrefix,
+  name,
+  editable,
+  stored,
+  drafts,
+  formats,
+  errorOf,
+  onChange,
+  onAdd,
+}: {
+  readonly idPrefix: string;
+  readonly name: string;
+  readonly editable: boolean;
+  readonly stored: readonly { readonly amount: string; readonly currency: string }[];
+  readonly drafts: readonly OtherDraft[];
+  readonly formats: Formats;
+  readonly errorOf: (currency: string) => string | undefined;
+  readonly onChange: (next: OtherDraft[]) => void;
+  readonly onAdd: () => void;
+}) {
+  const t = useTranslations("budgeting.capacity");
+  if (!editable)
+    return stored.map((amount) => (
+      <HeroAmount
+        key={amount.currency}
+        amount={formatMoney(amount, formats)}
+        size="1.5rem"
+        className="leading-[1.333] font-semibold text-ink"
+      />
+    ));
+  return (
+    <>
+      {drafts.map((draft) => (
+        <div key={draft.currency} className="flex items-start gap-2">
+          <div className="min-w-0 flex-1 [&_label]:sr-only">
+            <NumberField
+              id={`${idPrefix}-${draft.currency}`}
+              label={t("fieldIn", { name, currency: draft.currency })}
+              kind="money"
+              numberFormat={formats.numberFormat}
+              decimals={currencyOf(draft.currency).exponent}
+              currency={draft.currency}
+              example={false}
+              large
+              value={draft.text}
+              onChange={(text) =>
+                onChange(drafts.map((one) => (one.currency === draft.currency ? { ...one, text } : one)))
+              }
+              error={errorOf(draft.currency)}
+            />
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="mt-1.5 shrink-0"
+            aria-label={t("removeCurrency", { name, currency: draft.currency })}
+            onClick={() => onChange(drafts.filter((one) => one.currency !== draft.currency))}
+          >
+            <Icon name="close" size={20} />
+          </Button>
+        </div>
+      ))}
+      <Button variant="ghost" size="compact" className="-mx-2 self-start font-medium" onClick={onAdd}>
+        <Icon name="plus" size={18} />
+        {t("addCurrency")}
+      </Button>
+    </>
   );
 }

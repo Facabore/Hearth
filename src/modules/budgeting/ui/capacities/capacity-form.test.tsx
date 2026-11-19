@@ -9,6 +9,7 @@ import {
   householdDto,
   referencePlanDto,
   spaceMemberDto,
+  twoCurrencyPlanDto,
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
@@ -321,5 +322,107 @@ describe("viewers and capacities (#217)", () => {
         { memberId: "m-tomas", amount: { amount: "10000000", currency: "COP" } },
       ],
     });
+  });
+});
+
+describe('contributions in another currency (ruling P342 S7, "Juan 2.400.000 COP y 100 USD")', () => {
+  const twoCurrencies = (api?: Api) =>
+    renderWithIntl(
+      <CapacityForm
+        space={householdDto()}
+        plan={twoCurrencyPlanDto()}
+        members={HOUSEHOLD_MEMBERS}
+        viewerUserId="u-ana"
+        suggestion={null}
+        formats={BUILT_IN_FORMATS}
+        favorites={["USD"]}
+        api={api}
+      />,
+    );
+
+  it("shows each member's contribution in another currency in its own field, and saves it in that currency", async () => {
+    const { api, requests } = fakeApi({ [PUT]: () => jsonResponse(twoCurrencyPlanDto({ version: 8 })) });
+    const { container } = twoCurrencies(api);
+    expect(screen.getByLabelText("Aporte de Juan en USD")).toHaveValue("100");
+    expect(screen.queryByLabelText("Aporte de Ana en USD")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    expect(await requests[0]!.json()).toEqual({
+      capacities: [
+        { memberId: "m-ana", amount: { amount: "160000000", currency: "COP" } },
+        { memberId: "m-juan", amount: { amount: "240000000", currency: "COP" } },
+        { memberId: "m-juan", amount: { amount: "10000", currency: "USD" } },
+      ],
+    });
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("adds a contribution in a currency chosen from the person's favorites, the space's first", async () => {
+    const { api, requests } = fakeApi({ [PUT]: () => jsonResponse(twoCurrencyPlanDto({ version: 8 })) });
+    twoCurrencies(api);
+    await userEvent.click(within(rowOf("Ana (tú)")).getByRole("button", { name: "Aportar en otra moneda" }));
+    const sheet = await screen.findByRole("dialog", { name: "Moneda del aporte" });
+    expect(
+      within(sheet)
+        .getAllByRole("heading", { level: 3 })
+        .map((h) => h.textContent),
+    ).toEqual(["De este espacio", "Favoritas", "Todas"]);
+    await userEvent.click(
+      within(within(sheet).getByRole("region", { name: "Favoritas" })).getByRole("button", {
+        name: /^Dólar estadounidense/,
+      }),
+    );
+    await userEvent.type(await screen.findByLabelText("Aporte de Ana en USD"), "50");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    expect((await requests[0]!.json()).capacities).toContainEqual({
+      memberId: "m-ana",
+      amount: { amount: "5000", currency: "USD" },
+    });
+  });
+
+  it("clears a contribution in another currency with its ✕, sending 0 in that currency", async () => {
+    const { api, requests } = fakeApi({ [PUT]: () => jsonResponse(twoCurrencyPlanDto({ version: 8 })) });
+    twoCurrencies(api);
+    await userEvent.click(screen.getByRole("button", { name: "Quitar el aporte de Juan en USD" }));
+    expect(screen.queryByLabelText("Aporte de Juan en USD")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    expect((await requests[0]!.json()).capacities).toContainEqual({
+      memberId: "m-juan",
+      amount: { amount: "0", currency: "USD" },
+    });
+  });
+
+  it("says which field in another currency cannot be read, or was refused", async () => {
+    const { api, requests } = fakeApi({
+      [PUT]: () =>
+        problemResponse(422, "ValidationFailed", { errors: [{ path: "capacities.2.amount", message: "x" }] }),
+    });
+    twoCurrencies(api);
+    const usd = () => screen.getByLabelText("Aporte de Juan en USD");
+    await userEvent.clear(usd());
+    // Three decimals in USD cannot be read.
+    await userEvent.type(usd(), "1,234");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    expect(requests).toHaveLength(0);
+    expect(usd()).toHaveAttribute("aria-invalid", "true");
+    await userEvent.clear(usd());
+    await userEvent.type(usd(), "120");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
+    await waitFor(() => expect(usd()).toHaveAttribute("aria-invalid", "true"));
+    expect(screen.getByLabelText("Aporte de Juan")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows a member who may not edit their contributions in every currency, read only", () => {
+    renderWithIntl(
+      <CapacityForm
+        space={householdDto({ role: "MEMBER" })}
+        plan={twoCurrencyPlanDto()}
+        members={HOUSEHOLD_MEMBERS}
+        viewerUserId="u-ana"
+        suggestion={null}
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(normalized(rowOf("Juan").textContent)).toContain("100 USD");
+    expect(within(rowOf("Juan")).queryByRole("button")).toBeNull();
   });
 });

@@ -269,6 +269,77 @@ export const copiedPlanDto = (): BudgetPlanDto => {
   };
 };
 
+type PlanBudget = NonNullable<PlanLineDto["budgets"]>[number];
+/** One budget of a plan line (ruling P342 S7): `planned` in its currency, Ana's and Juan's assigned parts. */
+export const planBudget = (
+  planned: MoneyDto,
+  [ana, juan]: readonly [MoneyDto | null, MoneyDto | null] = [null, null],
+  extra: Partial<PlanBudget> = {},
+): PlanBudget => ({
+  planned,
+  budgeted: true,
+  capacityShare: null,
+  allocation: {
+    members: [
+      { memberId: "m-ana", amount: null, assigned: ana },
+      { memberId: "m-juan", amount: null, assigned: juan },
+    ],
+    error: null,
+  },
+  spent: { amount: "0", currency: planned.currency },
+  carryOver: { amount: "0", currency: planned.currency },
+  available: planned,
+  ...extra,
+});
+
+/**
+ * Board "Planner · dos monedas" (ruling P342 S7): the reference plan with "Free" budgeting 730.000 COP and 100 USD,
+ * Juan putting in 100 USD besides his pesos, nothing left to assign in either currency.
+ */
+export const twoCurrencyPlanDto = (overrides: Partial<BudgetPlanDto> = {}): BudgetPlanDto => {
+  const plan = referencePlanDto();
+  const usd = (major: number) => money(major, "USD");
+  return {
+    ...plan,
+    currencies: [
+      {
+        capacities: plan.capacities,
+        totalCapacity: plan.totalCapacity,
+        planned: plan.planned,
+        unallocated: plan.unallocated,
+        unbudgeted: null,
+      },
+      {
+        capacities: [
+          { memberId: "m-ana", amount: usd(0), share: "0.00" },
+          { memberId: "m-juan", amount: usd(100), share: "100.00" },
+        ],
+        totalCapacity: usd(100),
+        planned: usd(100),
+        unallocated: usd(0),
+        unbudgeted: null,
+      },
+    ],
+    lines: plan.lines.map((line) => ({
+      ...line,
+      budgets:
+        line.id === "l-free"
+          ? [
+              planBudget(line.plannedAmount, [cop(292_000), cop(438_000)]),
+              planBudget(usd(100), [usd(0), usd(100)]),
+            ]
+          : [
+              planBudget(
+                line.plannedAmount,
+                [line.allocation.members[0]!.assigned, line.allocation.members[1]!.assigned],
+                { capacityShare: line.capacityShare },
+              ),
+            ],
+    })),
+    ...overrides,
+  };
+};
+
 /** Ana's "Ahorros": a SAVINGS account of her personal space, the one the reference Savings line names. */
 export const savingsAccountDto = () =>
   accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS", icon: "piggy" });

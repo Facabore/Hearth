@@ -57,6 +57,12 @@ const invalidSum = (line: PlanLineDto, formats: Formats): string | null => {
     : formatMoney({ amount: preview.sum, currency: line.plannedAmount.currency }, formats);
 };
 
+/** Ruling P342 (S7): a line's budgets, one per currency ("300.000 COP / 100 USD"); an older API's one amount. */
+const plannedOf = (line: PlanLineDto) => {
+  const budgets = (line.budgets ?? []).filter((budget) => budget.budgeted).map((budget) => budget.planned);
+  return budgets.length > 0 ? budgets : [line.plannedAmount];
+};
+
 /**
  * HU-E9-08, the Planner artboard (rulings P206 and P207): the plan's period and status, the capacity card and the
  * lines, with the lifecycle of the plan (activate, then close from the day after its period), each confirmed first
@@ -122,6 +128,8 @@ export function Planner({
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
   const word = periodWord(plan.period, space.periodPolicy, formats);
+  // Ruling P342 (S7): the plan's other currencies, after the space's, each apart and never converted.
+  const otherCurrencies = (plan.currencies ?? []).slice(1);
   // D26, P328: a line with payers reads who pays it, as its editor's row does ("Lo pagan Ana y Juan"); any other line
   // how it is paid ("Sale del fondo común").
   const paidBy = (line: PlanLineDto) => {
@@ -231,6 +239,17 @@ export function Planner({
           name: names.get(capacity.memberId) ?? "—",
           amount: capacity.amount,
           share: capacity.share,
+          others: otherCurrencies
+            .flatMap((currency) =>
+              currency.capacities.filter(
+                (other) => other.memberId === capacity.memberId && BigInt(other.amount.amount) !== 0n,
+              ),
+            )
+            .map((other) => other.amount),
+        }))}
+        others={otherCurrencies.map((currency) => ({
+          total: currency.totalCapacity,
+          unallocated: currency.unallocated,
         }))}
         formats={formats}
         action={
@@ -324,7 +343,11 @@ export function Planner({
                     ) : null}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1 text-right tabular-nums">
-                    <p className="text-lg font-semibold text-ink">{money(line.plannedAmount)}</p>
+                    {plannedOf(line).map((planned) => (
+                      <p key={planned.currency} data-planned className="text-lg font-semibold text-ink">
+                        {money(planned)}
+                      </p>
+                    ))}
                     {line.capacityShare !== null ? (
                       <p className="text-sm text-muted">
                         {t("planner.ofCapacity", { share: formatPercent(line.capacityShare, formats) })}

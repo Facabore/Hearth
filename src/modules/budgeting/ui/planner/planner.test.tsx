@@ -11,6 +11,7 @@ import {
   householdDto,
   referencePlanDto,
   spaceMemberDto,
+  twoCurrencyPlanDto,
 } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import type { Api } from "@/shared/ui/api/client";
@@ -723,5 +724,51 @@ describe("planner: lines with no category (#264)", () => {
     const orphans = screen.getByRole("region", { name: "Spending with no line" });
     expect(orphans).toHaveTextContent("This spending in November counts in no line.");
     expect(within(orphans).getByRole("button", { name: "Assign Pharmacy to a line" })).toBeInTheDocument();
+  });
+});
+
+describe('the planner in two currencies (ruling P342 S7, board "Planner · dos monedas")', () => {
+  it("shows what everyone puts in per currency, what is left to assign in each, and each line's budgets stacked", async () => {
+    const { container } = show({ plan: twoCurrencyPlanDto() });
+    const capacity = screen.getByRole("region", { name: "Lo que aportan entre todos" });
+    expect(
+      [...capacity.querySelectorAll("[data-total]")].map((total) => normalized(total.textContent)),
+    ).toEqual(["4.000.000 COP", "100 USD"]);
+    const text = normalized(capacity.textContent);
+    expect(text).toContain("Por repartir 0 COP · 0 USD");
+    expect(text).toContain("Ana 1.600.000 COP · 40,00 %");
+    expect(text).toContain("Juan 2.400.000 COP y 100 USD · 60,00 %");
+    const free = screen.getByRole("listitem", { name: /^Free/ });
+    expect([...free.querySelectorAll("[data-planned]")].map((p) => normalized(p.textContent))).toEqual([
+      "730.000 COP",
+      "100 USD",
+    ]);
+    const home = screen.getByRole("listitem", { name: "Home" });
+    expect([...home.querySelectorAll("[data-planned]")].map((p) => normalized(p.textContent))).toEqual([
+      "1.470.000 COP",
+    ]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("keeps a plan in one currency as it was", () => {
+    show();
+    const capacity = screen.getByRole("region", { name: "Lo que aportan entre todos" });
+    expect(capacity.querySelectorAll("[data-total]")).toHaveLength(1);
+    expect(normalized(capacity.textContent)).not.toContain(" · 0 USD");
+  });
+
+  it("reads the same in English", () => {
+    renderWithIntl(
+      <Planner
+        space={householdDto()}
+        plan={twoCurrencyPlanDto()}
+        members={HOUSEHOLD_MEMBERS}
+        formats={BUILT_IN_FORMATS}
+        today="2026-10-31"
+        groups={[]}
+      />,
+      { locale: "en" },
+    );
+    expect(normalized(document.body.textContent)).toContain("Juan 2.400.000 COP and 100 USD");
   });
 });
