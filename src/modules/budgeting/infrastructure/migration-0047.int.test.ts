@@ -265,4 +265,80 @@ describe(`${TAG} (P342 S7, #341)`, () => {
       await values(db.client, true),
     ]).toEqual(beforeRollback);
   });
+  /** One change after 0047 that an app from before T6 cannot read, and the refusal it must answer. */
+  const afterT6: [
+    string,
+    (client: pg.Client, w: Awaited<ReturnType<typeof seedPlans>>) => Promise<unknown>,
+    RegExp,
+  ][] = [
+    [
+      "a current line that plans only USD",
+      async (client, w) => {
+        await client.query(`UPDATE budget_line_budgets SET removed_at = now() WHERE line_id = $1`, [w.free]);
+        await client.query(
+          `INSERT INTO budget_line_budgets (plan_id, line_id, currency, planned_amount, position, created_at, updated_at)
+           VALUES ($1, $2, 'USD', 10000, 0, now(), now())`,
+          [w.november, w.free],
+        );
+      },
+      /1 lines, 0 capacities and 0 FIXED values/,
+    ],
+    [
+      "a capacity in USD alone",
+      (client, w) =>
+        client.query(
+          `INSERT INTO budget_member_capacities (plan_id, member_id, currency, amount, updated_at)
+           VALUES ($1, $2, 'USD', 10000, now())`,
+          [w.november, w.ana],
+        ),
+      /0 lines, 1 capacities and 0 FIXED values/,
+    ],
+    [
+      "a superseded FIXED value in USD alone",
+      (client, w) =>
+        client.query(
+          `INSERT INTO budget_allocations (line_id, member_id, rule, currency, value, set_at, superseded_at)
+           VALUES ($1, $2, 'FIXED', 'USD', 10000, now(), now())`,
+          [w.home, w.juan],
+        ),
+      /0 lines, 0 capacities and 1 FIXED values/,
+    ],
+    [
+      "a line added after 0047 with only a USD budget, then removed",
+      async (client, w) => {
+        const line = randomUUID();
+        // Lines added since 0047 keep no planned_amount; only their budgets plan them.
+        await client.query(
+          `INSERT INTO budget_lines (id, plan_id, name, funding, savings_account_ids, rollover_mode, is_catch_all,
+             allocation_rule, created_at, updated_at, deleted_at)
+           VALUES ($1, $2, 'Viaje', 'DIRECT', '{}', 'RESET', false, 'PROPORTIONAL', now(), now(), now())`,
+          [line, w.november],
+        );
+        await client.query(
+          `INSERT INTO budget_line_budgets (plan_id, line_id, currency, planned_amount, position, created_at, updated_at)
+           VALUES ($1, $2, 'USD', 10000, 0, now(), now())`,
+          [w.november, line],
+        );
+      },
+      /1 removed lines never had a budget in their space's currency/,
+    ],
+  ];
+
+  it.each(afterT6)("refuses to roll back, changing nothing, after %s", async (_case, change, refusal) => {
+    const db = await openDatabase(before);
+    const w = await seedPlans(db.client);
+    await runMigrations(db.url, "drizzle");
+    await change(db.client, w);
+    const state = async () => [
+      await budgets(db.client),
+      await capacities(db.client, true),
+      await values(db.client, true),
+      await plannedAmounts(db.client),
+      (await db.client.query(`SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations`)).rows[0],
+    ];
+    const beforeRollback = await state();
+    await expect(db.client.query(rollbackSql())).rejects.toThrow(refusal);
+    await db.client.query("ROLLBACK");
+    expect(await state()).toEqual(beforeRollback);
+  });
 });
