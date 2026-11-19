@@ -76,3 +76,91 @@ export const convertWith = (minor: bigint, from: string, rate: ExchangeRate): Re
     flatMap(Money.ofMinor(minor, from), (money) => money.convert(rate)),
     (money) => money.minor,
   );
+
+/** Ruling P342 (S6): an amount in one currency, in its minor units. */
+export interface CurrencyAmount {
+  readonly currency: string;
+  readonly amount: bigint;
+}
+
+/** Ruling P342 (S6): one currency of an approximate total, with its value in the total's currency (null: no rate). */
+export interface ApproximatePart extends CurrencyAmount {
+  readonly value: bigint | null;
+}
+
+/**
+ * Ruling P342 (S6): a total across currencies, for display only and never stored. `parts` are the sums per currency,
+ * never converted: `currency`'s own first, then the largest in `currency` first, then those without a rate by code.
+ * `total` adds the parts that have a rate; a part without one is left out and listed apart, never counted at 1:1.
+ */
+export interface ApproximateTotal {
+  readonly currency: string;
+  readonly total: bigint;
+  readonly parts: readonly ApproximatePart[];
+}
+
+/** Ruling P342 (S6): the non-zero sums of `amounts` per currency, in the order they first appear. */
+export const sumsByCurrency = (amounts: readonly CurrencyAmount[]): CurrencyAmount[] => {
+  const sums = new Map<string, bigint>();
+  for (const { currency, amount } of amounts) sums.set(currency, (sums.get(currency) ?? 0n) + amount);
+  return [...sums].filter(([, amount]) => amount !== 0n).map(([currency, amount]) => ({ currency, amount }));
+};
+
+const partOrder = (into: string) => (a: ApproximatePart, b: ApproximatePart) => {
+  if ((a.currency === into) !== (b.currency === into)) return a.currency === into ? -1 : 1;
+  if ((a.value === null) !== (b.value === null)) return a.value === null ? 1 : -1;
+  if (a.value !== null && b.value !== null && a.value !== b.value) return a.value > b.value ? -1 : 1;
+  return a.currency < b.currency ? -1 : a.currency > b.currency ? 1 : 0;
+};
+
+/**
+ * Ruling P342 (S6, owner: "no hay intercambio del mismo (a menos que sea explícito)"): `amounts` added into `into` at
+ * the rate of `on` (D30's stored daily rates), through `Money.convert` only, for display. A currency whose latest rate
+ * by `on` is more than a week old, or that has none, has no rate today: it is not added, and its part says so.
+ */
+export const approximateTotalOn = async (
+  rates: ReportRates | undefined,
+  amounts: readonly CurrencyAmount[],
+  into: string,
+  on: LocalDate,
+): Promise<ApproximateTotal> => {
+  const parts = await Promise.all(
+    sumsByCurrency(amounts).map(async ({ currency, amount }): Promise<ApproximatePart> => {
+      if (currency === into) return { currency, amount, value: amount };
+      const rate = rates === undefined ? null : await rates.datedRateOn(currency, into, on);
+      if (rate === null || !rate.ok || rate.value.stale) return { currency, amount, value: null };
+      const value = convertWith(amount, currency, rate.value.rate);
+      return { currency, amount, value: value.ok ? value.value : null };
+    }),
+  );
+  return {
+    currency: into,
+    total: parts.reduce((sum, part) => sum + (part.value ?? 0n), 0n),
+    parts: parts.sort(partOrder(into)),
+  };
+};
+
+/** Ruling P342 (S6): what a person's approximate totals read: their currency and their today, bound in composition. */
+export interface ApproximateTodayDeps {
+  readonly rates: ReportRates;
+  /** The person's display currency, else their personal space's (D29); null without a personal space. */
+  readonly currencyOf: (userId: string) => Promise<string | null>;
+  /** The person's today, from the app's clock in their time zone. */
+  readonly todayOf: (userId: string) => Promise<LocalDate>;
+}
+
+/**
+ * Ruling P342 (S6): `amounts` approximately in the person's currency at today's rate, for display only; null for a
+ * person without a currency to add up in.
+ */
+export type ApproximateToday = (
+  userId: string,
+  amounts: readonly CurrencyAmount[],
+) => Promise<ApproximateTotal | null>;
+
+export const createApproximateToday =
+  (deps: ApproximateTodayDeps): ApproximateToday =>
+  async (userId, amounts) => {
+    const [into, on] = await Promise.all([deps.currencyOf(userId), deps.todayOf(userId)]);
+    return into === null ? null : approximateTotalOn(deps.rates, amounts, into, on);
+  };

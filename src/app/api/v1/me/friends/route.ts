@@ -9,12 +9,18 @@ import { ok } from "@/shared/kernel";
 
 export const runtime = "nodejs";
 
-/** Ruling P338: Amigos, each person the signed-in person shares a direct space with. */
+/**
+ * Ruling P338: Amigos, each person the signed-in person shares a direct space with. Ruling P342 (S6): with debts in
+ * several currencies, also what they add up to approximately in her currency at today's rate.
+ */
 export const GET = defineRoute({
   auth: "required",
   handler: async ({ user }) => {
-    const result = await getContainer().balances.listMyFriends(user!.id);
-    return result.ok ? ok({ status: 200, body: myFriendsDto(result.value) }) : result;
+    const { balances } = getContainer();
+    const result = await balances.listMyFriends(user!.id);
+    if (!result.ok) return result;
+    const approximate = await balances.approximateFriendTotals(user!.id, result.value);
+    return ok({ status: 200, body: myFriendsDto(result.value, approximate) });
   },
 });
 

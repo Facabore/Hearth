@@ -201,6 +201,11 @@ export interface UnifiedViewDto {
   /** D29, slice MC4: sent only when true. */
   converted?: true;
   stale?: true;
+  /** Ruling P342 (S6): per currency, and approximately in `currency` at today's rate across several. */
+  spending?: {
+    byCurrency: MoneyDto[];
+    approximate?: { total: MoneyDto; unrated: MoneyDto[] };
+  };
 }
 
 /** HU-E7-04: `user` reads their own unified view. */

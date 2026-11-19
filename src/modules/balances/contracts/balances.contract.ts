@@ -4,8 +4,10 @@ import { jsonContent, moneyOf, MoneySchema, problems, securedByUser } from "@/sh
 import type { FriendNameView } from "@/modules/spaces/application";
 import {
   netsOf,
+  type ApproximateSide,
   type CurrencyNet,
   type Friend,
+  type FriendsApproximate,
   type MemberBalanceHistoryView,
   type MyBalance,
   type SettlementSuggestions,
@@ -177,8 +179,32 @@ export const FriendSchema = z.object({
     .meta({ description: "The newest live movement of the space; null when none is left" }),
 });
 
+/** Ruling P342 (S6): one side of Amigos' approximate totals. */
+const ApproximateSideSchema = z.object({
+  total: MoneySchema.meta({
+    description: "P342 (S6): the side's debts added up in `currency` at today's rate, for display only (≈)",
+  }),
+  unrated: z.array(MoneySchema).meta({
+    description:
+      "P342 (S6): this side's debts in currencies with no rate today, left out of `total`, listed apart",
+  }),
+});
+
 /** Ruling P338: Amigos, one entry per active direct space of the viewer. */
-export const MyFriendsSchema = z.object({ items: z.array(FriendSchema) });
+export const MyFriendsSchema = z.object({
+  items: z.array(FriendSchema),
+  approximate: z
+    .object({
+      currency: z.string().meta({ description: "The viewer's display currency, else her personal space's" }),
+      owedToYou: ApproximateSideSchema,
+      youOwe: ApproximateSideSchema,
+    })
+    .optional()
+    .meta({
+      description:
+        "P342 (S6): what everyone owes the viewer and what she owes, each added up in one currency at today's rate, for display only and never stored; sent only when the debts are in more than one currency. Each debt stays in its own currency in `items`.",
+    }),
+});
 
 export const friendDto = (f: Friend): z.infer<typeof FriendSchema> => ({
   spaceId: f.spaceId,
@@ -190,8 +216,25 @@ export const friendDto = (f: Friend): z.infer<typeof FriendSchema> => ({
   lastMovement: f.lastMovement === null ? null : { ...f.lastMovement },
 });
 
-export const myFriendsDto = (friends: readonly Friend[]): z.infer<typeof MyFriendsSchema> => ({
+const sideDto = (side: ApproximateSide, currency: string) => ({
+  total: moneyOf(side.total, currency),
+  unrated: side.unrated.map((part) => moneyOf(part.amount, part.currency)),
+});
+
+export const myFriendsDto = (
+  friends: readonly Friend[],
+  approximate: FriendsApproximate | null = null,
+): z.infer<typeof MyFriendsSchema> => ({
   items: friends.map(friendDto),
+  ...(approximate
+    ? {
+        approximate: {
+          currency: approximate.currency,
+          owedToYou: sideDto(approximate.owedToYou, approximate.currency),
+          youOwe: sideDto(approximate.youOwe, approximate.currency),
+        },
+      }
+    : {}),
 });
 
 /** Ruling P339: a guest friend's name, under the guest rules (1–100 characters once trimmed, InvalidMemberName). */

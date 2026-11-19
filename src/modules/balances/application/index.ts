@@ -64,3 +64,13 @@ export {
   type ListMyFriends,
   type ListMyFriendsDeps,
 } from "./list-my-friends";
+export {
+  createApproximateFriendTotals,
+  type ApproximateFriendTotals,
+  type ApproximateFriendTotalsDeps,
+  type ApproximateSide,
+  type ApproximateToday,
+  type ApproximateTotal,
+  type CurrencyAmount,
+  type FriendsApproximate,
+} from "./approximate-friend-totals";

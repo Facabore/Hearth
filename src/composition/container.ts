@@ -46,7 +46,9 @@ import {
   createGetMyBalances,
   createGetMyFriend,
   createListMyFriends,
+  createApproximateFriendTotals,
   createGetSettlementContexts,
+  type ApproximateFriendTotals,
   type GetMemberBalanceHistory,
   type GetMyBalances,
   type GetMyFriend,
@@ -98,6 +100,7 @@ import {
   type GetCashFlow,
   type GetFundContributions,
   createGetUnifiedPersonalView,
+  createApproximateToday,
   type GetUnifiedPersonalView,
   createGetLineTrend,
   type GetLineTrend,
@@ -386,7 +389,7 @@ import { createSmtpMailer, type Mailer } from "@/shared/infrastructure/email/smt
 import { loadEnv, type Env } from "@/shared/infrastructure/env";
 import { clockFrom } from "@/shared/infrastructure/system-clock";
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
-import { isUuid, map, type AuthUser, type Clock, type Result } from "@/shared/kernel";
+import { isUuid, map, todayIn, type AuthUser, type Clock, type Result } from "@/shared/kernel";
 import { accountMovementsOf } from "./account-movements";
 import { accountBalancesFrom } from "./account-balances";
 
@@ -527,6 +530,8 @@ export interface Container extends RouteDeps {
     readonly listMyFriends: ListMyFriends;
     /** P339: one row of Amigos, as the list answers it. */
     readonly getMyFriend: GetMyFriend;
+    /** P342 (S6): Amigos' totals approximately in the viewer's currency at today's rate, across several currencies. */
+    readonly approximateFriendTotals: ApproximateFriendTotals;
   };
   readonly budgeting: {
     readonly createPlan: CreateBudgetPlan;
@@ -1093,6 +1098,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     return accounts.filter((a) => a.type === "SAVINGS" && a.ownerUserId === userId).map((a) => a.id);
   };
   // HU-E7-01 … HU-E7-05: reports read budgeting's figures and the ledger's sums through ports, on read (D7, P32).
+  /** P342 (S6): a person's today, from the app's clock in their time zone. */
+  const personToday = async (userId: string) => todayIn(clock, await profiles.timeZoneOf(userId));
   const reportingDeps = {
     // HU-E7-06: the category trees as they stand now, with group and category keys (categories, P74).
     trees: categoryRepository,
@@ -1115,6 +1122,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     // each day's rate (rates); reporting imports neither module.
     rates: exchangeRates,
     displayCurrencyOf: (userId: string) => profiles.displayCurrencyOf(userId),
+    // P342 (S6): the day whose rate an approximate total reads, the person's today from the app's clock.
+    todayOf: personToday,
   };
   const invitationRepository = new DrizzleInvitationRepository(tm);
   const invitationsDeps: InvitationsDeps = {
@@ -1511,6 +1520,18 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       // P338: Amigos reads the same balances (D7), the viewer's apodos and each direct space's newest movement.
       listMyFriends,
       getMyFriend: createGetMyFriend(listMyFriends),
+      // P342 (S6): Amigos' header converts for display through reporting's conversion; balances imports no rates.
+      approximateFriendTotals: createApproximateFriendTotals({
+        approximate: createApproximateToday({
+          rates: exchangeRates,
+          todayOf: personToday,
+          currencyOf: async (userId) =>
+            (await profiles.displayCurrencyOf(userId)) ??
+            (await spaceRepository.listForUser(userId)).find((space) => space.kind === "PERSONAL")
+              ?.currency ??
+            null,
+        }),
+      }),
     },
     budgeting: {
       createPlan: createCreateBudgetPlan(budgetingDeps),

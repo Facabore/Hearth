@@ -447,6 +447,28 @@ export const UnifiedViewSchema = z.object({
   /** D29 (MC4): spaces with movements on a day with no rate into `currency`, left out of every amount. */
   otherCurrencySpaces: z.array(z.object({ spaceId: z.string(), name: z.string(), currency: z.string() })),
   ...CONVERSION_FIELDS,
+  spending: z
+    .object({
+      byCurrency: z.array(MoneySchema).meta({
+        description:
+          "P342 (S6): what the caller consumed in the period per movement currency, never converted: `currency`'s own first, then the largest in `currency`, then those without a rate today by code; empty when nothing.",
+      }),
+      approximate: z
+        .object({
+          total: MoneySchema.meta({
+            description:
+              "P342 (S6): the sum of `byCurrency` in `currency` at today's rate, for display only (≈) and never stored; the currencies in `unrated` are not in it.",
+          }),
+          unrated: z.array(MoneySchema).meta({
+            description:
+              "P342 (S6): the currencies with no rate today, left out of `total` and listed apart.",
+          }),
+        })
+        .optional()
+        .meta({ description: "P342 (S6): sent only when `byCurrency` holds more than one currency." }),
+    })
+    .optional()
+    .meta({ description: "P342 (S6): always sent; optional for older clients." }),
 });
 
 export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof UnifiedViewSchema> => {
@@ -480,6 +502,17 @@ export const unifiedViewDto = (view: UnifiedPersonalView): z.infer<typeof Unifie
     })),
     otherCurrencySpaces: view.otherCurrencySpaces.map((s) => ({ ...s })),
     ...conversionDto(view),
+    spending: {
+      byCurrency: view.spending.byCurrency.map((part) => moneyOf(part.amount, part.currency)),
+      ...(view.spending.approximate
+        ? {
+            approximate: {
+              total: money(view.spending.approximate.total),
+              unrated: view.spending.approximate.unrated.map((part) => moneyOf(part.amount, part.currency)),
+            },
+          }
+        : {}),
+    },
   };
 };
 

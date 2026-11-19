@@ -39,6 +39,14 @@ export type {
   SavingsAccountsOf,
 } from "./personal-scope";
 export {
+  createApproximateToday,
+  type ApproximatePart,
+  type ApproximateToday,
+  type ApproximateTodayDeps,
+  type ApproximateTotal,
+  type CurrencyAmount,
+} from "./conversion";
+export {
   createGetUnifiedPersonalView,
   type GetUnifiedPersonalView,
   type UnifiedGroup,

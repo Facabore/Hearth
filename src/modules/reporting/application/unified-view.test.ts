@@ -368,6 +368,55 @@ describe("unified personal view (HU-E7-04)", () => {
     });
   });
 
+  describe("what she spent per currency, approximately in one (P342, S6)", () => {
+    const TODAY = "2026-11-18" as LocalDate;
+    const asked: string[] = [];
+    const rates = {
+      datedRateOn: async (base: string, quote: string, on: LocalDate) => {
+        asked.push(`${base}>${quote}@${on}`);
+        return base === "USD" && quote === "COP"
+          ? ok({ rate: unwrap(ExchangeRate.of("USD", "COP", "4000")), date: on, stale: false })
+          : err(domainError("NoExchangeRate", { base, quote }));
+      },
+    };
+    const withDollarsAndPesos = () => {
+      const w = background();
+      w.sums.consumption[NOVEMBER]!.push(
+        { spaceId: "space-ana", categoryId: "cat-ana-restaurants", amount: 8_000n, currency: "USD" },
+        { spaceId: "space-household", categoryId: "cat-groceries", amount: 1_000_00n, currency: "ARS" },
+      );
+      return w;
+    };
+    const readToday = (w: ReturnType<typeof personalWorld>) =>
+      createGetUnifiedPersonalView({ ...w.deps, rates, todayOf: async () => TODAY })({
+        userId: "u-ana",
+        period: "2026-11",
+      });
+
+    it("lists her month per currency and adds it up in COP at today's rate, never stored", async () => {
+      asked.length = 0;
+      const view = unwrap(await readToday(withDollarsAndPesos()));
+      expect(view.spending).toEqual({
+        byCurrency: [
+          { currency: "COP", amount: pesos(1_575_000) },
+          { currency: "USD", amount: 8_000n },
+          { currency: "ARS", amount: 1_000_00n },
+        ],
+        // 80 USD at today's 4.000 is 320.000 COP; the ARS has no rate, so it is listed apart.
+        approximate: { total: pesos(1_575_000 + 320_000), unrated: [{ currency: "ARS", amount: 1_000_00n }] },
+      });
+      expect(asked).toContain("USD>COP@2026-11-18");
+    });
+
+    it("gives no approximate figure when everything is in one currency", async () => {
+      const view = unwrap(await readToday(background()));
+      expect(view.spending).toEqual({
+        byCurrency: [{ currency: "COP", amount: pesos(1_575_000) }],
+        approximate: null,
+      });
+    });
+  });
+
   it("refuses a label her personal policy does not name", async () => {
     expect(codeOf(await read(background(), "2026-11 H1"))).toBe("InvalidPeriodLabel");
     expect(codeOf(await read(background(), "2026-11", "u-nobody"))).toBe("SpaceNotFound");

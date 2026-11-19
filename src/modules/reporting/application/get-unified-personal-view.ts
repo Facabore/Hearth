@@ -1,8 +1,8 @@
 import type { MemberPlace } from "@/modules/spaces/application";
-import { ok, type Period, type Result } from "@/shared/kernel";
+import { ok, type LocalDate, type Period, type Result } from "@/shared/kernel";
 import type { PaletteKey } from "@/shared/kernel/style";
 import { cashOutOf, consumptionGroups, type CashOut } from "../domain/unified-view";
-import { converterInto, daysOf } from "./conversion";
+import { approximateTotalOn, converterInto, daysOf, type CurrencyAmount } from "./conversion";
 import { personalScope, type PaidOutIn, type PersonalDeps } from "./personal-scope";
 
 /** One group of the caller's consumption: a catalog key, or a custom category with its space ("space / category"). */
@@ -63,6 +63,19 @@ export interface UnifiedPersonalView {
   readonly converted: boolean;
   /** D29, slice MC4: true when a rate it converted with was more than a week older than its day. */
   readonly stale: boolean;
+  /**
+   * Ruling P342 (S6): what the caller consumed in the period per movement currency, never converted, `currency`'s own
+   * first; and, when it holds more than one currency, its total approximately in `currency` at today's rate, for
+   * display only and never stored, with each currency that has no rate today left out and listed apart. Null without
+   * a today to read the rate on.
+   */
+  readonly spending: {
+    readonly byCurrency: readonly CurrencyAmount[];
+    readonly approximate: {
+      readonly total: bigint;
+      readonly unrated: readonly CurrencyAmount[];
+    } | null;
+  };
 }
 
 /** Ruling P306: the personal space's spending per top-level category, the largest first. */
@@ -260,8 +273,40 @@ export const createGetUnifiedPersonalView =
       otherCurrencySpaces: [...unconverted.values()],
       converted: converter.converted,
       stale: converter.stale,
+      spending: await spendingOf(deps, userId, consumed, currency, period.end),
     });
   };
+
+/** Ruling P342 (S6): the period's consumption per currency and, across several, its approximate total today. */
+const spendingOf = async (
+  deps: PersonalDeps,
+  userId: string,
+  consumed: readonly CurrencyAmount[],
+  currency: string,
+  end: LocalDate,
+): Promise<UnifiedPersonalView["spending"]> => {
+  const today = await deps.todayOf?.(userId);
+  // Without a today, no rate is read: the parts only come out in order, and nothing is approximated.
+  const total = await approximateTotalOn(
+    today === undefined ? undefined : deps.rates,
+    consumed,
+    currency,
+    today ?? end,
+  );
+  const byCurrency = total.parts.map(({ currency: code, amount }) => ({ currency: code, amount }));
+  return {
+    byCurrency,
+    approximate:
+      today === undefined || byCurrency.length < 2
+        ? null
+        : {
+            total: total.total,
+            unrated: total.parts
+              .filter((part) => part.value === null)
+              .map(({ currency: code, amount }) => ({ currency: code, amount })),
+          },
+  };
+};
 
 /**
  * Spec 5.4: what went into the caller's savings accounts in the period. They are in the personal space, so their

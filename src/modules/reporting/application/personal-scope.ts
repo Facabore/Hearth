@@ -91,6 +91,11 @@ export interface PersonalDeps {
   readonly rates?: ReportRates;
   /** D29, slice MC4: the caller's display currency; without it, their personal space's. */
   readonly displayCurrencyOf?: DisplayCurrencyOf;
+  /**
+   * Ruling P342 (S6): the caller's today, from the app's clock in their time zone, the day whose rate an approximate
+   * total reads; without it, no total across currencies is approximated.
+   */
+  readonly todayOf?: (userId: string) => Promise<LocalDate>;
 }
 
 export interface PersonalScope {

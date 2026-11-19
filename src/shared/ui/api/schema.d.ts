@@ -9013,6 +9013,23 @@ export interface operations {
                                 type: "EXPENSE" | "INCOME" | "TRANSFER" | "SETTLEMENT" | "ADJUSTMENT";
                             } | null;
                         }[];
+                        /** @description P342 (S6): what everyone owes the viewer and what she owes, each added up in one currency at today's rate, for display only and never stored; sent only when the debts are in more than one currency. Each debt stays in its own currency in `items`. */
+                        approximate?: {
+                            /** @description The viewer's display currency, else her personal space's */
+                            currency: string;
+                            owedToYou: {
+                                /** @description P342 (S6): the side's debts added up in `currency` at today's rate, for display only (≈) */
+                                total: components["schemas"]["MoneyOutput"];
+                                /** @description P342 (S6): this side's debts in currencies with no rate today, left out of `total`, listed apart */
+                                unrated: components["schemas"]["MoneyOutput"][];
+                            };
+                            youOwe: {
+                                /** @description P342 (S6): the side's debts added up in `currency` at today's rate, for display only (≈) */
+                                total: components["schemas"]["MoneyOutput"];
+                                /** @description P342 (S6): this side's debts in currencies with no rate today, left out of `total`, listed apart */
+                                unrated: components["schemas"]["MoneyOutput"][];
+                            };
+                        };
                     };
                 };
             };
@@ -10937,6 +10954,18 @@ export interface operations {
                          * @constant
                          */
                         stale?: true;
+                        /** @description P342 (S6): always sent; optional for older clients. */
+                        spending?: {
+                            /** @description P342 (S6): what the caller consumed in the period per movement currency, never converted: `currency`'s own first, then the largest in `currency`, then those without a rate today by code; empty when nothing. */
+                            byCurrency: components["schemas"]["MoneyOutput"][];
+                            /** @description P342 (S6): sent only when `byCurrency` holds more than one currency. */
+                            approximate?: {
+                                /** @description P342 (S6): the sum of `byCurrency` in `currency` at today's rate, for display only (≈) and never stored; the currencies in `unrated` are not in it. */
+                                total: components["schemas"]["MoneyOutput"];
+                                /** @description P342 (S6): the currencies with no rate today, left out of `total` and listed apart. */
+                                unrated: components["schemas"]["MoneyOutput"][];
+                            };
+                        };
                     };
                 };
             };
