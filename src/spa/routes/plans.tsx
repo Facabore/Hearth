@@ -11,7 +11,6 @@ import {
   ownSuggestion,
   Planner,
 } from "@/modules/budgeting/ui/screens";
-import { favoriteCurrenciesOf } from "@/modules/identity/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { NotFoundScreen, ScreenHeader } from "@/shared/ui";
 import { nowIn } from "@/shared/ui/time/when";
@@ -114,8 +113,10 @@ export function CapacitiesRoute() {
         viewerUserId={me.id}
         suggestion={ownSuggestion(suggestion.data, memberOf(list.data, me.id))}
         formats={me.preferences.effective}
-        // P342 (S2): the currency sheet lists the person's favorites after the space's currency, the default.
-        favorites={favoriteCurrenciesOf(me, personalSpaceOf(spaces).currency)}
+        // P342 (S2): the currency sheet lists the person's favorites after the space's currency, the default; until
+        // they choose some, their personal space's currency (as `favoriteCurrenciesOf` reads them, read here inline so
+        // the plan screens load no chunk of identity's, ADR 0004).
+        favorites={me.preferences.favoriteCurrencies ?? [personalSpaceOf(spaces).currency]}
       />
     </>
   );
@@ -197,8 +198,8 @@ function LineEditorScreen({
       hasFund={spaceAccounts.data.some((account) => account.type === "SHARED_FUND")}
       viewerMemberId={viewerMemberId}
       formats={me.preferences.effective}
-      // P342 (S2): the currency sheet lists the person's favorites after the space's currency, the default.
-      favorites={favoriteCurrenciesOf(me, personalSpaceOf(spaces).currency)}
+      // P342 (S2): the person's favorites, as in the capacities sheet above.
+      favorites={me.preferences.favoriteCurrencies ?? [personalSpaceOf(spaces).currency]}
     />
   );
 }

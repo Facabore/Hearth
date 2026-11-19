@@ -968,7 +968,8 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
     await userEvent.type(screen.getByLabelText("Nombre"), "Salidas");
     await userEvent.type(screen.getByLabelText("Planeado"), "300.000");
     await addCurrency(/^Dólar estadounidense/);
-    expect(screen.getByLabelText("Presupuesto en COP")).toHaveValue("300.000");
+    // A line in several currencies loads its fields when it first has them (ADR 0004).
+    expect(await screen.findByLabelText("Presupuesto en COP")).toHaveValue("300.000");
     await userEvent.type(screen.getByLabelText("Presupuesto en USD"), "100");
     expect(screen.getByRole("button", { name: /Moneda del presupuesto: .*\(USD\)/ })).toBeInTheDocument();
     expect(
@@ -987,7 +988,7 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
   it("shows a line's budgets one per currency, and its ✕ drops one, sending the set that remains", async () => {
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(twoCurrencies()) });
     edit(api);
-    expect(screen.getByLabelText("Presupuesto en COP")).toHaveValue("730.000");
+    expect(await screen.findByLabelText("Presupuesto en COP")).toHaveValue("730.000");
     expect(screen.getByLabelText("Presupuesto en USD")).toHaveValue("100");
     await userEvent.click(screen.getByRole("button", { name: "Quitar el presupuesto en USD" }));
     // One budget in the space currency left: the line reads as before, "Planeado" with no ✕.
@@ -1000,7 +1001,7 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
   it("sends the whole set when one budget changes", async () => {
     const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse(twoCurrencies()) });
     edit(api);
-    await userEvent.clear(screen.getByLabelText("Presupuesto en USD"));
+    await userEvent.clear(await screen.findByLabelText("Presupuesto en USD"));
     await userEvent.type(screen.getByLabelText("Presupuesto en USD"), "150");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({
@@ -1025,17 +1026,17 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
     ]);
   });
 
-  it("keeps one budget at least: a line only in another currency has no ✕", () => {
+  it("keeps one budget at least: a line only in another currency has no ✕", async () => {
     const line = { ...free(), plannedAmount: cop(0), budgets: [free().budgets![1]!] };
     edit(undefined, line);
-    expect(screen.getByLabelText("Presupuesto en USD")).toHaveValue("100");
+    expect(await screen.findByLabelText("Presupuesto en USD")).toHaveValue("100");
     expect(screen.queryByRole("button", { name: /Quitar el presupuesto/ })).toBeNull();
   });
 
   it("names the currency whose contributions a budget exceeds", async () => {
     const { api } = fakeApi({ [PATCH]: () => problemResponse(409, "PlanExceedsCapacity") });
     edit(api);
-    await userEvent.clear(screen.getByLabelText("Presupuesto en USD"));
+    await userEvent.clear(await screen.findByLabelText("Presupuesto en USD"));
     await userEvent.type(screen.getByLabelText("Presupuesto en USD"), "150");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     await waitFor(() =>
@@ -1049,7 +1050,9 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
   it("shows what each member is assigned in each currency by the line's rule", async () => {
     edit();
     await more();
-    expect(normalized(screen.getByText(/^En USD:/).textContent)).toBe("En USD: Ana 0 USD · Juan 100 USD");
+    expect(normalized((await screen.findByText(/^En USD:/)).textContent)).toBe(
+      "En USD: Ana 0 USD · Juan 100 USD",
+    );
   });
 
   it("takes a fixed amount per member in each currency and sends them all", async () => {
@@ -1059,7 +1062,7 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
     await userEvent.click(screen.getByRole("radio", { name: "Monto fijo" }));
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "300.000");
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "430.000");
-    await userEvent.type(screen.getByLabelText("Valor de Juan en USD"), "100");
+    await userEvent.type(await screen.findByLabelText("Valor de Juan en USD"), "100");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(await requests[0]!.json()).toEqual({
       rule: "FIXED",
@@ -1078,7 +1081,7 @@ describe('budgets per currency (ruling P342 S7, board "Editar rubro · presupues
     await userEvent.click(screen.getByRole("radio", { name: "Monto fijo" }));
     await userEvent.type(screen.getByLabelText("Valor de Ana"), "300.000");
     await userEvent.type(screen.getByLabelText("Valor de Juan"), "430.000");
-    await userEvent.type(screen.getByLabelText("Valor de Juan en USD"), "90");
+    await userEvent.type(await screen.findByLabelText("Valor de Juan en USD"), "90");
     await userEvent.click(screen.getByRole("button", { name: "Guardar rubro" }));
     expect(requests).toHaveLength(0);
     expect(screen.getByText(/Suma: 90 USD/)).toBeInTheDocument();

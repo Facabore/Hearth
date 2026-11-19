@@ -46,9 +46,8 @@ import {
   previewOf,
   type AllocationDraft,
 } from "./allocation";
-import { budgetRowsOf, budgetsOf, exceededCurrency, type BudgetRow } from "./budget-draft";
+import { budgetRowsOf, type BudgetRow } from "./budget-draft";
 import { BudgetFields } from "./budget-fields";
-import { OtherAllocations } from "./other-allocations";
 import {
   lineBodyOf,
   lineChanges,
@@ -68,6 +67,11 @@ const CategoryMappingSheet = dynamic(
   () => import("./category-mapping-sheet").then((module) => module.CategoryMappingSheet),
   { ssr: false },
 );
+
+// P342 (ADR 0004): each currency's allocation loads only for a line in several currencies.
+const OtherAllocations = dynamic(() => import("./per-currency").then((module) => module.OtherAllocations), {
+  ssr: false,
+});
 
 // P328: the payer sheet's code loads only when someone opens it, like the mapping sheet (issue #182).
 const PayerSheet = dynamic(() => import("./payer-sheet").then((module) => module.PayerSheet), { ssr: false });
@@ -292,8 +296,13 @@ export function LineEditor({
     setSectionError(null);
     setBudgetError(null);
     let budgets: MoneyDto[] | undefined;
+    // P342 (ADR 0004): a line in several currencies reads its budgets with the code it already loaded to show them.
+    let perCurrency: typeof import("./per-currency") | null = null;
     if (rows !== null) {
-      const read = budgetsOf(rows, formats.numberFormat);
+      inFlight.current = true;
+      perCurrency = await import("./per-currency");
+      inFlight.current = false;
+      const read = perCurrency.budgetsOf(rows, formats.numberFormat);
       if (!read.ok) {
         setBudgetError({
           currency: read.currency,
@@ -374,7 +383,7 @@ export function LineEditor({
           // P342: the problem names no currency; the budget that passes what is left to assign in its own does.
           const over =
             outcome.problem.code === "PlanExceedsCapacity"
-              ? exceededCurrency(budgets ?? [], plan, stored)
+              ? (perCurrency?.exceededCurrency(budgets ?? [], plan, stored) ?? null)
               : null;
           setBudgetError({
             currency: over ?? rows[0]!.currency,
@@ -569,9 +578,11 @@ export function LineEditor({
           void save();
         }}
       >
-        {rows !== null ? (
-          // Ruling P342 (S7), board "Editar rubro · presupuesto por moneda": the name, then one budget per currency.
-          <div className="flex flex-col gap-3">
+        {/* Board 05: Nombre and Planeado share a row; what Planeado leaves to assign is said under both. Ruling P342
+            (S7), board "Editar rubro · presupuesto por moneda": a line in several currencies has its name, then one
+            budget per currency. */}
+        <div className={`flex flex-col ${rows === null ? "gap-1.5" : "gap-3"}`}>
+          <div className={rows === null ? "grid grid-cols-2 items-start gap-3" : "flex flex-col"}>
             <TextField
               id={`${ids}-name`}
               label={t("field.name")}
@@ -580,34 +591,7 @@ export function LineEditor({
               onChange={(event) => change({ name: event.target.value }, "name")}
               error={name}
             />
-            <BudgetFields
-              idPrefix={ids}
-              rows={rows}
-              spaceCurrency={currency}
-              favorites={favorites}
-              formats={formats}
-              errorOf={(of) => (budgetError?.currency === of ? budgetError.text : undefined)}
-              onText={(index, text) => {
-                setRows(rows.map((row, i) => (i === index ? { ...row, text } : row)));
-                if (budgetError?.currency === rows[index]?.currency) setBudgetError(null);
-              }}
-              onAdd={addBudget}
-              onCurrency={renameBudget}
-              onRemove={removeBudget}
-            />
-          </div>
-        ) : (
-          /* Board 05: Nombre and Planeado share a row; what Planeado leaves to assign is said under both. */
-          <div className="flex flex-col gap-1.5">
-            <div className="grid grid-cols-2 items-start gap-3">
-              <TextField
-                id={`${ids}-name`}
-                label={t("field.name")}
-                autoComplete="off"
-                value={draft.name}
-                onChange={(event) => change({ name: event.target.value }, "name")}
-                error={name}
-              />
+            {rows === null ? (
               <NumberField
                 id={`${ids}-planned`}
                 label={t("field.planned")}
@@ -624,7 +608,9 @@ export function LineEditor({
                 onChange={(planned) => change({ planned }, "planned")}
                 error={planned}
               />
-            </div>
+            ) : null}
+          </div>
+          {rows === null ? (
             <p id={`${ids}-planned-note`} className="text-sm [overflow-wrap:anywhere] text-muted">
               <AmountText
                 text={
@@ -640,20 +626,23 @@ export function LineEditor({
                 }
               />
             </p>
-            <BudgetFields
-              idPrefix={ids}
-              rows={null}
-              spaceCurrency={currency}
-              favorites={favorites}
-              formats={formats}
-              errorOf={() => undefined}
-              onText={() => undefined}
-              onAdd={addBudget}
-              onCurrency={() => undefined}
-              onRemove={() => undefined}
-            />
-          </div>
-        )}
+          ) : null}
+          <BudgetFields
+            idPrefix={ids}
+            rows={rows}
+            spaceCurrency={currency}
+            favorites={favorites}
+            formats={formats}
+            errorOf={(of) => (budgetError?.currency === of ? budgetError.text : undefined)}
+            onText={(index, text) => {
+              setRows(rows && rows.map((row, i) => (i === index ? { ...row, text } : row)));
+              if (budgetError?.currency === rows?.[index]?.currency) setBudgetError(null);
+            }}
+            onAdd={addBudget}
+            onCurrency={renameBudget}
+            onRemove={removeBudget}
+          />
+        </div>
 
         {/* P328, board "Editar rubro · lo paga Ana": one row says how the line is paid and opens the sheet; a note
             under it says what that does. */}
@@ -852,7 +841,7 @@ export function LineEditor({
                 planned={plannedNow}
               />
             )}
-            {personal ? null : (
+            {personal || otherCurrencies.length === 0 ? null : (
               <OtherAllocations
                 rule={allocationDraft.rule}
                 currencies={otherCurrencies}

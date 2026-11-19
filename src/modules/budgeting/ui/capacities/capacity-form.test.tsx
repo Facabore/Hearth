@@ -343,7 +343,8 @@ describe('contributions in another currency (ruling P342 S7, "Juan 2.400.000 COP
   it("shows each member's contribution in another currency in its own field, and saves it in that currency", async () => {
     const { api, requests } = fakeApi({ [PUT]: () => jsonResponse(twoCurrencyPlanDto({ version: 8 })) });
     const { container } = twoCurrencies(api);
-    expect(screen.getByLabelText("Aporte de Juan en USD")).toHaveValue("100");
+    // The fields of other currencies load with the first member who has one (ADR 0004).
+    expect(await screen.findByLabelText("Aporte de Juan en USD")).toHaveValue("100");
     expect(screen.queryByLabelText("Aporte de Ana en USD")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect(await requests[0]!.json()).toEqual({
@@ -382,7 +383,7 @@ describe('contributions in another currency (ruling P342 S7, "Juan 2.400.000 COP
   it("clears a contribution in another currency with its ✕, sending 0 in that currency", async () => {
     const { api, requests } = fakeApi({ [PUT]: () => jsonResponse(twoCurrencyPlanDto({ version: 8 })) });
     twoCurrencies(api);
-    await userEvent.click(screen.getByRole("button", { name: "Quitar el aporte de Juan en USD" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Quitar el aporte de Juan en USD" }));
     expect(screen.queryByLabelText("Aporte de Juan en USD")).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
     expect((await requests[0]!.json()).capacities).toContainEqual({
@@ -398,7 +399,7 @@ describe('contributions in another currency (ruling P342 S7, "Juan 2.400.000 COP
     });
     twoCurrencies(api);
     const usd = () => screen.getByLabelText("Aporte de Juan en USD");
-    await userEvent.clear(usd());
+    await userEvent.clear(await screen.findByLabelText("Aporte de Juan en USD"));
     // Three decimals in USD cannot be read.
     await userEvent.type(usd(), "1,234");
     await userEvent.click(screen.getByRole("button", { name: "Guardar aportes" }));
@@ -411,7 +412,7 @@ describe('contributions in another currency (ruling P342 S7, "Juan 2.400.000 COP
     expect(screen.getByLabelText("Aporte de Juan")).not.toHaveAttribute("aria-invalid", "true");
   });
 
-  it("shows a member who may not edit their contributions in every currency, read only", () => {
+  it("shows a member who may not edit their contributions in every currency, read only", async () => {
     renderWithIntl(
       <CapacityForm
         space={householdDto({ role: "MEMBER" })}
@@ -422,7 +423,7 @@ describe('contributions in another currency (ruling P342 S7, "Juan 2.400.000 COP
         formats={BUILT_IN_FORMATS}
       />,
     );
-    expect(normalized(rowOf("Juan").textContent)).toContain("100 USD");
+    await waitFor(() => expect(normalized(rowOf("Juan").textContent)).toContain("100 USD"));
     expect(within(rowOf("Juan")).queryByRole("button")).toBeNull();
   });
 });

@@ -26,11 +26,15 @@ import {
   capacityBodyOf,
   capacityFieldOf,
   draftsOf,
-  otherCapacitiesOf,
   otherDraftsOf,
   otherKey,
   type OtherDraft,
 } from "./capacity-draft";
+
+const OtherContributions = dynamic(
+  () => import("./per-currency").then((module) => module.OtherContributions),
+  { ssr: false },
+);
 
 /** Every currency loads with the sheet, on the first tap, never with the planner (ADR 0004). */
 const CurrencySheet = dynamic(
@@ -110,10 +114,23 @@ export function CapacityForm({
       setFailure({ field: built.memberId, unreadable: true });
       return;
     }
+    // P342 (ADR 0004): contributions in other currencies are read with the code that drew their fields.
     const stored = otherDraftsOf(plan, members, formats);
-    const extra = otherCapacitiesOf(others, stored, editableIds, formats.numberFormat);
+    const any = (fields: Record<string, readonly OtherDraft[]>) =>
+      Object.values(fields).some((f) => f.length > 0);
+    inFlight.current = true;
+    const extra =
+      any(others) || any(stored)
+        ? (await import("./per-currency")).otherCapacitiesOf(
+            others,
+            stored,
+            editableIds,
+            formats.numberFormat,
+          )
+        : { ok: true as const, rows: [] };
+    inFlight.current = false;
     if (!extra.ok) {
-      setFailure({ field: extra.key, unreadable: true });
+      setFailure({ field: otherKey(extra.memberId, extra.currency), unreadable: true });
       return;
     }
     const sentIds = [...editableIds, ...extra.rows.map((row) => otherKey(row.memberId, row.amount.currency))];
@@ -180,6 +197,13 @@ export function CapacityForm({
           const editable = mayEdit(member);
           const stored = plan.capacities.find((capacity) => capacity.memberId === member.id);
           const labelId = `${ids}-name-${member.id}`;
+          const storedOthers = (plan.currencies ?? [])
+            .slice(1)
+            .flatMap(({ capacities }) =>
+              capacities
+                .filter((c) => c.memberId === member.id && BigInt(c.amount.amount) !== 0n)
+                .map((c) => c.amount),
+            );
           const suggested =
             suggestion?.suggested != null && suggestion.memberId === member.id && mine
               ? suggestion.suggested
@@ -217,29 +241,36 @@ export function CapacityForm({
                   className="leading-[1.333] font-semibold text-ink"
                 />
               )}
-              <OtherContributions
-                idPrefix={`${ids}-field-${member.id}`}
-                name={member.displayName}
-                editable={editable}
-                stored={(plan.currencies ?? [])
-                  .slice(1)
-                  .flatMap(({ capacities }) =>
-                    capacities
-                      .filter((c) => c.memberId === member.id && BigInt(c.amount.amount) !== 0n)
-                      .map((c) => c.amount),
-                  )}
-                drafts={others[member.id] ?? []}
-                formats={formats}
-                errorOf={(other) => errorOf(otherKey(member.id, other))}
-                onChange={(next) => {
-                  setOthers((current) => ({ ...current, [member.id]: next }));
-                  if (failure?.field.startsWith(`${member.id}:`)) setFailure(null);
-                }}
-                onAdd={() => {
-                  setSheetLoaded(true);
-                  setChoosingFor(member.id);
-                }}
-              />
+              {/* P342: the fields of other currencies load only for a member who has one (ADR 0004). */}
+              {(editable ? (others[member.id] ?? []).length : storedOthers.length) > 0 ? (
+                <OtherContributions
+                  idPrefix={`${ids}-field-${member.id}`}
+                  name={member.displayName}
+                  editable={editable}
+                  stored={storedOthers}
+                  drafts={others[member.id] ?? []}
+                  formats={formats}
+                  errorOf={(other) => errorOf(otherKey(member.id, other))}
+                  onChange={(next) => {
+                    setOthers((current) => ({ ...current, [member.id]: next }));
+                    if (failure?.field.startsWith(`${member.id}:`)) setFailure(null);
+                  }}
+                />
+              ) : null}
+              {editable ? (
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  className="-mx-2 self-start font-medium"
+                  onClick={() => {
+                    setSheetLoaded(true);
+                    setChoosingFor(member.id);
+                  }}
+                >
+                  <Icon name="plus" size={18} />
+                  {t("capacity.addCurrency")}
+                </Button>
+              ) : null}
               {suggested !== null ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-accent-soft p-3 text-sm text-ink">
                   <p className="min-w-0 flex-1 basis-40 [overflow-wrap:anywhere]">
@@ -323,80 +354,5 @@ export function CapacityForm({
         />
       ) : null}
     </Sheet>
-  );
-}
-
-/**
- * Ruling P342 (S7, "Juan 2.400.000 COP y 100 USD"): a member's contributions in other currencies than the space's,
- * each in its own field with a ✕ that clears it, then "Aportar en otra moneda"; read only, each stored amount.
- */
-function OtherContributions({
-  idPrefix,
-  name,
-  editable,
-  stored,
-  drafts,
-  formats,
-  errorOf,
-  onChange,
-  onAdd,
-}: {
-  readonly idPrefix: string;
-  readonly name: string;
-  readonly editable: boolean;
-  readonly stored: readonly { readonly amount: string; readonly currency: string }[];
-  readonly drafts: readonly OtherDraft[];
-  readonly formats: Formats;
-  readonly errorOf: (currency: string) => string | undefined;
-  readonly onChange: (next: OtherDraft[]) => void;
-  readonly onAdd: () => void;
-}) {
-  const t = useTranslations("budgeting.capacity");
-  if (!editable)
-    return stored.map((amount) => (
-      <HeroAmount
-        key={amount.currency}
-        amount={formatMoney(amount, formats)}
-        size="1.5rem"
-        className="leading-[1.333] font-semibold text-ink"
-      />
-    ));
-  return (
-    <>
-      {drafts.map((draft) => (
-        <div key={draft.currency} className="flex items-start gap-2">
-          <div className="min-w-0 flex-1 [&_label]:sr-only">
-            <NumberField
-              id={`${idPrefix}-${draft.currency}`}
-              label={t("fieldIn", { name, currency: draft.currency })}
-              kind="money"
-              numberFormat={formats.numberFormat}
-              decimals={currencyOf(draft.currency).exponent}
-              currency={draft.currency}
-              example={false}
-              large
-              value={draft.text}
-              onChange={(text) =>
-                onChange(drafts.map((one) => (one.currency === draft.currency ? { ...one, text } : one)))
-              }
-              error={errorOf(draft.currency)}
-            />
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="mt-1.5 shrink-0"
-            aria-label={t("removeCurrency", { name, currency: draft.currency })}
-            onClick={() => onChange(drafts.filter((one) => one.currency !== draft.currency))}
-          >
-            <Icon name="close" size={20} />
-          </Button>
-        </div>
-      ))}
-      <Button variant="ghost" size="compact" className="-mx-2 self-start font-medium" onClick={onAdd}>
-        <Icon name="plus" size={18} />
-        {t("addCurrency")}
-      </Button>
-    </>
   );
 }
