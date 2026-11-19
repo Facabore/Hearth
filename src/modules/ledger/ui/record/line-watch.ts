@@ -39,6 +39,22 @@ export interface LineWarning {
   readonly rest: MoneyDto;
 }
 
+/**
+ * Ruling P342 (S7): an expense counts only against its line's budget in its own currency, never converted, so the
+ * figures the warning reads are that budget's; a currency the line has no budget for has none, and nothing is said.
+ * An older API without `budgets` answers the space currency's alone.
+ */
+const figuresIn = (
+  line: DashLine,
+  currency: string,
+  spaceCurrency: string,
+): Pick<DashLine, "planned" | "carryOver" | "available"> | null =>
+  line.budgets === undefined
+    ? currency === spaceCurrency
+      ? line
+      : null
+    : (line.budgets.find((budget) => budget.budgeted && budget.planned.currency === currency) ?? null);
+
 /** #211: whole percents, rounded down, so a line short of its plan never reads 100 %. */
 const shareText = (used: bigint, budget: bigint): string => String((used * 100n) / budget);
 
@@ -60,15 +76,16 @@ export const lineWarningOf = (
   },
 ): LineWarning | null => {
   if (watch === null || input.categoryId === null || input.amountMinor === null) return null;
-  if (input.currency !== watch.currency || input.date < watch.startDate || input.date > watch.endDate)
-    return null;
+  if (input.date < watch.startDate || input.date > watch.endDate) return null;
   const line =
     watch.lineOf[input.categoryId] ?? (input.parentId === null ? undefined : watch.lineOf[input.parentId]);
   const amount = BigInt(input.amountMinor);
   if (line === undefined || amount <= 0n) return null;
-  const budget = BigInt(line.planned.amount) + BigInt(line.carryOver.amount);
-  const after = BigInt(line.available.amount) - amount;
-  const money = (minor: bigint): MoneyDto => ({ amount: minor.toString(), currency: watch.currency });
+  const figures = figuresIn(line, input.currency, watch.currency);
+  if (figures === null) return null;
+  const budget = BigInt(figures.planned.amount) + BigInt(figures.carryOver.amount);
+  const after = BigInt(figures.available.amount) - amount;
+  const money = (minor: bigint): MoneyDto => ({ amount: minor.toString(), currency: input.currency });
   const state = lineStateOf(budget, after);
   if (state === "OK") return null;
   if (state === "OVER") return { level: "OVER", line: line.name, used: null, rest: money(-after) };

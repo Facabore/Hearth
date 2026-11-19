@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cop } from "../../../../../tests/support/ui/dto";
-import { e7Dashboard } from "../../../../../tests/support/ui/plan-dto";
+import { cop, money } from "../../../../../tests/support/ui/dto";
+import { dashBudget, e7Dashboard } from "../../../../../tests/support/ui/plan-dto";
 import { asksFirst, lineWarningOf, lineWatchOf } from "./line-watch";
 
 const OCTOBER = { label: "2026-10", startDate: "2026-10-01", endDate: "2026-10-31" };
@@ -85,5 +85,48 @@ describe("the line warning (#142, rulings P235 and P236 of M6c)", () => {
         currency: "COP",
       }),
     ).toBeNull();
+  });
+});
+
+describe("the line warning per currency (ruling P342 S7)", () => {
+  /** Home budgets 1.000.000 COP (700.000 spent) and 100 USD (45 spent); Free only pesos. */
+  const twoCurrencies = () => {
+    const dashboard = e7Dashboard({ period: OCTOBER });
+    const home = dashboard.lines[1]!;
+    dashboard.lines[1] = {
+      ...home,
+      planned: cop(1_000_000),
+      spent: cop(700_000),
+      available: cop(300_000),
+      budgets: [
+        dashBudget([cop(1_000_000), cop(700_000), cop(300_000)]),
+        dashBudget([money(100, "USD"), money(45, "USD"), money(55, "USD")]),
+        dashBudget([money(0, "EUR"), money(20, "EUR"), money(-20, "EUR")], { budgeted: false }),
+      ],
+    };
+    return lineWatchOf({ ...dashboard, categoryLines: [{ categoryId: "c-groceries", lineId: "l-home" }] });
+  };
+  const usd = (major: number, currency = "USD") =>
+    lineWarningOf(twoCurrencies(), {
+      categoryId: "c-groceries",
+      parentId: null,
+      amountMinor: String(major * 100),
+      date: "2026-10-31",
+      currency,
+    });
+
+  it("warns against the line's budget in the expense's own currency, never converted", () => {
+    expect(usd(10)).toBeNull();
+    expect(usd(40)).toEqual({ level: "NEAR", line: "Home", used: "85", rest: money(15, "USD") });
+    expect(usd(60)).toEqual({ level: "OVER", line: "Home", used: null, rest: money(5, "USD") });
+  });
+
+  it("stays silent in a currency the line has no budget for", () => {
+    expect(usd(500, "EUR")).toBeNull();
+    expect(usd(500, "MXN")).toBeNull();
+  });
+
+  it("keeps warning in the space currency from its own budget", () => {
+    expect(usd(342_300, "COP")).toEqual({ level: "OVER", line: "Home", used: null, rest: cop(42_300) });
   });
 });
