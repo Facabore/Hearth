@@ -1,5 +1,5 @@
 import { getRouteApi, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { lazy, useEffect } from "react";
 import { useTranslations } from "use-intl";
 import { actionsFor, EditTransactionForm, originOf, withTx } from "@/modules/ledger/ui";
 import { NotFoundScreen, ProblemNotice } from "@/shared/ui";
@@ -7,6 +7,11 @@ import { useApis } from "../api";
 import { useEdit } from "../ledger/form-hooks";
 import { useViewer } from "../viewer";
 import { useTitle } from "../title";
+
+// P344 (ADR 0004, owner 2026-11-19): a payment's edit form loads only when a payment is edited.
+const EditPaymentForm = lazy(() =>
+  import("../ledger/edit-payment").then((module) => ({ default: module.EditPaymentForm })),
+);
 
 const route = getRouteApi("/spaces/$spaceId/transactions/$transactionId/edit");
 
@@ -40,6 +45,21 @@ export function EditTransactionScreen() {
     shared?.members ?? [],
   );
   if (!actions.edit) return <ShowSheet href={withTx(origin, transactionId)} />;
+  // P344 (board 1): a payment between members is edited by its sides, not by the record form.
+  if (edit.tx.type === "SETTLEMENT" && shared)
+    return (
+      <div className="mx-auto max-w-[560px]">
+        <EditPaymentForm
+          key={edit.tx.version}
+          spaceId={viewer.space.id}
+          tx={edit.tx}
+          shared={shared}
+          me={viewer.me}
+          origin={origin}
+          api={api}
+        />
+      </div>
+    );
   return (
     <div className="mx-auto max-w-[560px]">
       <EditTransactionForm

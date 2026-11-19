@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { memberLabel } from "@/modules/spaces/ui";
 import type { Api } from "@/shared/ui/api/client";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
-import { SummaryRow } from "../record/form-chip";
+import { OthersAccountRow, SummaryRow } from "../record/form-chip";
 import { defaultParticipantIds, type SharedExpenseContext } from "./shared-context";
 import { isUntouched, splitFailureMessage } from "./split-failure";
 import { splitCheckOf, type SplitDraft } from "./split-request";
@@ -174,6 +174,10 @@ export function SharedFields({
         }}
         errorId={problem ? "record-split-error" : undefined}
       />
+      {/* P344 (board 3): another member's account, kept and theirs alone to change, so it is no button. */}
+      {payer.kind === "MEMBER" && payer.accountId ? (
+        <OthersAccountRow name={nameOf(payer.memberId)} assigned />
+      ) : null}
       {problem ? (
         <p id="record-split-error" className="pt-1 text-sm text-danger">
           {problem}

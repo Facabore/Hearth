@@ -586,8 +586,8 @@ describe("change a movement's type while editing it (issue #195)", () => {
     });
   });
 
-  it("shows a contribution's Desde and Hacia without a picker, since its accounts never change (issue #198, P188)", async () => {
-    const { api } = fakeApi({});
+  it("lets a contribution's payer pick their own Desde, never its fund (P344, P188)", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...tx, version: 3 }) });
     const given = transactionDto({
       ...tx,
       type: "TRANSFER",
@@ -598,13 +598,43 @@ describe("change a movement's type while editing it (issue #195)", () => {
       payments: [],
       shares: [],
     });
-    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: household([fund]) });
-    expect(screen.queryByRole("button", { name: /Desde/ })).not.toBeInTheDocument();
+    const mine = { ...household([fund]), myAccounts: [...household([fund]).myAccounts, accounts[1]!] };
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: mine });
     expect(screen.queryByRole("button", { name: /Hacia/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Desde").parentElement).toHaveTextContent("Bancolombia");
-    // Turned into an expense, it no longer shows the transfer's fixed accounts.
+    await userEvent.click(screen.getByRole("button", { name: /Desde/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Desde" })).getByRole("radio", { name: /Visa/ }),
+    );
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ sourceAccountId: "a-visa" });
+    // Turned into an expense, it no longer shows the transfer's accounts.
     await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
     expect(screen.queryByText("Desde")).not.toBeInTheDocument();
+  });
+
+  it("shows another member's contribution as theirs to change, and sends a new amount alone (P344, S3)", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...tx, version: 3 }) });
+    const given = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId: "m-juan",
+      sourceAccountId: "a-juan",
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+    const juan = memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan" });
+    const context = { ...household([fund]), members: [household([fund]).members[0]!, juan] };
+    renderForm(api, LIST, { space: householdSpace(), tx: given, shared: context });
+    expect(screen.queryByRole("button", { name: /Desde/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Cuenta de Juan")).toBeInTheDocument();
+    expect(screen.getByText("Sale de · solo Juan la cambia")).toBeInTheDocument();
+    await retype("90000");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ amount: { amount: "9000000", currency: "COP" } });
   });
 
   it("lands on the list's fund notice when the expense it became left the fund below zero, and still offers Deshacer (issue #198)", async () => {
@@ -641,5 +671,96 @@ describe("change a movement's type while editing it (issue #195)", () => {
     renderForm(fakeApi({}).api, LIST, { space: householdSpace(), tx: sharedTx, shared: household([]) });
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.getByText("Tipo: Gasto")).toBeInTheDocument();
+  });
+});
+
+describe("edit an expense another member paid (P344, board 3)", () => {
+  const shared: SharedExpenseContext = {
+    members: [
+      memberDto({ id: "m-ana", userId: "u-ana" }),
+      memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan" }),
+    ],
+    meMemberId: "m-ana",
+    myAccounts: [accountDto({ id: "a-bank", name: "Bancolombia" })],
+    funds: [],
+  };
+  const juans = transactionDto({
+    ...tx,
+    amount: cop(120_000),
+    payments: [{ memberId: "m-juan", accountId: "a-juan", amount: cop(120_000) }],
+    shares: [
+      { memberId: "m-ana", amount: cop(60_000), splitMethod: "EQUAL" },
+      { memberId: "m-juan", amount: cop(60_000), splitMethod: "EQUAL" },
+    ],
+  });
+
+  it("shows Juan's account as his, read-only, and never sends it back when only the amount changed", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...juans, version: 3 }) });
+    renderForm(api, LIST, { tx: juans, shared, space: householdSpace({ id: "s-1" }) });
+    expect(screen.getByRole("button", { name: /Quién pagó/ })).toHaveTextContent("Pagó Juan");
+    expect(screen.getByText("Cuenta de Juan")).toBeInTheDocument();
+    expect(screen.getByText("Sale de · solo Juan la cambia")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cuenta de Juan/ })).not.toBeInTheDocument();
+    await retype("130000");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({
+      amount: { amount: "13000000", currency: "COP" },
+      split: { method: "EQUAL", participants: [{ memberId: "m-ana" }, { memberId: "m-juan" }] },
+    });
+  });
+
+  it("keeps Juan's account when Juan is picked again as who paid", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...juans, version: 3 }) });
+    renderForm(api, LIST, { tx: juans, shared, space: householdSpace({ id: "s-1" }) });
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Juan" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    expect(screen.getByText("Cuenta de Juan")).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Descripción"));
+    await userEvent.type(screen.getByLabelText("Descripción"), "Mercado");
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ description: "Mercado" });
+  });
+
+  it("takes the payment onto the editor's own account when they say they paid", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...juans, version: 3 }) });
+    renderForm(api, LIST, { tx: juans, shared, space: householdSpace({ id: "s-1" }) });
+    await userEvent.click(screen.getByRole("button", { name: /Quién pagó/ }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Tú" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    expect(screen.queryByText("Cuenta de Juan")).not.toBeInTheDocument();
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({
+      payments: [{ memberId: "m-ana", accountId: "a-bank", amount: { amount: "12000000", currency: "COP" } }],
+    });
+  });
+});
+
+describe("the flows P344 leaves as they were", () => {
+  it("still edits an own transfer's Desde from the person's accounts and sends only it", async () => {
+    const own = transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      sourceAccountId: "a-bank",
+      destinationAccountId: "a-visa",
+      payments: [],
+      shares: [],
+    });
+    const savings = accountDto({ id: "a-save", name: "Ahorros", type: "SAVINGS" });
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...own, version: 3 }) });
+    renderForm(api, LIST, { tx: own, accounts: [...accounts, savings] });
+    await userEvent.click(screen.getByRole("button", { name: /Desde/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Desde" })).getByRole("radio", { name: /Ahorros/ }),
+    );
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ sourceAccountId: "a-save" });
   });
 });

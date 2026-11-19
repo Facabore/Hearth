@@ -122,6 +122,35 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.title).toBe(`${es.home.title} · Hearth`);
   });
 
+  it("reads the opened movement's audit and shows its history in the sheet (P344, S7)", async () => {
+    const { routes } = ledgerApi({
+      "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}/audit": () =>
+        jsonResponse({
+          items: [
+            {
+              id: "au-1",
+              action: "UPDATED",
+              actorUserId: "u-ana",
+              actorName: "Ana",
+              at: "2026-10-14T15:00:00.000Z",
+              changes: { description: { from: "Cena", to: "Dinner" } },
+            },
+          ],
+        }),
+    });
+    const spa = renderSpa("/spaces/sp-personal?tx=t-dinner", routes);
+    const history = await screen.findByRole("list", { name: "Historial" });
+    expect(
+      within(history)
+        .getAllByRole("listitem")
+        .map((item) => item.textContent?.replace(/\s+/g, " ").trim()),
+    ).toEqual([
+      "Cambiaste la descripción: Cena → Dinner 14/10/2026, 10:00",
+      "Registraste el gasto 1/10/2026, 07:00",
+    ]);
+    expect(calls(spa.requests, "GET", /\/transactions\/t-dinner\/audit$/)).toHaveLength(1);
+  });
+
   it("counts the month across every space on the personal home and merges their movements into Recientes (P306)", async () => {
     const { routes } = ledgerApi({
       "GET /api/v1/me/unified-view": () => jsonResponse(e74Unified({ period: { ...octoberPage.period } })),

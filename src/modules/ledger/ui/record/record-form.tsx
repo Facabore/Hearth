@@ -72,7 +72,7 @@ import { CategoryTiles } from "./category-tiles";
 import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
-import { FormChip, SummaryRow } from "./form-chip";
+import { FormChip, SummaryRow, OthersAccountRow } from "./form-chip";
 import { DescriptionField, MoneyField, RowError } from "./form-rows";
 import { Keypad } from "./keypad";
 import { RecordSheet } from "./record-sheet";
@@ -203,7 +203,7 @@ export interface RecordEdit {
    * space a transfer is a contribution from the recorder's account to the fund (the owner's ruling).
    */
   readonly kinds?: readonly RecordKind[];
-  /** Issue #198 (P188): a contribution's accounts never change, so while it stays a transfer its rows only show them. */
+  /** Issue #198 (P188): a contribution's fund never changes, so while it stays a transfer its Hacia only shows it. */
   readonly fixedAccounts?: boolean;
 }
 
@@ -845,6 +845,8 @@ export function RecordForm({
     kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
   );
   const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
+  // P344 (S3): another member's contribution, whose Desde only they choose.
+  const contributor = fixedAccounts && split?.payer.kind === "MEMBER" ? split.payer.memberId : null;
   // P333 (board "Registrar: una fila"): "Pagaste tú con Bancolombia · para Juan y Ana".
   // P333: "Pagó Juan · le debes 60.000 COP" when someone else paid.
   const otherPayer =
@@ -1078,15 +1080,14 @@ export function RecordForm({
                   debt={pairDebt}
                   Row={SummaryRow}
                 />
-              ) : sharedRows ? null : (
-                accountRow(
-                  "account",
-                  accountLabel,
-                  nameOf(accountId),
-                  "account",
-                  t("form.chooseAccount"),
-                  fixedAccounts,
-                )
+              ) : sharedRows ? null : contributor !== null ? (
+                // P344 (S3): another member's contribution: Desde is theirs, and only they choose it.
+                <OthersAccountRow
+                  name={shared?.members.find((m) => m.id === contributor)?.displayName ?? ""}
+                  assigned={accountId !== null}
+                />
+              ) : (
+                accountRow("account", accountLabel, nameOf(accountId), "account", t("form.chooseAccount"))
               )}
               {kind === "TRANSFER" && !toSomeone
                 ? accountRow(

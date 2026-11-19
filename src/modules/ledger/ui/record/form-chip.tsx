@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { Icon } from "@/shared/ui";
 
@@ -127,5 +128,31 @@ export function SummaryRow({
     >
       {content}
     </button>
+  );
+}
+
+/**
+ * Ruling P344 (S3, boards 1 and 3): another member's side of a movement, which only they give an account: "Cuenta de
+ * Juan · Sale de · solo Juan la cambia", or "Sin asignar · Sale de · solo Juan elige su cuenta". It is no button.
+ */
+export function OthersAccountRow({
+  name,
+  assigned,
+  side = "out",
+}: {
+  readonly name: string;
+  readonly assigned: boolean;
+  readonly side?: "out" | "in";
+}) {
+  const t = useTranslations("ledger");
+  return (
+    <SummaryRow
+      value={
+        <span className="text-muted">
+          {assigned ? t("detail.payerAccount", { name }) : t("edit.unassigned")}
+        </span>
+      }
+      meta={t(assigned ? "edit.othersAccount" : "edit.othersPick", { side, name })}
+    />
   );
 }
