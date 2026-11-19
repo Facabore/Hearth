@@ -63,7 +63,11 @@ export function LineDashboard({
   const left = spending.available ?? totals.available;
   const money = (value: MoneyDto) => formatMoney(value, formats);
   // Ruling P342 (S7): every currency of the plan apart, the space's first ("Quedan 1.286.000 COP y 55 USD").
-  const others = (dashboard.currencies ?? []).slice(1).map((currency) => currency.totals.withoutSavings);
+  // A currency only spent in, with nothing planned in it, shows on the lines that spent it, not in the plan's figures.
+  const others = (dashboard.currencies ?? [])
+    .slice(1)
+    .map((currency) => currency.totals.withoutSavings)
+    .filter((totals) => BigInt(totals.planned.amount) > 0n);
   const andList = (items: readonly string[]) =>
     items.length < 2
       ? (items[0] ?? "")

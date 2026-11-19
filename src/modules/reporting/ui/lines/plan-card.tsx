@@ -67,7 +67,11 @@ export function PlanCard({
   };
   const money = (amount: MoneyDto) => formatMoney(amount, formats);
   // Ruling P342 (S7): the other currencies of the plan follow the space's, in words, never converted ("y 55 USD").
-  const others = (dashboard.currencies ?? []).slice(1).map((currency) => currency.totals.withoutSavings);
+  // A currency only spent in, with nothing planned in it, shows on the lines that spent it, not in the plan's figures.
+  const others = (dashboard.currencies ?? [])
+    .slice(1)
+    .map((currency) => currency.totals.withoutSavings)
+    .filter((totals) => BigInt(totals.planned.amount) > 0n);
   const each = (own: MoneyDto, pick: (totals: (typeof others)[number]) => MoneyDto) => {
     const items = [money(own), ...others.map((totals) => money(pick(totals)))];
     return items.length < 2

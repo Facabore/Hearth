@@ -253,3 +253,21 @@ describe("Inicio's plan card in several currencies (ruling P342 S7)", () => {
     );
   });
 });
+
+describe("a currency only spent in (ruling P342 S7)", () => {
+  it("stays out of the plan's figures on Inicio and on the plan of the month", () => {
+    const dashboard = twoCurrencyDashboard();
+    const eur = (major: number) => ({ amount: String(major * 100), currency: "EUR" });
+    const totals = { planned: eur(0), spent: eur(20), available: eur(-20) };
+    dashboard.currencies = [
+      ...dashboard.currencies!,
+      { unbudgeted: null, totals: { ...totals, saved: eur(0), withoutSavings: totals } },
+    ];
+    renderWithIntl(
+      <PlanCard dashboard={dashboard} policy={MONTHLY} formats={BUILT_IN_FORMATS} href={HREF} />,
+    );
+    expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe(
+      "Te quedan 1.286.000 COP y 55 USD de 3.100.000 COP y 100 USD",
+    );
+  });
+});

@@ -750,6 +750,35 @@ describe('the planner in two currencies (ruling P342 S7, board "Planner · dos m
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it("leaves a currency only spent in out of what is put in and what is left to assign", () => {
+    const plan = twoCurrencyPlanDto();
+    const eur = (major: number) => ({ amount: String(major * 100), currency: "EUR" });
+    show({
+      plan: {
+        ...plan,
+        currencies: [
+          ...plan.currencies!,
+          {
+            capacities: [
+              { memberId: "m-ana", amount: eur(0), share: null },
+              { memberId: "m-juan", amount: eur(0), share: null },
+            ],
+            totalCapacity: eur(0),
+            planned: eur(0),
+            unallocated: eur(0),
+            unbudgeted: { spent: eur(20), available: eur(-20) },
+          },
+        ],
+      },
+    });
+    const capacity = screen.getByRole("region", { name: "Lo que aportan entre todos" });
+    expect(
+      [...capacity.querySelectorAll("[data-total]")].map((total) => normalized(total.textContent)),
+    ).toEqual(["4.000.000 COP", "100 USD"]);
+    expect(normalized(capacity.textContent)).toContain("Por repartir 0 COP · 0 USD");
+    expect(normalized(capacity.textContent)).not.toContain("EUR");
+  });
+
   it("keeps a plan in one currency as it was", () => {
     show();
     const capacity = screen.getByRole("region", { name: "Lo que aportan entre todos" });

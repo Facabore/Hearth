@@ -561,11 +561,32 @@ describe('the plan per currency (ruling P342 S7, board "Plan del mes · dos mone
         dashBudget([money(0, "USD"), money(20, "USD"), money(-20, "USD")], { budgeted: false }),
       ],
     };
-    show(dashboard);
+    const { container } = show(dashboard);
+    // The API answers it OVER (nothing was planned in USD); it reads as spent without a budget, never as overspent.
+    expect(dashboard.lines[1]!.budgets![1]!.state).toBe("OVER");
     expect(budgetsOf(/^Mercado/)).toEqual([
       ["Gastado 300.000 COP de 800.000 COP", "quedan 500.000 COP"],
       ["Gastado 20 USD sin presupuesto", ""],
     ]);
+    expect(screen.getByRole("listitem", { name: /^Mercado/ }).textContent).not.toMatch(/se pasó|Excedida/);
+    const bars = container.querySelectorAll("[data-line='l-food'] [data-bar]");
+    expect(bars[1]).toHaveClass("bg-muted");
+    expect(bars[1]).not.toHaveClass("bg-owe");
+  });
+
+  it("leaves a currency only spent in, with nothing planned, out of the plan's figures", () => {
+    const dashboard = twoCurrencyDashboard();
+    const eur = (major: number) => money(major, "EUR");
+    const totals = { planned: eur(0), spent: eur(20), available: eur(-20) };
+    dashboard.currencies = [
+      ...dashboard.currencies!,
+      { unbudgeted: null, totals: { ...totals, saved: eur(0), withoutSavings: totals } },
+    ];
+    const { container } = show(dashboard);
+    expect(normalized(container.querySelector("[data-also]")?.textContent)).toBe("y 55 USD");
+    expect(normalized(screen.getByRole("region", { name: "Resumen del plan" }).textContent)).not.toContain(
+      "EUR",
+    );
   });
 
   it("keeps a plan in one currency without the other currencies' line", () => {

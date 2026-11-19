@@ -128,8 +128,11 @@ export function Planner({
   const money = (value: { readonly amount: string; readonly currency: string }) =>
     formatMoney(value, formats);
   const word = periodWord(plan.period, space.periodPolicy, formats);
-  // Ruling P342 (S7): the plan's other currencies, after the space's, each apart and never converted.
-  const otherCurrencies = (plan.currencies ?? []).slice(1);
+  // Ruling P342 (S7): the plan's other currencies, after the space's, each apart and never converted; a currency only
+  // spent in (nobody puts it in and no line budgets it) belongs to the lines that spent it, not to what is put in.
+  const otherCurrencies = (plan.currencies ?? [])
+    .slice(1)
+    .filter((currency) => BigInt(currency.totalCapacity.amount) > 0n || BigInt(currency.planned.amount) > 0n);
   // D26, P328: a line with payers reads who pays it, as its editor's row does ("Lo pagan Ana y Juan"); any other line
   // how it is paid ("Sale del fondo común").
   const paidBy = (line: PlanLineDto) => {
