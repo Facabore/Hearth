@@ -1,6 +1,6 @@
 import { domainError, err, map, ok, type Result } from "@/shared/kernel";
 import {
-  canModify,
+  canCorrect,
   deletionChanges,
   linkedHalfOf,
   softDelete,
@@ -90,7 +90,7 @@ export const createConvertTransaction =
       if (!membership.ok) return membership;
       const current = await deps.transactions.findById(membership.value.spaceId, input.transactionId);
       if (!current) return err(domainError("TransactionNotFound"));
-      if (!canModify(membership.value.role, current.createdBy, input.userId)) {
+      if (!canCorrect(membership.value.role)) {
         return err(domainError("InsufficientRole"));
       }
       if (input.expectedVersion !== null && input.expectedVersion !== current.version) {

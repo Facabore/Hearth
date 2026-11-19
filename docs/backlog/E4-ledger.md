@@ -244,9 +244,17 @@ Feature: Edit and soft delete with audit
     Then the transaction has deletedAt set and is excluded from lists, balances and reports
     And an audit entry records the deletion by "Ana"
 
-  Scenario: Member cannot edit another member's transaction
+  # Ruling P344 (2026-11-19) replaces the old scenario "Member cannot edit another member's transaction":
+  # any OWNER, ADMIN or MEMBER corrects any movement, and only a VIEWER is refused.
+  Scenario: Member corrects another member's transaction and the audit names them
     Given "Luis" is MEMBER of "Household" and "Ana" created an expense there
     When "Luis" edits that expense
+    Then the expense is changed
+    And an audit entry records "Luis", the timestamp, and the change
+
+  Scenario: Viewer cannot edit a transaction
+    Given "Sofía" is VIEWER of "Household" and "Ana" created an expense there
+    When "Sofía" edits that expense
     Then the result is the error "InsufficientRole"
 
   Scenario: Transactions in a closed period cannot change

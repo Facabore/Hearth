@@ -81,7 +81,7 @@ describe("RestoreTransaction (ruling P185)", () => {
     expect(store.rows[0]!.deletedAt).not.toBeNull();
   });
 
-  it("lets OWNER and ADMIN restore any transaction, a MEMBER only their own, a VIEWER none", async () => {
+  it("lets every member who records money restore any transaction (P344, S1), a VIEWER none", async () => {
     const { deps, store } = householdLedger();
     const deleted = anExpense("2026-10-20", 3_000_000n, {
       spaceId: "space-household",
@@ -91,10 +91,10 @@ describe("RestoreTransaction (ruling P185)", () => {
     store.rows.push(deleted);
     const restore = createRestoreTransaction(deps);
     const as = (userId: string) => restore({ spaceId: "space-household", userId, transactionId: deleted.id });
-    expect(codeOf(await as("u-luis"))).toBe("InsufficientRole");
     expect(codeOf(await as("u-sofi"))).toBe("InsufficientRole");
     expect(store.rows[0]!.deletedAt).not.toBeNull();
-    expect(unwrap(await as("u-juan")).deletedAt).toBeNull();
+    expect(unwrap(await as("u-luis")).deletedAt).toBeNull();
+    expect(store.rows[0]!.deletedAt).toBeNull();
   });
 
   it("keeps a member who left at their settled zero: their deleted expense stays deleted", async () => {

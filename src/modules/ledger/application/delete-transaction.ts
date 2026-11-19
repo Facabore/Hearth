@@ -1,5 +1,5 @@
 import { domainError, err, type Result } from "@/shared/kernel";
-import { canModify, deletionChanges, softDelete } from "../domain/transaction";
+import { canCorrect, deletionChanges, softDelete } from "../domain/transaction";
 import { ensureCurrentParties, openPeriod } from "./checks";
 import type { LedgerDeps } from "./deps";
 import { followLinkedHalf } from "./linked-half";
@@ -21,7 +21,7 @@ export const createDeleteTransaction =
       if (!membership.ok) return membership;
       const current = await deps.transactions.findById(membership.value.spaceId, input.transactionId);
       if (!current) return err(domainError("TransactionNotFound"));
-      if (!canModify(membership.value.role, current.createdBy, input.userId)) {
+      if (!canCorrect(membership.value.role)) {
         return err(domainError("InsufficientRole"));
       }
       const open = await openPeriod(deps, current.spaceId, current.date);

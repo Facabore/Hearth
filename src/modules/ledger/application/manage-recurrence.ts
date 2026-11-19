@@ -68,7 +68,7 @@ type MovementEffect =
 /**
  * Every recurrence write starts here, inside its transaction: the membership (an archived space refuses, HU-E1-09),
  * the recurrence under its row lock (read under the lock, preflight N4), then the role (ruling P30): its creator
- * changes it, OWNER and ADMIN change anyone's (canModify, as for transactions, HU-E4-06). Then D9: a recurrence that
+ * changes it, OWNER and ADMIN change anyone's (canModify, HU-E4-06; P344 lets any writer correct a movement, not a recurrence). Then D9: a recurrence that
  * moves money into or out of a member's own account is changed or resumed by that member only, its creator, who
  * owns the account because defining it checked as much.
  */

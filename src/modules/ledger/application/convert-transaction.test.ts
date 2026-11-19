@@ -283,7 +283,7 @@ describe("ConvertTransaction (issue #195)", () => {
     expect(converted.warnings).toEqual([]);
   });
 
-  it("applies the edit role rules in a shared space: a MEMBER converts only their own, a VIEWER none", async () => {
+  it("applies the edit role rules in a shared space: a MEMBER converts any (P344), a VIEWER none", async () => {
     const { deps, store } = householdLedger();
     const anas = anExpense(date, 6_000_000n, {
       spaceId: "space-household",
@@ -299,7 +299,12 @@ describe("ConvertTransaction (issue #195)", () => {
       sourceAccountId: ACCOUNTS.bancolombia.id,
       destinationAccountId: ACCOUNTS.nequi.id,
     };
-    for (const userId of ["u-luis", "u-sofi"]) {
+    // P344 (S1): Luis may convert Ana's movement, but its new version is recorded by him under the rules of recording,
+    // so Ana's accounts stay hers (D9); a VIEWER never gets that far.
+    for (const [userId, code] of [
+      ["u-luis", "AccountNotOwned"],
+      ["u-sofi", "InsufficientRole"],
+    ] as const) {
       expect(
         codeOf(
           await convert({
@@ -310,9 +315,9 @@ describe("ConvertTransaction (issue #195)", () => {
             to,
           }),
         ),
-      ).toBe("InsufficientRole");
+      ).toBe(code);
     }
-    expect(store.rows).toHaveLength(1);
+    expect(store.rows).toEqual([anas]);
   });
 });
 

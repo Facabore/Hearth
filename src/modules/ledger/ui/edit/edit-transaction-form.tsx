@@ -26,7 +26,6 @@ import { initialOf, draftOf } from "./edit-initial";
 import { editBodyOf, ifMatchOf } from "./edit-request";
 
 const contribution = (tx: TransactionDto) => tx.type === "TRANSFER" && tx.payerMemberId !== null;
-
 /**
  * Issue #195: the kinds the tabs offer. A personal space converts among the three; a shared space with a fund, the
  * owner's ruling, between an expense and a contribution to the fund (it holds no income or own transfer, D9).

@@ -95,7 +95,7 @@ export {
   type EditTransaction,
   type EditTransactionInput,
 } from "./edit-transaction";
-export { createListAudit, type ListAudit } from "./list-audit";
+export { createListAudit, type AuditItem, type ListAudit } from "./list-audit";
 export {
   createConvertAccountMovements,
   type AccountMovementsConversion,

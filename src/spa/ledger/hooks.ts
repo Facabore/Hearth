@@ -1,11 +1,13 @@
-import { useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQueries } from "@tanstack/react-query";
 import type { TransactionDetail } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
+import type { Api } from "@/shared/ui/api/client";
 import type { CategoryGroupDto, MeDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
 import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { homeQueryOf, pageQuery, transactionQuery } from "./queries";
+import { read } from "../read";
+import { homeQueryOf, ledgerKeys, pageQuery, transactionQuery } from "./queries";
 
 export { useViewer } from "../viewer";
 
@@ -46,6 +48,26 @@ export const memberNamesOf = (
   members: readonly { readonly id: string; readonly displayName: string }[],
 ): Record<string, string> => Object.fromEntries(members.map((m) => [m.id, m.displayName]));
 
+/**
+ * Ruling P344 (S7): a movement's history, read each time its sheet opens (an edit elsewhere adds to it); a failed read
+ * leaves the history out, never the sheet.
+ */
+export const transactionAuditQuery = (api: Api, spaceId: string, transactionId: string) =>
+  queryOptions({
+    // Under its detail's key, so whatever forgets the detail forgets its history too; kept out of `queries.ts`, which
+    // every ledger route loads, since only the sheet reads it (ADR 0004).
+    queryKey: [...ledgerKeys.transaction(spaceId, transactionId), "audit"],
+    staleTime: 0,
+    queryFn: async () =>
+      (
+        await read(
+          api.GET("/api/v1/spaces/{spaceId}/transactions/{transactionId}/audit", {
+            params: { path: { spaceId, transactionId } },
+          }),
+        )
+      ).items,
+  });
+
 /** Ruling P189: the detail sheet's data behind `?tx=`, or nothing while no row is open. */
 export const useTransactionDetail = (
   viewer: Viewer,
@@ -61,6 +83,11 @@ export const useTransactionDetail = (
     ...accountsQuery(api, personalSpaceOf(spaces).id, "all"),
     enabled: open && shared,
   });
+  // P344 (S7): the history never holds the sheet up; it shows once read.
+  const audit = useQuery({
+    ...transactionAuditQuery(api, space.id, transactionId ?? ""),
+    enabled: open && read.data?.tx != null,
+  });
   if (!open || !read.data) return undefined;
   const items = shared ? (members.data ?? []) : [];
   return {
@@ -73,6 +100,7 @@ export const useTransactionDetail = (
       memberId: items.find((m) => m.userId === me.id)?.id ?? null,
     },
     ownAccountNames: shared ? Object.fromEntries((own.data ?? []).map((a) => [a.id, a.name])) : {},
+    history: audit.data,
   };
 };
 

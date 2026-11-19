@@ -580,12 +580,15 @@
       "edit": "Edit",
       "delete": "Delete",
       "note": {
-        "onlyOwner": "Only {name} can edit it, because the money moves through their account. You can delete it.",
-        "SETTLEMENT": "A payment between members is not edited: delete it and record it again from Balances.",
         "CONTRIBUTION": "A guest's contribution is not edited: delete it and record it again.",
-        "PAID_FOR_FUND": "Part of an expense paid for the fund: it can't be edited. Deleting it deletes the other part too."
+        "PAID_FOR_FUND": "Part of an expense paid for the fund: it can't be edited. Deleting it deletes the other part too.",
+        "GIFT": "Part of a gift: it can't be edited. Deleting it deletes the other part too."
       },
-      "open": "Open the details of {name}"
+      "open": "Open the details of {name}",
+      "leavesFrom": "Leaves from",
+      "arrivesAt": "Arrives at",
+      "unassigned": "No account assigned",
+      "choose": "{side, select, out {Leaves from · choose the account it left} other {Arrives at · choose the account it reached}}"
     },
     "edit": {
       "title": "Edit transaction",
@@ -593,7 +596,14 @@
       "kind": "Type: {type}",
       "reload": "Load the latest version",
       "reloadNote": "The changes you typed will be discarded.",
-      "convertNote": "Saving changes this movement to {type}. You can undo it from the notice."
+      "convertNote": "Saving changes this movement to {type}. You can undo it from the notice.",
+      "paymentTitle": "Edit payment",
+      "paid": "{payer} paid {receiver}",
+      "payer": "Who paid",
+      "receiver": "Who received",
+      "unassigned": "Unassigned",
+      "othersPick": "{side, select, out {Leaves from} other {Arrives at}} · only {name} chooses their account",
+      "othersAccount": "{side, select, out {Leaves from} other {Arrives at}} · only {name} changes it"
     },
     "toast": {
       "saved": {
@@ -857,6 +867,15 @@
     },
     "direct": {
       "noKey": "This category belongs only to your space {space}. Choose a default category to split the expense."
+    },
+    "history": {
+      "title": "History",
+      "someone": "Someone",
+      "did": "{who, select, me {You} other {{actor}}} {action, select, registered {recorded} deleted {deleted} restored {restored} other {changed}}",
+      "thing": "{kind, select, SETTLEMENT {the payment} EXPENSE {the expense} INCOME {the income} FUND_CONTRIBUTION {the contribution} TRANSFER {the transfer} other {the movement}}",
+      "field": "{field, select, payer {who paid} receiver {who received} amount {the amount} date {the date} time {the time} account {the account} description {the description} category {the category} split {how it's split} other {the movement}}",
+      "fromTo": "{change}: {from} → {to}",
+      "at": "{date}, {time}"
     }
   },
   "recurrences": {

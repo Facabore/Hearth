@@ -10,8 +10,7 @@ import {
   type Result,
 } from "@/shared/kernel";
 import {
-  canModify,
-  changedDebits,
+  canCorrect,
   changesBetween,
   linkedHalfOf,
   reviseTransaction,
@@ -49,23 +48,6 @@ export interface EditTransactionInput {
 }
 
 export type EditTransaction = (input: EditTransactionInput) => Promise<Result<Transaction>>;
-
-/**
- * D9: a new amount debits its personal accounts again, so only their owner may change it, even when
- * money.editAny lets OWNER or ADMIN edit the rest. Any writer may spend the shared fund.
- */
-const ownedDebits = async (
-  deps: Pick<LedgerDeps, "accounts">,
-  accountIds: readonly string[],
-  userId: string,
-): Promise<Result<void>> => {
-  for (const accountId of accountIds) {
-    const account = await deps.accounts.find(accountId);
-    if (account?.isSharedFund === true) continue;
-    if (account?.ownerUserId !== userId) return err(domainError("AccountNotOwned"));
-  }
-  return ok(undefined);
-};
 
 /** A sole payment's or an income's leg as stored, as money in the account's currency; none when there is no leg. */
 const storedLeg = (amount: bigint | undefined, currency: string | undefined): Money[] => {
@@ -196,7 +178,17 @@ const revisedWithLegs = async (
     parts.destinationAccountId !== undefined;
   if (!moved) return ok(tx);
   if (tx.type === "EXPENSE" || tx.type === "INCOME") return recordedLegs(deps, space, current, tx, priced);
-  return withAccountLegs(deps, space, tx, priced?.known ?? knownAmountsOf(current));
+  // P344 (S4): with the amount unchanged, a settlement's side that keeps its account keeps what it moved, also an
+  // explicit exchange (P342 S5); a newly named account in another currency moves by the date's rate, as recording
+  // suggests (`settlementLegOf` without a typed leg).
+  const kept =
+    current.type === "SETTLEMENT"
+      ? [
+          ...storedLeg(current.sourceAmount, current.sourceCurrency),
+          ...storedLeg(current.destinationAmount, current.destinationCurrency),
+        ]
+      : [];
+  return withAccountLegs(deps, space, tx, priced?.known ?? [...knownAmountsOf(current), ...kept]);
 };
 
 /**
@@ -210,31 +202,6 @@ const auditedChanges = (current: Transaction, revised: Transaction): ChangeSet =
     : { currency: { from: current.currency, to: revised.currency } }),
 });
 
-/**
- * D9, P342: the accounts the edit debits again: those whose debited amount changes (`changedDebits`), and an expense's
- * paying accounts when its currency or what they moved in their own currency (their leg) changes.
- */
-const debitedAgain = (current: Transaction, revised: Transaction): string[] => {
-  const accounts = new Set(changedDebits(current, revised));
-  if (current.type === "EXPENSE" && revised.type === "EXPENSE") {
-    const legsOf = (tx: Expense, accountId: string) =>
-      tx.payments
-        .filter((p) => p.accountId === accountId)
-        .map((p) => `${p.accountAmount ?? ""} ${p.accountCurrency ?? ""}`)
-        .join();
-    for (const { accountId } of current.payments) {
-      if (accountId === null) continue;
-      if (
-        current.currency !== revised.currency ||
-        legsOf(current, accountId) !== legsOf(revised, accountId)
-      ) {
-        accounts.add(accountId);
-      }
-    }
-  }
-  return [...accounts];
-};
-
 export const createEditTransaction =
   (deps: LedgerDeps): EditTransaction =>
   (input) =>
@@ -245,7 +212,7 @@ export const createEditTransaction =
       if (!membership.ok) return membership;
       const current = await deps.transactions.findById(membership.value.spaceId, input.transactionId);
       if (!current) return err(domainError("TransactionNotFound"));
-      if (!canModify(membership.value.role, current.createdBy, input.userId)) {
+      if (!canCorrect(membership.value.role)) {
         return err(domainError("InsufficientRole"));
       }
       if (input.expectedVersion !== null && input.expectedVersion !== current.version) {
@@ -255,10 +222,22 @@ export const createEditTransaction =
       const { description, categoryId, date, occurredAt, timeZone } = input.changes;
       // Ruling P322, D26: either half of a gift or of an expense paid for the fund keeps the amount and the date of the
       // other, and the fund stays the payer of the expense; delete and record again.
+      // P344: so does who paid and received, and from or into which account (as P188 had it before).
       if (linkedHalfOf(current) !== null) {
-        const moved = (["amount", "date", "occurredAt", "timeZone", "accountId", "payments"] as const).find(
-          (field) => input.changes[field] !== undefined,
-        );
+        const moved = (
+          [
+            "amount",
+            "date",
+            "occurredAt",
+            "timeZone",
+            "accountId",
+            "payments",
+            "payerMemberId",
+            "receivingMemberId",
+            "sourceAccountId",
+            "destinationAccountId",
+          ] as const
+        ).find((field) => input.changes[field] !== undefined);
         if (moved) return err(domainError("FieldNotEditable", { field: moved }));
       }
       // Issue #246: a closed period refuses a real change, and an edit that changes nothing answers the movement as it
@@ -310,11 +289,14 @@ export const createEditTransaction =
       const changes = auditedChanges(current, revised.value);
       if (Object.keys(changes).length === 0) return ok(current);
       if (!open.ok) return open;
-      const debits = await ownedDebits(deps, debitedAgain(current, revised.value), input.userId);
-      if (!debits.ok) return debits;
+      // P344 (S3): a changed debit on another member's account is a correction like any other, kept in the audit below;
+      // only a newly named account must be the editor's own (`editedParts`).
       // HU-E1-08, HU-E1-12: a new amount, payer or split must not move the balance of a member who left. Both
       // versions count: a fund-paid expense has no parties, but a member-paid revision of it would move its shares'.
-      if (changes.amount || changes.currency || changes.payments || changes.shares) {
+      // P344 (S4): nor a settlement's new payer or receiver.
+      const partiesMove =
+        changes.payments || changes.shares || changes.payerMemberId || changes.receivingMemberId;
+      if (changes.amount || changes.currency || partiesMove) {
         for (const version of [current, revised.value]) {
           const parties = await ensureCurrentParties(deps, membership.value.spaceId, version);
           if (!parties.ok) return parties;

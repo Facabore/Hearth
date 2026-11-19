@@ -47,9 +47,14 @@ const payerOf = (tx: TransactionDto, shared: SharedExpenseContext): Payer => {
   if (paid.memberId === null) return { kind: "FUND", accountId: paid.accountId! };
   const member = shared.members.find((m) => m.id === paid.memberId);
   if (member && member.userId === null) return { kind: "GUEST", memberId: paid.memberId };
-  // P333 (P168 amended): another member who paid with their own money, so no account of theirs moved.
-  if (paid.accountId === null && paid.memberId !== shared.meMemberId)
-    return { kind: "MEMBER", memberId: paid.memberId };
+  // P333 (P168 amended): another member who paid with their own money; P344 (S3): from their account, which the edit
+  // keeps and only they change.
+  if (paid.memberId !== shared.meMemberId)
+    return {
+      kind: "MEMBER",
+      memberId: paid.memberId,
+      ...(paid.accountId ? { accountId: paid.accountId } : {}),
+    };
   return { kind: "ME", memberId: paid.memberId, accountId: paid.accountId };
 };
 
@@ -89,7 +94,10 @@ const contributionSplitOf = (tx: TransactionDto, shared: SharedExpenseContext): 
     payer:
       payer && payer.userId === null
         ? { kind: "GUEST", memberId: payer.id }
-        : { kind: "ME", memberId: tx.payerMemberId!, accountId: tx.sourceAccountId },
+        : // P344 (S3): another member's contribution keeps their account, which only they change.
+          tx.payerMemberId !== shared.meMemberId
+          ? { kind: "MEMBER", memberId: tx.payerMemberId!, accountId: tx.sourceAccountId }
+          : { kind: "ME", memberId: tx.payerMemberId!, accountId: tx.sourceAccountId },
   };
 };
 

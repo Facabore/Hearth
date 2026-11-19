@@ -153,10 +153,8 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
       "Juan 150.000 COP",
     ]);
     expect(definition("División")).toContain("Iguales");
-    expect(norm(screen.getByRole("dialog").textContent)).toContain(
-      "Solo Juan puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
-    );
-    expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
+    // P344: anyone who records money corrects it; only Juan still chooses his account.
+    expect(screen.getByRole("link", { name: "Editar" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Eliminar" })).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);
   });
@@ -322,7 +320,7 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
     expect(definition("Hacia")).toBe("Visa · 100 USD");
   });
 
-  it("shows a settlement's two members and why it is not edited", () => {
+  it("shows a settlement's two members and their accounts, and offers Editar to a MEMBER who is no party (P344)", () => {
     const settlement = transactionDto({
       id: "t-5",
       type: "SETTLEMENT",
@@ -330,14 +328,22 @@ describe("transaction detail sheet (rulings P189, P190)", () => {
       amount: cop(50_000),
       payerMemberId: "m-juan",
       receivingMemberId: "m-ana",
+      destinationAccountId: "a-ana",
     });
-    open(detailOf(settlement, [anaMember, juan], { ...ana, memberId: "m-ana" }));
-    expect(definition("Desde")).toBe("Juan");
-    expect(definition("Hacia")).toBe("Ana (tú)");
-    expect(norm(screen.getByRole("dialog").textContent)).toContain(
-      "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
+    const luis = memberDto({ id: "m-luis", userId: "u-luis", displayName: "Luis", role: "MEMBER" });
+    open(
+      detailOf(settlement, [anaMember, juan, luis], { userId: "u-luis", role: "MEMBER", memberId: "m-luis" }),
     );
-    expect(screen.queryByRole("link", { name: "Editar" })).toBeNull();
+    expect(definition("Desde")).toBe("Juan");
+    expect(definition("Hacia")).toBe("Ana");
+    expect(definition("Llega a")).toBe("Cuenta de Ana");
+    // Juan's side has no account, and only Juan could say which: nobody else is asked to.
+    expect(terms()).not.toContain("Sale de");
+    expect(screen.queryByText("Sin cuenta asignada")).toBeNull();
+    expect(screen.getByRole("link", { name: "Editar" })).toHaveAttribute(
+      "href",
+      `/spaces/s-1/transactions/t-5/edit?returnTo=${encodeURIComponent(ORIGIN)}`,
+    );
     expect(screen.getByRole("button", { name: "Eliminar" })).toBeInTheDocument();
   });
 
@@ -608,5 +614,149 @@ describe("a balance adjustment's detail (design Q4, #329)", () => {
   it("offers a VIEWER nothing to do with it", () => {
     open(detailOf(adjustment, [], { userId: "u-sofi", role: "VIEWER", memberId: null }));
     expect(screen.queryByRole("button", { name: "Eliminar" })).toBeNull();
+  });
+});
+
+describe("a side that is the viewer's with no account (P344, S6, board 2)", () => {
+  const sofia = memberDto({ id: "m-sofia", userId: "u-sofia", displayName: "Sofía", role: "MEMBER" });
+  const juanViews = { userId: "u-juan", role: "MEMBER", memberId: "m-juan" } as const;
+  const payment = transactionDto({
+    id: "t-pay",
+    type: "SETTLEMENT",
+    description: "",
+    amount: cop(947_000),
+    payerMemberId: "m-juan",
+    receivingMemberId: "m-ana",
+    sourceAccountId: null,
+    destinationAccountId: "a-ana",
+  });
+  const EDIT = `/spaces/s-1/transactions/t-pay/edit?returnTo=${encodeURIComponent(ORIGIN)}`;
+
+  it("tells the payer it has no account and takes them to choose the one it left from", async () => {
+    open(detailOf(payment, [anaMember, juan, sofia], juanViews));
+    const assign = screen.getByRole("link", { name: /Sin cuenta asignada/ });
+    expect(norm(assign.textContent)).toBe("Sin cuenta asignada Sale de · elige de qué cuenta salió");
+    expect(assign).toHaveAttribute("href", EDIT);
+    expect(definition("Llega a")).toBe("Cuenta de Ana");
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("tells the receiver which account it reached", () => {
+    open(
+      detailOf({ ...payment, sourceAccountId: "a-juan", destinationAccountId: null }, [anaMember, juan], {
+        ...ana,
+        memberId: "m-ana",
+      }),
+    );
+    expect(norm(screen.getByRole("link", { name: /Sin cuenta asignada/ }).textContent)).toBe(
+      "Sin cuenta asignada Llega a · elige a qué cuenta llegó",
+    );
+    expect(definition("Sale de")).toBe("Cuenta de Juan");
+  });
+
+  it("asks the viewer who paid an expense with no account to choose it", () => {
+    const dinner = transactionDto({
+      id: "t-pay",
+      type: "EXPENSE",
+      amount: cop(60_000),
+      payments: [{ memberId: "m-juan", accountId: null, amount: cop(60_000) }],
+      shares: [{ memberId: "m-juan", amount: cop(60_000), splitMethod: "EQUAL" }],
+    });
+    open(detailOf(dinner, [anaMember, juan], juanViews));
+    expect(screen.getByRole("link", { name: /Sin cuenta asignada/ })).toHaveAttribute("href", EDIT);
+  });
+
+  it("says it in English too", () => {
+    open(detailOf(payment, [anaMember, juan], juanViews), ORIGIN, "en");
+    expect(norm(screen.getByRole("link", { name: /No account assigned/ }).textContent)).toBe(
+      "No account assigned Leaves from · choose the account it left",
+    );
+  });
+});
+
+describe("a movement's history (P344, S7, board 2)", () => {
+  const sofia = memberDto({ id: "m-sofia", userId: "u-sofia", displayName: "Sofía", role: "MEMBER" });
+  const juanViews = { userId: "u-juan", role: "MEMBER", memberId: "m-juan" } as const;
+  const payment = transactionDto({
+    id: "t-pay",
+    type: "SETTLEMENT",
+    description: "",
+    amount: cop(947_000),
+    payerMemberId: "m-juan",
+    receivingMemberId: "m-ana",
+    destinationAccountId: "a-ana",
+    createdBy: "u-ana",
+    createdAt: "2026-11-13T02:41:00.000Z",
+  });
+  const history: NonNullable<TransactionDetail["history"]> = [
+    {
+      id: "au-1",
+      action: "UPDATED",
+      actorUserId: "u-ana",
+      actorName: "Ana",
+      at: "2026-11-13T02:45:00.000Z",
+      changes: { payerMemberId: { from: "m-sofia", to: "m-juan" } },
+    },
+    {
+      id: "au-2",
+      action: "UPDATED",
+      actorUserId: "u-gone",
+      actorName: null,
+      at: "2026-11-14T15:00:00.000Z",
+      changes: {
+        amount: { from: "94700000", to: "95000000" },
+        sourceAmount: { from: null, to: "95000000 COP" },
+        date: { from: "2026-11-12", to: "2026-11-11" },
+      },
+    },
+    {
+      id: "au-3",
+      action: "DELETED",
+      actorUserId: "u-juan",
+      actorName: "Juan",
+      at: "2026-11-15T15:00:00.000Z",
+      changes: { amount: { from: "95000000", to: null } },
+    },
+    {
+      id: "au-4",
+      action: "RESTORED",
+      actorUserId: "u-juan",
+      actorName: "Juan",
+      at: "2026-11-15T15:01:00.000Z",
+      changes: { amount: { from: null, to: "95000000" } },
+    },
+  ];
+  const lines = (name = "Historial") =>
+    within(screen.getByRole("list", { name }))
+      .getAllByRole("listitem")
+      .map((item) => norm(item.textContent));
+
+  it("lists who changed what and when, newest first, ending with who recorded it", async () => {
+    open({ ...detailOf(payment, [anaMember, juan, sofia], juanViews), history });
+    expect(lines()).toEqual([
+      "Restauraste el pago 15/11/2026, 10:01",
+      "Eliminaste el pago 15/11/2026, 10:00",
+      "Alguien cambió el monto: 947.000 COP → 950.000 COP Alguien cambió la fecha: 12/11/2026 → 11/11/2026 14/11/2026, 10:00",
+      "Ana cambió quién pagó: Sofía → Juan 12/11/2026, 21:45",
+      "Ana registró el pago 12/11/2026, 21:41",
+    ]);
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it("reads in English", () => {
+    open(
+      { ...detailOf(payment, [anaMember, juan, sofia], juanViews), history: history.slice(0, 1) },
+      ORIGIN,
+      "en",
+    );
+    expect(lines("History")).toEqual([
+      "Ana changed who paid: Sofía → Juan 12/11/2026, 21:45",
+      "Ana recorded the payment 12/11/2026, 21:41",
+    ]);
+  });
+
+  it("shows no history while it has not been read", () => {
+    open(detailOf(payment, [anaMember, juan], juanViews));
+    expect(screen.queryByRole("list", { name: "Historial" })).toBeNull();
   });
 });

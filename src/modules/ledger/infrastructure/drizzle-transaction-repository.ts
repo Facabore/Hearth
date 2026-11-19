@@ -103,6 +103,9 @@ export class DrizzleTransactionRepository implements TransactionRepository, Acco
         // P186: an edit may move an income's or a transfer's accounts; an expense keeps both null (transactions_shape).
         sourceAccountId: row.sourceAccountId,
         destinationAccountId: row.destinationAccountId,
+        // P344 (S4): an edit may change a settlement's payer and receiver, and a fund contribution's payer.
+        payerMemberId: row.payerMemberId,
+        receivingMemberId: row.receivingMemberId,
         updatedAt: transaction.updatedAt,
         deletedAt: transaction.deletedAt,
         version: expectedVersion + 1,

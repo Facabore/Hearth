@@ -3,19 +3,28 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useMemo, type ReactNode } from "react";
+import { useId, useMemo, type ReactNode } from "react";
 import { categoryPath } from "@/modules/categories/ui";
 import { memberLabel } from "@/modules/spaces/ui";
 import { Button, Icon, ProblemNotice, Sheet } from "@/shared/ui";
 import { browserApi, type Api } from "@/shared/ui/api/client";
 import type { TransactionDto } from "@/shared/ui/api/dto";
 import { useProblemMessage } from "@/shared/ui/api/use-problem-message";
-import { formatDate, formatDirectedMoney, formatMoney, formatTimeAt } from "@/shared/ui/format/formatters";
+import {
+  formatDate,
+  formatDirectedMoney,
+  formatMoney,
+  formatTime,
+  formatTimeAt,
+  type Formats,
+} from "@/shared/ui/format/formatters";
 import { zoneCity } from "@/shared/ui/format/zones";
 import { withReturnTo } from "@/shared/ui/navigation/auth-redirect";
+import { nowIn } from "@/shared/ui/time/when";
 import type { RowContext } from "../transaction-row";
 import type { TransactionDetail } from "./transaction-detail";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
+import { historyOf, type HistoryChange } from "./history";
 import { actionsFor, type TransactionActions } from "./transaction-actions";
 import { useDeleteWithUndo } from "./use-delete-with-undo";
 
@@ -33,6 +42,7 @@ function Actions({
   spaceId,
   tx,
   origin,
+  editHref,
   actions,
   noteText,
   api: injected,
@@ -40,6 +50,7 @@ function Actions({
   readonly spaceId: string;
   readonly tx: TransactionDto;
   readonly origin: string;
+  readonly editHref: string;
   readonly actions: TransactionActions;
   readonly noteText: string;
   readonly api?: Api;
@@ -63,7 +74,7 @@ function Actions({
       >
         {actions.edit ? (
           <Button asChild variant="secondary" size="lg">
-            <Link href={withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin)}>
+            <Link href={editHref}>
               <Icon name="pencil" />
               {t("edit")}
             </Link>
@@ -77,6 +88,86 @@ function Actions({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Ruling P344 (S7, board 2): who changed the movement, what and when, newest first, ending with who recorded it. A
+ * value is shown "from → to" only where it can be named: a member, an amount, a date, an account the viewer reads.
+ */
+function History({
+  tx,
+  entries,
+  viewerUserId,
+  nameOfMember,
+  nameOfAccount,
+  nameOfCategory,
+  formats,
+  zone,
+}: {
+  readonly tx: TransactionDto;
+  readonly entries: NonNullable<TransactionDetail["history"]>;
+  readonly viewerUserId: string;
+  readonly nameOfMember: (memberId: string) => string | undefined;
+  readonly nameOfAccount: (accountId: string) => string | undefined;
+  readonly nameOfCategory: (categoryId: string) => string | undefined;
+  readonly formats: Formats;
+  readonly zone: string;
+}) {
+  const t = useTranslations("ledger");
+  const id = useId();
+  const kind = tx.type === "TRANSFER" && tx.payerMemberId !== null ? "FUND_CONTRIBUTION" : tx.type;
+  const valueOf = (field: HistoryChange["field"], value: string | null): string | undefined => {
+    if (value === null)
+      return field === "account"
+        ? t("edit.unassigned")
+        : field === "description"
+          ? t("detail.noDescription")
+          : undefined;
+    if (field === "payer" || field === "receiver") return nameOfMember(value);
+    if (field === "amount") return formatMoney({ amount: value, currency: tx.amount.currency }, formats);
+    if (field === "date") return formatDate(value, formats);
+    if (field === "account") return nameOfAccount(value);
+    if (field === "category") return nameOfCategory(value);
+    return field === "description" ? value : undefined;
+  };
+  return (
+    <section className="flex flex-col gap-1 pt-2">
+      <h3 id={id} className="text-sm text-muted">
+        {t("history.title")}
+      </h3>
+      <ul aria-labelledby={id} className="flex flex-col">
+        {historyOf(tx, entries).map((line) => {
+          const who = line.actorUserId === viewerUserId ? "me" : "other";
+          const actor = line.actorName ?? nameOfMember(line.actorUserId) ?? t("history.someone");
+          const did = t("history.did", { who, actor, action: line.action });
+          const sentences =
+            line.changes.length === 0
+              ? [`${did} ${t("history.thing", { kind })}`]
+              : line.changes.map((change) => {
+                  const said = `${did} ${t("history.field", { field: change.field })}`;
+                  const from = change.from === undefined ? undefined : valueOf(change.field, change.from);
+                  const to = change.to === undefined ? undefined : valueOf(change.field, change.to);
+                  return from !== undefined && to !== undefined
+                    ? t("history.fromTo", { change: said, from, to })
+                    : said;
+                });
+          const at = nowIn(new Date(line.at), zone);
+          return (
+            <li key={line.id} className="flex flex-col border-b border-line py-2 last:border-b-0">
+              {sentences.map((sentence) => (
+                <span key={sentence} className="break-words text-ink">
+                  {sentence}{" "}
+                </span>
+              ))}
+              <span className="text-sm text-muted">
+                {t("history.at", { date: formatDate(at.date, formats), time: formatTime(at.wall, formats) })}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -189,6 +280,11 @@ export function TransactionSheet({
   } else {
     addAccount(t("form.from"), labelOf(tx.payerMemberId));
     addAccount(t("form.to"), labelOf(tx.receivingMemberId));
+    // P344 (board 2): each side's account, the viewer's by name and another's as theirs (P190); a forgiven debt has none.
+    if (tx.settlementReason !== "FORGIVENESS") {
+      addAccount(t("detail.leavesFrom"), accountOf(tx.sourceAccountId, tx.payerMemberId));
+      addAccount(t("detail.arrivesAt"), accountOf(tx.destinationAccountId, tx.receivingMemberId));
+    }
   }
   // Issue #223: a fund contribution is named as its row names it (`kindOf` in movement-kind.ts), and so is a forgiven
   // debt (P322). Kept inline: importing that module would pull a whole shared chunk into this sheet's (ADR 0004).
@@ -214,12 +310,25 @@ export function TransactionSheet({
       })
     : t(`type.${kind}`);
   const actions = actionsFor(tx, viewer, members);
+  const editHref = withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin);
+  // P344 (S6, board 2): a side that is the viewer's and has no account says so, and its edit chooses one (S2).
+  const mine = (memberId: string | null | undefined) => memberId != null && memberId === viewer.memberId;
+  const unassigned: ("out" | "in")[] = !actions.edit
+    ? []
+    : tx.type === "EXPENSE"
+      ? tx.payments.length === 1 && paid?.accountId === null && mine(paid.memberId)
+        ? ["out"]
+        : []
+      : tx.type === "SETTLEMENT" && tx.settlementReason !== "FORGIVENESS"
+        ? [
+            ...(tx.sourceAccountId === null && mine(tx.payerMemberId) ? (["out"] as const) : []),
+            ...(tx.destinationAccountId === null && mine(tx.receivingMemberId) ? (["in"] as const) : []),
+          ]
+        : kind === "FUND_CONTRIBUTION" && tx.sourceAccountId === null && mine(tx.payerMemberId)
+          ? ["out"]
+          : [];
   const note = actions.note;
-  const noteText = note
-    ? note.key === "onlyOwner"
-      ? t("detail.note.onlyOwner", { name: note.name })
-      : t(`detail.note.${note.key}`)
-    : "";
+  const noteText = note ? t(`detail.note.${note.key}`) : "";
 
   return (
     <Sheet
@@ -235,6 +344,7 @@ export function TransactionSheet({
             spaceId={spaceId}
             tx={tx}
             origin={origin}
+            editHref={editHref}
             actions={actions}
             noteText={noteText}
             api={api}
@@ -252,6 +362,20 @@ export function TransactionSheet({
           <Definition key={term} term={term}>
             {value}
           </Definition>
+        ))}
+        {unassigned.map((side) => (
+          <div key={side}>
+            <dt className="sr-only">{t(side === "out" ? "detail.leavesFrom" : "detail.arrivesAt")}</dt>
+            <dd>
+              <Link href={editHref} className="flex min-h-11 items-center gap-3 py-1 text-left">
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="font-medium text-accent">{t("detail.unassigned")}</span>{" "}
+                  <span className="text-sm text-muted">{t("detail.choose", { side })}</span>
+                </span>
+                <Icon name="chevronRight" size={20} className="shrink-0 text-muted" />
+              </Link>
+            </dd>
+          </div>
         ))}
         {/* P342 (board 4): the expense stays in its own currency; this is what the paying account moved in its own. */}
         {paidLeg && paidByViewer ? (
@@ -279,6 +403,18 @@ export function TransactionSheet({
           </Definition>
         ) : null}
       </dl>
+      {detail.history ? (
+        <History
+          tx={tx}
+          entries={detail.history}
+          viewerUserId={viewer.userId}
+          nameOfMember={(id) => (memberOf(id) ?? members.find((m) => m.userId === id))?.displayName}
+          nameOfAccount={(id) => accountNames[id] ?? ownAccountNames[id]}
+          nameOfCategory={(id) => categoryPath(groups, id) || undefined}
+          formats={formats}
+          zone={viewerZone}
+        />
+      ) : null}
     </Sheet>
   );
 }

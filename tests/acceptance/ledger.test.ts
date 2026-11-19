@@ -772,7 +772,7 @@ describe("restore a deleted transaction (ruling P185)", () => {
     expect(response.status).toBe(404);
   });
 
-  it("applies the delete role rules: a MEMBER restores only their own, a VIEWER none, an OWNER any", async () => {
+  it("applies the delete role rules: a MEMBER restores any (P344), a VIEWER none, an OWNER any", async () => {
     const h = await household();
     const sofi = await joinHousehold(h, "Sofi", "VIEWER");
     const anas = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
@@ -784,14 +784,13 @@ describe("restore a deleted transaction (ruling P185)", () => {
       const response = await restoreOf(user, id);
       return [response.status, response.status === 200 ? undefined : (await response.json()).code];
     };
-    expect(await answer(h.juan, anas.id)).toEqual([403, "InsufficientRole"]);
     expect(await answer(sofi, juans.id)).toEqual([403, "InsufficientRole"]);
-    expect((await auditOf(h.ana, anas.id)).map((e) => e.action)).toEqual(["DELETED"]);
-    expect(await answer(h.juan, juans.id)).toEqual([200, undefined]);
-    expect(await answer(h.ana, anas.id)).toEqual([200, undefined]);
+    expect((await auditOf(h.ana, juans.id)).map((e) => e.action)).toEqual(["DELETED"]);
+    expect(await answer(h.juan, anas.id)).toEqual([200, undefined]);
+    expect(await answer(h.ana, juans.id)).toEqual([200, undefined]);
     expect((await auditOf(h.ana, anas.id)).map((e) => [e.action, e.actorUserId])).toEqual([
       ["DELETED", h.ana.userId],
-      ["RESTORED", h.ana.userId],
+      ["RESTORED", h.juan.userId],
     ]);
   });
 });

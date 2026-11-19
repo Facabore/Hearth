@@ -580,12 +580,15 @@
       "edit": "Editar",
       "delete": "Eliminar",
       "note": {
-        "onlyOwner": "Solo {name} puede editarlo, porque el dinero se mueve en su cuenta. Puedes eliminarlo.",
-        "SETTLEMENT": "Un pago entre miembros no se edita: elimínalo y regístralo de nuevo desde Saldos.",
         "CONTRIBUTION": "El aporte de un invitado no se edita: elimínalo y regístralo de nuevo.",
-        "PAID_FOR_FUND": "Es parte de un gasto pagado por el fondo: no se edita. Si lo eliminas, también se elimina la otra parte."
+        "PAID_FOR_FUND": "Es parte de un gasto pagado por el fondo: no se edita. Si lo eliminas, también se elimina la otra parte.",
+        "GIFT": "Es parte de un regalo: no se edita. Si lo eliminas, también se elimina la otra parte."
       },
-      "open": "Ver detalle de {name}"
+      "open": "Ver detalle de {name}",
+      "leavesFrom": "Sale de",
+      "arrivesAt": "Llega a",
+      "unassigned": "Sin cuenta asignada",
+      "choose": "{side, select, out {Sale de · elige de qué cuenta salió} other {Llega a · elige a qué cuenta llegó}}"
     },
     "edit": {
       "title": "Editar movimiento",
@@ -593,7 +596,14 @@
       "kind": "Tipo: {type}",
       "reload": "Cargar la última versión",
       "reloadNote": "Se descartarán los cambios que escribiste.",
-      "convertNote": "Al guardar, este movimiento cambia a {type}. Puedes deshacerlo desde el aviso."
+      "convertNote": "Al guardar, este movimiento cambia a {type}. Puedes deshacerlo desde el aviso.",
+      "paymentTitle": "Editar pago",
+      "paid": "{payer} le pagó a {receiver}",
+      "payer": "Quién pagó",
+      "receiver": "Quién recibió",
+      "unassigned": "Sin asignar",
+      "othersPick": "{side, select, out {Sale de} other {Llega a}} · solo {name} elige su cuenta",
+      "othersAccount": "{side, select, out {Sale de} other {Llega a}} · solo {name} la cambia"
     },
     "toast": {
       "saved": {
@@ -857,6 +867,15 @@
     },
     "direct": {
       "noKey": "Esta categoría es solo de tu espacio {space}. Elige una categoría predeterminada para dividir el gasto."
+    },
+    "history": {
+      "title": "Historial",
+      "someone": "Alguien",
+      "did": "{who, select, me {{action, select, registered {Registraste} deleted {Eliminaste} restored {Restauraste} other {Cambiaste}}} other {{actor} {action, select, registered {registró} deleted {eliminó} restored {restauró} other {cambió}}}}",
+      "thing": "{kind, select, SETTLEMENT {el pago} EXPENSE {el gasto} INCOME {el ingreso} FUND_CONTRIBUTION {el aporte} TRANSFER {la transferencia} other {el movimiento}}",
+      "field": "{field, select, payer {quién pagó} receiver {quién recibió} amount {el monto} date {la fecha} time {la hora} account {la cuenta} description {la descripción} category {la categoría} split {cómo se divide} other {el movimiento}}",
+      "fromTo": "{change}: {from} → {to}",
+      "at": "{date}, {time}"
     }
   },
   "recurrences": {

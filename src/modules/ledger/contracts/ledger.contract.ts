@@ -28,7 +28,7 @@ import { PALETTE } from "@/shared/kernel/style";
 import type {
   AccountUsage,
   ActivityItem,
-  AuditEntry,
+  AuditItem,
   ConversionTarget,
   ConvertedTransaction,
   EditChanges,
@@ -721,7 +721,8 @@ export const positionFromCursor = (raw: string): Result<TransactionPosition> => 
 /**
  * HU-E4-06, ruling P186: every field optional; an expense takes `accountId` (the requester pays it all from that
  * account) or `payments` and may send `split`, an income `accountId`, an own transfer `sourceAccountId` and
- * `destinationAccountId`.
+ * `destinationAccountId`. P344 (S4): a settlement also takes `payerMemberId`, `receivingMemberId` and the accounts of
+ * the requester's own side, and a fund contribution `payerMemberId` and `sourceAccountId`.
  */
 export const EditTransactionBodySchema = z
   .object({
@@ -743,8 +744,28 @@ export const EditTransactionBodySchema = z
     destinationAmount: MoneySchema.optional(),
     accountId: IdSchema.optional(),
     payments: z.array(PaymentBodySchema).max(MAX_PARTS).optional(),
-    sourceAccountId: IdSchema.optional(),
-    destinationAccountId: IdSchema.optional(),
+    /**
+     * Ruling P186: an own transfer's accounts. P344 (S2): also a settlement's (source: the payer's, destination: the
+     * receiver's) and a fund contribution's source, only on the requester's own side; null leaves that side with none.
+     */
+    sourceAccountId: IdSchema.nullable()
+      .optional()
+      .describe(
+        "An own transfer's source account (its creator's), a fund contribution's or a settlement's payer account. P344: on a settlement or a contribution only the requester's own side takes an account, or null for none; another member's side keeps its account while its member stays, and any other account answers AccountNotOwned.",
+      ),
+    destinationAccountId: IdSchema.nullable()
+      .optional()
+      .describe(
+        "An own transfer's destination account (its creator's), or a settlement's receiving account. P344: on a settlement only the requester's own side takes an account, or null for none. A fund contribution keeps its fund (FieldNotEditable).",
+      ),
+    /** P344 (S4): a settlement's or a fund contribution's payer; a side moved to another member has no account. */
+    payerMemberId: IdSchema.optional().describe(
+      "P344: a settlement's payer or a fund contribution's contributor, any current member (NotASpaceMember otherwise). A side moved to another member has no account unless the requester moves it to themselves and sends `sourceAccountId`.",
+    ),
+    /** P344 (S4): a settlement's receiver, distinct from its payer (InvalidSettlementParties). */
+    receivingMemberId: IdSchema.optional().describe(
+      "P344: a settlement's receiver, any current member other than the payer (InvalidSettlementParties). A side moved to another member has no account unless the requester moves it to themselves and sends `destinationAccountId`.",
+    ),
     /** Ruling P186: how an expense is split, as when recording; recomputed on the edited amount. */
     split: SplitBodySchema.optional(),
   })
@@ -791,6 +812,8 @@ export const editChangesFromBody = (body: z.infer<typeof EditTransactionBodySche
     payments,
     sourceAccountId: body.sourceAccountId,
     destinationAccountId: body.destinationAccountId,
+    payerMemberId: body.payerMemberId,
+    receivingMemberId: body.receivingMemberId,
     split: split.value,
   });
 };
@@ -799,21 +822,31 @@ export const AuditEntrySchema = z.object({
   id: z.string(),
   action: z.enum(["UPDATED", "DELETED", "RESTORED"]),
   actorUserId: z.string(),
+  /** P344 (S7): the actor's display name in the space; null when they are no longer a member. Additive. */
+  actorName: z
+    .string()
+    .nullable()
+    .optional()
+    .describe(
+      "P344: the actor's display name in the space, null when they are no current member of it. Additive: existing clients ignore it.",
+    ),
   at: z.iso.datetime(),
   /**
    * Changed values as strings (amounts in minor units); an expense's `payments` and `shares` are JSON
    * arrays (D8), and a deletion lists every value it retires with `to: null`. Issue #195: a conversion's
    * deletion carries `convertedTo` (the new movement's id) and the new movement starts with an UPDATED entry carrying
-   * `convertedFrom`; its undo writes the same keys back with `from` and `to` swapped.
+   * `convertedFrom`; its undo writes the same keys back with `from` and `to` swapped. P344: an edit of a settlement's
+   * members or a fund contribution's payer carries `payerMemberId` and `receivingMemberId`.
    */
   changes: z.record(z.string(), z.object({ from: z.string().nullable(), to: z.string().nullable() })),
 });
 export const ListAuditResponseSchema = z.object({ items: z.array(AuditEntrySchema) });
 
-export const auditEntryDto = (entry: AuditEntry): z.infer<typeof AuditEntrySchema> => ({
+export const auditEntryDto = (entry: AuditItem): z.infer<typeof AuditEntrySchema> => ({
   id: entry.id,
   action: entry.action,
   actorUserId: entry.actorUserId,
+  actorName: entry.actorName,
   at: entry.at.toISOString(),
   changes: entry.changes,
 });
@@ -1425,7 +1458,7 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
     patch: {
       operationId: "editTransaction",
       summary:
-        "Change description, date, time, category, amount, accounts, who paid or how it is split; send If-Match with the current ETag",
+        "Change description, date, time, category, amount, accounts, who paid, who received or how it is split; any member who records money corrects any movement (P344); send If-Match with the current ETag",
       ...securedByUser,
       requestParams: { path: TransactionPath, header: IfMatchHeader },
       requestBody: { content: jsonContent(EditTransactionBodySchema) },
@@ -1436,13 +1469,13 @@ export const ledgerPaths: ZodOpenApiPathsObject = {
         },
         ...problems({
           "401": "Unauthenticated",
-          "403": "InsufficientRole",
+          "403": "InsufficientRole, ForgivenessNotAllowed",
           "404": "SpaceNotFound, TransactionNotFound, CategoryNotFound, AccountNotFound",
           "409":
             "SharesDoNotMatchAmount, CategoryArchived, PeriodClosed, SpaceArchived, TransferHasNoCategory, SettlementHasNoCategory, AdjustmentHasNoCategory, AccountArchived, SameAccountTransfer, GuestHasNoAccounts, MixedFundPayment, FieldNotEditable",
           "412": "PreconditionFailed",
           "422":
-            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts",
+            "ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts",
         }),
       },
     },

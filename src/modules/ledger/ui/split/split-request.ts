@@ -11,8 +11,11 @@ import { previewSplit, type ParticipantValue, type SplitCheck, type SplitMethod 
 export type Payer =
   | { readonly kind: "ME"; readonly memberId: string; readonly accountId: string | null }
   | { readonly kind: "GUEST"; readonly memberId: string }
-  /** P333: a registered member other than the recorder, who paid with their own money. */
-  | { readonly kind: "MEMBER"; readonly memberId: string }
+  /**
+   * P333: a registered member other than the recorder, who paid with their own money. P344: an edit keeps the account
+   * the member paid from, which only they change (S3); a new record names none.
+   */
+  | { readonly kind: "MEMBER"; readonly memberId: string; readonly accountId?: string | null }
   | { readonly kind: "FUND"; readonly accountId: string }
   /**
    * D26, P328: "pagaste por el fondo": the recorder pays from their account for the fund, which Hearth records as their
@@ -101,9 +104,11 @@ export const sharedPartsOf = (
           payments: [
             payer.kind === "FUND"
               ? { memberId: null, accountId: payer.accountId, amount }
-              : payer.kind === "GUEST" || payer.kind === "MEMBER"
+              : payer.kind === "GUEST"
                 ? { memberId: payer.memberId, accountId: null, amount }
-                : { memberId: payer.memberId, accountId: payer.accountId, amount },
+                : payer.kind === "MEMBER"
+                  ? { memberId: payer.memberId, accountId: payer.accountId ?? null, amount }
+                  : { memberId: payer.memberId, accountId: payer.accountId, amount },
           ],
         };
   if (draft.method === "BY_ALLOCATION") return { ok: true, ...paid, split: null };

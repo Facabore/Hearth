@@ -84,6 +84,8 @@ export function SharedWhoPaidSheet(props: SharedWhoPaidSheetProps) {
         ...chosen,
         payer: { kind: "FOR_FUND", memberId: context.meMemberId, accountId: ownAccount, fundAccountId: id },
       });
+    // P344: the member who already paid stays as they were, with the account only they change.
+    else if (kind === "other" && payer.kind === "MEMBER" && payer.memberId === id) onChange(chosen);
     else if (kind === "other" && member)
       onChange({
         ...chosen,

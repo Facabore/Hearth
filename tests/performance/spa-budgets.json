@@ -12,6 +12,7 @@
     "ledger/record-behind.tsx": 2,
     "routes/record-backdrop.tsx": 35,
     "routes/edit-transaction.tsx": 45,
+    "ledger/edit-payment.tsx": 48,
     "routes/pending.tsx": 7,
     "ledger/writes.ts": 7,
     "mutations.ts": 3,

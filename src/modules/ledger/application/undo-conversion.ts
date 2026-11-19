@@ -1,6 +1,6 @@
 import { domainError, err, ok, type Result } from "@/shared/kernel";
 import {
-  canModify,
+  canCorrect,
   deletionChanges,
   restorationChanges,
   restore,
@@ -58,7 +58,7 @@ export const createUndoConversion =
       const spaceId = membership.value.spaceId;
       const original = await deps.transactions.findById(spaceId, input.transactionId, true);
       if (!original) return err(domainError("TransactionNotFound"));
-      if (!canModify(membership.value.role, original.createdBy, input.userId)) {
+      if (!canCorrect(membership.value.role)) {
         return err(domainError("InsufficientRole"));
       }
       if (original.deletedAt === null) return ok(original);
@@ -75,9 +75,7 @@ export const createUndoConversion =
         return err(domainError("ConversionSuperseded"));
       }
       if (converted) {
-        if (!canModify(membership.value.role, converted.createdBy, input.userId)) {
-          return err(domainError("InsufficientRole"));
-        }
+        // P344: the role checked above corrects the converted movement too, whoever recorded it.
         const convertedOpen = await openPeriod(deps, converted.spaceId, converted.date);
         if (!convertedOpen.ok) return convertedOpen;
         const convertedParties = await ensureCurrentParties(deps, spaceId, converted);
