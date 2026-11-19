@@ -3,6 +3,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { useTranslations } from "use-intl";
 import {
   firstStepsOf,
+  Hero,
   HomeSummary,
   UnifiedRecent,
   mergedFeed,
@@ -11,7 +12,12 @@ import {
   UnifiedSummary,
   unifiedMonthOf,
 } from "@/modules/ledger/ui";
-import { myConsumptionHref, PlanCard } from "@/modules/reporting/ui";
+import {
+  ApproximateSpending,
+  approximateFigureOf,
+  myConsumptionHref,
+  PlanCard,
+} from "@/modules/reporting/ui";
 import dynamic from "next/dynamic";
 import { SpaceStanding } from "@/modules/spaces/ui";
 import type { PeriodDto } from "@/shared/ui/api/dto";
@@ -19,7 +25,7 @@ import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { useHome, useTransactionDetail, useViewer } from "../ledger/hooks";
 import { showsUnifiedMonth } from "../load";
-import { FEED_ROWS, homeQueryOf, neighboursOf } from "../ledger/queries";
+import { FEED_ROWS, homeQueryOf, neighboursOf, readsMonthView } from "../ledger/queries";
 import { lineReportQuery, myActivityQuery, unifiedViewQuery } from "../reads";
 import { spaceStandingSlot } from "../shell";
 import { useTitle } from "../title";
@@ -68,10 +74,25 @@ export function SpaceHome() {
   // U4 (#209): the personal home of someone with other spaces also says what her month costs across all of them, and
   // opens Mi consumo for that period, a stacked screen (U10, ruling P267).
   const unified = showsUnifiedMonth(viewer);
+  // Ruling P342 (S6): a month that may hold several currencies reads it too, for its "≈" figure; the loader read it ahead.
   const allSpaces = useQuery({
     ...unifiedViewQuery(api, spaceId, page.period.label),
-    enabled: unified,
+    enabled: readsMonthView(viewer, page, accounts),
   }).data;
+  const figure = allSpaces ? approximateFigureOf(allSpaces, context.formats) : null;
+  const approximate =
+    figure !== null && allSpaces?.spending
+      ? {
+          amount: figure,
+          line: (
+            <ApproximateSpending
+              currency={allSpaces.currency}
+              spending={allSpaces.spending}
+              formats={context.formats}
+            />
+          ),
+        }
+      : undefined;
   // Ruling P306: Recientes merges her shared and direct spaces' latest movements from the period's start.
   const activity = useQuery({
     ...myActivityQuery(api, spaceId, page.period.startDate, FEED_ROWS, page.period.endDate),
@@ -106,7 +127,18 @@ export function SpaceHome() {
               policy={space.periodPolicy}
               formats={context.formats}
               consumptionHref={myConsumptionHref(space, page.period.label)}
+              approximate={approximate}
             />
+          ) : approximate ? (
+            // Ruling P342 (S6): alone in her personal space, a month in several currencies reads "≈" over its line.
+            <Hero
+              period={page.period}
+              policy={space.periodPolicy}
+              formats={context.formats}
+              amount={approximate.amount}
+            >
+              {approximate.line}
+            </Hero>
           ) : undefined
         }
         plan={

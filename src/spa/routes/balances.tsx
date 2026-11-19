@@ -9,7 +9,7 @@ import { controlsFor, personalSpaceOf } from "@/modules/spaces/ui";
 import { nowIn } from "@/shared/ui/time/when";
 import { useApis } from "../api";
 import { accountsQuery, membersQuery, netBalancesQuery, suggestionsQuery } from "../reads";
-import { myFriendsQuery } from "../shell";
+import { myFriendsApproximateQuery, myFriendsQuery } from "../shell";
 import { forgetFriendLink, rememberedFriendLink } from "../spaces/friend-link";
 import { friendRequestsQuery } from "../spaces/friends";
 import { useTitle } from "../title";
@@ -38,6 +38,8 @@ function FriendsRoute({ spaceId }: { readonly spaceId: string }) {
   const { api } = useApis();
   const { me } = useViewer(spaceId);
   const friends = useSuspenseQuery(myFriendsQuery(api)).data;
+  // Ruling P342 (S6): the "≈" totals, which Amigos' read already brought.
+  const approximate = useQuery(myFriendsApproximateQuery(api)).data;
   const requests = useQuery(friendRequestsQuery(api)).data;
   const [addHandle] = useState(rememberedFriendLink);
   useEffect(() => {
@@ -53,6 +55,7 @@ function FriendsRoute({ spaceId }: { readonly spaceId: string }) {
         requests={requests}
         myHandle={me.handle}
         addHandle={addHandle}
+        approximate={approximate ?? undefined}
       />
     </div>
   );

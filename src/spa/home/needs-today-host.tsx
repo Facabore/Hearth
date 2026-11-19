@@ -10,7 +10,7 @@ import {
   pendingOccurrencesQuery,
   type OccurrenceDto,
 } from "../recurring-pending/queries";
-import { myBalancesQuery, myFriendsQuery } from "../shell";
+import { myBalancesQuery, myFriendsApproximateQuery, myFriendsQuery } from "../shell";
 
 /** Ruling P342 (S4): a balance's nets, one per currency and never converted; an older API's `net` alone otherwise. */
 const netsOf = (b: MyBalanceDto): readonly MyBalanceDto["net"][] =>
@@ -81,14 +81,21 @@ export function NeedsTodayHost({
   const personal = space.kind === "PERSONAL";
   const shared = spaces.some((s) => s.kind !== "PERSONAL");
   const balances = useQuery({ ...myBalancesQuery(api), enabled: shared }).data ?? [];
+  const withFriends = personal && spaces.some((s) => s.kind === "DIRECT");
   const friends =
     useQuery({
       ...myFriendsQuery(api),
-      enabled: personal && spaces.some((s) => s.kind === "DIRECT"),
+      enabled: withFriends,
       // An optional line: it reads again on each Inicio and never retries.
       refetchOnMount: true,
       retry: false,
     }).data ?? [];
+  // Ruling P342 (S6): the "≈" totals come from that same read.
+  const approximate = useQuery({
+    ...myFriendsApproximateQuery(api),
+    enabled: withFriends,
+    retry: false,
+  }).data;
   const asked = spaces.filter(
     (s) => (personal || s.id === space.id) && controlsFor(s.role, s.kind).recordMoney,
   );
@@ -120,7 +127,12 @@ export function NeedsTodayHost({
   return (
     <>
       {personal ? (
-        <FriendsLine friends={friends} href={`/spaces/${space.id}/balances`} formats={formats} />
+        <FriendsLine
+          friends={friends}
+          approximate={approximate ?? undefined}
+          href={`/spaces/${space.id}/balances`}
+          formats={formats}
+        />
       ) : null}
       <NeedsToday
         pending={pending}

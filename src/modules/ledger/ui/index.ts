@@ -13,7 +13,7 @@ export {
 export { HomeSummary } from "./home/home-summary";
 export { NeedsToday, type Owe, type OwedToday, type PendingToday } from "./home/needs-today";
 export { mergedFeed, unifiedMonthOf, type FeedEntry, type UnifiedMonth } from "./home/feed";
-export { UnifiedSummary } from "./home/unified-summary";
+export { Hero, UnifiedSummary } from "./home/unified-summary";
 export { PeriodStepper } from "./home/period-stepper";
 export { UnifiedRecent } from "./home/unified-home";
 export { firstStepsOf } from "./home/first-steps";

@@ -65,7 +65,8 @@ export function Hero({
  * Ruling P324 (amends P306's open parts): the personal Inicio's hero for someone with other spaces. One figure, what her
  * month cost her, and one line that says what it holds: "Incluye tu parte en Hogar. Solo tú $ X · con otros $ Y". That
  * line opens Mi consumo (#287), which explains why her month is not what she paid. What she paid for others lives in
- * the action line under it. It draws in the first paint, so it never moves what is under it.
+ * the action line under it. It draws in the first paint, so it never moves what is under it. Ruling P342 (S6): a month
+ * in several currencies shows the route's "≈" figure and its line instead, which still opens Mi consumo.
  */
 export function UnifiedSummary({
   unified,
@@ -73,6 +74,7 @@ export function UnifiedSummary({
   policy,
   formats,
   consumptionHref,
+  approximate,
 }: {
   readonly unified: UnifiedMonth;
   readonly page: TransactionPageDto;
@@ -80,6 +82,8 @@ export function UnifiedSummary({
   readonly formats: Formats;
   /** #287 (audit pass 3, A7): Mi consumo of this period, which says why the month is not what was paid. */
   readonly consumptionHref?: string | undefined;
+  /** Ruling P342 (S6): the month across currencies, "≈ 1.660.000 COP", and the line that says what it adds up. */
+  readonly approximate?: { readonly amount: string; readonly line: ReactNode } | undefined;
 }) {
   const t = useTranslations("home");
   const money = (amount: MoneyDto) => formatMoney(amount, formats);
@@ -92,11 +96,19 @@ export function UnifiedSummary({
     ? `${t("includes", { count: others.length, space: first.name })} ${t("parts", { solo, others: withOthers })}`
     : t("income", { amount: income });
   // Ruling P335: the line's words wrap, its amounts stay whole.
-  const sub = <AmountText text={text} />;
+  const sub = approximate?.line ?? <AmountText text={text} />;
   return (
-    <Hero period={page.period} policy={policy} formats={formats} amount={money(unified.consumed)}>
+    <Hero
+      period={page.period}
+      policy={policy}
+      formats={formats}
+      amount={approximate?.amount ?? money(unified.consumed)}
+    >
       {consumptionHref ? (
-        <Link href={consumptionHref} className="flex min-h-11 items-center text-sm text-muted">
+        <Link
+          href={consumptionHref}
+          className={`flex min-h-11 text-sm text-muted ${approximate ? "flex-col justify-center" : "items-center"}`}
+        >
           {sub}
         </Link>
       ) : (

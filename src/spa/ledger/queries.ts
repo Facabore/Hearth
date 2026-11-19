@@ -5,7 +5,12 @@ import type { ListFilter } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
 import { addDays, type LocalDate } from "@/shared/kernel/local-date";
 import type { Api } from "@/shared/ui/api/client";
-import type { MyTransactionPageDto, TransactionDto, TransactionPageDto } from "@/shared/ui/api/dto";
+import type {
+  AccountDto,
+  MyTransactionPageDto,
+  TransactionDto,
+  TransactionPageDto,
+} from "@/shared/ui/api/dto";
 import { problemFrom, type Problem } from "@/shared/ui/api/problem";
 import { outcomeOf } from "@/shared/ui/api/readers";
 import { nowIn } from "@/shared/ui/time/when";
@@ -207,6 +212,24 @@ export const neighboursOf = (api: Api, spaceId: string, period: { startDate: str
   );
 
 /**
+ * Ruling P342 (S6): whether Inicio reads the person's month across her spaces (`/me/unified-view`), whose "≈" figure
+ * stands in for the hero when the month is in several currencies. A personal Inicio with other spaces always does
+ * (P306). One alone does only when an account of hers or one of the period's latest rows is in another currency than
+ * her space's, so a person whose money is all in one currency makes no extra request.
+ */
+export const readsMonthView = (
+  viewer: Viewer,
+  page: Pick<TransactionPageDto, "items">,
+  accounts: readonly Pick<AccountDto, "balance">[],
+): boolean =>
+  showsUnifiedMonth(viewer) ||
+  (viewer.space.kind === "PERSONAL" &&
+    [
+      ...accounts.map((account) => account.balance.currency),
+      ...page.items.map((tx) => tx.amount.currency),
+    ].some((currency) => currency !== viewer.space.currency));
+
+/**
  * HU-E9-01's home: its latest rows, the active accounts, every category (old rows keep their names) and the detail
  * behind `?tx=`; on the personal Inicio, the period `?period=` names (ruling P310) and its line dashboard (P311).
  */
@@ -215,6 +238,7 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
   const { api } = load.apis;
   const viewer = await viewerOf(load, spaceId);
   const page = ensure(pageQuery(api, spaceId, homeQueryOf(viewer, period)));
+  const accounts = ensure(accountsQuery(api, spaceId, "active"));
   const unified = viewer !== null && showsUnifiedMonth(viewer);
   // Ruling P306: a personal home with other spaces counts her month across all of them in its headline, so the screen
   // waits for it (a failed read leaves the plain headline), and the headline never moves what is under it. Her spaces'
@@ -234,15 +258,20 @@ export const loadHome = async (load: Load, spaceId: string, transactionId?: stri
     .catch(() => undefined);
   await Promise.all([
     page,
-    unified
-      ? page.then(({ period }) => settled(ensure(unifiedViewQuery(api, spaceId, period.label))))
+    // Ruling P342 (S6): and so does a month that may hold several currencies, whose hero is its "≈" figure.
+    viewer
+      ? Promise.all([page, accounts]).then(([shown, held]) =>
+          readsMonthView(viewer, shown, held.items)
+            ? settled(ensure(unifiedViewQuery(api, spaceId, shown.period.label)))
+            : undefined,
+        )
       : undefined,
     // Rulings P311 and P324: the personal line "Tu plan de {mes}" and a shared hero's plan draw in the first paint, so
     // they never move what is under them; a failed read only leaves them out.
     viewer?.space.kind === "PERSONAL" || viewer?.space.kind === "SHARED"
       ? page.then(({ period }) => settled(ensure(lineReportQuery(api, spaceId, period.label))))
       : undefined,
-    ensure(accountsQuery(api, spaceId, "active")),
+    accounts,
     ensure(categoriesQuery(api, spaceId, "all")),
     // P307: a shared or direct space's rows name its members.
     viewer && sharedSpace(viewer.space) ? ensure(membersQuery(api, spaceId)) : undefined,

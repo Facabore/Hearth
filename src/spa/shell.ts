@@ -1,7 +1,7 @@
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { notFound, useMatches } from "@tanstack/react-router";
 import { resolveLocale } from "@/i18n/locale";
-import type { FriendDto } from "@/modules/balances/ui";
+import type { FriendDto, FriendsApproximateDto } from "@/modules/balances/ui";
 import {
   activeSpaceOf,
   type AppShellProps,
@@ -45,7 +45,34 @@ export const myFriendsQuery = (api: Api) =>
   queryOptions<readonly FriendDto[]>({
     refetchOnMount: false,
     queryKey: friendsKey,
-    queryFn: async () => (await read(api.GET("/api/v1/me/friends"))).items,
+    queryFn: async ({ client }) => {
+      const { items, approximate } = await read(api.GET("/api/v1/me/friends"));
+      // Ruling P342 (S6): the "≈" totals ride on the same answer; kept beside the rows, whose shape the writes rely on.
+      client.setQueryData(friendsApproximateKey, approximate ?? null);
+      return items;
+    },
+  });
+
+/** Ruling P342 (S6): under Amigos' key, so whatever reads Amigos again reads them again too. */
+const friendsApproximateKey = [...friendsKey, "approximate"] as const;
+
+/**
+ * Ruling P342 (S6): Amigos' totals added up in one currency at today's rate, null when every debt is in one currency.
+ * `myFriendsQuery`'s read fills it, so it costs no request of its own; only when that answer is gone does it read
+ * Amigos again, once.
+ */
+export const myFriendsApproximateQuery = (api: Api) =>
+  queryOptions<FriendsApproximateDto | null>({
+    queryKey: friendsApproximateKey,
+    staleTime: Infinity,
+    refetchOnMount: false,
+    queryFn: async ({ client }) => {
+      await client.fetchQuery(myFriendsQuery(api));
+      const kept = client.getQueryData<FriendsApproximateDto | null>(friendsApproximateKey);
+      if (kept !== undefined) return kept;
+      await client.fetchQuery({ ...myFriendsQuery(api), staleTime: 0 });
+      return client.getQueryData<FriendsApproximateDto | null>(friendsApproximateKey) ?? null;
+    },
   });
 
 declare module "@tanstack/react-router" {

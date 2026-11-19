@@ -344,6 +344,26 @@ describe("the personal space shows everything (ruling P306)", () => {
     expect(line).toHaveClass("min-h-11");
   });
 
+  it("draws a figure across currencies as given, with its line still opening Mi consumo (P342, S6)", () => {
+    renderWithIntl(
+      <UnifiedSummary
+        unified={unified}
+        page={octoberPage}
+        policy={{ kind: "MONTHLY", day: 1 }}
+        formats={rowContext.formats}
+        consumptionHref="/spaces/sp-personal/my-consumption?period=2026-10"
+        approximate={{ amount: "≈ 1.660.000 COP", line: <span>1.240.000 COP · 80 USD</span> }}
+      />,
+    );
+    expect(norm(screen.getByRole("region", { name: "Resumen del período" }).textContent)).toBe(
+      "Gastaste en octubre≈ 1.660.000 COP1.240.000 COP · 80 USD",
+    );
+    expect(screen.getByRole("link", { name: "1.240.000 COP · 80 USD" })).toHaveAttribute(
+      "href",
+      "/spaces/sp-personal/my-consumption?period=2026-10",
+    );
+  });
+
   it("says her income instead when she shared nothing this month", () => {
     renderWithIntl(
       <UnifiedSummary
