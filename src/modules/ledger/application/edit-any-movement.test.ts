@@ -206,6 +206,21 @@ describe("P344 (S2, S3): an expense's payments name the editor's own accounts, a
     expect(audit.entries).toEqual([]);
   });
 
+  it("refuses taking Juan's account off his own payment while he stays its payer, and changes nothing", async () => {
+    const { audit, change, juans, rowOf, store } = world();
+    const before = store.netOf(ACCOUNTS.davivienda.id);
+    expect(
+      codeOf(
+        await change("u-ana", juans.id, {
+          payments: [{ memberId: "member-juan", accountId: null, amount: money(1_000_000n) }],
+        }),
+      ),
+    ).toBe("AccountNotOwned");
+    expect(rowOf(juans.id)).toEqual(juans);
+    expect(store.netOf(ACCOUNTS.davivienda.id)).toBe(before);
+    expect(audit.entries).toEqual([]);
+  });
+
   it("lets the editor take the payment with an account of their own, or with none", async () => {
     const { change, juans, rowOf } = world();
     unwrap(await change("u-ana", juans.id, { accountId: ACCOUNTS.bancolombia.id }));

@@ -50,9 +50,18 @@ const paymentOf = async (
   if (accountId !== null && kept?.some((p) => p.memberId === memberId && p.accountId === accountId)) {
     return ok({ memberId, accountId, amount });
   }
-  // P344 (S2): an edit may also leave the editor's own payment with no account, as anyone else's.
-  const unassigned = paidBy?.userId != null && (paidBy.userId !== userId || kept !== undefined);
-  if (accountId === null && unassigned) return ok({ memberId, accountId: null, amount });
+  if (accountId === null && paidBy?.userId != null) {
+    // P333: recording leaves another member's payment with no account. P344: an edit also leaves the editor's own
+    // with none (S2), and another member's when it is new to the expense or had none (S3); taking an account off
+    // another member's payment while they stay its payer is not the editor's to do (AccountNotOwned).
+    const own = paidBy.userId === userId;
+    const unassigned = { memberId, accountId: null, amount };
+    if (kept === undefined) {
+      if (!own) return ok(unassigned);
+    } else if (own || !kept.find((p) => p.memberId === memberId)?.accountId) {
+      return ok(unassigned);
+    } else return err(domainError("AccountNotOwned"));
+  }
   const debit = { required: true, debitedBy: userId };
   return map(await partyAccount(deps, members, memberId, accountId, debit), (account) => ({
     memberId,
