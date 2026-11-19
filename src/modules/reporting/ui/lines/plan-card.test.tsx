@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
 import { cop, normalized } from "../../../../../tests/support/ui/dto";
-import { dashLine, e7Dashboard } from "../../../../../tests/support/ui/plan-dto";
+import { dashLine, e7Dashboard, twoCurrencyDashboard } from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { PlanCard } from "./plan-card";
 
@@ -218,5 +218,38 @@ describe('Inicio\'s plan card, "Tu plan de {mes}" (ruling P311, #275)', () => {
     );
     expect(screen.getByText("Your November plan")).toBeInTheDocument();
     expect(normalized(screen.getByText(/left of/).textContent)).toBe("1.190.000 COP left of 4.000.000 COP");
+  });
+});
+
+describe("Inicio's plan card in several currencies (ruling P342 S7)", () => {
+  const twoCurrencies = (variant: "line" | "hero", locale: "es" | "en" = "es") =>
+    renderWithIntl(
+      <PlanCard
+        dashboard={twoCurrencyDashboard()}
+        policy={MONTHLY}
+        formats={BUILT_IN_FORMATS}
+        href={HREF}
+        variant={variant}
+      />,
+      { locale },
+    );
+
+  it("adds the other currencies to the line, in words, never converted", () => {
+    twoCurrencies("line");
+    expect(normalized(screen.getByText(/^Te quedan/).textContent)).toBe(
+      "Te quedan 1.286.000 COP y 55 USD de 3.100.000 COP y 100 USD",
+    );
+  });
+
+  it("names every currency's plan under a shared hero", () => {
+    twoCurrencies("hero");
+    expect(normalized(screen.getByRole("link").textContent)).toContain("de 3.100.000 COP y 100 USD del plan");
+  });
+
+  it("speaks English", () => {
+    twoCurrencies("line", "en");
+    expect(normalized(screen.getByText(/left of/).textContent)).toBe(
+      "1.286.000 COP and 55 USD left of 3.100.000 COP and 100 USD",
+    );
   });
 });

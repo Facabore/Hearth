@@ -361,7 +361,13 @@
       "lineSpent": "Gastado {spent} de {planned}",
       "lineSaved": "Ahorrado {spent} de {planned}",
       "unbudgetedCaption": "Gastado {spent} en categorías sin rubro",
-      "unbudgetedCaptionIn": "Gastado {spent} en categorías sin rubro · {categories}"
+      "unbudgetedCaptionIn": "Gastado {spent} en categorías sin rubro · {categories}",
+      "and": "{first} y {last}",
+      "alsoAvailable": "y {amounts}",
+      "budgetLeft": "quedan {amount}",
+      "budgetOver": "se pasó {amount}",
+      "lineSpentUnbudgeted": "Gastado {spent} sin presupuesto",
+      "lineSavedUnbudgeted": "Ahorrado {spent} sin presupuesto"
     },
     "noPlan": {
       "titlePersonal": "Aún no tienes un plan para {period}",

@@ -3,11 +3,25 @@ import { useTranslations } from "next-intl";
 import { CarryText } from "@/modules/budgeting/ui";
 import { Badge, VisuallyHidden } from "@/shared/ui";
 import type { LineDashboardDto, MoneyDto, SpaceDto } from "@/shared/ui/api/dto";
-import { Amount, AMOUNT_ROW, AMOUNT_ROW_AMOUNT, AMOUNT_ROW_LABEL } from "@/shared/ui/atoms/amount";
+import {
+  Amount,
+  AMOUNT_ROW,
+  AMOUNT_ROW_AMOUNT,
+  AMOUNT_ROW_LABEL,
+  AmountText,
+} from "@/shared/ui/atoms/amount";
 import { formatMoney, type Formats } from "@/shared/ui/format/formatters";
 import { barWidth } from "./bar";
 
 type Line = LineDashboardDto["lines"][number];
+type LineBudget = NonNullable<Line["budgets"]>[number];
+
+/**
+ * Ruling P342 (S7): a line drawn per currency, one budget row each, when it budgets or spent in another currency than
+ * the space's; a line only in the space currency (or an older API without `budgets`) is drawn as before.
+ */
+const budgetsApart = (line: Line): readonly LineBudget[] | null =>
+  line.budgets?.some((budget) => budget.planned.currency !== line.planned.currency) ? line.budgets : null;
 
 const isNegative = (money: { readonly amount: string }) => money.amount.startsWith("-");
 
@@ -48,6 +62,14 @@ export function LineDashboard({
   // #283 (ruling P313): the headline is what is left to spend, savings apart, as the API answers it.
   const left = spending.available ?? totals.available;
   const money = (value: MoneyDto) => formatMoney(value, formats);
+  // Ruling P342 (S7): every currency of the plan apart, the space's first ("Quedan 1.286.000 COP y 55 USD").
+  const others = (dashboard.currencies ?? []).slice(1).map((currency) => currency.totals.withoutSavings);
+  const andList = (items: readonly string[]) =>
+    items.length < 2
+      ? (items[0] ?? "")
+      : t("and", { first: items.slice(0, -1).join(", "), last: items.at(-1)! });
+  const each = (own: MoneyDto, pick: (totals: (typeof others)[number]) => MoneyDto) =>
+    andList([money(own), ...others.map((totals) => money(pick(totals)))]);
   return (
     <>
       <section aria-labelledby={summary} className="flex flex-col gap-1 tabular-nums">
@@ -60,8 +82,22 @@ export function LineDashboard({
             {money(left)}
           </span>
         </p>
-        <p className="text-sm text-muted">
-          {t("totalSpent", { spent: money(spending.spent), planned: money(spending.planned) })}
+        {others.length > 0 ? (
+          <p data-also className="text-xl font-semibold text-ink [overflow-wrap:anywhere]">
+            <AmountText
+              text={t("alsoAvailable", {
+                amounts: others.map((totals) => money(totals.available)).join(", "),
+              })}
+            />
+          </p>
+        ) : null}
+        <p className="text-sm text-muted [overflow-wrap:anywhere]">
+          <AmountText
+            text={t("totalSpent", {
+              spent: each(spending.spent, (totals) => totals.spent),
+              planned: each(spending.planned, (totals) => totals.planned),
+            })}
+          />
         </p>
         {totals.saved && dashboard.lines.some((line) => line.funding === "SAVINGS") ? (
           <p className="text-sm text-muted">{t("totalSaved", { saved: money(totals.saved) })}</p>
@@ -119,6 +155,35 @@ export function LineList({
         const nameId = `${base}-${line.lineId}`;
         const done = onPlan(line);
         const saves = line.funding === "SAVINGS";
+        const apart = budgetsApart(line);
+        if (apart)
+          return (
+            <li
+              key={line.lineId}
+              data-line={line.lineId}
+              aria-labelledby={nameId}
+              className="flex flex-col gap-1.5 py-3"
+            >
+              <span id={nameId} data-name className={NAME}>
+                {line.name}
+              </span>
+              {apart.map((budget) => (
+                <BudgetRow key={budget.planned.currency} budget={budget} saves={saves} formats={formats} />
+              ))}
+              {line.carryOverFrom ? <CarryText line={line} policy={policy} formats={formats} /> : null}
+              {apart.map((budget) => (
+                <span key={budget.planned.currency} aria-hidden="true" className={TRACK}>
+                  <span
+                    data-bar
+                    className={`block h-full rounded-full ${
+                      !budget.budgeted ? "bg-muted" : budget.overspent ? "bg-owe" : "bg-accent"
+                    }`}
+                    style={{ width: `${barWidth(budget.spent, budget.planned, budget.carryOver)}%` }}
+                  />
+                </span>
+              ))}
+            </li>
+          );
         return (
           <li
             key={line.lineId}
@@ -191,5 +256,51 @@ export function LineList({
         </li>
       ) : null}
     </ul>
+  );
+}
+
+/**
+ * Board "Plan del mes · dos monedas" (ruling P342 S7): one currency of a line, what was spent of its budget at the
+ * left and its state in words at the right, "se pasó 40.000 COP" in the owe ink or "quedan 55 USD"; a currency the
+ * line has no budget for says what was spent in it without a budget, never converted.
+ */
+function BudgetRow({
+  budget,
+  saves,
+  formats,
+}: {
+  readonly budget: LineBudget;
+  readonly saves: boolean;
+  readonly formats: Pick<Formats, "numberFormat">;
+}) {
+  const t = useTranslations("reports.lines");
+  const money = (value: MoneyDto) => formatMoney(value, formats);
+  const spent = money(budget.spent);
+  const caption = budget.budgeted
+    ? t(saves ? "lineSaved" : "lineSpent", { spent, planned: money(budget.planned) })
+    : t(saves ? "lineSavedUnbudgeted" : "lineSpentUnbudgeted", { spent });
+  const over = budget.state === "OVER" && budget.overBy !== null;
+  return (
+    <div data-budget className={ROW}>
+      <span data-caption className={`${AMOUNT_ROW_LABEL} text-sm text-muted tabular-nums`}>
+        <AmountText text={caption} />
+      </span>
+      {budget.budgeted ? (
+        <span
+          data-state
+          className={`${AMOUNT_ROW_AMOUNT} text-sm font-semibold${over ? " text-owe-ink" : " text-ink"}`}
+        >
+          <AmountText
+            text={
+              onPlan(budget)
+                ? t("onPlan")
+                : over
+                  ? t("budgetOver", { amount: money(budget.overBy!) })
+                  : t("budgetLeft", { amount: money(budget.available) })
+            }
+          />
+        </span>
+      ) : null}
+    </div>
   );
 }

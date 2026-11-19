@@ -427,7 +427,8 @@
       "over": "{line} went over: {amount} more than planned",
       "overMore": "{line} went over: {amount} more than planned · and {count} more",
       "ofPlan": "of the {planned} plan",
-      "ofPlanOver": "{over} over the {planned} plan"
+      "ofPlanOver": "{over} over the {planned} plan",
+      "and": "{first} and {last}"
     },
     "today": {
       "title": "Needs you today",

@@ -66,6 +66,16 @@ export function PlanCard({
     available: withoutSavings?.available ?? dashboard.totals.available,
   };
   const money = (amount: MoneyDto) => formatMoney(amount, formats);
+  // Ruling P342 (S7): the other currencies of the plan follow the space's, in words, never converted ("y 55 USD").
+  const others = (dashboard.currencies ?? []).slice(1).map((currency) => currency.totals.withoutSavings);
+  const each = (own: MoneyDto, pick: (totals: (typeof others)[number]) => MoneyDto) => {
+    const items = [money(own), ...others.map((totals) => money(pick(totals)))];
+    return items.length < 2
+      ? money(own)
+      : t("and", { first: items.slice(0, -1).join(", "), last: items.at(-1)! });
+  };
+  // An overspent sentence speaks of the space currency's plan only: its overage is in that currency.
+  const planned = each(totals.planned, (other) => other.planned);
   const overspent = BigInt(totals.available.amount) < 0n;
   const overBy = money({ ...totals.available, amount: totals.available.amount.replace(/^-/, "") });
   const over = overOf(dashboard.lines);
@@ -84,7 +94,7 @@ export function PlanCard({
             text={
               overspent
                 ? t("ofPlanOver", { over: overBy, planned: money(totals.planned) })
-                : t("ofPlan", { planned: money(totals.planned) })
+                : t("ofPlan", { planned })
             }
           />
         </span>
@@ -122,7 +132,10 @@ export function PlanCard({
               text={
                 overspent
                   ? t("overspent", { over: overBy, planned: money(totals.planned) })
-                  : t("left", { available: money(totals.available), planned: money(totals.planned) })
+                  : t("left", {
+                      available: each(totals.available, (other) => other.available),
+                      planned,
+                    })
               }
             />
           </span>

@@ -5,6 +5,7 @@ import type {
   LineDashboardDto,
   LineTrendDto,
   MemberMatrixDto,
+  MoneyDto,
   PersonalSpendingByGroupDto,
   PersonalTrendDto,
   PlanLineDto,
@@ -13,7 +14,7 @@ import type {
   SpendingByGroupDto,
   UnifiedViewDto,
 } from "@/shared/ui/api/dto";
-import { accountDto, cop, spaceDto } from "./dto";
+import { accountDto, cop, money, spaceDto } from "./dto";
 
 /** "Household": Ana's shared space, OWNER, MONTHLY(1), COP. */
 export const householdDto = (overrides: Partial<SpaceDto> = {}): SpaceDto =>
@@ -69,6 +70,63 @@ export const e7Dashboard = (overrides: Partial<LineDashboardDto> = {}): LineDash
   ],
   ...overrides,
 });
+
+type DashBudget = NonNullable<DashLine["budgets"]>[number];
+/** One currency of a line's figures (ruling P342 S7): planned, spent and available; OVER with its overage below 0. */
+export const dashBudget = (
+  [planned, spent, available]: readonly [MoneyDto, MoneyDto, MoneyDto],
+  extra: Partial<DashBudget> = {},
+): DashBudget => {
+  const over = BigInt(available.amount) < 0n;
+  return {
+    budgeted: true,
+    planned,
+    spent,
+    carryOver: { amount: "0", currency: planned.currency },
+    available,
+    overspent: over,
+    state: over ? "OVER" : "OK",
+    overBy: over ? { amount: available.amount.slice(1), currency: available.currency } : null,
+    ...extra,
+  };
+};
+
+const dashTotals = (planned: MoneyDto, spent: MoneyDto, available: MoneyDto) => ({
+  planned,
+  spent,
+  available,
+  saved: { amount: "0", currency: planned.currency },
+  withoutSavings: { planned, spent, available },
+});
+
+/**
+ * Board "Plan del mes · dos monedas" (ruling P342 S7): Salidas budgets 300.000 COP and 100 USD, went 40.000 COP past
+ * the first and has 55 USD left of the second; the plan has 1.286.000 COP and 55 USD left.
+ */
+export const twoCurrencyDashboard = (): LineDashboardDto => {
+  const rent = dashLine("l-rent", "Arriendo", [2_000_000, 2_000_000, 0], { state: "HIGH" });
+  const food = dashLine("l-food", "Mercado", [800_000, 300_000, 500_000]);
+  const outings = dashLine("l-out", "Salidas", [300_000, 340_000, -40_000], { overspent: true });
+  return e7Dashboard({
+    lines: [
+      { ...rent, budgets: [dashBudget([rent.planned, rent.spent, rent.available], { state: "HIGH" })] },
+      { ...food, budgets: [dashBudget([food.planned, food.spent, food.available])] },
+      {
+        ...outings,
+        budgets: [
+          dashBudget([cop(300_000), cop(340_000), cop(-40_000)]),
+          dashBudget([money(100, "USD"), money(45, "USD"), money(55, "USD")]),
+        ],
+      },
+    ],
+    unbudgeted: null,
+    totals: dashTotals(cop(3_100_000), cop(2_640_000), cop(1_286_000)),
+    currencies: [
+      { unbudgeted: null, totals: dashTotals(cop(3_100_000), cop(2_640_000), cop(1_286_000)) },
+      { unbudgeted: null, totals: dashTotals(money(100, "USD"), money(45, "USD"), money(55, "USD")) },
+    ],
+  });
+};
 
 /** Ana, OWNER of Household. */
 export const spaceMemberDto = (overrides: Partial<SpaceMemberDto> = {}): SpaceMemberDto => ({

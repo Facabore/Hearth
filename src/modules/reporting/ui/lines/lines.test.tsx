@@ -1,8 +1,13 @@
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
-import { categoryDto, cop, groupDto, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
-import { e7Dashboard, householdDto } from "../../../../../tests/support/ui/plan-dto";
+import { categoryDto, cop, groupDto, money, normalized, spaceDto } from "../../../../../tests/support/ui/dto";
+import {
+  dashBudget,
+  e7Dashboard,
+  householdDto,
+  twoCurrencyDashboard,
+} from "../../../../../tests/support/ui/plan-dto";
 import { renderWithIntl } from "../../../../../tests/support/ui/render";
 import { BUILT_IN_FORMATS } from "@/shared/ui/format/formatters";
 import { LineDashboard } from "./line-dashboard";
@@ -492,5 +497,88 @@ describe("the plan in the household's words (#214)", () => {
     expect(within(row(/^Rent/)).getByText("On plan")).toBeInTheDocument();
     expect(caption(/^Savings/)).toBe("Saved 200.000 COP of 600.000 COP");
     expect(caption(/^Home/)).toBe("Spent 1.300.000 COP of 1.470.000 COP");
+  });
+});
+
+describe('the plan per currency (ruling P342 S7, board "Plan del mes · dos monedas")', () => {
+  const show = (dashboard = twoCurrencyDashboard(), locale: "es" | "en" = "es") =>
+    renderWithIntl(
+      <LineDashboard dashboard={dashboard} policy={householdDto().periodPolicy} formats={BUILT_IN_FORMATS} />,
+      { locale },
+    );
+  const budgetsOf = (name: RegExp) =>
+    [...screen.getByRole("listitem", { name }).querySelectorAll("[data-budget]")].map((budget) => [
+      normalized(budget.querySelector("[data-caption]")?.textContent),
+      normalized(budget.querySelector("[data-state]")?.textContent),
+    ]);
+
+  it("heads with the space currency's figure, the other currencies under it, and every plan apart", async () => {
+    const { container } = show();
+    const summary = screen.getByRole("region", { name: "Resumen del plan" });
+    expect(normalized(summary.textContent)).toContain("Disponible1.286.000 COP");
+    expect(normalized(container.querySelector("[data-also]")?.textContent)).toBe("y 55 USD");
+    expect(normalized(summary.textContent)).toContain(
+      "Gastado 2.640.000 COP y 45 USD de 3.100.000 COP y 100 USD",
+    );
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows each currency of a line apart: its caption, its state in words and its own bar", () => {
+    const { container } = show();
+    expect(budgetsOf(/^Salidas/)).toEqual([
+      ["Gastado 340.000 COP de 300.000 COP", "se pasó 40.000 COP"],
+      ["Gastado 45 USD de 100 USD", "quedan 55 USD"],
+    ]);
+    const states = container.querySelectorAll("[data-line='l-out'] [data-state]");
+    // The overage is in words and in the owe ink, never by colour alone.
+    expect(states[0]).toHaveClass("text-owe-ink");
+    expect(states[1]).not.toHaveClass("text-owe-ink");
+    const bars = container.querySelectorAll("[data-line='l-out'] [data-bar]");
+    expect(bars).toHaveLength(2);
+    expect(bars[0]).toHaveClass("bg-owe");
+    expect(bars[1]).toHaveClass("bg-accent");
+    expect(bars[1]).toHaveStyle({ width: "45%" });
+  });
+
+  it("draws a line budgeted only in the space currency exactly as before", () => {
+    show();
+    const rent = screen.getByRole("listitem", { name: /^Arriendo/ });
+    expect(rent.querySelector("[data-budget]")).toBeNull();
+    expect(normalized(rent.querySelector("[data-figure]")?.textContent)).toBe("Cumplido");
+    expect(normalized(rent.querySelector("[data-caption]")?.textContent)).toBe(
+      "Gastado 2.000.000 COP de 2.000.000 COP",
+    );
+    expect(rent.querySelectorAll("[data-bar]")).toHaveLength(1);
+  });
+
+  it("shows what a line spent in a currency it has no budget for as spent without a budget, never converted", () => {
+    const dashboard = twoCurrencyDashboard();
+    const food = dashboard.lines[1]!;
+    dashboard.lines[1] = {
+      ...food,
+      budgets: [
+        ...food.budgets!,
+        dashBudget([money(0, "USD"), money(20, "USD"), money(-20, "USD")], { budgeted: false }),
+      ],
+    };
+    show(dashboard);
+    expect(budgetsOf(/^Mercado/)).toEqual([
+      ["Gastado 300.000 COP de 800.000 COP", "quedan 500.000 COP"],
+      ["Gastado 20 USD sin presupuesto", ""],
+    ]);
+  });
+
+  it("keeps a plan in one currency without the other currencies' line", () => {
+    const { container } = show(e7Dashboard());
+    expect(container.querySelector("[data-also]")).toBeNull();
+  });
+
+  it("reads the same in English", () => {
+    const { container } = show(twoCurrencyDashboard(), "en");
+    expect(normalized(container.querySelector("[data-also]")?.textContent)).toBe("and 55 USD");
+    expect(budgetsOf(/^Salidas/)).toEqual([
+      ["Spent 340.000 COP of 300.000 COP", "40.000 COP over"],
+      ["Spent 45 USD of 100 USD", "55 USD left"],
+    ]);
   });
 });
