@@ -204,14 +204,22 @@ function ApproximateTotals({
       t("approximate.owe", { amount: formatMoney(money, formats) }),
     ),
   ];
+  // A side at zero is left out: "Debes ≈ 0 COP" never shows; a side owed only in unrated currencies is listed below.
+  const owed = BigInt(approximate.owedToYou.total.amount) !== 0n;
+  const owe = BigInt(approximate.youOwe.total.amount) !== 0n;
+  const owedText = formatApproximateMoney(approximate.owedToYou.total, formats);
+  const oweText = formatApproximateMoney(approximate.youOwe.total, formats);
   return (
     <>
-      <p className="text-[15px] text-ink tabular-nums [overflow-wrap:anywhere]">
-        {t("totals", {
-          owed: formatApproximateMoney(approximate.owedToYou.total, formats),
-          owe: formatApproximateMoney(approximate.youOwe.total, formats),
-        })}
-      </p>
+      {owed || owe ? (
+        <p className="text-[15px] text-ink tabular-nums [overflow-wrap:anywhere]">
+          {owed && owe
+            ? t("totals", { owed: owedText, owe: oweText })
+            : owed
+              ? t("totalsOwed", { owed: owedText })
+              : t("totalsOwe", { owe: oweText })}
+        </p>
+      ) : null}
       <p className="text-sm text-muted">{t("approximate.note", { currency: approximate.currency })}</p>
       {unrated.length > 0 ? (
         <p className="text-sm text-muted tabular-nums [overflow-wrap:anywhere]">

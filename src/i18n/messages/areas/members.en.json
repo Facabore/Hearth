@@ -192,6 +192,8 @@
   "friends": {
     "title": "Friends",
     "totals": "You're owed {owed} · You owe {owe}",
+    "totalsOwed": "You're owed {owed}",
+    "totalsOwe": "You owe {owe}",
     "approximate": {
       "note": "{currency, select, COP {In pesos} USD {In dollars} EUR {In euros} other {In {currency}}}, at today's rate. Each debt stays in its currency.",
       "unrated": "No rate today: {amounts}",

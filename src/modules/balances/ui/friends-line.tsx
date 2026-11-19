@@ -9,10 +9,13 @@ import { friendTotals, type FriendDto, type FriendsApproximateDto } from "./frie
 const joined = (amounts: readonly MoneyDto[], formats: Formats): string =>
   amounts.map((money) => formatMoney(money, formats)).join(" + ");
 
-/** Ruling P342 (S6): one side's "≈" total, then each amount with no rate today, which it does not hold. */
+/**
+ * Ruling P342 (S6): one side's "≈" total, then each amount with no rate today, which it does not hold. A zero total
+ * is left out ("≈ 0 COP" never shows), so a side holding only unrated amounts lists just them, and an empty side is "".
+ */
 const approximately = (side: FriendsApproximateDto["owedToYou"], formats: Formats): string =>
   [
-    formatApproximateMoney(side.total, formats),
+    ...(BigInt(side.total.amount) === 0n ? [] : [formatApproximateMoney(side.total, formats)]),
     ...side.unrated.map((money) => formatMoney(money, formats)),
   ].join(" + ");
 
@@ -38,10 +41,11 @@ export function FriendsLine({
   if (owed.length === 0 && owe.length === 0) return null;
   const owedText = approximate ? approximately(approximate.owedToYou, formats) : joined(owed, formats);
   const oweText = approximate ? approximately(approximate.youOwe, formats) : joined(owe, formats);
+  if (owedText === "" && oweText === "") return null;
   const text =
-    owed.length > 0 && owe.length > 0
+    owedText !== "" && oweText !== ""
       ? t("both", { owed: owedText, owe: oweText })
-      : owed.length > 0
+      : owedText !== ""
         ? t("owed", { amount: owedText })
         : t("owes", { amount: oweText });
   return (

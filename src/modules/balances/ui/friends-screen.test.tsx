@@ -359,6 +359,50 @@ describe('Amigos\' approximate totals (ruling P342 S6, board "Amigos · una deud
     expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
   });
 
+  it('leaves a side at zero out of the header: never "Debes ≈ 0 COP"', () => {
+    view({ friends: MIXED, approximate: { ...APPROXIMATE, youOwe: { total: cop(0), unrated: [] } } });
+    expect(normalized(screen.getByText(/^Te deben/).textContent)).toBe("Te deben ≈ 2.085.000 COP");
+    expect(screen.queryByText(/Debes ≈/)).not.toBeInTheDocument();
+  });
+
+  it("draws no ≈ total for a side holding only debts without a rate today", () => {
+    view({
+      friends: MIXED,
+      approximate: { ...APPROXIMATE, owedToYou: { total: cop(0), unrated: [money(1_000, "MXN")] } },
+    });
+    expect(normalized(screen.getByText(/^Debes/).textContent)).toBe("Debes ≈ 120.000 COP");
+    expect(screen.queryByText(/≈ 0/)).not.toBeInTheDocument();
+    expect(normalized(screen.getByText(/^Sin tasa hoy/).textContent)).toBe(
+      "Sin tasa hoy: te deben 1.000 MXN",
+    );
+  });
+
+  it("gives Inicio's line only the amounts without a rate when a side's ≈ total is zero", () => {
+    renderWithIntl(
+      <FriendsLine
+        friends={MIXED}
+        approximate={{ ...APPROXIMATE, owedToYou: { total: cop(0), unrated: [money(1_000, "MXN")] } }}
+        href="/spaces/sp-personal/balances"
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(normalized(screen.getByRole("link").textContent)).toBe(
+      "Amigos · te deben 1.000 MXN · debes ≈ 120.000 COP›",
+    );
+  });
+
+  it("leaves a side out of Inicio's line when its ≈ total is zero and nothing lacks a rate", () => {
+    renderWithIntl(
+      <FriendsLine
+        friends={MIXED}
+        approximate={{ ...APPROXIMATE, youOwe: { total: cop(0), unrated: [] } }}
+        href="/spaces/sp-personal/balances"
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(normalized(screen.getByRole("link").textContent)).toBe("Amigos · te deben ≈ 2.085.000 COP›");
+  });
+
   it("gives Inicio's line the ≈ totals, with a currency without a rate added apart", () => {
     renderWithIntl(
       <FriendsLine
