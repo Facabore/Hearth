@@ -359,3 +359,87 @@ describe("members with nothing in the period (#213, #217)", () => {
     expect(lineOf("Sofi", "Home").caption).toBe("Asignado 0 COP · Aportó 0 COP · Consumió 0 COP");
   });
 });
+
+describe('Por persona per currency (ruling P342 S7, "Juan 2.400.000 COP y 100 USD")', () => {
+  const usd = (major: number) => ({ amount: String(major * 100), currency: "USD" });
+  /** Home also budgets 100 USD, all Juan's: he put in 45 USD of it. */
+  const twoCurrencies = (): Matrix => {
+    const matrix = withTotals();
+    const home = matrix.lines[1]!;
+    matrix.lines[1] = {
+      ...home,
+      budgets: [
+        { currency: "COP", reason: null, members: home.members },
+        {
+          currency: "USD",
+          reason: null,
+          members: [
+            {
+              memberId: "m-ana",
+              assigned: usd(0),
+              contributed: usd(0),
+              consumed: usd(0),
+              gap: null,
+              status: null,
+            },
+            {
+              memberId: "m-juan",
+              assigned: usd(100),
+              contributed: usd(45),
+              consumed: usd(45),
+              gap: usd(-55),
+              status: "UNDER_CONTRIBUTED",
+            },
+          ],
+        },
+      ],
+    };
+    matrix.lines[0] = {
+      ...matrix.lines[0]!,
+      budgets: [{ currency: "COP", reason: "TRACKED_AT_FUND_LEVEL", members: matrix.lines[0]!.members }],
+    };
+    matrix.currencies = [
+      { currency: "COP", members: matrix.members! },
+      {
+        currency: "USD",
+        members: [
+          { memberId: "m-ana", gap: null, status: null },
+          { memberId: "m-juan", gap: usd(-55), status: "UNDER_CONTRIBUTED" },
+        ],
+      },
+    ];
+    return matrix;
+  };
+  const totalsOf = (name: string) =>
+    [...memberSection(name).querySelectorAll("[data-total]")].map((p) => normalized(p.textContent).trim());
+
+  it("says each member's total gap in every currency, in words, never converted", async () => {
+    const { container } = show(twoCurrencies());
+    expect(totalsOf("Juan")).toEqual(["Le faltan 482.000 COP de su parte", "Le faltan 55 USD de su parte"]);
+    expect(totalsOf("Ana")).toEqual(["Le sobran 312.000 COP sobre su parte"]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("shows a line in several currencies with a caption and a gap per currency", () => {
+    show(twoCurrencies());
+    open("Juan");
+    const { item } = lineOf("Juan", "Home");
+    expect(
+      [...item.querySelectorAll("[data-budget]")].map((budget) => [
+        normalized(budget.querySelector("[data-caption]")?.textContent).trim(),
+        normalized(budget.querySelector("[data-gap]")?.textContent ?? null).trim(),
+      ]),
+    ).toEqual([
+      ["Asignado 882.000 COP · Aportó 400.000 COP · Consumió 780.000 COP", "−⁠482.000 COP de menos"],
+      ["Asignado 100 USD · Aportó 45 USD · Consumió 45 USD", "−⁠55 USD de menos"],
+    ]);
+  });
+
+  it("keeps a line in one currency as it was", () => {
+    show(twoCurrencies());
+    open("Juan");
+    const rent = lineOf("Juan", "Rent");
+    expect(rent.item.querySelector("[data-budget]")).toBeNull();
+    expect(rent.caption).toContain("Asignado 720.000 COP");
+  });
+});

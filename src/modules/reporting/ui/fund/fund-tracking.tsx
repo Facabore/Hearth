@@ -12,6 +12,7 @@ import { activeFundRows } from "../matrix/idle-members";
 import { memberName } from "../member-name";
 
 const isNegative = (money: MoneyDto) => money.amount.startsWith("-");
+type FundRow = FundTrackingDto["members"][number];
 
 // P328: the member's detail sheet loads only when someone opens it.
 const MemberFundSheet = dynamic(
@@ -60,6 +61,18 @@ export function FundTracking({
   const shown = detail === null ? undefined : fund.members.find((row) => row.memberId === detail);
   const money = (value: MoneyDto) => formatMoney(value, formats);
   const short = isNegative(fund.totals.difference);
+  // Ruling P342 (S7): the fund's other currencies, each apart and never converted; one nobody owes nor paid is left out.
+  const held = (row: Pick<FundRow, "expected" | "actual">) =>
+    BigInt(row.expected.amount) !== 0n || BigInt(row.actual.amount) !== 0n;
+  const others = (fund.currencies ?? []).slice(1).filter((currency) => held(currency.totals));
+  const othersOf = (memberId: string) =>
+    others.flatMap((currency) => currency.members.filter((m) => m.memberId === memberId && held(m)));
+  const also = (values: readonly MoneyDto[], className: string, signed = false) =>
+    values.map((value) => (
+      <Amount key={value.currency} as="dd" className={className}>
+        {signed ? formatSignedMoney(value, formats) : money(value)}
+      </Amount>
+    ));
   return (
     <>
       <section aria-labelledby={`${base}-title`}>
@@ -72,12 +85,20 @@ export function FundTracking({
             <Amount as="dd" className={FIGURE}>
               {money(fund.totals.expected)}
             </Amount>
+            {also(
+              others.map((currency) => currency.totals.expected),
+              FIGURE,
+            )}
           </div>
           <div className={`${TILE} border-line bg-surface`}>
             <dt className="text-sm text-muted">{t("actual")}</dt>
             <Amount as="dd" className={FIGURE}>
               {money(fund.totals.actual)}
             </Amount>
+            {also(
+              others.map((currency) => currency.totals.actual),
+              FIGURE,
+            )}
           </div>
           {/* "Falta" says the direction in a word, so the amount is written without its sign. */}
           <div className={`${TILE} ${short ? "border-transparent bg-owe-soft" : "border-line bg-surface"}`}>
@@ -89,6 +110,11 @@ export function FundTracking({
                 ? money(absolute(fund.totals.difference))
                 : formatSignedMoney(fund.totals.difference, formats)}
             </Amount>
+            {also(
+              others.map((currency) => currency.totals.difference),
+              FIGURE,
+              true,
+            )}
           </div>
         </dl>
       </section>
@@ -100,7 +126,10 @@ export function FundTracking({
         <ul aria-labelledby={`${base}-members`} className="flex flex-col gap-2">
           {activeFundRows(fund.members).map((row) => {
             const nameId = `${base}-name-${row.memberId}`;
-            const upToDate = !isNegative(row.difference);
+            const extra = othersOf(row.memberId);
+            // Up to date only when every currency is; each one still owed says so in its own words.
+            const behind = [row, ...extra].filter((one) => isNegative(one.difference));
+            const upToDate = behind.length === 0;
             return (
               <li
                 key={row.memberId}
@@ -128,15 +157,17 @@ export function FundTracking({
                       {t("upToDate")}
                     </Badge>
                   ) : (
-                    <Badge tone="owe" icon="arrowDown">
-                      {t("behindBy", { amount: money(absolute(row.difference)) })}
-                    </Badge>
+                    behind.map((one) => (
+                      <Badge key={one.difference.currency} tone="owe" icon="arrowDown">
+                        {t("behindBy", { amount: money(absolute(one.difference)) })}
+                      </Badge>
+                    ))
                   )}
                 </button>
                 <span aria-hidden="true" className="block h-2 w-full overflow-hidden rounded-full bg-track">
                   <span
                     data-bar
-                    className={`block h-full rounded-full ${upToDate ? "bg-accent" : "bg-owe"}`}
+                    className={`block h-full rounded-full ${isNegative(row.difference) ? "bg-owe" : "bg-accent"}`}
                     style={{ width: `${barWidth(row.actual, row.expected)}%` }}
                   />
                 </span>
@@ -146,12 +177,20 @@ export function FundTracking({
                     <Amount as="dd" className="font-medium">
                       {money(row.expected)}
                     </Amount>
+                    {also(
+                      extra.map((one) => one.expected),
+                      "font-medium",
+                    )}
                   </div>
                   <div className="flex flex-1 flex-col">
                     <dt className="text-muted">{t("actual")}</dt>
                     <Amount as="dd" className="font-medium">
                       {money(row.actual)}
                     </Amount>
+                    {also(
+                      extra.map((one) => one.actual),
+                      "font-medium",
+                    )}
                   </div>
                   <div className="flex flex-1 flex-col text-right">
                     <dt className="text-muted">{t("difference")}</dt>
@@ -162,6 +201,15 @@ export function FundTracking({
                     >
                       {formatSignedMoney(row.difference, formats)}
                     </Amount>
+                    {extra.map((one) => (
+                      <Amount
+                        key={one.difference.currency}
+                        as="dd"
+                        className={`font-semibold${isNegative(one.difference) ? " text-owe-ink" : ""}`}
+                      >
+                        {formatSignedMoney(one.difference, formats)}
+                      </Amount>
+                    ))}
                   </div>
                 </dl>
               </li>

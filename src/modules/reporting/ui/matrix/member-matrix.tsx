@@ -66,6 +66,8 @@ export function MemberMatrix({
   // Every line lists the same members in join order, so the first one names who keeps a row.
   const active = lines[0]?.members.map((cell) => cell.memberId) ?? [];
   const fundHref = viewHref(space, "fund", matrix.period.label);
+  // Ruling P342 (S7): the space currency first, then each other currency's figures, never converted.
+  const [own, ...others] = matrix.currencies ?? [];
   return (
     <div
       data-members
@@ -77,6 +79,8 @@ export function MemberMatrix({
           memberId={memberId}
           name={memberName(members, memberId, t)}
           total={matrix.members?.find((total) => total.memberId === memberId) ?? null}
+          others={others.flatMap((currency) => currency.members.filter((m) => m.memberId === memberId))}
+          spaceCurrency={own?.currency ?? null}
           lines={lines}
           fundHref={fundHref}
           formats={formats}
@@ -86,39 +90,54 @@ export function MemberMatrix({
   );
 }
 
-/** #213: a member's total gap as a sentence, "Le faltan 482.000 COP", so its direction is never a sign or a color. */
+type ShownTotal = MemberTotal & { readonly gap: MoneyDto; readonly status: Status };
+
+/**
+ * #213: a member's total gap as a sentence, "Le faltan 482.000 COP", so its direction is never a sign or a color.
+ * Ruling P342 (S7): one sentence per currency the member has a gap in, the space currency's first.
+ */
 function TotalGap({
   total,
+  others = [],
   formats,
 }: {
   readonly total: MemberTotal | null;
+  readonly others?: readonly MemberTotal[];
   readonly formats: Pick<Formats, "numberFormat">;
 }) {
   const t = useTranslations("reports.matrix.total");
-  if (total === null || total.gap === null || total.status === null) {
+  const shown = [total, ...others].filter(
+    (one): one is ShownTotal => one !== null && one.gap !== null && one.status !== null,
+  );
+  if (shown.length === 0) {
     return (
       <p data-total="none" className="text-sm text-muted">
         {t("none")}
       </p>
     );
   }
-  const { tone, icon } = MATRIX_STATUS[total.status];
-  const ink = tone === "owe" ? "text-owe-ink" : tone === "accent" ? "text-accent" : "text-ink";
-  return (
-    <p
-      data-total={total.status}
-      className={`flex items-center gap-1 text-sm font-semibold tabular-nums ${ink}`}
-    >
-      {icon ? <Icon name={icon} size={16} /> : null}
-      {t(total.status, { amount: formatMoney(absolute(total.gap), formats) })}
-    </p>
-  );
+  return shown.map((one) => {
+    const { tone, icon } = MATRIX_STATUS[one.status];
+    const ink = tone === "owe" ? "text-owe-ink" : tone === "accent" ? "text-accent" : "text-ink";
+    return (
+      <p
+        key={one.gap.currency}
+        data-total={one.status}
+        className={`flex items-center gap-1 text-sm font-semibold tabular-nums ${ink}`}
+      >
+        {icon ? <Icon name={icon} size={16} /> : null}
+        {t(one.status, { amount: formatMoney(absolute(one.gap), formats) })}
+      </p>
+    );
+  });
 }
 
 function MemberSection({
   memberId,
   name,
   total,
+  others,
+  spaceCurrency,
   lines,
   fundHref,
   formats,
@@ -126,6 +145,8 @@ function MemberSection({
   readonly memberId: string;
   readonly name: string;
   readonly total: MemberTotal | null;
+  readonly others: readonly MemberTotal[];
+  readonly spaceCurrency: string | null;
   readonly lines: readonly MatrixLine[];
   readonly fundHref: string;
   readonly formats: Pick<Formats, "numberFormat">;
@@ -152,7 +173,7 @@ function MemberSection({
           <h2 id={heading} className="text-base font-semibold text-ink [overflow-wrap:anywhere]">
             {name}
           </h2>
-          <TotalGap total={total} formats={formats} />
+          <TotalGap total={total} others={others} formats={formats} />
           <button
             type="button"
             aria-expanded={open}
@@ -171,7 +192,14 @@ function MemberSection({
         />
       </div>
       <div id={detail} hidden={!open} className="border-t border-line">
-        <MemberDetail memberId={memberId} name={name} lines={lines} fundHref={fundHref} formats={formats} />
+        <MemberDetail
+          memberId={memberId}
+          name={name}
+          lines={lines}
+          spaceCurrency={spaceCurrency}
+          fundHref={fundHref}
+          formats={formats}
+        />
       </div>
     </section>
   );
@@ -184,12 +212,14 @@ function MemberDetail({
   memberId,
   name,
   lines,
+  spaceCurrency,
   fundHref,
   formats,
 }: {
   readonly memberId: string;
   readonly name: string;
   readonly lines: readonly MatrixLine[];
+  readonly spaceCurrency: string | null;
   readonly fundHref: string;
   readonly formats: Pick<Formats, "numberFormat">;
 }) {
@@ -202,7 +232,15 @@ function MemberDetail({
       {lines.map((line) => {
         const cell = line.members.find((c) => c.memberId === memberId);
         return cell ? (
-          <LineItem key={line.lineId} line={line} cell={cell} fundHref={fundHref} formats={formats} />
+          <LineItem
+            key={line.lineId}
+            line={line}
+            cell={cell}
+            memberId={memberId}
+            spaceCurrency={spaceCurrency}
+            fundHref={fundHref}
+            formats={formats}
+          />
         ) : null;
       })}
     </ul>
@@ -217,38 +255,72 @@ function MemberDetail({
 function LineItem({
   line,
   cell,
+  memberId,
+  spaceCurrency,
   fundHref,
   formats,
 }: {
   readonly line: MatrixLine;
   readonly cell: MatrixCell;
+  readonly memberId: string;
+  readonly spaceCurrency: string | null;
   readonly fundHref: string;
   readonly formats: Pick<Formats, "numberFormat">;
 }) {
   const t = useTranslations("reports");
   const nameId = useId();
   const money = (value: MoneyDto) => formatMoney(value, formats);
-  const shown = FIGURES.flatMap((column) => {
-    const value = cell[column];
-    return value ? [`${t(`matrix.${column}`)} ${money(value)}`] : [];
-  });
-  const missing = ([...FIGURES, "gap"] as const).filter((column) => cell[column] === null);
-  const reasons = [...new Set(missing.map((column) => missingReason(line, column, t)))];
+  const captionOf = (one: MatrixCell, reason: MatrixLine["reason"]) => {
+    const shown = FIGURES.flatMap((column) => {
+      const value = one[column];
+      return value ? [`${t(`matrix.${column}`)} ${money(value)}`] : [];
+    });
+    const missing = ([...FIGURES, "gap"] as const).filter((column) => one[column] === null);
+    const reasons = [
+      ...new Set(missing.map((column) => missingReason({ funding: line.funding, reason }, column, t))),
+    ];
+    return [...shown, ...reasons].join(" · ");
+  };
+  const gapOf = (one: MatrixCell) =>
+    one.gap ? (
+      <span data-gap className="shrink-0 text-right font-semibold text-ink tabular-nums">
+        {formatSignedMoney(one.gap, formats)}
+        {one.status ? ` ${t(`status.${one.status}`)}` : null}
+      </span>
+    ) : null;
+  // Ruling P342 (S7): a line in another currency than the space's shows each currency's caption and gap apart.
+  const budgets = line.budgets?.some((budget) => budget.currency !== spaceCurrency)
+    ? line.budgets.flatMap((budget) => {
+        const one = budget.members.find((m) => m.memberId === memberId);
+        return one ? [{ currency: budget.currency, reason: budget.reason, cell: one }] : [];
+      })
+    : null;
+  if (budgets)
+    return (
+      <li data-line={line.lineId} aria-labelledby={nameId} className="flex flex-col gap-0.5 px-3.5 py-3">
+        <span id={nameId} className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">
+          {line.name}
+        </span>
+        {budgets.map((budget) => (
+          <div key={budget.currency} data-budget className="flex items-baseline justify-between gap-3">
+            <p data-caption className="min-w-0 text-sm text-muted tabular-nums">
+              {captionOf(budget.cell, budget.reason)}
+            </p>
+            {gapOf(budget.cell)}
+          </div>
+        ))}
+      </li>
+    );
   return (
     <li data-line={line.lineId} aria-labelledby={nameId} className="flex flex-col gap-0.5 px-3.5 py-3">
       <div className="flex items-baseline justify-between gap-3">
         <span id={nameId} className="min-w-0 font-semibold text-ink [overflow-wrap:anywhere]">
           {line.name}
         </span>
-        {cell.gap ? (
-          <span data-gap className="shrink-0 text-right font-semibold text-ink tabular-nums">
-            {formatSignedMoney(cell.gap, formats)}
-            {cell.status ? ` ${t(`status.${cell.status}`)}` : null}
-          </span>
-        ) : null}
+        {gapOf(cell)}
       </div>
       <p data-caption className="text-sm text-muted tabular-nums">
-        {[...shown, ...reasons].join(" · ")}
+        {captionOf(cell, line.reason)}
       </p>
       {line.reason === "TRACKED_AT_FUND_LEVEL" ? (
         <Link

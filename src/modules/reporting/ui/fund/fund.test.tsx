@@ -239,3 +239,51 @@ describe("fund tracking (HU-E9-10)", () => {
     });
   });
 });
+
+describe("the fund per currency (ruling P342 S7)", () => {
+  const usd = (major: number) => ({ amount: String(major * 100), currency: "USD" });
+  /** Juan was to put 100 USD in the fund besides his pesos, and put in 45 USD. */
+  const twoCurrencies = () => {
+    const fund = e7Fund();
+    return e7Fund({
+      currencies: [
+        { members: fund.members, totals: fund.totals },
+        {
+          members: [
+            { memberId: "m-ana", expected: usd(0), actual: usd(0), difference: usd(0) },
+            { memberId: "m-juan", expected: usd(100), actual: usd(45), difference: usd(-55) },
+          ],
+          totals: { expected: usd(100), actual: usd(45), difference: usd(-55) },
+        },
+      ],
+    });
+  };
+
+  it("shows every total and every member's figures in each currency, never converted", async () => {
+    const { container } = show(twoCurrencies());
+    const summary = normalized(screen.getByRole("region", { name: "Aportes al fondo" }).textContent);
+    expect(summary).toContain("Esperado1.200.000 COP100 USD");
+    expect(summary).toContain("Aportado980.000 COP45 USD");
+    const juan = card("Juan");
+    expect(juan).toContain("Esperado720.000 COP100 USD");
+    expect(juan).toContain("Aportado500.000 COP45 USD");
+    expect(juan).toContain("Diferencia−⁠220.000 COP−⁠55 USD");
+    expect(juan).toContain("Le faltan 220.000 COP para el fondo");
+    expect(juan).toContain("Le faltan 55 USD para el fondo");
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("leaves a member with nothing in another currency as before", () => {
+    show(twoCurrencies());
+    expect(card("Ana")).toContain("Al día con el fondo");
+    expect(card("Ana")).not.toContain("USD");
+  });
+
+  it("is up to date only when every currency is", () => {
+    const fund = twoCurrencies();
+    fund.members[1] = { ...fund.members[1]!, actual: cop(720_000), difference: cop(0) };
+    show(fund);
+    expect(card("Juan")).not.toContain("Al día con el fondo");
+    expect(card("Juan")).toContain("Le faltan 55 USD para el fondo");
+  });
+});
