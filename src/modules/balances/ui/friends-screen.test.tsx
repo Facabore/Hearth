@@ -299,3 +299,77 @@ describe("Amigos' requests and Agregar amigo (ruling P339, board 'Amigos · soli
     expect(screen.queryByText(/Tus amigos/)).not.toBeInTheDocument();
   });
 });
+
+describe('Amigos\' approximate totals (ruling P342 S6, board "Amigos · una deuda por moneda")', () => {
+  const MIXED = [
+    friendDto({ nets: [cop(500_000), money(50, "USD"), money(60, "EUR")] }),
+    friendDto({
+      spaceId: "sp-jhon",
+      other: { memberId: "m-jhon", kind: "USER", displayName: "Jhon López", nickname: null },
+      name: "Jhon López",
+      net: cop(-120_000),
+      nets: [cop(-120_000), money(30, "USD")],
+      lastMovement: null,
+    }),
+  ];
+  const APPROXIMATE = {
+    currency: "COP",
+    owedToYou: { total: cop(2_085_000), unrated: [] },
+    youOwe: { total: cop(120_000), unrated: [] },
+  };
+
+  it("heads Amigos with ≈ totals in pesos at today's rate, each person's debts still in their currency", async () => {
+    const { container } = view({ friends: MIXED, approximate: APPROXIMATE });
+    const totals = screen.getByText(/^Te deben/);
+    expect(normalized(totals.textContent)).toBe("Te deben ≈ 2.085.000 COP · Debes ≈ 120.000 COP");
+    // "≈ 2.085.000 COP" never breaks: no-break spaces join the sign, the figure and the code.
+    expect(totals.textContent).toContain("≈ 2.085.000 COP");
+    expect(
+      screen.getByText("En pesos, a la tasa de hoy. Cada deuda sigue en su moneda."),
+    ).toBeInTheDocument();
+    expect(rows().map((row) => row.text)).toEqual([
+      "MMamáNo usa Hearth · Préstamo · 12 mar 2025Te debe500.000 COP50 USD60 EUR",
+      "JLJhon LópezSin movimientosLe debes120.000 COPTe debe30 USD",
+    ]);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it("lists a debt in a currency with no rate today apart, with its direction in words", () => {
+    view({
+      friends: MIXED,
+      approximate: {
+        ...APPROXIMATE,
+        owedToYou: { total: cop(2_085_000), unrated: [money(1_000, "MXN")] },
+        youOwe: { total: cop(120_000), unrated: [money(20, "BRL")] },
+      },
+    });
+    expect(normalized(screen.getByText(/^Sin tasa hoy/).textContent)).toBe(
+      "Sin tasa hoy: te deben 1.000 MXN · debes 20 BRL",
+    );
+  });
+
+  it("speaks English, naming another currency by its code", () => {
+    view({ friends: MIXED, approximate: { ...APPROXIMATE, currency: "MXN" } }, "en");
+    expect(screen.getByText("In MXN, at today's rate. Each debt stays in its currency.")).toBeInTheDocument();
+  });
+
+  it("adds no note when every debt is in one currency", () => {
+    view();
+    expect(screen.queryByText(/a la tasa de hoy/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
+  });
+
+  it("gives Inicio's line the ≈ totals, with a currency without a rate added apart", () => {
+    renderWithIntl(
+      <FriendsLine
+        friends={MIXED}
+        approximate={{ ...APPROXIMATE, owedToYou: { total: cop(2_085_000), unrated: [money(1_000, "MXN")] } }}
+        href="/spaces/sp-personal/balances"
+        formats={BUILT_IN_FORMATS}
+      />,
+    );
+    expect(normalized(screen.getByRole("link").textContent)).toBe(
+      "Amigos · te deben ≈ 2.085.000 COP + 1.000 MXN · debes ≈ 120.000 COP›",
+    );
+  });
+});

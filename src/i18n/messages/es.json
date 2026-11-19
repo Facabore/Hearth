@@ -372,6 +372,10 @@
       }
     },
     "summary": "Resumen del período",
+    "approximate": {
+      "line": "{amounts}. {currency, select, COP {En pesos} USD {En dólares} EUR {En euros} other {En {currency}}}, a la tasa de hoy.",
+      "unrated": "Sin tasa hoy: {amounts}."
+    },
     "spentIn": "Gastaste en {month}",
     "spentBetween": "Gastaste del {start} al {end}",
     "spaceSpentIn": "{space} gastó en {month}",

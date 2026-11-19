@@ -192,6 +192,12 @@
   "friends": {
     "title": "Amigos",
     "totals": "Te deben {owed} · Debes {owe}",
+    "approximate": {
+      "note": "{currency, select, COP {En pesos} USD {En dólares} EUR {En euros} other {En {currency}}}, a la tasa de hoy. Cada deuda sigue en su moneda.",
+      "unrated": "Sin tasa hoy: {amounts}",
+      "owed": "te deben {amount}",
+      "owe": "debes {amount}"
+    },
     "empty": "Cuando compartas un gasto o un préstamo con alguien, aparece aquí.",
     "noMovements": "Sin movimientos",
     "state": {

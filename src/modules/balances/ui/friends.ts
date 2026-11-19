@@ -6,6 +6,14 @@ import { netsOf } from "./nets";
 export type FriendDto =
   paths["/api/v1/me/friends"]["get"]["responses"][200]["content"]["application/json"]["items"][number];
 
+/**
+ * Ruling P342 (S6): what everyone owes the viewer and what she owes, each added up in one currency at today's rate by
+ * the API, sent only when the debts are in more than one currency.
+ */
+export type FriendsApproximateDto = NonNullable<
+  paths["/api/v1/me/friends"]["get"]["responses"][200]["content"]["application/json"]["approximate"]
+>;
+
 /** Ruling P339 (S4): the friend requests the viewer received and sent, as the API answers them. */
 export type FriendRequestsDto =
   paths["/api/v1/me/friend-requests"]["get"]["responses"][200]["content"]["application/json"];
