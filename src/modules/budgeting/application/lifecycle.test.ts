@@ -30,8 +30,8 @@ const world = async (
   const plan = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" })).plan;
   w.plans.seed(plan.id, {
     capacities: [
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-juan", amount: parts.juan ?? 240_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: parts.juan ?? 240_000_000n },
     ],
     lines: parts.lines ?? referenceLines(),
     allocations: parts.allocations ?? [],
@@ -74,8 +74,8 @@ describe("ActivateBudgetPlan (HU-E6-07)", () => {
       l.name === "Free" ? { ...l, allocationRule: "PERCENT" as const } : l,
     );
     const allocations = [
-      { lineId: "line-free", memberId: "member-ana", value: 4200n },
-      { lineId: "line-free", memberId: "member-juan", value: 5700n },
+      { lineId: "line-free", memberId: "member-ana", currency: null, value: 4200n },
+      { lineId: "line-free", memberId: "member-juan", currency: null, value: 5700n },
     ];
     const { activate, input, status } = await world({ lines, allocations });
     expect(await activate(input())).toEqual({
@@ -96,7 +96,9 @@ describe("ActivateBudgetPlan (HU-E6-07)", () => {
     const joined = async () => {
       const w = await world({ juan: 200_000_000n });
       await w.spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 4));
-      w.plans.seed(w.plan.id, { capacities: [{ memberId: "member-luis", amount: 40_000_000n }] });
+      w.plans.seed(w.plan.id, {
+        capacities: [{ memberId: "member-luis", currency: "COP", amount: 40_000_000n }],
+      });
       return w;
     };
     const present = await joined();
@@ -207,7 +209,7 @@ describe("CloseBudgetPlan (HU-E6-07)", () => {
   it("closes an ACTIVE plan whose figures no longer hold: only activation checks them (P13)", async () => {
     const { activate, close, input, plans, plan } = await world();
     unwrap(await activate(input()));
-    plans.seed(plan.id, { capacities: [{ memberId: "member-juan", amount: 0n }] });
+    plans.seed(plan.id, { capacities: [{ memberId: "member-juan", currency: "COP", amount: 0n }] });
     expect(unwrap(await close(input())).figures.unallocated).toBe(-240_000_000n);
   });
 
@@ -275,7 +277,7 @@ describe("CloseBudgetPlan (HU-E6-07)", () => {
           await createCreateBudgetPlan(deps)({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11 H1" }),
         );
         w.plans.seed(plan.id, {
-          capacities: [{ memberId: "member-ana", amount: 400_000_000n }],
+          capacities: [{ memberId: "member-ana", currency: "COP", amount: 400_000_000n }],
           lines: referenceLines(),
         });
         const input = { spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id, expectedVersion: null };

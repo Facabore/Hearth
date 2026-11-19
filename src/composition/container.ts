@@ -1036,7 +1036,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
   };
   /**
    * A copied plan's view walks its carry-over chain back through every earlier plan: its history is read in one batch
-   * of eight statements (the plans, their contents, the space's currency, the expenses and the savings transfers within
+   * of eight statements (the plans, their five-part contents, the expenses and the savings transfers within
    * each plan's dates), whatever the chain's length, within the request and never stored (D7).
    */
   const planHistory: PlanHistoryReader = {
@@ -1044,21 +1044,12 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
       const plans = await budgetPlans.inSpace(spaceId);
       const contents = await budgetPlans.contentsOf(plans.map((plan) => plan.id));
       const ranges = plans.map((plan) => plan.period);
+      // P342 (S7, T6): each movement in its own currency, as the plan view's own path reads them.
       const expenses = await ledgerQueries.expensesByCategoryIn(spaceId, ranges);
       const named = [...contents.values()].flatMap((parts) =>
         parts.lines.flatMap((line) => line.savingsAccountIds),
       );
-      // P342 (S7): a savings line counts only transfers in the space's currency, as the plan view's own path does.
-      const [space] = await tm
-        .executor()
-        .select({ currency: spacesTable.currency })
-        .from(spacesTable)
-        .where(eq(spacesTable.id, spaceId));
-      const transfers = await ledgerQueries.transfersIntoAccountsIn(
-        [...new Set(named)],
-        ranges,
-        space?.currency,
-      );
+      const transfers = await ledgerQueries.transfersIntoAccountsIn([...new Set(named)], ranges);
       return {
         plans,
         contents,

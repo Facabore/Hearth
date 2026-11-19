@@ -450,9 +450,10 @@ describe("budget lines and unallocated capacity (HU-E6-03)", () => {
       422,
       "ValidationFailed",
     ]);
+    // P342 (S7): a budget in any currency, checked against the contributions in it; nobody contributes USD here.
     expect(await refusal({ ...valid, plannedAmount: { amount: "100", currency: "USD" } })).toEqual([
-      422,
-      "CurrencyMismatch",
+      409,
+      "PlanExceedsCapacity",
     ]);
     expect(await refusal({ ...valid, plannedAmount: { amount: "100", currency: "ZZZ" } })).toEqual([
       422,
@@ -778,9 +779,10 @@ describe("editing lines (HU-E6-03, HU-E6-04)", () => {
       422,
       "ValidationFailed",
     ]);
+    // P342 (S7): a USD amount adds a USD budget to the line; nobody contributes USD here.
     expect(await refusal({ plannedAmount: { amount: "100", currency: "USD" } })).toEqual([
-      422,
-      "CurrencyMismatch",
+      409,
+      "PlanExceedsCapacity",
     ]);
     expect(await refusal({ plannedAmount: { amount: "100", currency: "ZZZ" } })).toEqual([
       422,

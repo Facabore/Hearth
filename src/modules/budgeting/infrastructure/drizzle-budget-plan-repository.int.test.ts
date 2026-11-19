@@ -149,7 +149,7 @@ describe("DrizzleBudgetPlanRepository plans (HU-E6-01, D10)", () => {
 
 /** What the tables hold, history included; written to PostgreSQL and to the twin alike. */
 interface Rows {
-  readonly capacities: readonly { planId: string; memberId: string; amount: bigint }[];
+  readonly capacities: readonly { planId: string; memberId: string; currency: string; amount: bigint }[];
   readonly lines: readonly { line: BudgetLine; deletedAt: Date | null }[];
   readonly mappings: readonly {
     planId: string;
@@ -169,21 +169,20 @@ interface Rows {
 const writeRows = async (rows: Rows) => {
   for (const c of rows.capacities) {
     await pool.query(
-      "INSERT INTO budget_member_capacities (plan_id, member_id, amount, updated_at) VALUES ($1, $2, $3, $4)",
-      [c.planId, c.memberId, c.amount.toString(), at],
+      "INSERT INTO budget_member_capacities (plan_id, member_id, currency, amount, updated_at) VALUES ($1, $2, $3, $4, $5)",
+      [c.planId, c.memberId, c.currency, c.amount.toString(), at],
     );
   }
   for (const { line, deletedAt } of rows.lines) {
     await pool.query(
-      `INSERT INTO budget_lines (id, plan_id, origin_line_id, name, planned_amount, funding, savings_account_ids,
+      `INSERT INTO budget_lines (id, plan_id, origin_line_id, name, funding, savings_account_ids,
          rollover_mode, is_catch_all, allocation_rule, created_at, updated_at, deleted_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::uuid[], $8, $9, $10, $11, $11, $12)`,
+       VALUES ($1, $2, $3, $4, $5, $6::uuid[], $7, $8, $9, $10, $10, $11)`,
       [
         line.id,
         line.planId,
         line.originLineId,
         line.name,
-        line.plannedAmount.toString(),
         line.funding,
         line.savingsAccountIds,
         line.rolloverMode,
@@ -193,6 +192,14 @@ const writeRows = async (rows: Rows) => {
         deletedAt,
       ],
     );
+    // P342 (S7): a line's budgets, one row per currency in its order.
+    for (const [position, budget] of line.budgets.entries()) {
+      await pool.query(
+        `INSERT INTO budget_line_budgets (plan_id, line_id, currency, planned_amount, position, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+        [line.planId, line.id, budget.currency, budget.amount.toString(), position, line.createdAt],
+      );
+    }
   }
   for (const m of rows.mappings) {
     await pool.query(
@@ -202,8 +209,16 @@ const writeRows = async (rows: Rows) => {
   }
   for (const a of rows.allocations) {
     await pool.query(
-      "INSERT INTO budget_allocations (line_id, member_id, rule, value, set_at, superseded_at) VALUES ($1, $2, $3, $4, $5, $6)",
-      [a.lineId, a.memberId, a.rule, a.value.toString(), at, a.supersededAt],
+      "INSERT INTO budget_allocations (line_id, member_id, rule, currency, value, set_at, superseded_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+      [
+        a.lineId,
+        a.memberId,
+        a.rule,
+        a.rule === "FIXED" ? "COP" : null,
+        a.value.toString(),
+        at,
+        a.supersededAt,
+      ],
     );
   }
 };
@@ -212,7 +227,7 @@ const writeTwin = (twin: InMemoryBudgetPlans, rows: Rows) => {
   for (const c of rows.capacities) {
     twin.capacities.set(c.planId, [
       ...(twin.capacities.get(c.planId) ?? []),
-      { memberId: c.memberId, amount: c.amount },
+      { memberId: c.memberId, currency: c.currency, amount: c.amount },
     ]);
   }
   twin.lines.push(...rows.lines);
@@ -226,7 +241,12 @@ const writeTwin = (twin: InMemoryBudgetPlans, rows: Rows) => {
   }
   for (const a of rows.allocations) {
     twin.allocations.push({
-      allocation: { lineId: a.lineId, memberId: a.memberId, value: a.value },
+      allocation: {
+        lineId: a.lineId,
+        memberId: a.memberId,
+        currency: a.rule === "FIXED" ? "COP" : null,
+        value: a.value,
+      },
       setAt: at,
       supersededAt: a.supersededAt,
     });
@@ -279,9 +299,9 @@ describe("DrizzleBudgetPlanRepository contents (D7, D8)", () => {
     // Rows are written in the order opposite to the one they are read in.
     const rows: Rows = {
       capacities: [
-        { planId: november.id, memberId: second, amount: 90_000_000n },
-        { planId: november.id, memberId: first, amount: 160_000_000n },
-        { planId: december.id, memberId: first, amount: 70_000_000n },
+        { planId: november.id, memberId: second, currency: "COP", amount: 90_000_000n },
+        { planId: november.id, memberId: first, currency: "COP", amount: 160_000_000n },
+        { planId: december.id, memberId: first, currency: "COP", amount: 70_000_000n },
       ],
       lines: [
         { line: home, deletedAt: null },
@@ -314,8 +334,8 @@ describe("DrizzleBudgetPlanRepository contents (D7, D8)", () => {
     // parts stay out too.
     const expectedNovember = {
       capacities: [
-        { memberId: first, amount: 160_000_000n },
-        { memberId: second, amount: 90_000_000n },
+        { memberId: first, currency: "COP", amount: 160_000_000n },
+        { memberId: second, currency: "COP", amount: 90_000_000n },
       ],
       lines: [leisure, home, savings],
       mappings: [
@@ -324,17 +344,17 @@ describe("DrizzleBudgetPlanRepository contents (D7, D8)", () => {
         { lineId: home.id, categoryId: catB },
       ],
       allocations: [
-        { lineId: leisure.id, memberId: first, value: 6000n },
-        { lineId: leisure.id, memberId: second, value: 4000n },
-        { lineId: home.id, memberId: first, value: 100_000_000n },
-        { lineId: home.id, memberId: second, value: 47_000_000n },
+        { lineId: leisure.id, memberId: first, currency: null, value: 6000n },
+        { lineId: leisure.id, memberId: second, currency: null, value: 4000n },
+        { lineId: home.id, memberId: first, currency: "COP", value: 100_000_000n },
+        { lineId: home.id, memberId: second, currency: "COP", value: 47_000_000n },
       ],
     };
     const expectedDecember = {
-      capacities: [{ memberId: first, amount: 70_000_000n }],
+      capacities: [{ memberId: first, currency: "COP", amount: 70_000_000n }],
       lines: [decemberHome],
       mappings: [{ lineId: decemberHome.id, categoryId: catA }],
-      allocations: [{ lineId: decemberHome.id, memberId: first, value: 147_000_000n }],
+      allocations: [{ lineId: decemberHome.id, memberId: first, currency: "COP", value: 147_000_000n }],
     };
     for (const plans of [twin, repo]) {
       expect(await plans.contents(november.id)).toEqual(expectedNovember);
@@ -510,18 +530,18 @@ describe("DrizzleBudgetPlanRepository capacities (HU-E6-02)", () => {
       await plans.setCapacities(
         november.id,
         [
-          { memberId: fixture.memberId, amount: 160_000_000n },
-          { memberId: pedro, amount: 1n },
+          { memberId: fixture.memberId, currency: "COP", amount: 160_000_000n },
+          { memberId: pedro, currency: "COP", amount: 1n },
         ],
         at,
       );
-      await plans.setCapacities(november.id, [{ memberId: pedro, amount: 30_000_000n }], at);
+      await plans.setCapacities(november.id, [{ memberId: pedro, currency: "COP", amount: 30_000_000n }], at);
       await plans.setCapacities(november.id, [], at);
       return (await plans.contents(november.id)).capacities;
     };
     const expected = [
-      { memberId: fixture.memberId, amount: 160_000_000n },
-      { memberId: pedro, amount: 30_000_000n },
+      { memberId: fixture.memberId, currency: "COP", amount: 160_000_000n },
+      { memberId: pedro, currency: "COP", amount: 30_000_000n },
     ].sort((a, b) => (a.memberId < b.memberId ? -1 : 1));
     expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
     expect(await run(repo)).toEqual(expected);
@@ -542,7 +562,12 @@ describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
       capacities: repo,
       categories: { lockForReference: async () => undefined, list: async () => [] },
       savingsAccounts: { find: async () => null },
-      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      spending: {
+        expensesByCategory: async () => [],
+        transfersIntoAccounts: async () => [],
+        expensesByCategoryByCurrency: async () => [],
+        transfersIntoAccountsByCurrency: async () => [],
+      },
       ids: sequentialIds("budget"),
       clock: new FixedClock(later),
       tm,
@@ -555,7 +580,10 @@ describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
     });
 
     expect(codeOf(await as([{ memberId: fixture.memberId, amount: money(160_000_000n) }]))).toBe("ok");
-    const written = { version: 2, capacities: [{ memberId: fixture.memberId, amount: 160_000_000n }] };
+    const written = {
+      version: 2,
+      capacities: [{ memberId: fixture.memberId, currency: "COP", amount: 160_000_000n }],
+    };
     expect(await stored()).toEqual(written);
 
     // The first two pass the lock and are refused afterwards, the third is refused by the lock itself.
@@ -564,11 +592,24 @@ describe("SetMemberCapacities over PostgreSQL (HU-E6-02, spec 7)", () => {
         { memberId: fixture.memberId, amount: money(1n) },
         { memberId: randomUUID(), amount: money(1n) },
       ]),
-      await as([{ memberId: fixture.memberId, amount: money(1n, "USD") }]),
+      await as([
+        { memberId: fixture.memberId, amount: money(1n) },
+        { memberId: fixture.memberId, amount: money(2n) },
+      ]),
       await as([{ memberId: fixture.memberId, amount: money(1n) }], 1),
     ];
-    expect(refused.map(codeOf)).toEqual(["NotASpaceMember", "CurrencyMismatch", "PreconditionFailed"]);
+    expect(refused.map(codeOf)).toEqual(["NotASpaceMember", "InvalidCapacity", "PreconditionFailed"]);
     expect(await stored()).toEqual(written);
+
+    // P342 (S7): a capacity in USD is stored beside the COP one, and the COP one keeps its amount.
+    expect(codeOf(await as([{ memberId: fixture.memberId, amount: money(10_000n, "USD") }]))).toBe("ok");
+    expect(await stored()).toEqual({
+      version: 3,
+      capacities: [
+        { memberId: fixture.memberId, currency: "COP", amount: 160_000_000n },
+        { memberId: fixture.memberId, currency: "USD", amount: 10_000n },
+      ],
+    });
   });
 });
 
@@ -591,7 +632,7 @@ describe("DrizzleBudgetPlanRepository lines (HU-E6-03, D8)", () => {
     const house = {
       ...home,
       name: "House",
-      plannedAmount: 150_000_000n,
+      budgets: [{ currency: "COP", amount: 150_000_000n }],
       rolloverMode: "ROLLOVER" as const,
       isCatchAll: true,
     };
@@ -796,8 +837,8 @@ describe("DrizzleBudgetPlanRepository deleteLine mappings (HU-E6-03, D8)", () =>
       await plans.addLine(home, at);
       await plans.addLine(leisure, at);
       const split = [
-        { memberId: fixture.memberId, value: 4200n },
-        { memberId: pedro, value: 5800n },
+        { memberId: fixture.memberId, currency: null, value: 4200n },
+        { memberId: pedro, currency: null, value: 5800n },
       ];
       await plans.setAllocation(november.id, home.id, "PERCENT", split, at);
       await plans.setAllocation(november.id, leisure.id, "PERCENT", split, at);
@@ -850,7 +891,12 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
             ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false, currency: "COP" }
             : null,
       },
-      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      spending: {
+        expensesByCategory: async () => [],
+        transfersIntoAccounts: async () => [],
+        expensesByCategoryByCurrency: async () => [],
+        transfersIntoAccountsByCurrency: async () => [],
+      },
       ids: new UuidV7IdGenerator(),
       clock: new FixedClock(later),
       tm,
@@ -876,10 +922,10 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
         capacities,
       }),
     );
-    expect(codeOf(await addLine({ name: "Home", plannedAmount: money(100_000_000n) }))).toBe("ok");
+    expect(codeOf(await addLine({ name: "Home", budgets: [money(100_000_000n)] }))).toBe("ok");
     const savings: LineInput = {
       name: "Savings",
-      plannedAmount: money(60_000_000n),
+      budgets: [money(60_000_000n)],
       funding: "SAVINGS",
       savingsAccountIds: [account],
     };
@@ -887,8 +933,9 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
     const written = { version: 4, lines: ["Home", "Savings"], rows: 2 };
     expect(await stored()).toEqual(written);
     const { rows } = await pool.query(
-      `SELECT name, planned_amount::text, funding, savings_account_ids, rollover_mode, is_catch_all, allocation_rule
-         FROM budget_lines WHERE plan_id = $1 ORDER BY name`,
+      `SELECT name, (SELECT b.planned_amount::text FROM budget_line_budgets b
+             WHERE b.line_id = budget_lines.id AND b.removed_at IS NULL AND b.currency = 'COP') AS planned_amount, funding, savings_account_ids, rollover_mode,
+         is_catch_all, allocation_rule FROM budget_lines WHERE plan_id = $1 ORDER BY name`,
       [plan.id],
     );
     expect(rows).toEqual([
@@ -914,19 +961,20 @@ describe("AddBudgetLine over PostgreSQL (HU-E6-03, spec 7)", () => {
 
     // All but the last pass the lock and are refused afterwards; the last is refused by the lock itself.
     const refused = [
-      await addLine({ name: "Travel", plannedAmount: money(40_000_001n) }),
-      await addLine({ name: "home", plannedAmount: money(1n) }),
-      await addLine({ ...savings, name: "More savings", plannedAmount: money(1n) }),
-      await addLine({ ...savings, name: "Foreign", plannedAmount: money(1n), savingsAccountIds: [other] }),
-      await addLine({ name: "Gifts", plannedAmount: money(1n, "USD") }),
-      await addLine({ name: "Gifts", plannedAmount: money(1n) }, 3),
+      await addLine({ name: "Travel", budgets: [money(40_000_001n)] }),
+      await addLine({ name: "home", budgets: [money(1n)] }),
+      await addLine({ ...savings, name: "More savings", budgets: [money(1n)] }),
+      await addLine({ ...savings, name: "Foreign", budgets: [money(1n)], savingsAccountIds: [other] }),
+      await addLine({ name: "Gifts", budgets: [money(1n, "USD")] }),
+      await addLine({ name: "Gifts", budgets: [money(1n)] }, 3),
     ];
     expect(refused.map(codeOf)).toEqual([
       "PlanExceedsCapacity",
       "BudgetLineNameTaken",
       "SavingsAccountAlreadyUsed",
       "AccountNotFound",
-      "CurrencyMismatch",
+      // P342 (S7): a USD budget is welcome, but nobody contributes USD to this plan.
+      "PlanExceedsCapacity",
       "PreconditionFailed",
     ]);
     expect(await stored()).toEqual(written);
@@ -955,7 +1003,12 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
             ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false, currency: "COP" }
             : null,
       },
-      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      spending: {
+        expensesByCategory: async () => [],
+        transfersIntoAccounts: async () => [],
+        expensesByCategoryByCurrency: async () => [],
+        transfersIntoAccountsByCurrency: async () => [],
+      },
       ids: new UuidV7IdGenerator(),
       clock: new FixedClock(later),
       tm,
@@ -975,8 +1028,9 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       version: (await repo.find(space.id, plan.id))?.version,
       lines: (
         await pool.query(
-          `SELECT name, planned_amount::text, funding, savings_account_ids, rollover_mode, is_catch_all,
-             allocation_rule, deleted_at FROM budget_lines WHERE plan_id = $1 ORDER BY name`,
+          `SELECT name, (SELECT b.planned_amount::text FROM budget_line_budgets b
+             WHERE b.line_id = budget_lines.id AND b.removed_at IS NULL AND b.currency = 'COP') AS planned_amount, funding, savings_account_ids, rollover_mode,
+             is_catch_all, allocation_rule, deleted_at FROM budget_lines WHERE plan_id = $1 ORDER BY name`,
           [plan.id],
         )
       ).rows,
@@ -999,7 +1053,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       ["Free", 5_000_000n],
     ];
     for (const [name, amount] of lines) {
-      unwrap(await add({ ...base, expectedVersion: null, line: { name, plannedAmount: money(amount) } }));
+      unwrap(await add({ ...base, expectedVersion: null, line: { name, budgets: [money(amount)] } }));
     }
     const added = unwrap(
       await add({
@@ -1007,7 +1061,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
         expectedVersion: null,
         line: {
           name: "Savings",
-          plannedAmount: money(60_000_000n),
+          budgets: [money(60_000_000n)],
           funding: "SAVINGS",
           savingsAccountIds: [account],
         },
@@ -1021,7 +1075,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       [plan.id, id("Gifts"), groceries, at],
     );
     await pool.query(
-      "INSERT INTO budget_allocations (line_id, member_id, rule, value, set_at) VALUES ($1, $2, 'FIXED', '5', $3)",
+      "INSERT INTO budget_allocations (line_id, member_id, rule, currency, value, set_at) VALUES ($1, $2, 'FIXED', 'COP', '5', $3)",
       [id("Gifts"), fixture.memberId, at],
     );
     await pool.query("UPDATE budget_lines SET allocation_rule = 'FIXED' WHERE id = $1", [id("Gifts")]);
@@ -1092,7 +1146,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine over PostgreSQL (HU-E6-03, HU-E6
       "SavingsLineNotMappable",
       "SavingsAccountAlreadyUsed",
       "AccountNotFound",
-      "CurrencyMismatch",
+      "PlanExceedsCapacity",
       "BudgetLineNotFound",
       "BudgetLineNotFound",
       "BudgetLineNotFound",
@@ -1226,7 +1280,12 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
             ? { id, ownerUserId: fixture.userId, isSavings: true, archived: false, currency: "COP" }
             : null,
       },
-      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      spending: {
+        expensesByCategory: async () => [],
+        transfersIntoAccounts: async () => [],
+        expensesByCategoryByCurrency: async () => [],
+        transfersIntoAccountsByCurrency: async () => [],
+      },
       ids: new UuidV7IdGenerator(),
       clock: new FixedClock(at),
       tm,
@@ -1266,14 +1325,14 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
       await add({
         ...base,
         expectedVersion: null,
-        line: { name: "Home", plannedAmount: money(100_000_000n) },
+        line: { name: "Home", budgets: [money(100_000_000n)] },
       }),
     );
     unwrap(
       await add({
         ...base,
         expectedVersion: null,
-        line: { name: "Free", plannedAmount: money(10_000_000n) },
+        line: { name: "Free", budgets: [money(10_000_000n)] },
       }),
     );
     unwrap(
@@ -1282,7 +1341,7 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
         expectedVersion: null,
         line: {
           name: "Savings",
-          plannedAmount: money(60_000_000n),
+          budgets: [money(60_000_000n)],
           funding: "SAVINGS",
           savingsAccountIds: [account],
         },
@@ -1343,7 +1402,7 @@ describe("MapCategoriesToLine over PostgreSQL (HU-E6-04, Review Focus 5, 6, spec
       await add({
         ...base,
         expectedVersion: null,
-        line: { name: "Trips", plannedAmount: money(5_000_000n) },
+        line: { name: "Trips", budgets: [money(5_000_000n)] },
       }),
     );
     const trips = await idOf("Trips");
@@ -1401,11 +1460,17 @@ describe("DrizzleBudgetPlanRepository allocations (HU-E6-05, D8)", () => {
       await plans.addLine(free, at);
       await plans.addLine(gift, at);
       const split = [
-        { memberId: fixture.memberId, value: 4200n },
-        { memberId: pedro, value: 5800n },
+        { memberId: fixture.memberId, currency: null, value: 4200n },
+        { memberId: pedro, currency: null, value: 5800n },
       ];
       await plans.setAllocation(november.id, free.id, "PERCENT", split, at);
-      await plans.setAllocation(november.id, free.id, "FIXED", [{ memberId: pedro, value: 73_000_000n }], at);
+      await plans.setAllocation(
+        november.id,
+        free.id,
+        "FIXED",
+        [{ memberId: pedro, currency: "COP", value: 73_000_000n }],
+        at,
+      );
       const fixedParts = await plans.contents(november.id);
       await plans.setAllocation(november.id, free.id, "NONE", [], at);
       const noneParts = await plans.contents(november.id);
@@ -1415,14 +1480,26 @@ describe("DrizzleBudgetPlanRepository allocations (HU-E6-05, D8)", () => {
         december.id,
         gift.id,
         "PERCENT",
-        [{ memberId: fixture.memberId, value: 10000n }],
+        [{ memberId: fixture.memberId, currency: null, value: 10000n }],
         at,
       );
       await plans.setAllocation(november.id, gift.id, "NONE", [], at);
-      await plans.setAllocation(november.id, gift.id, "FIXED", [{ memberId: pedro, value: 10_000_000n }], at);
+      await plans.setAllocation(
+        november.id,
+        gift.id,
+        "FIXED",
+        [{ memberId: pedro, currency: "COP", value: 10_000_000n }],
+        at,
+      );
       const elsewhere = await plans.contents(december.id);
       await plans.deleteLine(november.id, free.id, at);
-      await plans.setAllocation(november.id, free.id, "FIXED", [{ memberId: pedro, value: 73_000_000n }], at);
+      await plans.setAllocation(
+        november.id,
+        free.id,
+        "FIXED",
+        [{ memberId: pedro, currency: "COP", value: 73_000_000n }],
+        at,
+      );
       return {
         fixed: [fixedParts.lines[0]!.allocationRule, fixedParts.allocations],
         none: [noneParts.lines[0]!.allocationRule, noneParts.allocations],
@@ -1430,9 +1507,12 @@ describe("DrizzleBudgetPlanRepository allocations (HU-E6-05, D8)", () => {
       };
     };
     const expected = {
-      fixed: ["FIXED", [{ lineId: free.id, memberId: pedro, value: 73_000_000n }]],
+      fixed: ["FIXED", [{ lineId: free.id, memberId: pedro, currency: "COP", value: 73_000_000n }]],
       none: ["NONE", []],
-      elsewhere: ["PERCENT", [{ lineId: gift.id, memberId: fixture.memberId, value: 10000n }]],
+      elsewhere: [
+        "PERCENT",
+        [{ lineId: gift.id, memberId: fixture.memberId, currency: null, value: 10000n }],
+      ],
     };
     expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
     expect(await run(repo)).toEqual(expected);
@@ -1462,7 +1542,12 @@ describe("AllocateBudgetLine over PostgreSQL (HU-E6-05, Review Focus 2, 6, spec 
       allocations: repo,
       categories: { lockForReference: async () => undefined, list: async () => [] },
       savingsAccounts: { find: async () => null },
-      spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+      spending: {
+        expensesByCategory: async () => [],
+        transfersIntoAccounts: async () => [],
+        expensesByCategoryByCurrency: async () => [],
+        transfersIntoAccountsByCurrency: async () => [],
+      },
       ids: new UuidV7IdGenerator(),
       clock: new FixedClock(at),
       tm,
@@ -1546,7 +1631,7 @@ describe("AllocateBudgetLine over PostgreSQL (HU-E6-05, Review Focus 2, 6, spec 
       ["Home", 100_000_000n],
       ["Free", 73_000_000n],
     ] as const) {
-      unwrap(await add({ ...base, expectedVersion: null, line: { name, plannedAmount: money(amount) } }));
+      unwrap(await add({ ...base, expectedVersion: null, line: { name, budgets: [money(amount)] } }));
     }
     const idOf = async (name: string) =>
       (await repo.contents(plan.id)).lines.find((l) => l.name === name)!.id;
@@ -1631,5 +1716,76 @@ describe("AllocateBudgetLine over PostgreSQL (HU-E6-05, Review Focus 2, 6, spec 
         row("Home", "Ana", "FIXED", "100000000", t5, null),
       ],
     });
+  });
+});
+
+describe("DrizzleBudgetPlanRepository line budgets (P342, S7)", () => {
+  it("stores a budget per currency, edits one in place and ends a dropped one's row, like its twin", async () => {
+    const { space, fixture } = await household();
+    const november = aPlan(space.id, "2026-11", "2026-11-01", "2026-11-30");
+    const salidas = aLine("Salidas", 30_000_000n, {
+      id: randomUUID() as BudgetLineId,
+      planId: november.id,
+      budgets: [
+        { currency: "COP", amount: 30_000_000n },
+        { currency: "USD", amount: 10_000n },
+      ],
+      allocationRule: "FIXED",
+    });
+    const onlyDollars = { ...salidas, budgets: [{ currency: "USD", amount: 12_000n }] };
+    const run = async (
+      plans: BudgetPlanRepository & BudgetLineRepository & AllocationRepository & CapacityRepository,
+    ) => {
+      await plans.add(november);
+      await plans.addLine(salidas, at);
+      await plans.setCapacities(
+        november.id,
+        [
+          { memberId: fixture.memberId, currency: "COP", amount: 30_000_000n },
+          { memberId: fixture.memberId, currency: "USD", amount: 12_000n },
+        ],
+        at,
+      );
+      await plans.setAllocation(
+        november.id,
+        salidas.id,
+        "FIXED",
+        [
+          { memberId: fixture.memberId, currency: "COP", value: 30_000_000n },
+          { memberId: fixture.memberId, currency: "USD", value: 10_000n },
+        ],
+        at,
+      );
+      const both = await plans.contents(november.id);
+      await plans.saveLine(onlyDollars, later);
+      return { both, dollars: (await plans.contents(november.id)).lines };
+    };
+    const expected = {
+      both: {
+        capacities: [
+          { memberId: fixture.memberId, currency: "COP", amount: 30_000_000n },
+          { memberId: fixture.memberId, currency: "USD", amount: 12_000n },
+        ],
+        lines: [salidas],
+        mappings: [],
+        allocations: [
+          { lineId: salidas.id, memberId: fixture.memberId, currency: "COP", value: 30_000_000n },
+          { lineId: salidas.id, memberId: fixture.memberId, currency: "USD", value: 10_000n },
+        ],
+      },
+      dollars: [onlyDollars],
+    };
+    expect(await run(new InMemoryBudgetPlans())).toEqual(expected);
+    expect(await run(repo)).toEqual(expected);
+    // D8: the COP budget's row stays, ended; the USD one changed in place.
+    const { rows } = await pool.query(
+      `SELECT currency, planned_amount::text AS amount, removed_at FROM budget_line_budgets WHERE line_id = $1
+       ORDER BY currency`,
+      [salidas.id],
+    );
+    expect(rows).toEqual([
+      { currency: "COP", amount: "30000000", removed_at: later },
+      { currency: "USD", amount: "12000", removed_at: null },
+    ]);
   });
 });

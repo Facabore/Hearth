@@ -51,13 +51,34 @@ export interface BudgetPlanRepository {
   lockCopiesOf(spaceId: string, planId: string): Promise<BudgetPlan[]>;
 }
 
+/** Spec 5.4, ruling P342 (S7): a sum of movements in one currency, their own. */
+export interface SpentByCategory {
+  readonly categoryId: string;
+  readonly currency: string;
+  readonly amount: bigint;
+}
+
+export interface SpentIntoAccount {
+  readonly accountId: string;
+  readonly currency: string;
+  readonly amount: bigint;
+}
+
 /**
  * Spec 5.4, D7: spending within dates, summed on read by the ledger and bound by the composition root. Ruling P342 (S7,
- * owner: "Contar lo que pagó la cuenta"): until plans count several currencies, each sum is in `currency`, the plan's
- * (its space's): a movement in it counts its amount, one in another currency what its account in `currency` moved, and
- * one with no such account nothing yet.
+ * T6, "Líneas por moneda"): plans read the `ByCurrency` sums, each movement in its own currency, so it counts only
+ * against a budget in that currency; nothing is converted. The single-currency sums remain for the reports that still
+ * read one currency (T3's interim rule: a movement in another currency counts what its account in `currency` moved).
  */
 export interface PlanSpending {
+  /** P342 (S7): Σ live expenses of the space dated within [from, to] per category and movement currency. */
+  expensesByCategoryByCurrency(spaceId: string, from: LocalDate, to: LocalDate): Promise<SpentByCategory[]>;
+  /** P342 (S7): Σ live transfers dated within [from, to] into each of the accounts per movement currency. */
+  transfersIntoAccountsByCurrency(
+    accountIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<SpentIntoAccount[]>;
   /** Σ live expenses of the space dated within [from, to] per category; categories without any are absent. */
   expensesByCategory(
     spaceId: string,
@@ -77,14 +98,17 @@ export interface PlanSpending {
 /**
  * What figuring a chain of copied plans reads, for every plan of one space at once: the plans, each plan's contents,
  * the space's expenses per category within each plan's stored dates, and the transfers within them into every account a
- * line of that plan names. Each figure is what `contents`, `expensesByCategory` and `transfersIntoAccounts` answer for
+ * line of that plan names. Each figure is what `contents`, `expensesByCategoryByCurrency` and
+ * `transfersIntoAccountsByCurrency` answer for
  * that plan, so a view that walks a chain reads a constant number of statements instead of several per plan.
  */
 export interface PlanHistory {
   readonly plans: readonly BudgetPlan[];
   readonly contents: ReadonlyMap<string, PlanContents>;
-  readonly expenses: ReadonlyMap<string, readonly { categoryId: string; amount: bigint }[]>;
-  readonly transfers: ReadonlyMap<string, readonly { accountId: string; amount: bigint }[]>;
+  /** P342 (S7): per category and movement currency, as `expensesByCategoryByCurrency` answers. */
+  readonly expenses: ReadonlyMap<string, readonly SpentByCategory[]>;
+  /** P342 (S7): per account and movement currency, as `transfersIntoAccountsByCurrency` answers. */
+  readonly transfers: ReadonlyMap<string, readonly SpentIntoAccount[]>;
 }
 
 export interface PlanHistoryReader {
@@ -94,7 +118,7 @@ export interface PlanHistoryReader {
 
 /** HU-E6-02: capacities are edited in place; a member without one counts as 0. */
 export interface CapacityRepository {
-  /** Inserts or replaces the capacity of each listed member; members not listed keep theirs. */
+  /** Inserts or replaces the capacity of each listed member in its currency; pairs not listed keep theirs. */
   setCapacities(planId: BudgetPlanId, capacities: readonly MemberCapacity[], at: Date): Promise<void>;
 }
 
@@ -112,7 +136,7 @@ export type PreviousIncome = (
 export interface BudgetLineRepository {
   addLine(line: BudgetLine, at: Date): Promise<void>;
   /**
-   * Persists the name, planned amount, funding, savings accounts, rollover mode, catch-all flag and payers (D26) of a current line
+   * Persists the name, budgets (P342), funding, savings accounts, rollover mode, catch-all flag and payers (D26) of a current line
    * of the line's own plan; a line of another plan or a removed one is not found and nothing is saved.
    */
   saveLine(line: BudgetLine, at: Date): Promise<void>;

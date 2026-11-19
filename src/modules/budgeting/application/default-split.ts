@@ -94,7 +94,16 @@ export const defaultSplitOf = async (
   // P293: the line is assigned among every current member, so a VIEWER's stored figures keep it holding (P263), and
   // only then are the VIEWERs left out of the weights.
   const current = [...expense.memberIds, ...expense.viewerIds];
-  const { assigned } = lineAssignment(line, parts, current, expense.currency);
+  // Ruling P342 (S7): the line's assignment in the expense's currency; a currency the line does not budget follows the
+  // proportions of its first budget (only who is responsible, no amount is converted), as it did before plans counted
+  // several currencies.
+  const budgeted = line.budgets.some((b) => b.currency === expense.currency);
+  const { assigned } = lineAssignment(
+    line,
+    parts,
+    current,
+    budgeted ? expense.currency : (line.budgets[0]?.currency ?? expense.currency),
+  );
   const weights =
     assigned.ok && assigned.value !== null
       ? assigned.value

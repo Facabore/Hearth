@@ -39,7 +39,12 @@ const budgetingDeps = (planCategories: BudgetCategories = budgetCategoriesOf(cat
   spaceLocks: spaces,
   members: spaces,
   plans,
-  spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+  spending: {
+    expensesByCategory: async () => [],
+    transfersIntoAccounts: async () => [],
+    expensesByCategoryByCurrency: async () => [],
+    transfersIntoAccountsByCurrency: async () => [],
+  },
   savingsAccounts: { find: async () => null },
   categories: planCategories,
   ids,
@@ -83,14 +88,18 @@ const world = async () => {
   const { plan } = unwrap(
     await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
   );
-  await plans.setCapacities(plan.id, [{ memberId: owner.memberId, amount: 100_000_000n }], clock.now());
+  await plans.setCapacities(
+    plan.id,
+    [{ memberId: owner.memberId, currency: "COP", amount: 100_000_000n }],
+    clock.now(),
+  );
   unwrap(
     await createAddBudgetLine({ ...deps, lines: plans })({
       spaceId: space.id,
       userId: ana.id,
       planId: plan.id,
       expectedVersion: null,
-      line: { name: "Market", plannedAmount: money(50_000_000n) },
+      line: { name: "Market", budgets: [money(50_000_000n)] },
     }),
   );
   const [line] = (await plans.contents(plan.id)).lines;

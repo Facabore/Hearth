@@ -156,9 +156,6 @@ describe("Ruling P342 (S7): sums count another currency by the space-currency ac
     expect(await queries.expensesByCategory(w.household.spaceId, nov1, nov30, "COP")).toEqual(counted);
     // Without a currency, the space's own.
     expect(await queries.expensesByCategory(w.household.spaceId, nov1, nov30)).toEqual(counted);
-    expect(await queries.expensesByCategoryIn(w.household.spaceId, [{ start: nov1, end: nov30 }])).toEqual([
-      counted,
-    ]);
     expect(
       (await queries.totals({ spaceId: w.household.spaceId, from: nov1, to: nov30 }, "COP")).expenses,
     ).toBe(610_000_00n);
@@ -180,8 +177,21 @@ describe("Ruling P342 (S7): sums count another currency by the space-currency ac
     expect(await queries.transfersIntoAccounts([savings], nov1, nov30)).toEqual([
       { accountId: savings, amount: 70_00n },
     ]);
-    expect(await queries.transfersIntoAccountsIn([savings], [{ start: nov1, end: nov30 }], "COP")).toEqual([
-      [{ accountId: savings, amount: 205_000_00n }],
+  });
+
+  it("counts each movement for plans in its own currency, never by an account leg (P342 T6, S7)", async () => {
+    const { w, savings } = await fixture();
+    // Groceries: 200.000 COP, and 100 USD + 30 USD whatever account paid them.
+    expect(await queries.expensesByCategoryByCurrency(w.household.spaceId, nov1, nov30)).toEqual([
+      { categoryId: w.groceries, currency: "COP", amount: 200_000_00n },
+      { categoryId: w.groceries, currency: "USD", amount: 130_00n },
+    ]);
+    // Both transfers into the USD savings are USD movements, the one paid from Bancolombia (COP) included.
+    expect(await queries.transfersIntoAccountsByCurrency([savings], nov1, nov30)).toEqual([
+      { accountId: savings, currency: "USD", amount: 70_00n },
+    ]);
+    expect(await queries.expensesByCategoryIn(w.household.spaceId, [{ start: nov1, end: nov30 }])).toEqual([
+      await queries.expensesByCategoryByCurrency(w.household.spaceId, nov1, nov30),
     ]);
   });
 

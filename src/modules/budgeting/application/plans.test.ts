@@ -97,7 +97,7 @@ describe("CreateBudgetPlan (HU-E6-01)", () => {
       { label: "2026-11 H1", start: "2026-11-01", end: "2026-11-15" },
       { label: "2026-11 H2", start: "2026-11-16", end: "2026-11-30" },
     ]);
-    plans.seed(h1.id, { capacities: [{ memberId: "member-ana", amount: 80_000_000n }] });
+    plans.seed(h1.id, { capacities: [{ memberId: "member-ana", currency: "COP", amount: 80_000_000n }] });
     const read = createGetBudgetPlan(deps);
     const total = async (planId: string) =>
       unwrap(await read({ spaceId: HOUSEHOLD, userId: "u-ana", planId })).figures.totalCapacity;
@@ -139,8 +139,8 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
     plans.seed(plan.id, {
       capacities: [
-        { memberId: "member-ana", amount: 160_000_000n },
-        { memberId: "member-juan", amount: 240_000_000n },
+        { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+        { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
       ],
       lines: referenceLines(),
     });
@@ -155,7 +155,7 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
 
   it("counts the transfers into a SAVINGS line's accounts, and asks for them only when a line names accounts", async () => {
     const { deps, plans, spending } = budgetingWorld();
-    const transfers = vi.spyOn(spending, "transfersIntoAccounts");
+    const transfers = vi.spyOn(spending, "transfersIntoAccountsByCurrency");
     const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
     const read = createGetBudgetPlan(deps);
     unwrap(await read({ spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id }));
@@ -166,13 +166,13 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
       { accountId: "acc-other", amount: 5_000_000n },
     ];
     const view = unwrap(await read({ spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id }));
-    expect(transfers).toHaveBeenCalledWith(["acc-savings"], "2026-11-01", "2026-11-30", "COP");
+    expect(transfers).toHaveBeenCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
     expect(view.figures.lines.find((l) => l.line.name === "Savings")!.spent).toBe(60_000_000n);
   });
 
   it("counts the transfers into an account only while its owner is a current registered member, whoever reads (P8)", async () => {
     const { deps, plans, spending, spaces } = budgetingWorld();
-    const transfers = vi.spyOn(spending, "transfersIntoAccounts");
+    const transfers = vi.spyOn(spending, "transfersIntoAccountsByCurrency");
     const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
     await spaces.addMember(HOUSEHOLD, memberOf("Luis", "ADMIN", 4));
     // Marta never belonged to the space: only data written outside the use cases can name her account.
@@ -193,14 +193,13 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
       ["acc-savings", "acc-luis-savings"],
       "2026-11-01",
       "2026-11-30",
-      "COP",
     );
 
     expect(await spaces.markLeft(HOUSEHOLD, "member-luis", "USER", NOW)).toBe(true);
     // Sofi the VIEWER and Ana read the same figure, with nothing from the account of the owner who left.
     expect(await spentAs("u-sofi")).toBe(10_000_000n);
     expect(await spentAs("u-ana")).toBe(10_000_000n);
-    expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30", "COP");
+    expect(transfers).toHaveBeenLastCalledWith(["acc-savings"], "2026-11-01", "2026-11-30");
 
     // The filter runs on every read, over the whole period: Luis rejoins and his transfers count again.
     expect(await spaces.addMember(HOUSEHOLD, memberOf("Luis", "MEMBER", 5))).toBe("rejoined");
@@ -209,7 +208,7 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
 
   it("asks for every named account before waiting for any, and keeps the lines' order whichever answers first", async () => {
     const { deps, plans, spending } = budgetingWorld();
-    const transfers = vi.spyOn(spending, "transfersIntoAccounts");
+    const transfers = vi.spyOn(spending, "transfersIntoAccountsByCurrency");
     const plan = unwrap(await createCreateBudgetPlan(deps)(as("u-ana"))).plan;
     const named = ["acc-savings", "acc-reserve"];
     plans.seed(plan.id, {
@@ -230,7 +229,7 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     pending.get("acc-reserve")!(await savingsAccounts.find("acc-reserve"));
     pending.get("acc-savings")!(await savingsAccounts.find("acc-savings"));
     unwrap(await read);
-    expect(transfers).toHaveBeenCalledWith(named, "2026-11-01", "2026-11-30", "COP");
+    expect(transfers).toHaveBeenCalledWith(named, "2026-11-01", "2026-11-30");
   });
 
   it("derives the figures from the current lines, mappings, allocations and members only (D8, D15)", async () => {
@@ -239,8 +238,8 @@ describe("GetBudgetPlan (HU-E6-01)", () => {
     const [rent, home, savings, free] = referenceLines();
     plans.seed(plan.id, {
       capacities: [
-        { memberId: "member-ana", amount: 160_000_000n },
-        { memberId: "member-pedro", amount: 40_000_000n },
+        { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+        { memberId: "member-pedro", currency: "COP", amount: 40_000_000n },
       ],
       lines: [rent!, home!, savings!, free!],
       mappings: [

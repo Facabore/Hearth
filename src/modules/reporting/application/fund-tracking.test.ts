@@ -7,8 +7,8 @@ import { createGetFundContributions } from "./get-fund-contributions";
 
 const pesos = (n: number) => BigInt(n) * 100n;
 const capacities = [
-  { memberId: "member-ana", amount: pesos(1_600_000) },
-  { memberId: "member-juan", amount: pesos(2_400_000) },
+  { memberId: "member-ana", currency: "COP", amount: pesos(1_600_000) },
+  { memberId: "member-juan", currency: "COP", amount: pesos(2_400_000) },
 ];
 const read = (w: ReturnType<typeof reportingWorld>, period: string, userId = "u-ana") =>
   createGetFundContributions(w.fundDeps)({ spaceId: HOUSEHOLD, userId, period });

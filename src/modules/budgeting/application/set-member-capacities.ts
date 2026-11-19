@@ -21,7 +21,8 @@ export type CapacityDeps = BudgetingDeps & { readonly capacities: CapacityReposi
 
 /**
  * HU-E6-02, D17: OWNER and ADMIN set anyone's capacity (plan.manage); a registered MEMBER sets only their own
- * (capacity.setOwn). Members not listed keep theirs; proportional assignments follow on the next read.
+ * (capacity.setOwn). Members not listed keep theirs; proportional assignments follow on the next read. Ruling P342
+ * (S7): one capacity per member and currency, in any currency; the pairs not listed keep theirs.
  */
 export const createSetMemberCapacities =
   (deps: CapacityDeps): SetMemberCapacities =>
@@ -36,7 +37,6 @@ export const createSetMemberCapacities =
       const capacities = checkedCapacities(
         input.capacities,
         members.map((m) => m.id),
-        space.currency,
         viewerIdsOf(members),
       );
       if (!capacities.ok) return capacities;

@@ -132,8 +132,9 @@ const line = async (planId: string, columns: LineColumns = {}): Promise<string> 
 
 const allocation = async (rule: string) =>
   pool.query(
-    "INSERT INTO budget_allocations (line_id, member_id, rule, value, set_at) VALUES ($1, $2, $3, 100, now())",
-    [await line(await plan()), w.pedro, rule],
+    // P342 (S7): a FIXED value is in a currency, any other rule's keeps none.
+    "INSERT INTO budget_allocations (line_id, member_id, rule, currency, value, set_at) VALUES ($1, $2, $3, $4, 100, now())",
+    [await line(await plan()), w.pedro, rule, rule === "FIXED" ? "COP" : null],
   );
 
 describe("closed vocabularies of budgeting (#249, M3A-2)", () => {

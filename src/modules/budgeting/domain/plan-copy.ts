@@ -31,7 +31,8 @@ export interface CopyInput {
 }
 
 /**
- * HU-E6-06: a deep clone of the source plan's parts with new ids. Each copied line keeps its name, planned amount,
+ * HU-E6-06: a deep clone of the source plan's parts with new ids. Each copied line keeps its name, its budgets in every
+ * currency (ruling P342, S7), and its
  * funding, rollover mode, catch-all flag and allocation rule, links to its source line (`originLineId`, HU-E6-09)
  * and is created a millisecond after the one before, so readers list the copies in the source's order. Former
  * members' and VIEWERs' capacities and values (ruling P261), mappings to categories that are archived or gone, and accounts that no longer
@@ -81,7 +82,12 @@ export const copiedParts = (input: CopyInput): { parts: PlanParts; dropped: Copy
     }
     for (const value of input.source.allocations) {
       if (value.lineId === line.id && current.has(value.memberId)) {
-        allocations.push({ lineId: id, memberId: value.memberId, value: value.value });
+        allocations.push({
+          lineId: id,
+          memberId: value.memberId,
+          currency: value.currency,
+          value: value.value,
+        });
       }
     }
   });

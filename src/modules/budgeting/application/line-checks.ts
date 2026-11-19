@@ -1,14 +1,24 @@
-import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
+import type { SpaceMember } from "@/modules/spaces/application";
 import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import type { BudgetLine, LineContext } from "../domain/budget-line";
-import { totalCapacity } from "../domain/capacity";
+import { totalCapacities } from "../domain/capacity";
+import type { CurrencyAmount } from "../domain/currency-amount";
 import type { BudgetAccount, PlanContents, SavingsAccountReader } from "./ports";
 
-/** D6: amounts are in the space currency. */
-export const inSpaceCurrency = (space: SpaceMembership, money: Money): Result<bigint> =>
-  money.currency.code === space.currency
-    ? ok(money.minor)
-    : err(domainError("CurrencyMismatch", { expected: space.currency, actual: money.currency.code }));
+/** Ruling P342 (S7, "Líneas por moneda"): a line's budgets as a request names them, in any currency, never converted. */
+export const budgetsOf = (amounts: readonly Money[]): CurrencyAmount[] =>
+  amounts.map((money) => ({ currency: money.currency.code, amount: money.minor }));
+
+/**
+ * P342 (S7): the budgets a line has once `amount` replaces its budget in `amount`'s currency, or is added after the
+ * others when the line has none in it. The other currencies keep theirs.
+ */
+export const withBudget = (budgets: readonly CurrencyAmount[], amount: Money): CurrencyAmount[] => {
+  const [budget] = budgetsOf([amount]);
+  return budgets.some((b) => b.currency === budget!.currency)
+    ? budgets.map((b) => (b.currency === budget!.currency ? budget! : b))
+    : [...budgets, budget!];
+};
 
 /** A current line of the plan; a removed line, another plan's line or a malformed id is BudgetLineNotFound. */
 export const lineOf = (parts: PlanContents, lineId: string): Result<BudgetLine> => {
@@ -23,7 +33,7 @@ export const lineContext = (
   lineId: string | null,
 ): LineContext => ({
   siblings: parts.lines.filter((l) => l.id !== lineId),
-  totalCapacity: totalCapacity(
+  totalCapacities: totalCapacities(
     parts.capacities,
     members.map((m) => m.id),
   ),

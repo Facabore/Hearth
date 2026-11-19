@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { codeOf, money, unwrap } from "../../../../tests/support/fakes";
-import { capacityOf, checkedCapacities, shareOfTotal, totalCapacity } from "./capacity";
+import { capacityOf, checkedCapacities, shareOfTotal, totalCapacities, totalCapacity } from "./capacity";
 
 const MEMBERS = ["member-ana", "member-juan", "member-pedro"];
 const cop = (pesos: number) => money(BigInt(pesos) * 100n);
@@ -14,28 +14,27 @@ describe("member capacities (HU-E6-02)", () => {
           { memberId: "member-juan", amount: cop(2_400_000) },
         ],
         MEMBERS,
-        "COP",
         [],
       ),
     );
     expect(capacities).toEqual([
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-juan", amount: 240_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
     ]);
-    const total = totalCapacity(capacities, MEMBERS);
+    const total = totalCapacity(capacities, MEMBERS, "COP");
     expect(total).toBe(400_000_000n);
     expect([shareOfTotal(160_000_000n, total), shareOfTotal(240_000_000n, total)]).toEqual([4000, 6000]);
   });
 
   it("counts a member without an explicit capacity, the guest Pedro here, as 0 COP", () => {
-    const capacities = [{ memberId: "member-ana", amount: 160_000_000n }];
-    expect(capacityOf(capacities, "member-pedro")).toBe(0n);
-    expect(totalCapacity(capacities, MEMBERS)).toBe(160_000_000n);
+    const capacities = [{ memberId: "member-ana", currency: "COP", amount: 160_000_000n }];
+    expect(capacityOf(capacities, "member-pedro", "COP")).toBe(0n);
+    expect(totalCapacity(capacities, MEMBERS, "COP")).toBe(160_000_000n);
   });
 
   it("lets a guest hold capacity like anyone (D15)", () => {
-    const pedro = checkedCapacities([{ memberId: "member-pedro", amount: cop(300_000) }], MEMBERS, "COP", []);
-    expect(unwrap(pedro)).toEqual([{ memberId: "member-pedro", amount: 30_000_000n }]);
+    const pedro = checkedCapacities([{ memberId: "member-pedro", amount: cop(300_000) }], MEMBERS, []);
+    expect(unwrap(pedro)).toEqual([{ memberId: "member-pedro", currency: "COP", amount: 30_000_000n }]);
   });
 
   it("accepts a zero capacity and counts it as 0 in the total", () => {
@@ -46,25 +45,19 @@ describe("member capacities (HU-E6-02)", () => {
           { memberId: "member-juan", amount: cop(0) },
         ],
         MEMBERS,
-        "COP",
         [],
       ),
     );
     expect(capacities).toEqual([
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-juan", amount: 0n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 0n },
     ]);
-    expect(totalCapacity(capacities, MEMBERS)).toBe(160_000_000n);
-    expect(shareOfTotal(capacityOf(capacities, "member-juan"), 160_000_000n)).toBe(0);
+    expect(totalCapacity(capacities, MEMBERS, "COP")).toBe(160_000_000n);
+    expect(shareOfTotal(capacityOf(capacities, "member-juan", "COP"), 160_000_000n)).toBe(0);
   });
 
   it("rejects a negative capacity", () => {
-    const negative = checkedCapacities(
-      [{ memberId: "member-juan", amount: cop(-100_000) }],
-      MEMBERS,
-      "COP",
-      [],
-    );
+    const negative = checkedCapacities([{ memberId: "member-juan", amount: cop(-100_000) }], MEMBERS, []);
     expect(negative).toEqual({
       ok: false,
       error: { code: "InvalidCapacity", details: { reason: "negative" } },
@@ -72,7 +65,7 @@ describe("member capacities (HU-E6-02)", () => {
   });
 
   it("rejects a capacity for Marta, who is neither a registered member nor a guest", () => {
-    const marta = checkedCapacities([{ memberId: "member-marta", amount: cop(100_000) }], MEMBERS, "COP", []);
+    const marta = checkedCapacities([{ memberId: "member-marta", amount: cop(100_000) }], MEMBERS, []);
     expect(codeOf(marta)).toBe("NotASpaceMember");
   });
 
@@ -83,20 +76,40 @@ describe("member capacities (HU-E6-02)", () => {
         { memberId: "member-ana", amount: cop(2) },
       ],
       MEMBERS,
-      "COP",
       [],
     );
     expect(twice).toEqual({
       ok: false,
       error: { code: "InvalidCapacity", details: { reason: "duplicateMember" } },
     });
+    // Ruling P342 (S7): a member holds one capacity per currency, so a second one in USD is no duplicate.
     const dollars = checkedCapacities(
-      [{ memberId: "member-ana", amount: money(100n, "USD") }],
+      [
+        { memberId: "member-ana", amount: cop(1) },
+        { memberId: "member-ana", amount: money(100n, "USD") },
+      ],
       MEMBERS,
-      "COP",
       [],
     );
-    expect(codeOf(dollars)).toBe("CurrencyMismatch");
+    expect(unwrap(dollars)).toEqual([
+      { memberId: "member-ana", currency: "COP", amount: 100n },
+      { memberId: "member-ana", currency: "USD", amount: 100n },
+    ]);
+  });
+
+  it("totals each currency apart and never converts (ruling P342, S7: Juan 2.400.000 COP y 100 USD)", () => {
+    const capacities = [
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
+      { memberId: "member-juan", currency: "USD", amount: 10_000n },
+      { memberId: "member-marta", currency: "EUR", amount: 5_000n },
+    ];
+    expect(totalCapacities(capacities, MEMBERS)).toEqual([
+      { currency: "COP", amount: 400_000_000n },
+      { currency: "USD", amount: 10_000n },
+    ]);
+    expect(capacityOf(capacities, "member-juan", "USD")).toBe(10_000n);
+    expect(capacityOf(capacities, "member-ana", "USD")).toBe(0n);
   });
 
   it("refuses a capacity above zero for a VIEWER, and accepts their zero (#217, ruling P261)", () => {
@@ -106,7 +119,6 @@ describe("member capacities (HU-E6-02)", () => {
         { memberId: "member-sofi", amount: cop(100_000) },
       ],
       [...MEMBERS, "member-sofi"],
-      "COP",
       ["member-sofi"],
     );
     expect(sofi).toEqual({
@@ -116,18 +128,17 @@ describe("member capacities (HU-E6-02)", () => {
     const zero = checkedCapacities(
       [{ memberId: "member-sofi", amount: cop(0) }],
       [...MEMBERS, "member-sofi"],
-      "COP",
       ["member-sofi"],
     );
-    expect(unwrap(zero)).toEqual([{ memberId: "member-sofi", amount: 0n }]);
+    expect(unwrap(zero)).toEqual([{ memberId: "member-sofi", currency: "COP", amount: 0n }]);
   });
 
   it("counts only current members: a member who left no longer adds to the total (Review Focus 2)", () => {
     const capacities = [
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-luis", amount: 50_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-luis", currency: "COP", amount: 50_000_000n },
     ];
-    expect(totalCapacity(capacities, ["member-ana"])).toBe(160_000_000n);
+    expect(totalCapacity(capacities, ["member-ana"], "COP")).toBe(160_000_000n);
   });
 
   it("rounds shares half up to basis points, and has none without capacity", () => {

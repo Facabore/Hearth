@@ -46,6 +46,8 @@ const afterNovember = { clock: new FixedClock(new Date("2026-12-01T17:00:00Z")),
 const nothingSpent: PlanSpending = {
   expensesByCategory: async () => [],
   transfersIntoAccounts: async () => [],
+  expensesByCategoryByCurrency: async () => [],
+  transfersIntoAccountsByCurrency: async () => [],
 };
 
 afterAll(() => pool.end());
@@ -143,7 +145,11 @@ const planWith = async (capacity: bigint) => {
   const { plan } = unwrap(
     await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
   );
-  await plans.setCapacities(plan.id, [{ memberId: space.members[0]!.id, amount: capacity }], at);
+  await plans.setCapacities(
+    plan.id,
+    [{ memberId: space.members[0]!.id, currency: "COP", amount: capacity }],
+    at,
+  );
   const lineDeps = (repository: BudgetPlanRepository): LineDeps => ({
     ...deps,
     plans: repository,
@@ -187,8 +193,8 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
     const { addLines, currentLines } = await planWith(100_000_000n);
     const add = addLines(meetingAfterParts());
     const outcomes = await outcomesOf(
-      add({ name: "Home", plannedAmount: money(60_000_000n) }),
-      add({ name: "Rent", plannedAmount: money(60_000_000n) }),
+      add({ name: "Home", budgets: [money(60_000_000n)] }),
+      add({ name: "Rent", budgets: [money(60_000_000n)] }),
     );
     expect(outcomes).toEqual(["PlanExceedsCapacity", "ok"]);
     expect(await currentLines()).toHaveLength(1);
@@ -197,8 +203,8 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
   it("marks one of two lines as the catch-all line", async () => {
     const { addLines, updateLines, currentLines } = await planWith(100_000_000n);
     const seed = addLines(plans);
-    unwrap(await seed({ name: "Home", plannedAmount: money(30_000_000n) }));
-    unwrap(await seed({ name: "Rent", plannedAmount: money(30_000_000n) }));
+    unwrap(await seed({ name: "Home", budgets: [money(30_000_000n)] }));
+    unwrap(await seed({ name: "Rent", budgets: [money(30_000_000n)] }));
     const [home, rent] = await currentLines();
     const update = updateLines(meetingAfterParts());
     const outcomes = await outcomesOf(
@@ -216,7 +222,7 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
     const saving = (name: string) =>
       add({
         name,
-        plannedAmount: money(10_000_000n),
+        budgets: [money(10_000_000n)],
         funding: "SAVINGS",
         savingsAccountIds: [account],
       });
@@ -228,8 +234,8 @@ describe("concurrent writes to one plan (Review Focus 1)", () => {
   it("maps a category to one of two lines that both ask for it", async () => {
     const { addLines, currentLines, currentMappings, mapCategories } = await planWith(100_000_000n);
     const seed = addLines(plans);
-    unwrap(await seed({ name: "Home", plannedAmount: money(30_000_000n) }));
-    unwrap(await seed({ name: "Rent", plannedAmount: money(30_000_000n) }));
+    unwrap(await seed({ name: "Home", budgets: [money(30_000_000n)] }));
+    unwrap(await seed({ name: "Rent", budgets: [money(30_000_000n)] }));
     const [home, rent] = await currentLines();
     const { groceries, mapTo } = await mapCategories(meetingAfterParts());
     const outcomes = await outcomesOf(mapTo(home!.id, [groceries]), mapTo(rent!.id, [groceries]));
@@ -260,7 +266,11 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     const { plan } = unwrap(
       await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
     );
-    await plans.setCapacities(plan.id, [{ memberId: space.members[0]!.id, amount: 100_000_000n }], at);
+    await plans.setCapacities(
+      plan.id,
+      [{ memberId: space.members[0]!.id, currency: "COP", amount: 100_000_000n }],
+      at,
+    );
     await plans.setStatus(plan.id, "ACTIVE", at);
     const write = { spaceId: space.id, userId: ana.id, planId: plan.id, expectedVersion: null };
     const closeHolding = (h: ReturnType<typeof holder>) =>
@@ -288,7 +298,7 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     const adding = createAddBudgetLine({ ...deps, lines: plans })({
       ...write,
       expectedVersion: staleIfMatch ? plan.version : null,
-      line: { name: "Home", plannedAmount: money(10_000_000n) },
+      line: { name: "Home", budgets: [money(10_000_000n)] },
     }).finally(h.release);
     return { outcomes: await outcomesOf(closing, adding), lines: (await plans.contents(plan.id)).lines };
   };
@@ -411,12 +421,16 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     const { plan: november } = unwrap(
       await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-11" }),
     );
-    await plans.setCapacities(november.id, [{ memberId: space.members[0]!.id, amount: 100_000_000n }], at);
+    await plans.setCapacities(
+      november.id,
+      [{ memberId: space.members[0]!.id, currency: "COP", amount: 100_000_000n }],
+      at,
+    );
     const write = { spaceId: space.id, userId: ana.id, planId: november.id, expectedVersion: null };
     unwrap(
       await createAddBudgetLine({ ...deps, lines: plans })({
         ...write,
-        line: { name: "Home", plannedAmount: money(30_000_000n) },
+        line: { name: "Home", budgets: [money(30_000_000n)] },
       }),
     );
     const [home] = (await plans.contents(november.id)).lines;
@@ -440,9 +454,9 @@ describe("closing and copying while others write (HU-E6-06, HU-E6-07, Review Foc
     }).finally(h.release);
     expect(await outcomesOf(updating, copying)).toEqual(["ok", "ok"]);
     const december = unwrap(await copying).view;
-    expect(
-      december.figures.lines.map((l) => [l.line.name, l.line.plannedAmount, l.line.originLineId]),
-    ).toEqual([["Home", 40_000_000n, home!.id]]);
+    expect(december.figures.lines.map((l) => [l.line.name, l.planned, l.line.originLineId])).toEqual([
+      ["Home", 40_000_000n, home!.id],
+    ]);
   });
 
   it("creates one of two simultaneous copies of the same period and answers the other PlanAlreadyExists", async () => {
@@ -490,12 +504,16 @@ describe("activating a DRAFT source while its carrying copy closes (issue #183, 
     const { plan: source } = unwrap(
       await createCreateBudgetPlan(deps)({ spaceId: space.id, userId: ana.id, period: "2026-10" }),
     );
-    await plans.setCapacities(source.id, [{ memberId: space.members[0]!.id, amount: 100_000_000n }], at);
+    await plans.setCapacities(
+      source.id,
+      [{ memberId: space.members[0]!.id, currency: "COP", amount: 100_000_000n }],
+      at,
+    );
     const onSource = { spaceId: space.id, userId: ana.id, planId: source.id, expectedVersion: null };
     unwrap(
       await createAddBudgetLine({ ...deps, lines: plans })({
         ...onSource,
-        line: { name: "Home", plannedAmount: money(30_000_000n), rolloverMode: "ROLLOVER" },
+        line: { name: "Home", budgets: [money(30_000_000n)], rolloverMode: "ROLLOVER" },
       }),
     );
     const { view } = unwrap(

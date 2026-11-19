@@ -29,19 +29,47 @@ export const BUDGET_MEMBERS: readonly SpaceMember[] = [
   memberOf("Pedro", null, 3),
 ];
 
-/** PlanSpending over fixed sums, as the ledger would return them for the plan's period; records what was asked. */
+/**
+ * PlanSpending over fixed sums, as the ledger would return them for the plan's period; records what was asked. A row
+ * without a currency is in COP, Household's; P342 (S7): the single-currency sums answer only the rows in the currency
+ * asked for (COP when none), never converted.
+ */
 export class FixedSpending implements PlanSpending {
-  byCategory: { categoryId: string; amount: bigint }[] = [];
-  byAccount: { accountId: string; amount: bigint }[] = [];
+  byCategory: { categoryId: string; amount: bigint; currency?: string }[] = [];
+  byAccount: { accountId: string; amount: bigint; currency?: string }[] = [];
   readonly asked: { spaceId: string; from: LocalDate; to: LocalDate }[] = [];
 
-  async expensesByCategory(spaceId: string, from: LocalDate, to: LocalDate) {
+  async expensesByCategoryByCurrency(spaceId: string, from: LocalDate, to: LocalDate) {
     this.asked.push({ spaceId, from, to });
-    return [...this.byCategory];
+    return this.byCategory.map(({ categoryId, amount, currency }) => ({
+      categoryId,
+      currency: currency ?? "COP",
+      amount,
+    }));
   }
 
-  async transfersIntoAccounts(accountIds: readonly string[]) {
-    return this.byAccount.filter((a) => accountIds.includes(a.accountId));
+  async transfersIntoAccountsByCurrency(accountIds: readonly string[]) {
+    return this.byAccount
+      .filter((a) => accountIds.includes(a.accountId))
+      .map(({ accountId, amount, currency }) => ({ accountId, currency: currency ?? "COP", amount }));
+  }
+
+  async expensesByCategory(spaceId: string, from: LocalDate, to: LocalDate, currency = "COP") {
+    this.asked.push({ spaceId, from, to });
+    return this.byCategory
+      .filter((e) => (e.currency ?? "COP") === currency)
+      .map(({ categoryId, amount }) => ({ categoryId, amount }));
+  }
+
+  async transfersIntoAccounts(
+    accountIds: readonly string[],
+    _from?: LocalDate,
+    _to?: LocalDate,
+    currency = "COP",
+  ) {
+    return this.byAccount
+      .filter((a) => accountIds.includes(a.accountId) && (a.currency ?? "COP") === currency)
+      .map(({ accountId, amount }) => ({ accountId, amount }));
   }
 }
 

@@ -15,7 +15,7 @@ import { createCreateBudgetPlan } from "./create-budget-plan";
 import { createGetBudgetPlan } from "./get-budget-plan";
 import { loadPlanView, planViewCache, type BudgetPlanView } from "./plan-view";
 import type { BudgetPlan } from "../domain/plan";
-import type { PlanContents, PlanHistory, PlanSpending } from "./ports";
+import type { PlanContents, PlanHistory, PlanSpending, SpentByCategory, SpentIntoAccount } from "./ports";
 import { createRemoveBudgetLine } from "./remove-budget-line";
 import { createUpdateBudgetLine } from "./update-budget-line";
 
@@ -27,10 +27,18 @@ class SpendingByPeriod implements PlanSpending {
   readonly asked: LocalDate[] = [];
   constructor(private readonly groceriesFrom: Readonly<Record<string, bigint>>) {}
 
-  async expensesByCategory(_spaceId: string, from: LocalDate) {
+  async expensesByCategoryByCurrency(_spaceId: string, from: LocalDate) {
     this.asked.push(from);
     const amount = this.groceriesFrom[from];
-    return amount === undefined ? [] : [{ categoryId: "cat-groceries", amount }];
+    return amount === undefined ? [] : [{ categoryId: "cat-groceries", currency: "COP", amount }];
+  }
+
+  async transfersIntoAccountsByCurrency() {
+    return [];
+  }
+
+  async expensesByCategory() {
+    return [];
   }
 
   async transfersIntoAccounts() {
@@ -57,7 +65,7 @@ const world = async (mode: RolloverMode, groceriesFrom: Readonly<Record<string, 
   const create = createCreateBudgetPlan(deps);
   const november = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" })).plan;
   w.plans.seed(november.id, {
-    capacities: [{ memberId: "member-ana", amount: 400_000_000n }],
+    capacities: [{ memberId: "member-ana", currency: "COP", amount: 400_000_000n }],
     lines: [aLine("Home", 147_000_000n, { rolloverMode: mode })],
     mappings: [{ lineId: "line-home", categoryId: "cat-groceries" }],
   });
@@ -435,19 +443,19 @@ describe("a copy's chain read from its space's plan history (API efficiency)", (
         this.reads += 1;
         const inSpace = plans.plans.filter((plan) => plan.spaceId === spaceId);
         const contents = new Map<string, PlanContents>();
-        const expenses = new Map<string, { categoryId: string; amount: bigint }[]>();
-        const transfers = new Map<string, { accountId: string; amount: bigint }[]>();
+        const expenses = new Map<string, SpentByCategory[]>();
+        const transfers = new Map<string, SpentIntoAccount[]>();
         for (const plan of inSpace) {
           const parts = await contentsOf(plan.id);
           const named = parts.lines.flatMap((line) => line.savingsAccountIds);
           contents.set(plan.id, parts);
           expenses.set(
             plan.id,
-            await spending.expensesByCategory(spaceId, plan.period.start, plan.period.end),
+            await spending.expensesByCategoryByCurrency(spaceId, plan.period.start, plan.period.end),
           );
           transfers.set(
             plan.id,
-            await spending.transfersIntoAccounts(named, plan.period.start, plan.period.end),
+            await spending.transfersIntoAccountsByCurrency(named, plan.period.start, plan.period.end),
           );
         }
         return { plans: inSpace, contents, expenses, transfers };

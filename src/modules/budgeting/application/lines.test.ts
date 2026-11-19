@@ -13,23 +13,23 @@ import { createUpdateBudgetLine, type LineChanges } from "./update-budget-line";
 const cop = (pesos: number) => money(BigInt(pesos) * 100n);
 const RENT: LineInput = {
   name: "Rent",
-  plannedAmount: cop(1_200_000),
+  budgets: [cop(1_200_000)],
   funding: "SHARED_FUND",
   rolloverMode: "RESET",
 };
 const HOME: LineInput = {
   name: "Home",
-  plannedAmount: cop(1_470_000),
+  budgets: [cop(1_470_000)],
   funding: "DIRECT",
   rolloverMode: "RESET",
 };
 const SAVINGS: LineInput = {
   name: "Savings",
-  plannedAmount: cop(600_000),
+  budgets: [cop(600_000)],
   funding: "SAVINGS",
   savingsAccountIds: ["acc-savings"],
 };
-const FREE: LineInput = { name: "Free", plannedAmount: cop(730_000) };
+const FREE: LineInput = { name: "Free", budgets: [cop(730_000)] };
 
 /** HU-E6-03 Background: a DRAFT plan for 2026-11 with capacities Ana 1,600,000 COP and Juan 2,400,000 COP. */
 const world = async () => {
@@ -71,9 +71,7 @@ describe("AddBudgetLine (HU-E6-03)", () => {
     const { addLine } = await world();
     for (const line of [RENT, HOME, SAVINGS]) unwrap(await addLine(line));
     expect(unwrap(await addLine(FREE)).figures.unallocated).toBe(0n);
-    expect(codeOf(await addLine({ name: "Travel", plannedAmount: cop(100_000) }))).toBe(
-      "PlanExceedsCapacity",
-    );
+    expect(codeOf(await addLine({ name: "Travel", budgets: [cop(100_000)] }))).toBe("PlanExceedsCapacity");
   });
 
   it("funds a line DIRECT and resets its rollover when it names neither (assumption 5)", async () => {
@@ -92,18 +90,21 @@ describe("AddBudgetLine (HU-E6-03)", () => {
     const { addLine } = await world();
     unwrap(await addLine(HOME));
     expect(codeOf(await addLine({ ...HOME, name: "home" }))).toBe("BudgetLineNameTaken");
-    expect(codeOf(await addLine({ name: "Gifts", plannedAmount: cop(0) }))).toBe("InvalidPlannedAmount");
-    expect(codeOf(await addLine({ name: "Gifts", plannedAmount: money(100n, "USD") }))).toBe(
-      "CurrencyMismatch",
+    expect(codeOf(await addLine({ name: "Gifts", budgets: [cop(0)] }))).toBe("InvalidPlannedAmount");
+    // P342 (S7): a budget in any currency, checked against the capacity in it; nobody contributes USD yet.
+    expect(codeOf(await addLine({ name: "Gifts", budgets: [money(100n, "USD")] }))).toBe(
+      "PlanExceedsCapacity",
     );
   });
 
   it("counts only the capacity of the current members (P7)", async () => {
     const { addLine, plans, plan } = await world();
     // Luis left the space but his row stays (D8): his 1,000,000 COP must not make room for the line.
-    plans.seed(plan.id, { capacities: [{ memberId: "member-luis", amount: cop(1_000_000).minor }] });
-    expect(codeOf(await addLine({ name: "Big", plannedAmount: cop(4_000_001) }))).toBe("PlanExceedsCapacity");
-    expect(codeOf(await addLine({ name: "Big", plannedAmount: cop(4_000_000) }))).toBe("ok");
+    plans.seed(plan.id, {
+      capacities: [{ memberId: "member-luis", currency: "COP", amount: cop(1_000_000).minor }],
+    });
+    expect(codeOf(await addLine({ name: "Big", budgets: [cop(4_000_001)] }))).toBe("PlanExceedsCapacity");
+    expect(codeOf(await addLine({ name: "Big", budgets: [cop(4_000_000)] }))).toBe("ok");
   });
 
   it("requires the caller's own SAVINGS accounts, not archived and in the plan currency, on a SAVINGS line (Review Focus 5, P8, I1)", async () => {
@@ -351,7 +352,8 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
     for (const plannedAmount of [cop(0), cop(-1)]) {
       expect(codeOf(await home({ plannedAmount }))).toBe("InvalidPlannedAmount");
     }
-    expect(codeOf(await home({ plannedAmount: money(100n, "USD") }))).toBe("CurrencyMismatch");
+    // P342 (S7): a USD amount adds a USD budget beside the COP one, so without USD capacity it does not fit.
+    expect(codeOf(await home({ plannedAmount: money(100n, "USD") }))).toBe("PlanExceedsCapacity");
     // A line keeps its own name in any case; names are trimmed and 60 characters fit.
     expect(codeOf(await home({ name: "HOME" }))).toBe("ok");
     expect(unwrap(await home({ name: "  Casa  " })).figures.lines.map((l) => l.line.name)).toContain("Casa");
@@ -471,7 +473,7 @@ describe("UpdateBudgetLine and RemoveBudgetLine (HU-E6-03, HU-E6-04)", () => {
     const homeId = id("Home");
     plans.seed(plan.id, {
       mappings: [{ lineId: homeId, categoryId: "cat-groceries" }],
-      allocations: [{ lineId: homeId, memberId: "member-ana", value: 5n }],
+      allocations: [{ lineId: homeId, memberId: "member-ana", currency: null, value: 5n }],
     });
     const view = unwrap(await remove(input(homeId)));
     expect(view.figures.lines.map((l) => l.line.name)).not.toContain("Home");

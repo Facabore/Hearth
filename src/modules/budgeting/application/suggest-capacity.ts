@@ -8,8 +8,12 @@ export interface CapacitySuggestion {
   readonly memberId: string;
   /** The period before the plan's, in the space policy around the stored plans (spec 5.3). */
   readonly period: Period;
-  /** Minor units of the space currency; null when the caller's personal space keeps another currency (D6). */
+  /**
+   * Minor units of `currency`; null without a personal space. Ruling P342 (S7): a capacity may be in any currency, so
+   * the income is suggested in the personal space's own currency, never converted.
+   */
   readonly suggested: bigint | null;
+  /** The personal space's currency; the plan space's when there is none. */
   readonly currency: string;
 }
 
@@ -35,7 +39,7 @@ export const createSuggestCapacity =
     return ok({
       memberId: space.memberId,
       period: previous,
-      suggested: income !== null && income.currency === space.currency ? income.amount : null,
-      currency: space.currency,
+      suggested: income === null ? null : income.amount,
+      currency: income === null ? space.currency : income.currency,
     });
   };

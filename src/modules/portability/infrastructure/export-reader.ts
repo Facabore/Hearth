@@ -297,10 +297,10 @@ export const createExportReader = (deps: ExportReaderDeps): ExportReader => ({
         period: { label: plan.period.label, start: plan.period.start, end: plan.period.end },
         status: plan.status,
         currency,
-        lines: figures.lines.map(({ line, categoryIds }) => ({
+        lines: figures.lines.map(({ line, categoryIds, planned }) => ({
           id: line.id,
           name: line.name,
-          plannedAmount: line.plannedAmount,
+          plannedAmount: planned,
           funding: line.funding,
           rolloverMode: line.rolloverMode,
           isCatchAll: line.isCatchAll,

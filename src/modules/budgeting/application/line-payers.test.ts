@@ -7,7 +7,7 @@ import { createSetMemberCapacities } from "./set-member-capacities";
 import { createUpdateBudgetLine, type LineChanges } from "./update-budget-line";
 
 const cop = (pesos: number) => money(BigInt(pesos) * 100n);
-const RENT: LineInput = { name: "Rent", plannedAmount: cop(1_200_000), funding: "SHARED_FUND" };
+const RENT: LineInput = { name: "Rent", budgets: [cop(1_200_000)], funding: "SHARED_FUND" };
 
 /**
  * D26 Background: a DRAFT plan for 2026-11 of Household (OWNER Ana, MEMBER Juan, VIEWER Sofi, guest Pedro) with
@@ -85,7 +85,7 @@ describe("A plan line names who usually pays it (D26, #316)", () => {
       codeOf(
         await addLine({
           name: "Savings",
-          plannedAmount: cop(600_000),
+          budgets: [cop(600_000)],
           funding: "SAVINGS",
           savingsAccountIds: ["acc-savings"],
           payerMemberIds: ["member-ana"],

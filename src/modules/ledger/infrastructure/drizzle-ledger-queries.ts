@@ -767,19 +767,51 @@ export class DrizzleLedgerQueries
   }
 
   /**
-   * `expensesByCategory` for each of `ranges` in one statement, so a view figuring a chain of plans sums every period
-   * at once; the answer at index i is the rows `expensesByCategory(spaceId, ranges[i].start, ranges[i].end)` gives.
+   * Spec 5.4, HU-E6-04, ruling P342 (S7, T6 "Líneas por moneda"): Σ live expenses of the space per category and
+   * movement currency within [from, to], for budget lines (D7). Each movement counts its own amount in its own
+   * currency, so it counts only against a budget in that currency; nothing is converted (T3's interim account-leg
+   * rule no longer reaches plans). Sorted by category, then currency.
+   */
+  async expensesByCategoryByCurrency(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ categoryId: string; currency: string; amount: bigint }[]> {
+    return (await this.expensesByCategoryIn(spaceId, [{ start: from, end: to }]))[0] ?? [];
+  }
+
+  /**
+   * Spec 5.4, HU-E6-03, ruling P342 (S7, T6): Σ live transfers into each account per movement currency within
+   * [from, to], for SAVINGS lines; not scoped to a space (a savings account lives in its owner's personal space). Each
+   * transfer counts its own amount in its own currency. Sorted by account, then currency.
+   */
+  async transfersIntoAccountsByCurrency(
+    accountIds: readonly string[],
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ accountId: string; currency: string; amount: bigint }[]> {
+    return (await this.transfersIntoAccountsIn(accountIds, [{ start: from, end: to }]))[0] ?? [];
+  }
+
+  /**
+   * `expensesByCategoryByCurrency` for each of `ranges` in one statement, so a view figuring a chain of plans sums
+   * every period at once; the answer at index i is the rows `expensesByCategoryByCurrency(spaceId, ranges[i].start,
+   * ranges[i].end)` gives.
    */
   async expensesByCategoryIn(
     spaceId: string,
     ranges: readonly DateRange[],
-    currency?: string,
-  ): Promise<{ categoryId: string; amount: bigint }[][]> {
-    const found = ranges.map((): { categoryId: string; amount: bigint }[] => []);
+  ): Promise<{ categoryId: string; currency: string; amount: bigint }[][]> {
+    const found = ranges.map((): { categoryId: string; currency: string; amount: bigint }[] => []);
     if (!isUuid(spaceId) || ranges.length === 0) return found;
-    const counted = countedIn(countedCurrency(currency, spaceId));
-    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string | null }>(sql`
-      SELECT r.i AS i, ${transactions.categoryId} AS key, sum(${counted})::text AS total
+    const { rows } = await this.tm.executor().execute<{
+      i: number;
+      key: string;
+      currency: string;
+      total: string;
+    }>(sql`
+      SELECT r.i AS i, ${transactions.categoryId} AS key, ${transactions.currency} AS currency,
+        sum(${transactions.amount})::text AS total
       FROM (VALUES ${rangeRows(ranges)}) AS r(i, start_date, end_date)
       JOIN ${transactions} ON ${transactions.date} BETWEEN r.start_date AND r.end_date
       WHERE ${and(
@@ -788,28 +820,32 @@ export class DrizzleLedgerQueries
         isNull(transactions.deletedAt),
         isNotNull(transactions.categoryId),
       )}
-      GROUP BY r.i, ${transactions.categoryId}
-      ORDER BY r.i, ${transactions.categoryId}`);
+      GROUP BY r.i, ${transactions.categoryId}, ${transactions.currency}
+      ORDER BY r.i, ${transactions.categoryId}, ${transactions.currency}`);
     for (const row of rows)
-      if (row.total !== null) found[row.i]?.push({ categoryId: row.key, amount: BigInt(row.total) });
+      found[row.i]?.push({ categoryId: row.key, currency: row.currency, amount: BigInt(row.total) });
     return found;
   }
 
   /**
-   * `transfersIntoAccounts` for each of `ranges` in one statement; the answer at index i is the rows
-   * `transfersIntoAccounts(accountIds, ranges[i].start, ranges[i].end)` gives.
+   * `transfersIntoAccountsByCurrency` for each of `ranges` in one statement; the answer at index i is the rows
+   * `transfersIntoAccountsByCurrency(accountIds, ranges[i].start, ranges[i].end)` gives.
    */
   async transfersIntoAccountsIn(
     accountIds: readonly string[],
     ranges: readonly DateRange[],
-    currency?: string,
-  ): Promise<{ accountId: string; amount: bigint }[][]> {
-    const found = ranges.map((): { accountId: string; amount: bigint }[] => []);
+  ): Promise<{ accountId: string; currency: string; amount: bigint }[][]> {
+    const found = ranges.map((): { accountId: string; currency: string; amount: bigint }[] => []);
     const ids = accountIds.filter(isUuid);
     if (ids.length === 0 || ranges.length === 0) return found;
-    const counted = countedIn(intoCurrency(currency));
-    const { rows } = await this.tm.executor().execute<{ i: number; key: string; total: string | null }>(sql`
-      SELECT r.i AS i, ${transactions.destinationAccountId} AS key, sum(${counted})::text AS total
+    const { rows } = await this.tm.executor().execute<{
+      i: number;
+      key: string;
+      currency: string;
+      total: string;
+    }>(sql`
+      SELECT r.i AS i, ${transactions.destinationAccountId} AS key, ${transactions.currency} AS currency,
+        sum(${transactions.amount})::text AS total
       FROM (VALUES ${rangeRows(ranges)}) AS r(i, start_date, end_date)
       JOIN ${transactions} ON ${transactions.date} BETWEEN r.start_date AND r.end_date
       WHERE ${and(
@@ -817,10 +853,10 @@ export class DrizzleLedgerQueries
         isNull(transactions.deletedAt),
         inArray(transactions.destinationAccountId, ids),
       )}
-      GROUP BY r.i, ${transactions.destinationAccountId}
-      ORDER BY r.i, ${transactions.destinationAccountId}`);
+      GROUP BY r.i, ${transactions.destinationAccountId}, ${transactions.currency}
+      ORDER BY r.i, ${transactions.destinationAccountId}, ${transactions.currency}`);
     for (const row of rows)
-      if (row.total !== null) found[row.i]?.push({ accountId: row.key, amount: BigInt(row.total) });
+      found[row.i]?.push({ accountId: row.key, currency: row.currency, amount: BigInt(row.total) });
     return found;
   }
 

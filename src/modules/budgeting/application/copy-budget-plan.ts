@@ -74,7 +74,7 @@ export const createCopyBudgetPlan =
         if (categoryIds.length > 0) await deps.mappings.mapCategories(plan.id, line.id, categoryIds, at);
         const values = copy.parts.allocations
           .filter((a) => a.lineId === line.id)
-          .map(({ memberId, value }) => ({ memberId, value }));
+          .map(({ memberId, currency, value }) => ({ memberId, currency, value }));
         if (values.length > 0) {
           await deps.allocations.setAllocation(plan.id, line.id, line.allocationRule, values, at);
         }

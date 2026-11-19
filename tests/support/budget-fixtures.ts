@@ -2,7 +2,10 @@ import type { BudgetLine, BudgetLineId } from "@/modules/budgeting/domain/budget
 
 const CREATED = new Date("2026-10-14T12:00:00Z");
 
-/** A line of `plan-november` with the id `line-<name>`: DIRECT, RESET and PROPORTIONAL unless overridden. */
+/**
+ * A line of `plan-november` with the id `line-<name>`: DIRECT, RESET and PROPORTIONAL unless overridden, planning
+ * `plannedAmount` COP (P342: its only budget) unless `budgets` overrides it.
+ */
 export const aLine = (
   name: string,
   plannedAmount: bigint,
@@ -12,7 +15,7 @@ export const aLine = (
   planId: "plan-november",
   originLineId: null,
   name,
-  plannedAmount,
+  budgets: [{ currency: "COP", amount: plannedAmount }],
   funding: "DIRECT",
   savingsAccountIds: [],
   rolloverMode: "RESET",

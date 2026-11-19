@@ -463,10 +463,12 @@ describe("spending of a plan's period (HU-E6-03, HU-E6-04, spec 5.4)", () => {
     const { expenses, transfers } = batched;
     expect(statements).toHaveLength(2);
     expect(expenses).toEqual(
-      await Promise.all(ranges.map((r) => queries.expensesByCategory(w.space.spaceId, r.start, r.end))),
+      await Promise.all(
+        ranges.map((r) => queries.expensesByCategoryByCurrency(w.space.spaceId, r.start, r.end)),
+      ),
     );
     expect(transfers).toEqual(
-      await Promise.all(ranges.map((r) => queries.transfersIntoAccounts(accounts, r.start, r.end))),
+      await Promise.all(ranges.map((r) => queries.transfersIntoAccountsByCurrency(accounts, r.start, r.end))),
     );
     expect(expenses.flat()).not.toEqual([]);
     expect(transfers.flat()).not.toEqual([]);

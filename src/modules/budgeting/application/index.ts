@@ -14,10 +14,14 @@ export {
   type RolloverMode,
 } from "../domain/budget-line";
 export type { AllocationInput, AllocationValue, LineAllocation } from "../domain/allocation";
+export type { CurrencyAmount } from "../domain/currency-amount";
 export type {
   AllocationFigure,
+  AllocationMemberFigure,
   CapacityFigure,
+  LineCurrencyFigure,
   LineFigure,
+  PlanCurrencyFigure,
   PeriodSpending,
   PlanFigures,
   PlanParts,
@@ -30,6 +34,8 @@ export type {
   PlanHistoryReader,
   PlanSpending,
   PreviousIncome,
+  SpentByCategory,
+  SpentIntoAccount,
 } from "./ports";
 export type { BudgetingDeps } from "./deps";
 export {

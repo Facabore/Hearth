@@ -2,14 +2,17 @@ import { can, requirePermission, type SpaceMembership } from "@/modules/spaces/a
 import { domainError, err, ok, type Money, type Result } from "@/shared/kernel";
 import { reviseLine, type Funding, type PayersScope, type RolloverMode } from "../domain/budget-line";
 import type { LineDeps } from "./add-budget-line";
-import { inSpaceCurrency, lineContext, lineOf, usableSavingsAccounts } from "./line-checks";
+import { budgetsOf, lineContext, lineOf, usableSavingsAccounts, withBudget } from "./line-checks";
 import { managePlan, planForWrite } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
 
 /** HU-E6-03, HU-E6-04: what a PATCH changes; absent fields stay. */
 export interface LineChanges {
   readonly name?: string;
+  /** Ruling P342 (S7): the line's budget in this amount's currency, added when it has none; the others stay. */
   readonly plannedAmount?: Money;
+  /** P342 (S7): the line's whole set of budgets, one per currency; not together with `plannedAmount`. */
+  readonly budgets?: readonly Money[];
   readonly funding?: Funding;
   readonly rolloverMode?: RolloverMode;
   readonly savingsAccountIds?: readonly string[];
@@ -61,12 +64,18 @@ export const createUpdateBudgetLine =
       if (!can(space.role, "plan.manage") && !line.value.payerMemberIds.includes(space.memberId)) {
         return err(domainError("InsufficientRole"));
       }
-      const { plannedAmount, ...rest } = input.changes;
-      const planned = plannedAmount === undefined ? ok(undefined) : inSpaceCurrency(space, plannedAmount);
-      if (!planned.ok) return planned;
+      const { plannedAmount, budgets, ...rest } = input.changes;
       const revised = reviseLine(
         line.value,
-        { ...rest, plannedAmount: planned.value },
+        {
+          ...rest,
+          budgets:
+            budgets !== undefined
+              ? budgetsOf(budgets)
+              : plannedAmount !== undefined
+                ? withBudget(line.value.budgets, plannedAmount)
+                : undefined,
+        },
         lineContext(parts, members, line.value.id),
       );
       if (!revised.ok) return revised;

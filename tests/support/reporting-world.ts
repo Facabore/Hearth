@@ -43,21 +43,49 @@ export class FundsBySpace implements SpaceFunds {
   }
 }
 
-/** PlanSpending of each period, keyed by the first day the ledger is asked for, as it sums them on read (D7). */
+/**
+ * PlanSpending of each period, keyed by the first day the ledger is asked for, as it sums them on read (D7). A row
+ * without a currency is in COP, Household's; P342 (S7): the single-currency sums answer only the rows in the currency
+ * asked for (COP when none), never converted.
+ */
 export class SpendingByPeriod implements PlanSpending {
-  readonly expenses: Record<string, { categoryId: string; amount: bigint }[]> = {};
-  readonly transfers: Record<string, { accountId: string; amount: bigint }[]> = {};
+  readonly expenses: Record<string, { categoryId: string; amount: bigint; currency?: string }[]> = {};
+  readonly transfers: Record<string, { accountId: string; amount: bigint; currency?: string }[]> = {};
 
-  /** Every question asked of `expensesByCategory`, in order. */
+  /** Every question asked of `expensesByCategory` or `expensesByCategoryByCurrency`, in order. */
   readonly expensesAsked: [spaceId: string, from: LocalDate, to: LocalDate][] = [];
 
-  async expensesByCategory(spaceId: string, from: LocalDate, to: LocalDate) {
+  async expensesByCategoryByCurrency(spaceId: string, from: LocalDate, to: LocalDate) {
     this.expensesAsked.push([spaceId, from, to]);
-    return [...(this.expenses[from] ?? [])];
+    return (this.expenses[from] ?? []).map(({ categoryId, amount, currency }) => ({
+      categoryId,
+      currency: currency ?? "COP",
+      amount,
+    }));
   }
 
-  async transfersIntoAccounts(accountIds: readonly string[], from: LocalDate) {
-    return (this.transfers[from] ?? []).filter((t) => accountIds.includes(t.accountId));
+  async transfersIntoAccountsByCurrency(accountIds: readonly string[], from: LocalDate) {
+    return (this.transfers[from] ?? [])
+      .filter((t) => accountIds.includes(t.accountId))
+      .map(({ accountId, amount, currency }) => ({ accountId, currency: currency ?? "COP", amount }));
+  }
+
+  async expensesByCategory(spaceId: string, from: LocalDate, to: LocalDate, currency = "COP") {
+    this.expensesAsked.push([spaceId, from, to]);
+    return (this.expenses[from] ?? [])
+      .filter((e) => (e.currency ?? "COP") === currency)
+      .map(({ categoryId, amount }) => ({ categoryId, amount }));
+  }
+
+  async transfersIntoAccounts(
+    accountIds: readonly string[],
+    from: LocalDate,
+    _to?: LocalDate,
+    currency = "COP",
+  ) {
+    return (this.transfers[from] ?? [])
+      .filter((t) => accountIds.includes(t.accountId) && (t.currency ?? "COP") === currency)
+      .map(({ accountId, amount }) => ({ accountId, amount }));
   }
 }
 

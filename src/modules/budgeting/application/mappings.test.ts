@@ -28,8 +28,8 @@ const world = async () => {
   const plan = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" })).plan;
   w.plans.seed(plan.id, {
     capacities: [
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-juan", amount: 240_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
     ],
     lines: referenceLines().map((l) => ({ ...l, isCatchAll: false })),
   });

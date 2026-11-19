@@ -1,5 +1,10 @@
 import type { SpaceMember, SpaceMembership } from "@/modules/spaces/application";
-import { rolledUpCategory, rolledUpSpending, type CategoryParent } from "../domain/category-rollup";
+import {
+  rolledUpCategory,
+  rolledUpSpending,
+  rolledUpSpendingByCurrency,
+  type CategoryParent,
+} from "../domain/category-rollup";
 import type { BudgetPlan } from "../domain/plan";
 import { carriesFromSource } from "../domain/rollover";
 import {
@@ -13,7 +18,10 @@ import type { BudgetingDeps } from "./deps";
 import { ownedByRegisteredMember } from "./line-checks";
 import type { BudgetAccount, PlanContents, PlanHistory, PlanSpending, SavingsAccountReader } from "./ports";
 
-/** A plan with every figure derived on read (D7), its amounts in the space currency. */
+/**
+ * A plan with every figure derived on read (D7): its scalar amounts in the space currency (`currency`), and every
+ * currency in `figures.currencies` and each line's `budgets` (ruling P342, S7).
+ */
 export interface BudgetPlanView {
   readonly plan: BudgetPlan;
   readonly currency: string;
@@ -138,7 +146,10 @@ const carryOf = async (
       closed: true,
       lineIds: figures.lines.map((figure) => figure.line.id),
     },
-    available: figures.lines.map((figure) => ({ lineId: figure.line.id, available: figure.available })),
+    available: figures.lines.map((figure) => ({
+      lineId: figure.line.id,
+      available: figure.budgets.map((b) => ({ currency: b.currency, amount: b.available })),
+    })),
   };
 };
 
@@ -166,15 +177,15 @@ const figuresOf = async (
   );
   const spending = {
     // HU-E3-04: a subcategory's expenses count where its category is mapped, the catch-all and Unbudgeted included.
-    byCategory: rolledUpSpending(
-      // Ruling P342 (S7): every figure in the space's currency, another one counted by its account leg in it.
-      await deps.spending.expensesByCategory(space.spaceId, start, end, space.currency),
+    // Ruling P342 (S7, T6): each in its own currency, so it counts only against a budget in it.
+    byCategory: rolledUpSpendingByCurrency(
+      await deps.spending.expensesByCategoryByCurrency(space.spaceId, start, end),
       categories,
     ),
     byAccount:
       accountIds.length === 0
         ? []
-        : await deps.spending.transfersIntoAccounts(accountIds, start, end, space.currency),
+        : await deps.spending.transfersIntoAccountsByCurrency(accountIds, start, end),
   };
   const carry = await carryOf(deps, space, plan, { parts, reads, walk });
   return planFigures({
@@ -252,19 +263,24 @@ const historyReads = (deps: ViewDeps, spaceId: string, history: PlanHistory): Ch
       contents: async (planId) => history.contents.get(planId) ?? deps.plans.contents(planId),
     },
     spending: {
-      expensesByCategory: async (space, from, to, currency) => {
+      expensesByCategoryByCurrency: async (space, from, to) => {
         const plan = space === spaceId ? planOf(from, to) : undefined;
         const rows = plan === undefined ? undefined : history.expenses.get(plan.id);
-        return rows === undefined ? deps.spending.expensesByCategory(space, from, to, currency) : [...rows];
+        return rows === undefined ? deps.spending.expensesByCategoryByCurrency(space, from, to) : [...rows];
       },
-      transfersIntoAccounts: async (accountIds, from, to, currency) => {
+      transfersIntoAccountsByCurrency: async (accountIds, from, to) => {
         const plan = planOf(from, to);
         const rows = plan === undefined ? undefined : history.transfers.get(plan.id);
         const known = plan === undefined ? undefined : named.get(plan.id);
         return rows === undefined || known === undefined || !accountIds.every((id) => known.has(id))
-          ? deps.spending.transfersIntoAccounts(accountIds, from, to, currency)
+          ? deps.spending.transfersIntoAccountsByCurrency(accountIds, from, to)
           : rows.filter((row) => accountIds.includes(row.accountId));
       },
+      // The single-currency sums are no part of a plan's history: they are read as the ports answer them.
+      expensesByCategory: (space, from, to, currency) =>
+        deps.spending.expensesByCategory(space, from, to, currency),
+      transfersIntoAccounts: (accountIds, from, to, currency) =>
+        deps.spending.transfersIntoAccounts(accountIds, from, to, currency),
     },
     savingsAccounts: {
       find: (accountId) => {

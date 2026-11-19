@@ -73,11 +73,14 @@ export const budgetMemberCapacities = pgTable(
     memberId: uuid("member_id")
       .notNull()
       .references(() => spaceMembers.id),
+    // Ruling P342 (S7, "Líneas por moneda"): one capacity per member and currency, never converted. Migration 0047 gave
+    // every earlier row its space's currency.
+    currency: text("currency").notNull(),
     amount: money("amount").notNull(),
     updatedAt: tz("updated_at").notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.planId, t.memberId] }),
+    primaryKey({ columns: [t.planId, t.memberId, t.currency] }),
     index("budget_member_capacities_member_idx").on(t.memberId),
     check("budget_member_capacities_amount", sql`${t.amount} >= 0`),
   ],
@@ -93,7 +96,10 @@ export const budgetLines = pgTable(
     // HU-E6-06, HU-E6-09: the line this one was copied from, for rollover.
     originLineId: uuid("origin_line_id").references((): AnyPgColumn => budgetLines.id),
     name: text("name").notNull(),
-    plannedAmount: money("planned_amount").notNull(),
+    // Ruling P342 (S7): read by nothing since migration 0047; a line's budgets live in budget_line_budgets, one per
+    // currency. Kept with its values from before 0047 (null for lines added since) so drizzle/rollback/0047_down.sql
+    // can give an app from before T6 its column back, recomputed from the space-currency budget.
+    legacyPlannedAmount: money("planned_amount"),
     funding: text("funding", { enum: FUNDINGS }).notNull(),
     // Spec 5.4: a SAVINGS line spends the transfers into these accounts (accounts are never deleted, D8).
     savingsAccountIds: uuid("savings_account_ids").array().notNull(),
@@ -126,7 +132,7 @@ export const budgetLines = pgTable(
     uniqueIndex("budget_lines_catch_all_uq")
       .on(t.planId)
       .where(sql`${t.isCatchAll} AND ${t.deletedAt} IS NULL`),
-    check("budget_lines_planned_positive", sql`${t.plannedAmount} > 0`),
+    check("budget_lines_planned_positive", sql`${t.legacyPlannedAmount} > 0`),
     // HU-E6-03: SAVINGS lines, and only they, name savings accounts.
     check(
       "budget_lines_savings_accounts",
@@ -147,6 +153,44 @@ export const budgetLines = pgTable(
       "budget_lines_savings_payers",
       sql`NOT (${t.funding} = 'SAVINGS' AND cardinality(${t.payerMemberIds}) > 0)`,
     ),
+  ],
+);
+
+/**
+ * Ruling P342 (S7, owner: "Líneas por moneda"): a line plans one positive budget per currency, any ISO 4217 currency,
+ * never converted. Editing a budget changes its amount in place, as planned_amount was; dropping a currency from the
+ * line ends its row (D8: removedAt, the row stays). Migration 0047 gave every earlier line one row in its space's
+ * currency with its planned_amount.
+ */
+export const budgetLineBudgets = pgTable(
+  "budget_line_budgets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Copied from the line; the composite key below keeps it equal to the line's plan, as budget_line_categories does.
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => budgetPlans.id),
+    lineId: uuid("line_id").notNull(),
+    currency: text("currency").notNull(),
+    plannedAmount: money("planned_amount").notNull(),
+    // The order the line lists its budgets in (the space's first when it has one).
+    position: integer("position").notNull(),
+    createdAt: tz("created_at").notNull(),
+    updatedAt: tz("updated_at").notNull(),
+    removedAt: tz("removed_at"),
+  },
+  (t) => [
+    // One current budget per line and currency.
+    uniqueIndex("budget_line_budgets_current_uq")
+      .on(t.lineId, t.currency)
+      .where(sql`${t.removedAt} IS NULL`),
+    index("budget_line_budgets_plan_idx").on(t.planId),
+    foreignKey({
+      name: "budget_line_budgets_line_plan_fk",
+      columns: [t.lineId, t.planId],
+      foreignColumns: [budgetLines.id, budgetLines.planId],
+    }),
+    check("budget_line_budgets_planned_positive", sql`${t.plannedAmount} > 0`),
   ],
 );
 
@@ -195,19 +239,23 @@ export const budgetAllocations = pgTable(
       .notNull()
       .references(() => spaceMembers.id),
     rule: text("rule", { enum: VALUE_RULES }).notNull(),
-    // PERCENT: basis points (42 % = 4200); FIXED: minor units of the space currency.
+    // Ruling P342 (S7, "Misma regla, por moneda"): a FIXED value is one budget's, in its currency; a PERCENT value
+    // holds for every currency of the line and keeps none. Migration 0047 gave earlier FIXED rows their space's.
+    currency: text("currency"),
+    // PERCENT: basis points (42 % = 4200); FIXED: minor units of `currency`.
     value: money("value").notNull(),
     setAt: tz("set_at").notNull(),
     // D8: allocating the line again supersedes these values; the rows stay.
     supersededAt: tz("superseded_at"),
   },
   (t) => [
-    // HU-E6-05: one current value per member of a line.
+    // HU-E6-05, P342 (S7): one current value per member of a line, and per currency for FIXED.
     uniqueIndex("budget_allocations_current_uq")
-      .on(t.lineId, t.memberId)
+      .on(t.lineId, t.memberId, sql`coalesce(${t.currency}, '')`)
       .where(sql`${t.supersededAt} IS NULL`),
     index("budget_allocations_member_idx").on(t.memberId),
     check("budget_allocations_value_positive", sql`${t.value} > 0`),
     check("budget_allocations_rule", oneOf(t.rule, VALUE_RULES)),
+    check("budget_allocations_currency", sql`(${t.rule} = 'FIXED') = (${t.currency} IS NOT NULL)`),
   ],
 );

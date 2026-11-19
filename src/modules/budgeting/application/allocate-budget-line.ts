@@ -34,7 +34,6 @@ export const createAllocateBudgetLine =
         input.allocation,
         line.value,
         members.map((m) => m.id),
-        space.currency,
         viewerIdsOf(members),
       );
       if (!allocation.ok) return allocation;

@@ -147,20 +147,21 @@ describe("member capacities (HU-E6-02)", () => {
     expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
   });
 
-  it("refuses a capacity in another currency or in a currency the app does not know", async () => {
+  it("refuses a capacity in a currency the app does not know, and keeps one in USD beside COP (P342, S7)", async () => {
     const { h, planId } = await draft();
     const entry = (currency: string) => ({
       capacities: [{ memberId: h.ana.memberId, amount: { amount: "100", currency } }],
     });
-    expect(await problemOf(await putRaw(h.ana, h.spaceId, planId, entry("USD")))).toEqual([
-      422,
-      "CurrencyMismatch",
-    ]);
     expect(await problemOf(await putRaw(h.ana, h.spaceId, planId, entry("ZZZ")))).toEqual([
       422,
       "UnknownCurrency",
     ]);
     expect((await planOf(h.ana, h.spaceId, planId)).version).toBe(1);
+    // Ruling P342 (S7, "Juan 2.400.000 COP y 100 USD"): a contribution per currency, never converted.
+    const dollars = await putRaw(h.ana, h.spaceId, planId, entry("USD"));
+    expect(dollars.status).toBe(200);
+    const plan = (await dollars.json()) as { totalCapacity: { amount: string; currency: string } };
+    expect(plan.totalCapacity).toEqual({ amount: "0", currency: "COP" });
   });
 
   it("lets the guest Pedro hold capacity, and Juan the MEMBER set only his own (D15, D17)", async () => {
@@ -399,7 +400,7 @@ describe("capacity suggestion (HU-E6-02, D17)", () => {
     ]);
   });
 
-  it("suggests nothing, not zero, when the personal space keeps another currency (D6)", async () => {
+  it("suggests the income in the personal space's own currency, never converted (P342, S7)", async () => {
     const { h, planId } = await draft();
     const sofi = await registerUser("Sofi");
     const dollars = await call(updateSpace, "PATCH", `/api/v1/spaces/${sofi.spaceId}`, {
@@ -420,7 +421,11 @@ describe("capacity suggestion (HU-E6-02, D17)", () => {
     const response = await getSuggestion(sofi, h.spaceId, planId);
     expect([response.status, await response.json()]).toEqual([
       200,
-      { memberId: await memberIdOf(h.ana, h.spaceId, "Sofi"), period: OCTOBER, suggested: null },
+      {
+        memberId: await memberIdOf(h.ana, h.spaceId, "Sofi"),
+        period: OCTOBER,
+        suggested: { amount: "500000", currency: "USD" },
+      },
     ]);
   });
 

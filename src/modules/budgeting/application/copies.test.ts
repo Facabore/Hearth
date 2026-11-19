@@ -55,8 +55,8 @@ const world = async (
   const source = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: first! })).plan;
   w.plans.seed(source.id, {
     capacities: [
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-juan", amount: 240_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
     ],
     lines: referenceLines().map((l) =>
       l.name === "Free" ? { ...l, allocationRule: "PERCENT" as const } : l,
@@ -66,8 +66,8 @@ const world = async (
       { lineId: "line-home", categoryId: "cat-utilities" },
     ],
     allocations: [
-      { lineId: "line-free", memberId: "member-ana", value: 4200n },
-      { lineId: "line-free", memberId: "member-juan", value: 5800n },
+      { lineId: "line-free", memberId: "member-ana", currency: null, value: 4200n },
+      { lineId: "line-free", memberId: "member-juan", currency: null, value: 5800n },
     ],
     ...options.parts,
   });
@@ -122,7 +122,7 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
     expect(
       copy.view.figures.lines.map((l) => [
         l.line.name,
-        l.line.plannedAmount,
+        l.planned,
         l.line.funding,
         l.line.rolloverMode,
         l.line.allocationRule,
@@ -219,14 +219,14 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
     const { plans, copyInto } = await world({
       parts: {
         capacities: [
-          { memberId: "member-ana", amount: 160_000_000n },
-          { memberId: "member-juan", amount: 240_000_000n },
-          { memberId: "member-luis", amount: 50_000_000n },
+          { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+          { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
+          { memberId: "member-luis", currency: "COP", amount: 50_000_000n },
         ],
         allocations: [
-          { lineId: "line-free", memberId: "member-ana", value: 4200n },
-          { lineId: "line-free", memberId: "member-juan", value: 4800n },
-          { lineId: "line-free", memberId: "member-luis", value: 1000n },
+          { lineId: "line-free", memberId: "member-ana", currency: null, value: 4200n },
+          { lineId: "line-free", memberId: "member-juan", currency: null, value: 4800n },
+          { lineId: "line-free", memberId: "member-luis", currency: null, value: 1000n },
         ],
       },
     });
@@ -249,14 +249,14 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
       members: [...ANA_AND_JUAN, sofi],
       parts: {
         capacities: [
-          { memberId: "member-ana", amount: 160_000_000n },
-          { memberId: "member-juan", amount: 240_000_000n },
-          { memberId: "member-sofi", amount: 50_000_000n },
+          { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+          { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
+          { memberId: "member-sofi", currency: "COP", amount: 50_000_000n },
         ],
         allocations: [
-          { lineId: "line-free", memberId: "member-ana", value: 4200n },
-          { lineId: "line-free", memberId: "member-juan", value: 4800n },
-          { lineId: "line-free", memberId: "member-sofi", value: 1000n },
+          { lineId: "line-free", memberId: "member-ana", currency: null, value: 4200n },
+          { lineId: "line-free", memberId: "member-juan", currency: null, value: 4800n },
+          { lineId: "line-free", memberId: "member-sofi", currency: null, value: 1000n },
         ],
       },
     });
@@ -268,6 +268,7 @@ describe("CopyBudgetPlan (HU-E6-06)", () => {
     // The source keeps her rows: nothing stored is rewritten.
     expect((await plans.contents(source.id)).capacities).toContainEqual({
       memberId: "member-sofi",
+      currency: "COP",
       amount: 50_000_000n,
     });
   });

@@ -87,16 +87,23 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
     expect(codeOf(await as("u-ana", [["member-marta-personal", 100_000]]))).toBe("NotASpaceMember");
   });
 
-  it("rejects a capacity in another currency than the space's, and a member listed twice", async () => {
+  it("keeps a capacity per currency beside the space's (P342, S7), and rejects a member listed twice", async () => {
     const { set, as, plan } = await world();
-    const dollars = await set({
-      spaceId: HOUSEHOLD,
-      userId: "u-ana",
-      planId: plan.id,
-      expectedVersion: null,
-      capacities: [{ memberId: "member-ana", amount: money(100n, "USD") }],
-    });
-    expect(codeOf(dollars)).toBe("CurrencyMismatch");
+    const dollars = unwrap(
+      await set({
+        spaceId: HOUSEHOLD,
+        userId: "u-ana",
+        planId: plan.id,
+        expectedVersion: null,
+        capacities: [{ memberId: "member-ana", amount: money(100n, "USD") }],
+      }),
+    );
+    // Ana's 1 USD: nothing converts, and the COP figures stay as they were.
+    expect(dollars.figures.totalCapacity).toBe(0n);
+    expect(dollars.figures.currencies.map((c) => [c.currency, c.totalCapacity])).toEqual([
+      ["COP", 0n],
+      ["USD", 100n],
+    ]);
     expect(
       codeOf(
         await as("u-ana", [
@@ -118,7 +125,9 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
         ]),
       ),
     ).toBe("NotASpaceMember");
-    expect(plans.capacities.get(plan.id)).toEqual([{ memberId: "member-ana", amount: 160_000_000n }]);
+    expect(plans.capacities.get(plan.id)).toEqual([
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+    ]);
   });
 
   it("lets Juan the MEMBER set only his own capacity, and Sofi the VIEWER none (D17)", async () => {
@@ -168,7 +177,11 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
       "member-pedro",
     ]);
     expect(view.figures.totalCapacity).toBe(170_000_000n);
-    expect(plans.capacities.get(plan.id)).toContainEqual({ memberId: "member-juan", amount: 240_000_000n });
+    expect(plans.capacities.get(plan.id)).toContainEqual({
+      memberId: "member-juan",
+      currency: "COP",
+      amount: 240_000_000n,
+    });
   });
 
   it("refuses Sofi the VIEWER a capacity above zero and writes nothing, and takes her zero (#217, ruling P261)", async () => {
@@ -182,7 +195,9 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
       ok: false,
       error: { code: "ViewerCannotHoldCapacity", details: { memberId: "member-sofi" } },
     });
-    expect(plans.capacities.get(plan.id)).toEqual([{ memberId: "member-ana", amount: 160_000_000n }]);
+    expect(plans.capacities.get(plan.id)).toEqual([
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+    ]);
     const view = unwrap(await as("u-ana", [["member-sofi", 0]]));
     expect(view.figures.capacities.map((c) => [c.memberId, c.amount])).toEqual([
       ["member-ana", 160_000_000n],
@@ -195,7 +210,7 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
   it("keeps a capacity stored before Sofi became a VIEWER until it is set to zero, and the others still save (P261)", async () => {
     const { as, plans, plan } = await world();
     // Sofi held 100,000 COP as a MEMBER; a role change never rewrites stored rows.
-    plans.seed(plan.id, { capacities: [{ memberId: "member-sofi", amount: 10_000_000n }] });
+    plans.seed(plan.id, { capacities: [{ memberId: "member-sofi", currency: "COP", amount: 10_000_000n }] });
     const others = unwrap(await as("u-ana", [["member-ana", 1_600_000]]));
     expect(others.figures.totalCapacity).toBe(170_000_000n);
     expect(codeOf(await as("u-ana", [["member-sofi", 100_000]]))).toBe("ViewerCannotHoldCapacity");
@@ -221,8 +236,8 @@ describe("SetMemberCapacities (HU-E6-02)", () => {
       ),
     ).toBe("ok");
     expect(plans.capacities.get(plan.id)).toEqual([
-      { memberId: "member-juan", amount: 200_000_000n },
-      { memberId: "member-pedro", amount: 30_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 200_000_000n },
+      { memberId: "member-pedro", currency: "COP", amount: 30_000_000n },
     ]);
     expect(codeOf(await as("u-marta", [["member-juan", 1]]))).toBe("SpaceNotFound");
   });
@@ -275,15 +290,14 @@ describe("SuggestCapacity (HU-E6-02, D17)", () => {
     expect([sofi.memberId, sofi.suggested]).toEqual(["member-sofi", 90_000_000n]);
   });
 
-  it("suggests nothing when the personal space keeps another currency, and hides the plan from Marta", async () => {
+  it("suggests income in the personal space's own currency, never converted (P342, S7), and hides the plan from Marta", async () => {
     const { deps, plan } = await world();
     const dollars = createSuggestCapacity({
       ...deps,
       previousIncome: fixedIncome({ "u-ana": 500n }, "USD").previousIncome,
     });
-    expect(
-      unwrap(await dollars({ spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id })).suggested,
-    ).toBeNull();
+    const suggestion = unwrap(await dollars({ spaceId: HOUSEHOLD, userId: "u-ana", planId: plan.id }));
+    expect([suggestion.suggested, suggestion.currency]).toEqual([500n, "USD"]);
     expect(codeOf(await dollars({ spaceId: HOUSEHOLD, userId: "u-marta", planId: plan.id }))).toBe(
       "SpaceNotFound",
     );

@@ -150,15 +150,14 @@ export const createGetLineDashboard =
       name: f.line.name,
       funding: f.line.funding,
       isCatchAll: f.line.isCatchAll,
-      planned: f.line.plannedAmount,
+      planned: f.planned,
       spent: f.spent,
       carryOver: f.carryOver,
       carryOverFrom: f.carryOverFrom,
       available: f.available,
       overspent: f.available < 0n,
       // Ruling P244 (M6c): a savings line reaching its plan is the goal, so it is never measured.
-      state:
-        f.line.funding === "SAVINGS" ? "OK" : lineStateOf(f.line.plannedAmount + f.carryOver, f.available),
+      state: f.line.funding === "SAVINGS" ? "OK" : lineStateOf(f.planned + f.carryOver, f.available),
       overBy: f.line.funding !== "SAVINGS" && f.available < 0n ? -f.available : null,
     }));
     const rest =

@@ -33,8 +33,8 @@ const world = async (status: PlanStatus) => {
   const plan = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" })).plan;
   w.plans.seed(plan.id, {
     capacities: [
-      { memberId: "member-ana", amount: 200_000_000n },
-      { memberId: "member-juan", amount: 240_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 200_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
     ],
     lines: referenceLines(),
   });
@@ -44,7 +44,7 @@ const world = async (status: PlanStatus) => {
   const writes: [string, () => Promise<Result<unknown>>][] = [
     [
       "add a line",
-      () => createAddBudgetLine(deps)({ ...write, line: { name: "Travel", plannedAmount: cop(1) } }),
+      () => createAddBudgetLine(deps)({ ...write, line: { name: "Travel", budgets: [cop(1)] } }),
     ],
     [
       "edit a line",

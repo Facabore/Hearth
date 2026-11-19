@@ -199,8 +199,9 @@ export const AddLineBodySchema = z.object({
 
 /** HU-E6-03: the body as AddBudgetLine takes it; fails only for currencies the kernel does not know. */
 export const lineFromBody = (body: z.infer<typeof AddLineBodySchema>): Result<LineInput> => {
-  const plannedAmount = moneyFromDto(body.plannedAmount);
-  return plannedAmount.ok ? ok({ ...body, plannedAmount: plannedAmount.value }) : plannedAmount;
+  const { plannedAmount: planned, ...fields } = body;
+  const plannedAmount = moneyFromDto(planned);
+  return plannedAmount.ok ? ok({ ...fields, budgets: [plannedAmount.value] }) : plannedAmount;
 };
 
 /**
@@ -322,7 +323,7 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
     id: line.id,
     originLineId: line.originLineId,
     name: line.name,
-    plannedAmount: moneyOf(line.plannedAmount, currency),
+    plannedAmount: moneyOf(figure.planned, currency),
     funding: line.funding,
     rolloverMode: line.rolloverMode,
     isCatchAll: line.isCatchAll,

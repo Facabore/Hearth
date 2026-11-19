@@ -66,17 +66,51 @@ describe("budget_plans (HU-E6-01, D10)", () => {
 });
 
 describe("budget_member_capacities (HU-E6-02, D15)", () => {
-  it("holds one non-negative capacity per member of a plan, guests included", async () => {
+  it("holds one non-negative capacity per member of a plan and currency (P342, S7), guests included", async () => {
     const { fixture, planId } = await world();
     const pedro = await guestMemberFixture(pool, fixture, "Pedro");
-    const capacity = (memberId: string, amount: string) =>
+    const capacity = (memberId: string, amount: string, currency = "COP") =>
       pool.query(
-        "INSERT INTO budget_member_capacities (plan_id, member_id, amount, updated_at) VALUES ($1, $2, $3, now())",
-        [planId, memberId, amount],
+        "INSERT INTO budget_member_capacities (plan_id, member_id, currency, amount, updated_at) VALUES ($1, $2, $3, $4, now())",
+        [planId, memberId, currency, amount],
       );
     await expect(capacity(pedro, "30000000")).resolves.toBeDefined();
+    await expect(capacity(pedro, "10000", "USD")).resolves.toBeDefined();
     await expect(capacity(fixture.memberId, "-1")).rejects.toThrow(/budget_member_capacities_amount/);
     await expect(capacity(pedro, "1")).rejects.toThrow(/duplicate key/);
+    await expect(
+      pool.query(
+        "INSERT INTO budget_member_capacities (plan_id, member_id, amount, updated_at) VALUES ($1, $2, 1, now())",
+        [planId, fixture.memberId],
+      ),
+    ).rejects.toThrow(/currency/);
+  });
+});
+
+describe("budget_line_budgets (P342, S7)", () => {
+  it("holds one current positive budget per line and currency; an ended one frees its currency and stays", async () => {
+    const { planId } = await world();
+    const salidas = randomUUID();
+    await line(planId, "Salidas", {}, salidas);
+    const budget = (currency: string, amount: string, removed = false) =>
+      pool.query(
+        `INSERT INTO budget_line_budgets (plan_id, line_id, currency, planned_amount, position, created_at, updated_at,
+           removed_at) VALUES ($1, $2, $3, $4, 0, now(), now(), $5)`,
+        [planId, salidas, currency, amount, removed ? new Date() : null],
+      );
+    await expect(budget("USD", "10000")).resolves.toBeDefined();
+    await expect(budget("USD", "5000")).rejects.toThrow(/budget_line_budgets_current_uq/);
+    await expect(budget("EUR", "0")).rejects.toThrow(/budget_line_budgets_planned_positive/);
+    await expect(budget("USD", "5000", true)).resolves.toBeDefined();
+    // The line's plan is the budget's: another plan's id breaks the composite key.
+    const other = randomUUID();
+    await expect(
+      pool.query(
+        `INSERT INTO budget_line_budgets (plan_id, line_id, currency, planned_amount, position, created_at, updated_at)
+         VALUES ($1, $2, 'MXN', 1, 0, now(), now())`,
+        [other, salidas],
+      ),
+    ).rejects.toThrow(/budget_line_budgets/);
   });
 });
 
@@ -161,7 +195,7 @@ describe("foreign keys (D8: no cascade)", () => {
     expect(rows[0]).toEqual({ plans: 1, lines: 1, allocations: 1 });
   });
 
-  it("declares all eleven keys of the budgeting tables NO ACTION, so a migration cannot cascade one unnoticed", async () => {
+  it("declares all thirteen keys of the budgeting tables NO ACTION, so a migration cannot cascade one unnoticed", async () => {
     const { rows } = await pool.query(
       `SELECT c.conname, c.confdeltype
          FROM pg_constraint c
@@ -169,7 +203,8 @@ describe("foreign keys (D8: no cascade)", () => {
         WHERE c.contype = 'f' AND t.relname LIKE 'budget\\_%'
         ORDER BY c.conname`,
     );
-    expect(rows).toHaveLength(11);
+    // P342 (S7): budget_line_budgets adds its plan key and its (line, plan) key.
+    expect(rows).toHaveLength(13);
     // 'a' is NO ACTION; 'c' would be CASCADE, 'n' SET NULL, 'r' RESTRICT, 'd' SET DEFAULT.
     expect(rows.filter((r) => r.confdeltype !== "a").map((r) => r.conname)).toEqual([]);
   });
@@ -189,5 +224,21 @@ describe("budget_allocations (HU-E6-05, D8)", () => {
     await value("10000");
     await expect(value("5000")).rejects.toThrow(/budget_allocations_current_uq/);
     await expect(value("0", true)).rejects.toThrow(/budget_allocations_value_positive/);
+  });
+
+  it("keeps a FIXED value per currency and a PERCENT value without one (P342, S7)", async () => {
+    const { fixture, planId } = await world();
+    const salidas = randomUUID();
+    await line(planId, "Salidas", {}, salidas);
+    const value = (rule: string, currency: string | null) =>
+      pool.query(
+        "INSERT INTO budget_allocations (line_id, member_id, rule, currency, value, set_at) VALUES ($1, $2, $3, $4, 1, now())",
+        [salidas, fixture.memberId, rule, currency],
+      );
+    await expect(value("FIXED", "COP")).resolves.toBeDefined();
+    await expect(value("FIXED", "USD")).resolves.toBeDefined();
+    await expect(value("FIXED", "USD")).rejects.toThrow(/budget_allocations_current_uq/);
+    await expect(value("FIXED", null)).rejects.toThrow(/budget_allocations_currency/);
+    await expect(value("PERCENT", "COP")).rejects.toThrow(/budget_allocations_currency/);
   });
 });

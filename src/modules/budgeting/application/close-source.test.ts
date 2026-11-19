@@ -23,9 +23,15 @@ const FEBRUARY = new Date("2027-02-05T17:00:00Z");
 
 class SpendingByPeriod implements PlanSpending {
   constructor(private readonly groceriesFrom: Readonly<Record<string, bigint>>) {}
-  async expensesByCategory(_spaceId: string, from: string) {
+  async expensesByCategoryByCurrency(_spaceId: string, from: string) {
     const amount = this.groceriesFrom[from];
-    return amount === undefined ? [] : [{ categoryId: "cat-groceries", amount }];
+    return amount === undefined ? [] : [{ categoryId: "cat-groceries", currency: "COP", amount }];
+  }
+  async transfersIntoAccountsByCurrency() {
+    return [];
+  }
+  async expensesByCategory() {
+    return [];
   }
   async transfersIntoAccounts() {
     return [];
@@ -54,7 +60,7 @@ const world = async (mode: RolloverMode) => {
     await createCreateBudgetPlan(deps)({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" }),
   ).plan;
   w.plans.seed(november.id, {
-    capacities: [{ memberId: "member-ana", amount: 400_000_000n }],
+    capacities: [{ memberId: "member-ana", currency: "COP", amount: 400_000_000n }],
     lines: [aLine("Home", 147_000_000n, { rolloverMode: mode })],
     mappings: [{ lineId: "line-home", categoryId: "cat-groceries" }],
   });

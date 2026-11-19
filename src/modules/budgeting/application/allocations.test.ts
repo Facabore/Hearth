@@ -41,8 +41,8 @@ const world = async (members: readonly SpaceMember[] = ANA_AND_JUAN) => {
   const plan = unwrap(await create({ spaceId: HOUSEHOLD, userId: "u-ana", period: "2026-11" })).plan;
   w.plans.seed(plan.id, {
     capacities: [
-      { memberId: "member-ana", amount: 160_000_000n },
-      { memberId: "member-juan", amount: 240_000_000n },
+      { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+      { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
     ],
     lines: referenceLines(),
   });
@@ -115,8 +115,8 @@ describe("AllocateBudgetLine (HU-E6-05)", () => {
     const { allocateLine, plans, plan } = await world();
     plans.seed(plan.id, {
       capacities: [
-        { memberId: "member-ana", amount: 0n },
-        { memberId: "member-juan", amount: 0n },
+        { memberId: "member-ana", currency: "COP", amount: 0n },
+        { memberId: "member-juan", currency: "COP", amount: 0n },
       ],
     });
     expect(

@@ -15,8 +15,8 @@ const LUIS = "member-luis";
  */
 const november = (overrides: Partial<PlanParts> = {}): PlanParts => ({
   capacities: [
-    { memberId: ANA, amount: 160_000_000n },
-    { memberId: JUAN, amount: 240_000_000n },
+    { memberId: ANA, currency: "COP", amount: 160_000_000n },
+    { memberId: JUAN, currency: "COP", amount: 240_000_000n },
   ],
   lines: referenceLines().map((l) => {
     if (l.name === "Free") return { ...l, allocationRule: "PERCENT" as const };
@@ -29,8 +29,8 @@ const november = (overrides: Partial<PlanParts> = {}): PlanParts => ({
     { lineId: "line-home", categoryId: "cat-utilities" },
   ],
   allocations: [
-    { lineId: "line-free", memberId: ANA, value: 4200n },
-    { lineId: "line-free", memberId: JUAN, value: 5800n },
+    { lineId: "line-free", memberId: ANA, currency: null, value: 4200n },
+    { lineId: "line-free", memberId: JUAN, currency: null, value: 5800n },
   ],
   ...overrides,
 });
@@ -61,15 +61,15 @@ describe("copiedParts (HU-E6-06)", () => {
         l.planId,
         l.originLineId,
         l.name,
-        l.plannedAmount,
+        l.budgets.map((b) => `${b.amount} ${b.currency}`).join(),
         l.funding,
         l.rolloverMode,
       ]),
     ).toEqual([
-      ["copy-line-rent", "plan-december", "line-rent", "Rent", 120_000_000n, "SHARED_FUND", "ROLLOVER"],
-      ["copy-line-home", "plan-december", "line-home", "Home", 147_000_000n, "DIRECT", "ADJUSTED"],
-      ["copy-line-savings", "plan-december", "line-savings", "Savings", 60_000_000n, "SAVINGS", "RESET"],
-      ["copy-line-free", "plan-december", "line-free", "Free", 73_000_000n, "DIRECT", "RESET"],
+      ["copy-line-rent", "plan-december", "line-rent", "Rent", "120000000 COP", "SHARED_FUND", "ROLLOVER"],
+      ["copy-line-home", "plan-december", "line-home", "Home", "147000000 COP", "DIRECT", "ADJUSTED"],
+      ["copy-line-savings", "plan-december", "line-savings", "Savings", "60000000 COP", "SAVINGS", "RESET"],
+      ["copy-line-free", "plan-december", "line-free", "Free", "73000000 COP", "DIRECT", "RESET"],
     ]);
     expect(parts.lines.map((l) => [l.isCatchAll, l.allocationRule, l.savingsAccountIds])).toEqual([
       [false, "PROPORTIONAL", []],
@@ -82,8 +82,8 @@ describe("copiedParts (HU-E6-06)", () => {
       { lineId: "copy-line-home", categoryId: "cat-utilities" },
     ]);
     expect(parts.allocations).toEqual([
-      { lineId: "copy-line-free", memberId: ANA, value: 4200n },
-      { lineId: "copy-line-free", memberId: JUAN, value: 5800n },
+      { lineId: "copy-line-free", memberId: ANA, currency: null, value: 4200n },
+      { lineId: "copy-line-free", memberId: JUAN, currency: null, value: 5800n },
     ]);
     expect(dropped).toEqual({ mappings: [], savingsAccounts: [], lines: [] });
   });
@@ -124,14 +124,14 @@ describe("copiedParts (HU-E6-06)", () => {
     const { parts, dropped } = copy(
       november({
         capacities: [
-          { memberId: ANA, amount: 160_000_000n },
-          { memberId: JUAN, amount: 240_000_000n },
-          { memberId: LUIS, amount: 50_000_000n },
+          { memberId: ANA, currency: "COP", amount: 160_000_000n },
+          { memberId: JUAN, currency: "COP", amount: 240_000_000n },
+          { memberId: LUIS, currency: "COP", amount: 50_000_000n },
         ],
         allocations: [
-          { lineId: "line-free", memberId: ANA, value: 4200n },
-          { lineId: "line-free", memberId: JUAN, value: 4800n },
-          { lineId: "line-free", memberId: LUIS, value: 1000n },
+          { lineId: "line-free", memberId: ANA, currency: null, value: 4200n },
+          { lineId: "line-free", memberId: JUAN, currency: null, value: 4800n },
+          { lineId: "line-free", memberId: LUIS, currency: null, value: 1000n },
         ],
       }),
     );
@@ -150,14 +150,14 @@ describe("copiedParts (HU-E6-06)", () => {
     const { parts, dropped } = copy(
       november({
         capacities: [
-          { memberId: ANA, amount: 160_000_000n },
-          { memberId: JUAN, amount: 240_000_000n },
-          { memberId: SOFI, amount: 50_000_000n },
+          { memberId: ANA, currency: "COP", amount: 160_000_000n },
+          { memberId: JUAN, currency: "COP", amount: 240_000_000n },
+          { memberId: SOFI, currency: "COP", amount: 50_000_000n },
         ],
         allocations: [
-          { lineId: "line-free", memberId: ANA, value: 4200n },
-          { lineId: "line-free", memberId: JUAN, value: 4800n },
-          { lineId: "line-free", memberId: SOFI, value: 1000n },
+          { lineId: "line-free", memberId: ANA, currency: null, value: 4200n },
+          { lineId: "line-free", memberId: JUAN, currency: null, value: 4800n },
+          { lineId: "line-free", memberId: SOFI, currency: null, value: 1000n },
         ],
       }),
       { memberIds: [ANA, JUAN, SOFI], viewerIds: [SOFI] },
@@ -205,7 +205,7 @@ describe("copiedParts (HU-E6-06)", () => {
       november({
         lines,
         mappings: [{ lineId: "line-home", categoryId: "cat-utilities" }],
-        allocations: [{ lineId: "line-reserve", memberId: ANA, value: 10_000_000n }],
+        allocations: [{ lineId: "line-reserve", memberId: ANA, currency: null, value: 10_000_000n }],
       }),
     );
     expect(parts.lines.map((l) => [l.id, l.originLineId])).toEqual([["copy-line-home", "line-home"]]);

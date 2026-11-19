@@ -31,7 +31,7 @@ const plan: BudgetPlan = {
 };
 const view = (
   lines = referenceLines(),
-  byCategory = [{ categoryId: "cat-groceries", amount: 90_000_000n }],
+  byCategory = [{ categoryId: "cat-groceries", currency: "COP", amount: 90_000_000n }],
 ): BudgetPlanView => ({
   plan,
   currency: "COP",
@@ -40,14 +40,14 @@ const view = (
     memberIds: ["member-ana", "member-juan"],
     parts: {
       capacities: [
-        { memberId: "member-ana", amount: 160_000_000n },
-        { memberId: "member-juan", amount: 240_000_000n },
+        { memberId: "member-ana", currency: "COP", amount: 160_000_000n },
+        { memberId: "member-juan", currency: "COP", amount: 240_000_000n },
       ],
       lines,
       mappings: [{ lineId: "line-home", categoryId: "cat-groceries" }],
       allocations: [
-        { lineId: "line-free", memberId: "member-ana", value: 4200n },
-        { lineId: "line-free", memberId: "member-juan", value: 5800n },
+        { lineId: "line-free", memberId: "member-ana", currency: null, value: 4200n },
+        { lineId: "line-free", memberId: "member-juan", currency: null, value: 5800n },
       ],
     },
     spending: { byCategory, byAccount: [] },
@@ -134,7 +134,11 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
       currency: "COP",
       memberIds: ["member-ana", "member-juan"],
       parts: {
-        capacities: figures.capacities.map((c) => ({ memberId: c.memberId, amount: c.amount })),
+        capacities: figures.capacities.map((c) => ({
+          memberId: c.memberId,
+          currency: "COP",
+          amount: c.amount,
+        })),
         lines,
         mappings: [],
         allocations: [],
@@ -191,7 +195,9 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
 
   it("reports unmapped spending as unbudgeted when no line is a catch-all", () => {
     const lines = referenceLines().map((l) => ({ ...l, isCatchAll: false }));
-    const dto = budgetPlanDto(view(lines, [{ categoryId: "cat-travel", amount: 25_000_000n }]));
+    const dto = budgetPlanDto(
+      view(lines, [{ categoryId: "cat-travel", currency: "COP", amount: 25_000_000n }]),
+    );
     expect(dto.unbudgeted).toEqual({ spent: cop(250_000), available: cop(-250_000) });
   });
 

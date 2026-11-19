@@ -11,7 +11,7 @@ import { createGetLineTrend, type LineTrend } from "./get-line-trend";
 import { createGetPersonalTrend } from "./get-personal-trend";
 
 const pesos = (n: number) => BigInt(n) * 100n;
-const capacities = [{ memberId: "member-ana", amount: pesos(4_000_000) }];
+const capacities = [{ memberId: "member-ana", currency: "COP", amount: pesos(4_000_000) }];
 
 /**
  * Household with a chain of copied plans: Home in each `label`, mapped to Groceries, copied from the previous one,

@@ -12,8 +12,8 @@ const NOVEMBER = "2026-11-01";
 /** Spec section 4 with Free not the catch-all (ruling P34) and the E7 mappings; Restaurants stays unmapped. */
 const referenceParts = () => ({
   capacities: [
-    { memberId: "member-ana", amount: pesos(1_600_000) },
-    { memberId: "member-juan", amount: pesos(2_400_000) },
+    { memberId: "member-ana", currency: "COP", amount: pesos(1_600_000) },
+    { memberId: "member-juan", currency: "COP", amount: pesos(2_400_000) },
   ],
   lines: referenceLines().map((line) => (line.name === "Free" ? { ...line, isCatchAll: false } : line)),
   mappings: [
@@ -182,7 +182,7 @@ describe("line dashboard (HU-E7-01)", () => {
     const october = await w.plan(
       "2026-10",
       {
-        capacities: [{ memberId: "member-ana", amount: pesos(4_000_000) }],
+        capacities: [{ memberId: "member-ana", currency: "COP", amount: pesos(4_000_000) }],
         lines: [
           aLine("Home", pesos(1_470_000), { id: "line-home-oct" as BudgetLineId, rolloverMode: "ROLLOVER" }),
         ],
@@ -240,7 +240,7 @@ describe("line dashboard (HU-E7-01)", () => {
       const october = await w.plan(
         "2026-10",
         {
-          capacities: [{ memberId: "member-ana", amount: pesos(4_000_000) }],
+          capacities: [{ memberId: "member-ana", currency: "COP", amount: pesos(4_000_000) }],
           lines: [
             aLine("Home", pesos(1_470_000), {
               id: "line-home-oct" as BudgetLineId,

@@ -1,4 +1,5 @@
 import { domainError, err, ok, type Id, type Result } from "@/shared/kernel";
+import { amountIn, type CurrencyAmount } from "./currency-amount";
 
 export type BudgetLineId = Id<"BudgetLine">;
 export const FUNDINGS = ["DIRECT", "SHARED_FUND", "SAVINGS"] as const;
@@ -18,8 +19,11 @@ export interface BudgetLine {
   /** HU-E6-06, HU-E6-09: the line it was copied from, for rollover; null until plans are copied. */
   readonly originLineId: string | null;
   readonly name: string;
-  /** Minor units of the space currency, positive. */
-  readonly plannedAmount: bigint;
+  /**
+   * Ruling P342 (S7, "Líneas por moneda"): what the line plans, one positive budget per currency, distinct currencies,
+   * in the order the line lists them (the space's first when it has one). Never converted.
+   */
+  readonly budgets: readonly CurrencyAmount[];
   readonly funding: Funding;
   /** SAVINGS lines only: their spending is the transfers into these accounts (spec 5.4). */
   readonly savingsAccountIds: readonly string[];
@@ -43,7 +47,8 @@ export interface CategoryMapping {
 /** What a request sets on a line. */
 export interface LineFields {
   readonly name: string;
-  readonly plannedAmount: bigint;
+  /** P342 (S7): one budget per currency. */
+  readonly budgets: readonly CurrencyAmount[];
   readonly funding: Funding;
   readonly savingsAccountIds: readonly string[];
   readonly rolloverMode: RolloverMode;
@@ -57,8 +62,8 @@ export interface LineFields {
 export interface LineContext {
   /** The plan's other current lines. */
   readonly siblings: readonly BudgetLine[];
-  /** HU-E6-02: Σ capacities of the current members. */
-  readonly totalCapacity: bigint;
+  /** HU-E6-02, P342 (S7): Σ capacities of the current members, per currency. */
+  readonly totalCapacities: readonly CurrencyAmount[];
   /** Categories currently mapped to this line; 0 for a new line. */
   readonly mappedCategories: number;
   /** D26: the members who may be named payers: the current members who are not VIEWERs (P261), guests included. */
@@ -94,17 +99,48 @@ const checkedPayers = (
   return ok({ payerMemberIds: [...payers], payersScope: fields.payersScope ?? "EVERY_PERIOD" });
 };
 
+/** P342 (S7): at least one budget, each positive, never two in one currency. */
+const checkedBudgets = (budgets: readonly CurrencyAmount[]): Result<CurrencyAmount[]> => {
+  if (budgets.length === 0) return err(domainError("InvalidPlannedAmount", { reason: "noBudget" }));
+  if (budgets.some((b) => b.amount <= 0n)) return err(domainError("InvalidPlannedAmount"));
+  if (new Set(budgets.map((b) => b.currency)).size !== budgets.length) {
+    return err(domainError("InvalidPlannedAmount", { reason: "duplicateCurrency" }));
+  }
+  return ok(budgets.map((b) => ({ currency: b.currency, amount: b.amount })));
+};
+
+/**
+ * Spec 5.2, P342 (S7): adding a line or increasing one of its budgets never pushes Σ planned in that currency above
+ * the capacity in it; a budget in a currency the line did not plan grows from nothing. Other edits may.
+ */
+const fitsCapacity = (
+  budgets: readonly CurrencyAmount[],
+  context: LineContext,
+  previous: readonly CurrencyAmount[] | null,
+): Result<void> => {
+  for (const { currency, amount } of budgets) {
+    const before = previous?.find((b) => b.currency === currency)?.amount;
+    if (before !== undefined && amount <= before) continue;
+    const elsewhere = context.siblings.reduce((sum, line) => sum + amountIn(line.budgets, currency), 0n);
+    if (elsewhere + amount > amountIn(context.totalCapacities, currency)) {
+      return err(domainError("PlanExceedsCapacity", { currency }));
+    }
+  }
+  return ok(undefined);
+};
+
 const checked = (
   fields: LineFields,
   context: LineContext,
-  previousPlanned: bigint | null,
+  previousBudgets: readonly CurrencyAmount[] | null,
   previousPayers: readonly string[] = [],
 ): Result<LineFields> => {
   const name = fields.name.trim();
   if (name.length < 1 || name.length > MAX_NAME) {
     return err(domainError("InvalidBudgetLineName", { length: name.length }));
   }
-  if (fields.plannedAmount <= 0n) return err(domainError("InvalidPlannedAmount"));
+  const budgets = checkedBudgets(fields.budgets);
+  if (!budgets.ok) return budgets;
   const savings = fields.funding === "SAVINGS";
   const accounts = fields.savingsAccountIds;
   if (savings && accounts.length === 0) return err(domainError("SavingsAccountRequired"));
@@ -126,15 +162,11 @@ const checked = (
   if (accounts.some((id) => siblings.some((line) => line.savingsAccountIds.includes(id)))) {
     return err(domainError("SavingsAccountAlreadyUsed"));
   }
-  // Spec 5.2: adding a line or increasing it never pushes Σ planned above total capacity; other edits may.
-  const grows = previousPlanned === null || fields.plannedAmount > previousPlanned;
-  const plannedElsewhere = siblings.reduce((sum, line) => sum + line.plannedAmount, 0n);
-  if (grows && plannedElsewhere + fields.plannedAmount > context.totalCapacity) {
-    return err(domainError("PlanExceedsCapacity"));
-  }
+  const fits = fitsCapacity(budgets.value, context, previousBudgets);
+  if (!fits.ok) return fits;
   const payers = checkedPayers(fields, context, previousPayers);
   if (!payers.ok) return payers;
-  return ok({ ...fields, name, ...payers.value });
+  return ok({ ...fields, name, budgets: budgets.value, ...payers.value });
 };
 
 /** HU-E6-03: a new line of the plan, PROPORTIONAL until it is allocated otherwise (HU-E6-05). */
@@ -167,7 +199,7 @@ export const reviseLine = (
   const fields = checked(
     {
       name: change.name ?? line.name,
-      plannedAmount: change.plannedAmount ?? line.plannedAmount,
+      budgets: change.budgets ?? line.budgets,
       funding,
       savingsAccountIds: change.savingsAccountIds ?? (funding === "SAVINGS" ? line.savingsAccountIds : []),
       rolloverMode: change.rolloverMode ?? line.rolloverMode,
@@ -182,7 +214,7 @@ export const reviseLine = (
             : line.payersScope,
     },
     context,
-    line.plannedAmount,
+    line.budgets,
     line.payerMemberIds,
   );
   return fields.ok ? ok({ ...line, ...fields.value }) : fields;

@@ -24,3 +24,21 @@ export const rolledUpSpending = (
 /** HU-E3-04, ruling P48: only categories directly in their group are mapped to lines. */
 export const mappable = <T extends CategoryParent>(categories: readonly T[]): T[] =>
   categories.filter((c) => (c.parentCategoryId ?? null) === null);
+
+/**
+ * HU-E3-04, ruling P342 (S7): spending per category and currency with each subcategory's amount added to its parent
+ * in the same currency, never across currencies; in first-seen order.
+ */
+export const rolledUpSpendingByCurrency = (
+  byCategory: readonly { readonly categoryId: string; readonly currency: string; readonly amount: bigint }[],
+  categories: readonly CategoryParent[],
+): { categoryId: string; currency: string; amount: bigint }[] => {
+  const sums = new Map<string, { categoryId: string; currency: string; amount: bigint }>();
+  for (const { categoryId, currency, amount } of byCategory) {
+    const into = rolledUpCategory(categoryId, categories);
+    const key = `${into} ${currency}`;
+    const sum = sums.get(key);
+    sums.set(key, { categoryId: into, currency, amount: (sum?.amount ?? 0n) + amount });
+  }
+  return [...sums.values()];
+};

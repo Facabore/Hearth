@@ -14,7 +14,7 @@ import {
 const now = new Date("2026-10-14T12:30:00Z");
 const fields = (overrides: Partial<LineFields> = {}): LineFields => ({
   name: "Home",
-  plannedAmount: 147_000_000n,
+  budgets: [{ currency: "COP", amount: 147_000_000n }],
   funding: "DIRECT",
   savingsAccountIds: [],
   rolloverMode: "RESET",
@@ -29,7 +29,7 @@ const context = (
   overrides: Partial<LineContext> = {},
 ): LineContext => ({
   siblings,
-  totalCapacity: 400_000_000n,
+  totalCapacities: [{ currency: "COP", amount: 400_000_000n }],
   mappedCategories: 0,
   payerCandidateIds: [],
   ...overrides,
@@ -41,14 +41,20 @@ const withoutFree = () => referenceLines().filter((l) => l.name !== "Free");
 describe("newLine (HU-E6-03)", () => {
   it("adds Rent with its funding and rollover mode, PROPORTIONAL and without an origin", () => {
     const rent = unwrap(
-      add(fields({ name: "  Rent ", plannedAmount: 120_000_000n, funding: "SHARED_FUND" })),
+      add(
+        fields({
+          name: "  Rent ",
+          budgets: [{ currency: "COP", amount: 120_000_000n }],
+          funding: "SHARED_FUND",
+        }),
+      ),
     );
     expect(rent).toEqual({
       id: "line-new",
       planId: "plan-november",
       originLineId: null,
       name: "Rent",
-      plannedAmount: 120_000_000n,
+      budgets: [{ currency: "COP", amount: 120_000_000n }],
       funding: "SHARED_FUND",
       savingsAccountIds: [],
       rolloverMode: "RESET",
@@ -61,16 +67,24 @@ describe("newLine (HU-E6-03)", () => {
   });
 
   it("fills the capacity exactly with the full reference plan, and refuses anything beyond it, one minor unit included", () => {
-    const free = add(fields({ name: "Free", plannedAmount: 73_000_000n }), context(withoutFree()));
+    const free = add(
+      fields({ name: "Free", budgets: [{ currency: "COP", amount: 73_000_000n }] }),
+      context(withoutFree()),
+    );
     expect(codeOf(free)).toBe("ok");
     for (const plannedAmount of [1n, 10_000_000n]) {
-      const travel = add(fields({ name: "Travel", plannedAmount }), context(referenceLines()));
+      const travel = add(
+        fields({ name: "Travel", budgets: [{ currency: "COP", amount: plannedAmount }] }),
+        context(referenceLines()),
+      );
       expect(codeOf(travel)).toBe("PlanExceedsCapacity");
     }
   });
 
   it("refuses any line while the plan has no capacity", () => {
-    expect(codeOf(add(fields(), context([], { totalCapacity: 0n })))).toBe("PlanExceedsCapacity");
+    expect(codeOf(add(fields(), context([], { totalCapacities: [{ currency: "COP", amount: 0n }] })))).toBe(
+      "PlanExceedsCapacity",
+    );
   });
 
   it("keeps line names unique within a plan ignoring case", () => {
@@ -79,7 +93,9 @@ describe("newLine (HU-E6-03)", () => {
 
   it("refuses a planned amount that is not positive, 0 COP included", () => {
     for (const plannedAmount of [0n, -100n]) {
-      expect(codeOf(add(fields({ name: "Gifts", plannedAmount })))).toBe("InvalidPlannedAmount");
+      expect(
+        codeOf(add(fields({ name: "Gifts", budgets: [{ currency: "COP", amount: plannedAmount }] }))),
+      ).toBe("InvalidPlannedAmount");
     }
   });
 
@@ -107,7 +123,7 @@ describe("newLine (HU-E6-03)", () => {
         name: "Emergency",
         funding: "SAVINGS",
         savingsAccountIds: ["acc-savings"],
-        plannedAmount: 1n,
+        budgets: [{ currency: "COP", amount: 1n }],
       }),
       context(withoutFree()),
     );
@@ -123,8 +139,8 @@ describe("newLine (HU-E6-03)", () => {
 
   it("allows one catch-all line per plan (HU-E6-04)", () => {
     const second = add(
-      fields({ name: "Groceries", plannedAmount: 1n, isCatchAll: true }),
-      context(referenceLines(), { totalCapacity: 500_000_000n }),
+      fields({ name: "Groceries", budgets: [{ currency: "COP", amount: 1n }], isCatchAll: true }),
+      context(referenceLines(), { totalCapacities: [{ currency: "COP", amount: 500_000_000n }] }),
     );
     expect(codeOf(second)).toBe("CatchAllLineAlreadySet");
   });
@@ -135,20 +151,22 @@ describe("reviseLine (HU-E6-03, HU-E6-04)", () => {
   const others = referenceLines().filter((l) => l.name !== "Home");
 
   it("refuses an increase past the capacity and allows one within it", () => {
-    expect(codeOf(reviseLine(home, { plannedAmount: 150_000_000n }, context(others)))).toBe(
-      "PlanExceedsCapacity",
-    );
+    expect(
+      codeOf(reviseLine(home, { budgets: [{ currency: "COP", amount: 150_000_000n }] }, context(others))),
+    ).toBe("PlanExceedsCapacity");
     const within = reviseLine(
       home,
-      { plannedAmount: 150_000_000n },
-      context(others, { totalCapacity: 410_000_000n }),
+      { budgets: [{ currency: "COP", amount: 150_000_000n }] },
+      context(others, { totalCapacities: [{ currency: "COP", amount: 410_000_000n }] }),
     );
-    expect(unwrap(within).plannedAmount).toBe(150_000_000n);
+    expect(unwrap(within).budgets).toEqual([{ currency: "COP", amount: 150_000_000n }]);
   });
 
   it("lets a plan over its capacity lower or rename a line (HU-E6-02)", () => {
-    const over = context(others, { totalCapacity: 360_000_000n });
-    expect(codeOf(reviseLine(home, { plannedAmount: 140_000_000n }, over))).toBe("ok");
+    const over = context(others, { totalCapacities: [{ currency: "COP", amount: 360_000_000n }] });
+    expect(codeOf(reviseLine(home, { budgets: [{ currency: "COP", amount: 140_000_000n }] }, over))).toBe(
+      "ok",
+    );
     expect(unwrap(reviseLine(home, { name: "House" }, over)).name).toBe("House");
   });
 

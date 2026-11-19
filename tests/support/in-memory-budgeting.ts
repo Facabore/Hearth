@@ -79,7 +79,9 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || compare(a.id, b.id));
     const lineIds = new Set<string>(lines.map((l) => l.id));
     return {
-      capacities: [...(this.capacities.get(planId) ?? [])].sort((a, b) => compare(a.memberId, b.memberId)),
+      capacities: [...(this.capacities.get(planId) ?? [])].sort(
+        (a, b) => compare(a.memberId, b.memberId) || compare(a.currency, b.currency),
+      ),
       lines,
       mappings: this.mappings
         .filter((r) => r.planId === planId && r.unmappedAt === null)
@@ -88,7 +90,12 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
       allocations: this.allocations
         .filter((r) => lineIds.has(r.allocation.lineId) && r.supersededAt === null)
         .map((r) => r.allocation)
-        .sort((a, b) => compare(a.lineId, b.lineId) || compare(a.memberId, b.memberId)),
+        .sort(
+          (a, b) =>
+            compare(a.lineId, b.lineId) ||
+            compare(a.memberId, b.memberId) ||
+            compare(a.currency ?? "", b.currency ?? ""),
+        ),
     };
   }
 
@@ -109,7 +116,7 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
   async saveLine(line: BudgetLine): Promise<void> {
     const {
       name,
-      plannedAmount,
+      budgets,
       funding,
       savingsAccountIds,
       rolloverMode,
@@ -124,7 +131,7 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
             line: {
               ...r.line,
               name,
-              plannedAmount,
+              budgets,
               funding,
               savingsAccountIds,
               rolloverMode,
@@ -224,7 +231,7 @@ export class InMemoryBudgetPlans implements BudgetPlanRepository {
 
   private mergeCapacities(planId: string, capacities: readonly MemberCapacity[]): void {
     const kept = (this.capacities.get(planId) ?? []).filter(
-      (c) => !capacities.some((n) => n.memberId === c.memberId),
+      (c) => !capacities.some((n) => n.memberId === c.memberId && n.currency === c.currency),
     );
     this.capacities.set(planId, [...kept, ...capacities]);
   }

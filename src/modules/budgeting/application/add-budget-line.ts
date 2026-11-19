@@ -1,7 +1,7 @@
 import { ok, type Money, type Result } from "@/shared/kernel";
 import { newLine, type Funding, type PayersScope, type RolloverMode } from "../domain/budget-line";
 import type { BudgetingDeps } from "./deps";
-import { inSpaceCurrency, lineContext, usableSavingsAccounts } from "./line-checks";
+import { budgetsOf, lineContext, usableSavingsAccounts } from "./line-checks";
 import { planForWrite } from "./plan-access";
 import { loadPlanView, type BudgetPlanView } from "./plan-view";
 import type { BudgetLineRepository } from "./ports";
@@ -9,7 +9,8 @@ import type { BudgetLineRepository } from "./ports";
 /** HU-E6-03: a new line; DIRECT and RESET unless given. */
 export interface LineInput {
   readonly name: string;
-  readonly plannedAmount: Money;
+  /** Ruling P342 (S7, "Líneas por moneda"): one positive budget per currency, in the order the line lists them. */
+  readonly budgets: readonly Money[];
   readonly funding?: Funding;
   readonly rolloverMode?: RolloverMode;
   readonly savingsAccountIds?: readonly string[];
@@ -32,7 +33,8 @@ export type LineDeps = BudgetingDeps & { readonly lines: BudgetLineRepository };
 
 /**
  * HU-E6-03: an OWNER or ADMIN adds a line whose positive planned amount fits the capacity not yet planned
- * (zero-based budgeting), with a funding source and a rollover mode; it starts PROPORTIONAL (HU-E6-05).
+ * (zero-based budgeting), with a funding source and a rollover mode; it starts PROPORTIONAL (HU-E6-05). Ruling P342
+ * (S7): one budget per currency, each checked against the capacity in its own currency.
  */
 export const createAddBudgetLine =
   (deps: LineDeps): AddBudgetLine =>
@@ -41,8 +43,6 @@ export const createAddBudgetLine =
       const write = await planForWrite(deps, input);
       if (!write.ok) return write;
       const { space, plan, members, parts } = write.value;
-      const planned = inSpaceCurrency(space, input.line.plannedAmount);
-      if (!planned.ok) return planned;
       const line = newLine(
         {
           id: deps.ids.next<"BudgetLine">(),
@@ -50,7 +50,7 @@ export const createAddBudgetLine =
           now: deps.clock.now(),
           fields: {
             name: input.line.name,
-            plannedAmount: planned.value,
+            budgets: budgetsOf(input.line.budgets),
             funding: input.line.funding ?? "DIRECT",
             savingsAccountIds: input.line.savingsAccountIds ?? [],
             rolloverMode: input.line.rolloverMode ?? "RESET",

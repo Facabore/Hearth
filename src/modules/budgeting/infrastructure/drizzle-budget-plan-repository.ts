@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-transaction-manager";
 import { isUuid, type LocalDate, type StoredPeriod } from "@/shared/kernel";
 import type { BudgetPlanRepository, PlanContents } from "../application/ports";
@@ -6,8 +6,10 @@ import type { AllocationValue } from "../domain/allocation";
 import type { AllocationRule, BudgetLine, BudgetLineId } from "../domain/budget-line";
 import type { MemberCapacity } from "../domain/capacity";
 import type { BudgetPlan, BudgetPlanId, PlanStatus } from "../domain/plan";
+import type { CurrencyAmount } from "../domain/currency-amount";
 import {
   budgetAllocations,
+  budgetLineBudgets,
   budgetLineCategories,
   budgetLines,
   budgetMemberCapacities,
@@ -25,12 +27,24 @@ const toPlan = (row: typeof budgetPlans.$inferSelect): BudgetPlan => ({
   createdAt: row.createdAt,
 });
 
-const toLine = (row: typeof budgetLines.$inferSelect): BudgetLine => ({
+/**
+ * Ruling P342 (S7): a line's current budgets in its order, as JSON, so reading the lines stays one statement. Amounts
+ * travel as text: JSON numbers would lose bigint precision.
+ */
+const currentBudgets = sql<{ currency: string; amount: string }[]>`(
+  SELECT coalesce(
+    json_agg(json_build_object('currency', b.currency, 'amount', b.planned_amount::text) ORDER BY b.position, b.currency),
+    '[]'::json)
+  FROM budget_line_budgets b WHERE b.line_id = "budget_lines"."id" AND b.removed_at IS NULL)`;
+
+type LineRow = typeof budgetLines.$inferSelect & { readonly budgets: { currency: string; amount: string }[] };
+
+const toLine = (row: LineRow): BudgetLine => ({
   id: row.id as BudgetLineId,
   planId: row.planId,
   originLineId: row.originLineId,
   name: row.name,
-  plannedAmount: row.plannedAmount,
+  budgets: row.budgets.map((b) => ({ currency: b.currency, amount: BigInt(b.amount) })),
   funding: row.funding,
   savingsAccountIds: row.savingsAccountIds,
   rolloverMode: row.rolloverMode,
@@ -44,7 +58,6 @@ const toLine = (row: typeof budgetLines.$inferSelect): BudgetLine => ({
 /** The columns a request may change on a line; the allocation rule changes only with its allocation. */
 const lineColumns = (line: BudgetLine) => ({
   name: line.name,
-  plannedAmount: line.plannedAmount,
   funding: line.funding,
   savingsAccountIds: [...line.savingsAccountIds],
   rolloverMode: line.rolloverMode,
@@ -204,15 +217,20 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
       .select({
         planId: budgetMemberCapacities.planId,
         memberId: budgetMemberCapacities.memberId,
+        currency: budgetMemberCapacities.currency,
         amount: budgetMemberCapacities.amount,
       })
       .from(budgetMemberCapacities)
       .where(inArray(budgetMemberCapacities.planId, ids))
-      .orderBy(asc(budgetMemberCapacities.planId), asc(budgetMemberCapacities.memberId));
+      .orderBy(
+        asc(budgetMemberCapacities.planId),
+        asc(budgetMemberCapacities.memberId),
+        asc(budgetMemberCapacities.currency),
+      );
     for (const { planId, ...capacity } of capacities)
       found.get(planId as BudgetPlanId)?.capacities.push(capacity);
     const lineRows = await db
-      .select()
+      .select({ ...getTableColumns(budgetLines), budgets: currentBudgets })
       .from(budgetLines)
       .where(and(inArray(budgetLines.planId, ids), isNull(budgetLines.deletedAt)))
       .orderBy(asc(budgetLines.planId), asc(budgetLines.createdAt), asc(budgetLines.id));
@@ -237,6 +255,7 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
         .select({
           lineId: budgetAllocations.lineId,
           memberId: budgetAllocations.memberId,
+          currency: budgetAllocations.currency,
           value: budgetAllocations.value,
         })
         .from(budgetAllocations)
@@ -246,7 +265,11 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
             isNull(budgetAllocations.supersededAt),
           ),
         )
-        .orderBy(asc(budgetAllocations.lineId), asc(budgetAllocations.memberId));
+        .orderBy(
+          asc(budgetAllocations.lineId),
+          asc(budgetAllocations.memberId),
+          sql`${budgetAllocations.currency} NULLS FIRST`,
+        );
       for (const allocation of allocations) {
         const planId = planOfLine.get(allocation.lineId);
         if (planId !== undefined) found.get(planId)?.allocations.push(allocation);
@@ -272,10 +295,22 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
     await this.tm
       .executor()
       .insert(budgetMemberCapacities)
-      .values(capacities.map((c) => ({ planId, memberId: c.memberId, amount: c.amount, updatedAt: at })))
-      // HU-E6-02: an edit, not a delete: the member's row keeps its key and takes the new amount.
+      .values(
+        capacities.map((c) => ({
+          planId,
+          memberId: c.memberId,
+          currency: c.currency,
+          amount: c.amount,
+          updatedAt: at,
+        })),
+      )
+      // HU-E6-02: an edit, not a delete: the member's row in that currency keeps its key and takes the new amount.
       .onConflictDoUpdate({
-        target: [budgetMemberCapacities.planId, budgetMemberCapacities.memberId],
+        target: [
+          budgetMemberCapacities.planId,
+          budgetMemberCapacities.memberId,
+          budgetMemberCapacities.currency,
+        ],
         set: { amount: sql`excluded.amount`, updatedAt: sql`excluded.updated_at` },
       });
   }
@@ -293,17 +328,74 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
         createdAt: line.createdAt,
         updatedAt: at,
       });
+    await this.saveBudgets(line.planId, line.id, line.budgets, at);
   }
 
   async saveLine(line: BudgetLine, at: Date): Promise<void> {
-    await this.tm
+    const saved = await this.tm
       .executor()
       .update(budgetLines)
       .set({ ...lineColumns(line), updatedAt: at })
       // A line of another plan, or a removed one, is not found: nothing is saved.
       .where(
         and(eq(budgetLines.id, line.id), eq(budgetLines.planId, line.planId), isNull(budgetLines.deletedAt)),
-      );
+      )
+      .returning({ id: budgetLines.id });
+    if (saved.length > 0) await this.saveBudgets(line.planId, line.id, line.budgets, at);
+  }
+
+  /**
+   * Ruling P342 (S7): makes `budgets` the line's current budgets, in their order. A budget in a currency the line
+   * already plans changes in place, a new currency gets a row, and a currency left out ends its row (D8: removedAt).
+   */
+  private async saveBudgets(
+    planId: string,
+    lineId: string,
+    budgets: readonly CurrencyAmount[],
+    at: Date,
+  ): Promise<void> {
+    const db = this.tm.executor();
+    const current = await db
+      .select({ currency: budgetLineBudgets.currency })
+      .from(budgetLineBudgets)
+      .where(and(eq(budgetLineBudgets.lineId, lineId), isNull(budgetLineBudgets.removedAt)));
+    const kept = budgets.map((b) => b.currency);
+    const ended = current.map((row) => row.currency).filter((currency) => !kept.includes(currency));
+    if (ended.length > 0) {
+      await db
+        .update(budgetLineBudgets)
+        .set({ removedAt: at, updatedAt: at })
+        .where(
+          and(
+            eq(budgetLineBudgets.lineId, lineId),
+            isNull(budgetLineBudgets.removedAt),
+            inArray(budgetLineBudgets.currency, ended),
+          ),
+        );
+    }
+    if (budgets.length === 0) return;
+    await db
+      .insert(budgetLineBudgets)
+      .values(
+        budgets.map((b, position) => ({
+          planId,
+          lineId,
+          currency: b.currency,
+          plannedAmount: b.amount,
+          position,
+          createdAt: at,
+          updatedAt: at,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [budgetLineBudgets.lineId, budgetLineBudgets.currency],
+        targetWhere: sql`${budgetLineBudgets.removedAt} IS NULL`,
+        set: {
+          plannedAmount: sql`excluded.planned_amount`,
+          position: sql`excluded.position`,
+          updatedAt: sql`excluded.updated_at`,
+        },
+      });
   }
 
   async deleteLine(planId: BudgetPlanId, lineId: BudgetLineId, at: Date): Promise<void> {
@@ -407,11 +499,17 @@ export class DrizzleBudgetPlanRepository implements BudgetPlanRepository {
       .where(and(eq(budgetAllocations.lineId, lineId), isNull(budgetAllocations.supersededAt)));
     const stored = rule === "PERCENT" || rule === "FIXED" ? rule : null;
     if (stored !== null && values.length > 0) {
-      await db
-        .insert(budgetAllocations)
-        .values(
-          values.map((v) => ({ lineId, memberId: v.memberId, rule: stored, value: v.value, setAt: at })),
-        );
+      await db.insert(budgetAllocations).values(
+        values.map((v) => ({
+          lineId,
+          memberId: v.memberId,
+          rule: stored,
+          // P342 (S7): a FIXED value is in its budget's currency; a PERCENT one holds for every currency.
+          currency: stored === "FIXED" ? v.currency : null,
+          value: v.value,
+          setAt: at,
+        })),
+      );
     }
   }
 

@@ -79,7 +79,12 @@ const budgetingDeps: BudgetingDeps = {
   spaceLocks: spaces,
   members: spaces,
   plans,
-  spending: { expensesByCategory: async () => [], transfersIntoAccounts: async () => [] },
+  spending: {
+    expensesByCategory: async () => [],
+    transfersIntoAccounts: async () => [],
+    expensesByCategoryByCurrency: async () => [],
+    transfersIntoAccountsByCurrency: async () => [],
+  },
   savingsAccounts: { find: async () => null },
   categories: budgetCategoriesOf(categories),
   ids,
@@ -128,7 +133,7 @@ describe("the writers of #245 running at once", () => {
     const { plan } = unwrap(await createPlan({ ...ana, period: "2026-11" }));
     await plans.setCapacities(
       plan.id,
-      [{ memberId: w.household.memberId, amount: 100_000_000n }],
+      [{ memberId: w.household.memberId, currency: "COP", amount: 100_000_000n }],
       clock.now(),
     );
     unwrap(
@@ -136,7 +141,7 @@ describe("the writers of #245 running at once", () => {
         ...ana,
         planId: plan.id,
         expectedVersion: null,
-        line: { name: "Home", plannedAmount: money(50_000_000n) },
+        line: { name: "Home", budgets: [money(50_000_000n)] },
       }),
     );
     const [home] = (await plans.contents(plan.id)).lines;

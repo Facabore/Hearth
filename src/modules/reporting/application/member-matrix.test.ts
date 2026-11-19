@@ -15,8 +15,8 @@ const ANA_AND_JUAN = BUDGET_MEMBERS.slice(0, 2);
 /** Spec section 4 with the E7 mappings; Free has no allocation (NONE) and is not the catch-all unless told. */
 const parts = (free: Partial<BudgetLine> = {}) => ({
   capacities: [
-    { memberId: "member-ana", amount: pesos(1_600_000) },
-    { memberId: "member-juan", amount: pesos(2_400_000) },
+    { memberId: "member-ana", currency: "COP", amount: pesos(1_600_000) },
+    { memberId: "member-juan", currency: "COP", amount: pesos(2_400_000) },
   ],
   lines: referenceLines().map((l) =>
     l.name === "Free" ? { ...l, allocationRule: "NONE" as const, isCatchAll: false, ...free } : l,
@@ -152,7 +152,7 @@ describe("member by line matrix (HU-E7-02)", () => {
     await w.plan("2026-11", {
       ...base,
       lines: base.lines.map((l) => (l.name === "Home" ? { ...l, allocationRule: "PERCENT" as const } : l)),
-      allocations: [{ lineId: "line-home", memberId: "member-ana", value: 5_000n }],
+      allocations: [{ lineId: "line-home", memberId: "member-ana", currency: null, value: 5_000n }],
     });
     w.sums.byCategory[NOVEMBER] = novemberSums();
     const matrix = unwrap(await read(w));
@@ -283,7 +283,7 @@ describe("each member's total gap (#213, ruling P262)", () => {
       lines: base.lines
         .filter((l) => l.name !== "Savings")
         .map((l) => (l.name === "Home" ? { ...l, allocationRule: "PERCENT" as const } : l)),
-      allocations: [{ lineId: "line-home", memberId: "member-ana", value: 5_000n }],
+      allocations: [{ lineId: "line-home", memberId: "member-ana", currency: null, value: 5_000n }],
     });
     w.sums.byCategory[NOVEMBER] = novemberSums();
     const matrix = unwrap(await read(w));

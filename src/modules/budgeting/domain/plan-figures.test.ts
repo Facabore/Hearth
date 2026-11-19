@@ -16,12 +16,14 @@ import {
 const ANA = "member-ana";
 const JUAN = "member-juan";
 const PEDRO = "member-pedro";
+/** An available amount in COP, as a line's figures list them per currency (P342, S7). */
+const copOf = (amount: bigint) => [{ currency: "COP", amount }];
 
 /** Spec section 4 with the E7 mappings: Rent → Rent; Groceries, Utilities → Home; Free 42 % / 58 %, catch-all. */
 const reference = (overrides: Partial<PlanParts> = {}): PlanParts => ({
   capacities: [
-    { memberId: ANA, amount: 160_000_000n },
-    { memberId: JUAN, amount: 240_000_000n },
+    { memberId: ANA, currency: "COP", amount: 160_000_000n },
+    { memberId: JUAN, currency: "COP", amount: 240_000_000n },
   ],
   lines: referenceLines().map((l) => (l.name === "Free" ? { ...l, allocationRule: "PERCENT" as const } : l)),
   mappings: [
@@ -30,20 +32,20 @@ const reference = (overrides: Partial<PlanParts> = {}): PlanParts => ({
     { lineId: "line-home", categoryId: "cat-utilities" },
   ],
   allocations: [
-    { lineId: "line-free", memberId: ANA, value: 4200n },
-    { lineId: "line-free", memberId: JUAN, value: 5800n },
+    { lineId: "line-free", memberId: ANA, currency: null, value: 4200n },
+    { lineId: "line-free", memberId: JUAN, currency: null, value: 5800n },
   ],
   ...overrides,
 });
 // HU-E7-01 Background in 2026-11, plus a 200,000 COP transfer into the savings account.
 const NOVEMBER: PeriodSpending = {
   byCategory: [
-    { categoryId: "cat-rent", amount: 120_000_000n },
-    { categoryId: "cat-groceries", amount: 90_000_000n },
-    { categoryId: "cat-utilities", amount: 40_000_000n },
-    { categoryId: "cat-entertainment", amount: 25_000_000n },
+    { categoryId: "cat-rent", currency: "COP", amount: 120_000_000n },
+    { categoryId: "cat-groceries", currency: "COP", amount: 90_000_000n },
+    { categoryId: "cat-utilities", currency: "COP", amount: 40_000_000n },
+    { categoryId: "cat-entertainment", currency: "COP", amount: 25_000_000n },
   ],
-  byAccount: [{ accountId: "acc-savings", amount: 20_000_000n }],
+  byAccount: [{ accountId: "acc-savings", currency: "COP", amount: 20_000_000n }],
 };
 const NOTHING: PeriodSpending = { byCategory: [], byAccount: [] };
 const figures = (parts: PlanParts, memberIds = [ANA, JUAN], spending = NOVEMBER) =>
@@ -106,7 +108,10 @@ describe("the reference plan (spec section 4, golden)", () => {
 describe("plan figures beyond the reference plan", () => {
   it("puts unmapped spending in Unbudgeted when the plan has no catch-all line (HU-E6-04)", () => {
     const parts = reference({ lines: reference().lines.map((l) => ({ ...l, isCatchAll: false })) });
-    const spending = { byCategory: [{ categoryId: "cat-restaurants", amount: 6_000_000n }], byAccount: [] };
+    const spending = {
+      byCategory: [{ categoryId: "cat-restaurants", currency: "COP", amount: 6_000_000n }],
+      byAccount: [],
+    };
     const f = figures(parts, [ANA, JUAN], spending);
     expect(f.unbudgeted).toEqual({ spent: 6_000_000n, available: -6_000_000n });
     expect(line(f, "Free").spent).toBe(0n);
@@ -118,7 +123,10 @@ describe("plan figures beyond the reference plan", () => {
   it("ignores a mapping whose line is not a current line, so that spending is not lost (HU-E6-04)", () => {
     const stale = { lineId: "line-removed", categoryId: "cat-restaurants" };
     const parts = reference({ mappings: [...reference().mappings, stale] });
-    const spending = { byCategory: [{ categoryId: "cat-restaurants", amount: 6_000_000n }], byAccount: [] };
+    const spending = {
+      byCategory: [{ categoryId: "cat-restaurants", currency: "COP", amount: 6_000_000n }],
+      byAccount: [],
+    };
     expect(lineForCategory("cat-restaurants", parts)).toBe("line-free");
     const withCatchAll = figures(parts, [ANA, JUAN], spending);
     expect([line(withCatchAll, "Free").spent, withCatchAll.unbudgeted]).toEqual([6_000_000n, null]);
@@ -135,8 +143,8 @@ describe("plan figures beyond the reference plan", () => {
     const spending = {
       byCategory: [],
       byAccount: [
-        { accountId: "acc-other", amount: 7_000_000n },
-        { accountId: "acc-savings", amount: 20_000_000n },
+        { accountId: "acc-other", currency: "COP", amount: 7_000_000n },
+        { accountId: "acc-savings", currency: "COP", amount: 20_000_000n },
       ],
     };
     const f = figures(reference(), [ANA, JUAN], spending);
@@ -158,11 +166,7 @@ describe("plan figures beyond the reference plan", () => {
     });
     const free = line(figures(parts), "Free");
     expect(free.allocation).toEqual({ rule: "NONE", members: [], invalid: false });
-    expect([free.line.plannedAmount, free.spent, free.available]).toEqual([
-      73_000_000n,
-      25_000_000n,
-      48_000_000n,
-    ]);
+    expect([free.planned, free.spent, free.available]).toEqual([73_000_000n, 25_000_000n, 48_000_000n]);
   });
 
   it("flags PROPORTIONAL lines and gives no shares while every capacity is 0 (HU-E6-05)", () => {
@@ -192,8 +196,8 @@ describe("plan figures beyond the reference plan", () => {
   it("reports capacity reduced below the lines as negative unallocated capacity (HU-E6-02)", () => {
     const reduced = reference({
       capacities: [
-        { memberId: ANA, amount: 160_000_000n },
-        { memberId: JUAN, amount: 200_000_000n },
+        { memberId: ANA, currency: "COP", amount: 160_000_000n },
+        { memberId: JUAN, currency: "COP", amount: 200_000_000n },
       ],
     });
     const f = figures(reduced, [ANA, JUAN], NOTHING);
@@ -222,8 +226,8 @@ describe("plan figures beyond the reference plan", () => {
   it("reports capacity raised above the lines as positive unallocated capacity (HU-E6-02)", () => {
     const raised = reference({
       capacities: [
-        { memberId: ANA, amount: 160_000_000n },
-        { memberId: JUAN, amount: 300_000_000n },
+        { memberId: ANA, currency: "COP", amount: 160_000_000n },
+        { memberId: JUAN, currency: "COP", amount: 300_000_000n },
       ],
     });
     const f = figures(raised, [ANA, JUAN], NOTHING);
@@ -232,7 +236,7 @@ describe("plan figures beyond the reference plan", () => {
 
   it("counts a guest's capacity like anyone's (D15)", () => {
     const parts = reference({
-      capacities: [...reference().capacities, { memberId: PEDRO, amount: 100_000_000n }],
+      capacities: [...reference().capacities, { memberId: PEDRO, currency: "COP", amount: 100_000_000n }],
       lines: [aLine("Home", 147_000_000n)],
       allocations: [],
     });
@@ -251,8 +255,8 @@ describe("activationCheck (HU-E6-07)", () => {
 
   it("refuses Free at 42 % / 57 %, naming it", () => {
     const allocations = [
-      { lineId: "line-free", memberId: ANA, value: 4200n },
-      { lineId: "line-free", memberId: JUAN, value: 5700n },
+      { lineId: "line-free", memberId: ANA, currency: null, value: 4200n },
+      { lineId: "line-free", memberId: JUAN, currency: null, value: 5700n },
     ];
     expect(activationCheck(figures(reference({ allocations })))).toEqual({
       ok: false,
@@ -262,15 +266,15 @@ describe("activationCheck (HU-E6-07)", () => {
 
   it("refuses a plan whose capacity was reduced below its lines: Juan at 2,000,000 COP", () => {
     const capacities = [
-      { memberId: ANA, amount: 160_000_000n },
-      { memberId: JUAN, amount: 200_000_000n },
+      { memberId: ANA, currency: "COP", amount: 160_000_000n },
+      { memberId: JUAN, currency: "COP", amount: 200_000_000n },
     ];
     expect(codeOf(activationCheck(figures(reference({ capacities }))))).toBe("PlanExceedsCapacity");
   });
 
   it("does not read spending: an overspent line neither blocks activation nor changes the answer", () => {
     const overspending: PeriodSpending = {
-      byCategory: [{ categoryId: "cat-rent", amount: 150_000_000n }],
+      byCategory: [{ categoryId: "cat-rent", currency: "COP", amount: 150_000_000n }],
       byAccount: [],
     };
     const overspent = figures(reference(), [ANA, JUAN], overspending);
@@ -283,15 +287,15 @@ describe("activationCheck (HU-E6-07)", () => {
       l.name === "Home" ? { ...l, allocationRule: "FIXED" as const } : l,
     );
     const allocations = [
-      { lineId: "line-home", memberId: ANA, value: 50_000_000n },
-      { lineId: "line-free", memberId: ANA, value: 4200n },
-      { lineId: "line-free", memberId: JUAN, value: 5700n },
+      { lineId: "line-home", memberId: ANA, currency: null, value: 50_000_000n },
+      { lineId: "line-free", memberId: ANA, currency: null, value: 4200n },
+      { lineId: "line-free", memberId: JUAN, currency: null, value: 5700n },
     ];
     expect(activationCheck(figures(reference({ lines, allocations })))).toEqual({
       ok: false,
       error: { code: "InvalidAllocation", details: { lineIds: ["line-home", "line-free"] } },
     });
-    const capacities = [{ memberId: ANA, amount: 100_000_000n }];
+    const capacities = [{ memberId: ANA, currency: "COP", amount: 100_000_000n }];
     expect(codeOf(activationCheck(figures(reference({ lines, allocations, capacities }))))).toBe(
       "PlanExceedsCapacity",
     );
@@ -301,7 +305,7 @@ describe("activationCheck (HU-E6-07)", () => {
 describe("carry-over (HU-E6-09)", () => {
   const groceries = [{ lineId: "line-home", categoryId: "cat-groceries" }];
   const spentOnGroceries = (amount: bigint): PeriodSpending => ({
-    byCategory: [{ categoryId: "cat-groceries", amount }],
+    byCategory: [{ categoryId: "cat-groceries", currency: "COP", amount }],
     byAccount: [],
   });
   const home = (mode: RolloverMode, overrides: Partial<BudgetLine> = {}) =>
@@ -318,7 +322,7 @@ describe("carry-over (HU-E6-09)", () => {
       memberIds: [ANA, JUAN],
       parts: reference({ lines: december, mappings: [], allocations: [] }),
       spending: NOTHING,
-      previousAvailable: nov.lines.map((l) => ({ lineId: l.line.id, available: l.available })),
+      previousAvailable: nov.lines.map((l) => ({ lineId: l.line.id, available: copOf(l.available) })),
     });
     return { nov, dec };
   };
@@ -382,11 +386,11 @@ describe("carry-over (HU-E6-09)", () => {
         originLineId: `old-${l.id}`,
       }));
       const capacities = [
-        { memberId: ANA, amount: 160_000_000n },
-        { memberId: JUAN, amount: juan },
+        { memberId: ANA, currency: "COP", amount: 160_000_000n },
+        { memberId: JUAN, currency: "COP", amount: juan },
       ];
       const parts = reference({ lines, capacities });
-      const previousAvailable = lines.map((l) => ({ lineId: `old-${l.id}`, available: 20_000_000n }));
+      const previousAvailable = lines.map((l) => ({ lineId: `old-${l.id}`, available: copOf(20_000_000n) }));
       const plain = figures(parts);
       const carried = planFigures({
         currency: "COP",
@@ -405,7 +409,13 @@ describe("carry-over (HU-E6-09)", () => {
         plain.lines.map((l) => l.available + 20_000_000n),
       );
       // Every other field of every line (line, planned, categoryIds, share, allocation, spent) is untouched.
-      const sansCarry = (f: PlanFigures) => f.lines.map((l) => ({ ...l, carryOver: 0n, available: 0n }));
+      const sansCarry = (f: PlanFigures) =>
+        f.lines.map((l) => ({
+          ...l,
+          carryOver: 0n,
+          available: 0n,
+          budgets: l.budgets.map((b) => ({ ...b, carryOver: 0n, available: 0n })),
+        }));
       expect(sansCarry(carried)).toEqual(sansCarry(plain));
       expect({ ...carried, lines: [] }).toEqual({ ...plain, lines: [] });
       expect(carried.unbudgeted).toEqual({ spent: 25_000_000n, available: -25_000_000n });
@@ -423,7 +433,8 @@ describe("carry-over (HU-E6-09)", () => {
         memberIds: [ANA, JUAN],
         parts: reference({ lines: [line], mappings: [], allocations: [] }),
         spending: spentOnGroceries(spent),
-        previousAvailable: previous?.lines.map((l) => ({ lineId: l.line.id, available: l.available })) ?? [],
+        previousAvailable:
+          previous?.lines.map((l) => ({ lineId: l.line.id, available: copOf(l.available) })) ?? [],
       });
     const nov = period(adjusted("nov-home", null), 160_000_000n);
     const dec = period(adjusted("dec-home", "nov-home"), 170_000_000n, nov);
@@ -450,7 +461,7 @@ describe("where a carry-over comes from (ruling P243 of M6c)", () => {
       currency: "COP",
       memberIds: [ANA],
       parts: {
-        capacities: [{ memberId: ANA, amount: 400_000_000n }],
+        capacities: [{ memberId: ANA, currency: "COP", amount: 400_000_000n }],
         lines: [
           aLine("Home", 147_000_000n, { originLineId: "line-home-nov", rolloverMode }),
           aLine("Pets", 10_000_000n, {
@@ -464,7 +475,7 @@ describe("where a carry-over comes from (ruling P243 of M6c)", () => {
         allocations: [],
       },
       spending: { byCategory: [], byAccount: [] },
-      previousAvailable: closed ? [{ lineId: "line-home-nov", available: 20_000_000n }] : [],
+      previousAvailable: closed ? [{ lineId: "line-home-nov", available: copOf(20_000_000n) }] : [],
       source: { ...source, closed },
     });
   const carries = (figures: PlanFigures) =>

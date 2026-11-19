@@ -329,6 +329,13 @@
       "version": "7",
       "when": 1795035029243,
       "tag": "0046_p343_handle_always",
+        "breakpoints": true
+      },
+      {
+      "idx": 47,
+      "version": "7",
+      "when": 1795049362761,
+      "tag": "0047_p342_plan_currencies",
       "breakpoints": true
     }
   ]
