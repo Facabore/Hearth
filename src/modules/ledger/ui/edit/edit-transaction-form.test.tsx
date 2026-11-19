@@ -67,6 +67,7 @@ const renderForm = (
     shared?: SharedExpenseContext;
     space?: SpaceDto;
     accounts?: readonly AccountDto[];
+    pick?: "out" | "in";
   } = {},
 ) =>
   renderWithIntl(
@@ -81,6 +82,7 @@ const renderForm = (
         origin={origin}
         api={api}
         {...(extra.shared ? { shared: extra.shared } : {})}
+        {...(extra.pick ? { pick: extra.pick } : {})}
       />
     </ToastProvider>,
   );
@@ -762,5 +764,145 @@ describe("the flows P344 leaves as they were", () => {
     await save();
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(await requests[0]!.json()).toEqual({ sourceAccountId: "a-save" });
+  });
+});
+
+describe("change who contributed to the fund (P344, S4)", () => {
+  const fund = accountDto({ id: "a-fund", name: "Household Fund", type: "SHARED_FUND" });
+  const context: SharedExpenseContext = {
+    members: [
+      memberDto({ id: "m-ana", userId: "u-ana", displayName: "Ana" }),
+      memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" }),
+      guestDto(),
+    ],
+    meMemberId: "m-ana",
+    myAccounts: [accountDto({ id: "a-bank", name: "Bancolombia" })],
+    funds: [fund],
+  };
+  const contributionOf = (payerMemberId: string, sourceAccountId: string | null) =>
+    transactionDto({
+      ...tx,
+      type: "TRANSFER",
+      categoryId: null,
+      payerMemberId,
+      sourceAccountId,
+      destinationAccountId: "a-fund",
+      payments: [],
+      shares: [],
+    });
+  const pickContributor = async (name: string) => {
+    await userEvent.click(screen.getByRole("button", { name: /Quién aportó/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Quién aportó" });
+    await userEvent.click(within(sheet).getByRole("radio", { name }));
+  };
+
+  it("offers the current members, never a guest, and moving it to Juan sends only Juan: his side has no account", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...tx, version: 3 }) });
+    renderForm(api, LIST, {
+      space: householdSpace(),
+      tx: contributionOf("m-ana", "a-bank"),
+      shared: context,
+    });
+    expect(screen.getByRole("button", { name: /Quién aportó/ })).toHaveTextContent("Ana (tú)");
+    await userEvent.click(screen.getByRole("button", { name: /Quién aportó/ }));
+    const sheet = await screen.findByRole("dialog", { name: "Quién aportó" });
+    expect(
+      within(sheet)
+        .getAllByRole("radio")
+        .map((radio) => radio.textContent),
+    ).toEqual(["Ana (tú)", "Juan"]);
+    await userEvent.click(within(sheet).getByRole("radio", { name: "Juan" }));
+    expect(screen.getByRole("button", { name: /Quién aportó/ })).toHaveTextContent("Juan");
+    expect(screen.queryByRole("button", { name: /Desde/ })).not.toBeInTheDocument();
+    expect(screen.getByText("Sin asignar")).toBeInTheDocument();
+    expect(screen.getByText("Sale de · solo Juan elige su cuenta")).toBeInTheDocument();
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ payerMemberId: "m-juan" });
+  });
+
+  it("moves Juan's contribution to the editor, who names one of their own accounts in Desde", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...tx, version: 3 }) });
+    renderForm(api, LIST, {
+      space: householdSpace(),
+      tx: contributionOf("m-juan", "a-juan"),
+      shared: context,
+    });
+    expect(screen.getByText("Cuenta de Juan")).toBeInTheDocument();
+    await pickContributor("Ana (tú)");
+    await userEvent.click(screen.getByRole("button", { name: /Desde/ }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Desde" })).getByRole("radio", { name: /Bancolombia/ }),
+    );
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ payerMemberId: "m-ana", sourceAccountId: "a-bank" });
+  });
+
+  it("moved back to its payer, it is no change and keeps their account", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...tx, version: 3 }) });
+    renderForm(api, LIST, {
+      space: householdSpace(),
+      tx: contributionOf("m-juan", "a-juan"),
+      shared: context,
+    });
+    await pickContributor("Ana (tú)");
+    await pickContributor("Juan");
+    expect(screen.getByText("Cuenta de Juan")).toBeInTheDocument();
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(requests).toEqual([]);
+  });
+});
+
+describe("open on the editor's own account picker, as the detail's Sin cuenta asignada asks (P344, S6)", () => {
+  const fund = accountDto({ id: "a-fund", name: "Household Fund", type: "SHARED_FUND" });
+  const context: SharedExpenseContext = {
+    members: [
+      memberDto({ id: "m-ana", userId: "u-ana", displayName: "Ana" }),
+      memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" }),
+    ],
+    meMemberId: "m-ana",
+    myAccounts: [accountDto({ id: "a-bank", name: "Bancolombia" })],
+    funds: [fund],
+  };
+  const contribution = transactionDto({
+    ...tx,
+    type: "TRANSFER",
+    categoryId: null,
+    payerMemberId: "m-ana",
+    sourceAccountId: null,
+    destinationAccountId: "a-fund",
+    payments: [],
+    shares: [],
+  });
+
+  it("opens Desde on the editor's own contribution with no account, and sends the account chosen", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...tx, version: 3 }) });
+    renderForm(api, LIST, { space: householdSpace(), tx: contribution, shared: context, pick: "out" });
+    const sheet = await screen.findByRole("dialog", { name: "Desde" });
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Bancolombia/ }));
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ sourceAccountId: "a-bank" });
+  });
+
+  it("opens who paid on the editor's own expense with no account, where Desde is", async () => {
+    const dinner = transactionDto({
+      ...tx,
+      payments: [{ memberId: "m-ana", accountId: null, amount: cop(85_000) }],
+      shares: [
+        { memberId: "m-ana", amount: cop(42_500), splitMethod: "EQUAL" },
+        { memberId: "m-juan", amount: cop(42_500), splitMethod: "EQUAL" },
+      ],
+    });
+    renderForm(fakeApi({}).api, LIST, { space: householdSpace(), tx: dinner, shared: context, pick: "out" });
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    expect(within(sheet).getByRole("radiogroup", { name: "Desde" })).toBeInTheDocument();
+  });
+
+  it("opens no sheet without it, as before", () => {
+    renderForm(fakeApi({}).api, LIST, { space: householdSpace(), tx: contribution, shared: context });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

@@ -64,6 +64,7 @@ export function EditTransactionForm({
   shared,
   origin,
   initialNow,
+  pick,
   api: injected,
 }: {
   readonly space: SpaceDto;
@@ -77,6 +78,8 @@ export function EditTransactionForm({
   readonly origin: string;
   /** The server render's instant (ISO): an untimed row's made-up time must be the same on both renders. */
   readonly initialNow?: string;
+  /** P344 (S6): the detail's "Sin cuenta asignada" asked to open the picker of the editor's own account. */
+  readonly pick?: "out" | "in";
   readonly api?: Api;
 }) {
   const t = useTranslations("ledger");
@@ -100,7 +103,8 @@ export function EditTransactionForm({
       initial.currency,
       formats.numberFormat,
       initial.split ? { split: initial.split, memberIds } : undefined,
-      initial.accountLeg ? { accountAmount: initial.accountLeg } : {},
+      // P344 (S3): as the form builds it, a contribution with no Desde still builds.
+      { ...(initial.accountLeg ? { accountAmount: initial.accountLeg } : {}), accountless: contribution(tx) },
     );
     return built.ok ? built.body : {};
   });
@@ -213,6 +217,7 @@ export function EditTransactionForm({
         onSave,
         ...(kinds ? { kinds } : {}),
         ...(contribution(tx) ? { fixedAccounts: true } : {}),
+        ...(pick ? { pick: true } : {}),
         problemAction: (problem) =>
           problem.code === "PreconditionFailed" ? (
             <div className="flex flex-col gap-2">

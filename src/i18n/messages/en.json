@@ -601,6 +601,7 @@
       "paid": "{payer} paid {receiver}",
       "payer": "Who paid",
       "receiver": "Who received",
+      "contributor": "Who contributed",
       "unassigned": "Unassigned",
       "othersPick": "{side, select, out {Leaves from} other {Arrives at}} · only {name} chooses their account",
       "othersAccount": "{side, select, out {Leaves from} other {Arrives at}} · only {name} changes it"

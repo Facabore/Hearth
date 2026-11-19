@@ -80,6 +80,7 @@ export function SummaryRow({
   ariaLabel,
   testId,
   last = false,
+  wrap = false,
 }: {
   readonly value: ReactNode;
   readonly meta: string;
@@ -91,6 +92,8 @@ export function SummaryRow({
   readonly testId?: string | undefined;
   /** The last row of the list draws no divider under it. */
   readonly last?: boolean;
+  /** A value that holds an amount wraps between its words instead of being cut, so the amount is never cut (AGENTS). */
+  readonly wrap?: boolean;
 }) {
   const content = (
     <>
@@ -100,7 +103,7 @@ export function SummaryRow({
         ) : label ? (
           <span className="sr-only">{`${label} `}</span>
         ) : null}
-        <span className="truncate text-base text-ink">{value}</span>
+        <span className={`${wrap ? "break-words" : "truncate"} text-base text-ink`}>{value}</span>
         {label === undefined ? null : (
           <span aria-hidden="true" className="text-sm text-muted">
             {meta}

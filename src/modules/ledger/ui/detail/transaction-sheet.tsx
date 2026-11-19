@@ -310,8 +310,10 @@ export function TransactionSheet({
       })
     : t(`type.${kind}`);
   const actions = actionsFor(tx, viewer, members);
-  const editHref = withReturnTo(`/spaces/${spaceId}/transactions/${tx.id}/edit`, origin);
-  // P344 (S6, board 2): a side that is the viewer's and has no account says so, and its edit chooses one (S2).
+  const editPath = `/spaces/${spaceId}/transactions/${tx.id}/edit`;
+  const editHref = withReturnTo(editPath, origin);
+  // P344 (S6, board 2): a side that is the viewer's and has no account says so, and opens its edit on the picker of
+  // the viewer's own accounts for that side (S2).
   const mine = (memberId: string | null | undefined) => memberId != null && memberId === viewer.memberId;
   const unassigned: ("out" | "in")[] = !actions.edit
     ? []
@@ -367,7 +369,10 @@ export function TransactionSheet({
           <div key={side}>
             <dt className="sr-only">{t(side === "out" ? "detail.leavesFrom" : "detail.arrivesAt")}</dt>
             <dd>
-              <Link href={editHref} className="flex min-h-11 items-center gap-3 py-1 text-left">
+              <Link
+                href={withReturnTo(`${editPath}?pick=${side}`, origin)}
+                className="flex min-h-11 items-center gap-3 py-1 text-left"
+              >
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="font-medium text-accent">{t("detail.unassigned")}</span>{" "}
                   <span className="text-sm text-muted">{t("detail.choose", { side })}</span>

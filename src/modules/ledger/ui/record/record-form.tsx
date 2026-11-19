@@ -15,7 +15,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AccountPicker, byUse } from "@/modules/accounts/ui";
-import { controlsFor } from "@/modules/spaces/ui";
+import { controlsFor, memberLabel } from "@/modules/spaces/ui";
 import {
   activeTree,
   categoryPath,
@@ -106,6 +106,11 @@ const DateTimeSheet = dynamic(() => import("./date-time-sheet").then((module) =>
 /** P331, P333: a personal expense's "¿Quién pagó y para quién?", in a chunk that loads on the first tap. */
 const PersonalWhoPaidSheet = dynamic(
   () => import("../split/who-paid-sheets").then((module) => module.PersonalWhoPaidSheet),
+  { ssr: false },
+);
+/** P344 (S4): a fund contribution's "Quién aportó", in the who-paid sheets' chunk. */
+const ContributorSheet = dynamic(
+  () => import("../split/who-paid-sheets").then((module) => module.ContributorSheet),
   { ssr: false },
 );
 /** Ruling P291: the category picker of board B1 · 03, in a chunk of its own that loads when it first opens. */
@@ -205,6 +210,11 @@ export interface RecordEdit {
   readonly kinds?: readonly RecordKind[];
   /** Issue #198 (P188): a contribution's fund never changes, so while it stays a transfer its Hacia only shows it. */
   readonly fixedAccounts?: boolean;
+  /**
+   * P344 (S6): opens on the picker of the editor's own account, when the movement's paying side is theirs: Desde of
+   * their contribution, or who paid (which holds Desde) of their shared expense.
+   */
+  readonly pick?: boolean;
 }
 
 export interface RecordFormProps {
@@ -280,6 +290,7 @@ export function RecordForm({
   );
   const errors = useTranslations("errors");
   const tAccounts = useTranslations("accounts");
+  const names = useTranslations("members");
   // P305: what the form of another space handed over when the person moved it here; never in an edit.
   const [carried] = useState(() => (edit ? null : heldFor(space.id)));
   useEffect(release, []);
@@ -396,7 +407,11 @@ export function RecordForm({
   );
   const [chosenWhen, setChosenWhen] = useState<When | null>(edit?.initial.when ?? carried?.when ?? null);
   const [spaceOpened, setSpaceOpened] = useState(false);
-  const [sheet, setSheet] = useState<Sheet>(null);
+  const [sheet, setSheet] = useState<Sheet>(
+    edit?.pick && edit.initial.kind === "TRANSFER" && edit.initial.split?.payer.kind === "ME"
+      ? "account"
+      : null,
+  );
   const [sheetNow, setSheetNow] = useState<When>(start);
   const [pending, setPending] = useState(false);
   const [split, setSplit] = useState(
@@ -459,6 +474,10 @@ export function RecordForm({
     shared && split && kind === "EXPENSE"
       ? { split, memberIds: shared.members.map((member) => member.id) }
       : undefined;
+  // Issue #198 (P188): a contribution's fund never changes; P344 (S3): its Desde may be another member's, or none.
+  const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
+  // P344 (S4): a contribution's payer, whom its edit may change to another current member.
+  const contributorId = fixedAccounts && split && "memberId" in split.payer ? split.payer.memberId : null;
   // P334: to or from someone, only the recorder's account takes part, as an income's does.
   const toSomeone = !edit && space.kind === "PERSONAL" && kind === "TRANSFER" && transfer.mode !== "OWN";
   // P334: only the places in the account's currency.
@@ -544,7 +563,9 @@ export function RecordForm({
     ? requestOf({ ...draft, kind: "INCOME", category: null }, amountCurrency, formats.numberFormat)
     : requestOf(draft, amountCurrency, formats.numberFormat, sharedExpense, {
         // P333: someone else paid a personal expense, so no account of the recorder's is asked for.
-        accountless: !edit && space.kind === "PERSONAL" && forWhom.payer !== ME,
+        // P344 (S3): a contribution's Desde is its payer's to choose, so it may have none.
+        accountless:
+          fixedAccounts || (kind === "EXPENSE" && !edit && space.kind === "PERSONAL" && forWhom.payer !== ME),
         ...(accountAmountBody ? { accountAmount: accountAmountBody } : {}),
         ...(destinationBody ? { destinationAmount: destinationBody } : {}),
       });
@@ -726,7 +747,13 @@ export function RecordForm({
     setPending(true);
     try {
       if (edit) {
-        const failed = await edit.onSave({ kind: built.kind, body: built.body }, { when });
+        const failed = await edit.onSave(
+          {
+            kind: built.kind,
+            body: contributorId ? { ...built.body, payerMemberId: contributorId } : built.body,
+          },
+          { when },
+        );
         if (failed) {
           setProblem(failed);
           setPending(false);
@@ -844,9 +871,11 @@ export function RecordForm({
   const accountLabel = t(
     kind === "TRANSFER" ? "form.from" : kind === "INCOME" ? "form.receivingAccount" : "form.account",
   );
-  const fixedAccounts = kind === "TRANSFER" && edit?.fixedAccounts === true;
   // P344 (S3): another member's contribution, whose Desde only they choose.
   const contributor = fixedAccounts && split?.payer.kind === "MEMBER" ? split.payer.memberId : null;
+  const memberOf = (id: string) => shared?.members.find((m) => m.id === id);
+  const meUserId = memberOf(shared?.meMemberId ?? "")?.userId ?? "";
+  const payer = contributorId === null ? undefined : memberOf(contributorId);
   // P333 (board "Registrar: una fila"): "Pagaste tú con Bancolombia · para Juan y Ana".
   // P333: "Pagó Juan · le debes 60.000 COP" when someone else paid.
   const otherPayer =
@@ -1053,6 +1082,7 @@ export function RecordForm({
                 defaultSplit={!edit}
                 forFund={!edit}
                 fromHint={fromHint}
+                openOnLoad={edit?.pick === true && split.payer.kind === "ME"}
               />
             ) : null}
             <div role="group" aria-label={t("form.details")} className="flex flex-col">
@@ -1060,6 +1090,7 @@ export function RecordForm({
                 <SummaryRow
                   value={personalLine}
                   meta={t("split.title")}
+                  wrap
                   onClick={() => {
                     setWhoOpened(true);
                     setWhoOpen(true);
@@ -1080,14 +1111,26 @@ export function RecordForm({
                   debt={pairDebt}
                   Row={SummaryRow}
                 />
-              ) : sharedRows ? null : contributor !== null ? (
-                // P344 (S3): another member's contribution: Desde is theirs, and only they choose it.
-                <OthersAccountRow
-                  name={shared?.members.find((m) => m.id === contributor)?.displayName ?? ""}
-                  assigned={accountId !== null}
-                />
-              ) : (
-                accountRow("account", accountLabel, nameOf(accountId), "account", t("form.chooseAccount"))
+              ) : sharedRows ? null : (
+                <>
+                  {shared && contributorId !== null ? (
+                    <SummaryRow
+                      // A payer who left the space is no current member, so the row names none until one is chosen.
+                      value={payer ? memberLabel(payer, meUserId, names) : ""}
+                      meta={t("edit.contributor")}
+                      onClick={() => {
+                        setWhoOpened(true);
+                        setWhoOpen(true);
+                      }}
+                    />
+                  ) : null}
+                  {contributor !== null ? (
+                    // P344 (S3): another member's contribution: Desde is theirs, and only they choose it.
+                    <OthersAccountRow name={payer?.displayName ?? ""} assigned={accountId !== null} />
+                  ) : (
+                    accountRow("account", accountLabel, nameOf(accountId), "account", t("form.chooseAccount"))
+                  )}
+                </>
               )}
               {kind === "TRANSFER" && !toSomeone
                 ? accountRow(
@@ -1222,6 +1265,19 @@ export function RecordForm({
           amount={positiveMinor}
           currency={amountCurrency}
           formats={formats}
+        />
+      ) : null}
+      {whoOpened && shared && contributorId !== null ? (
+        <ContributorSheet
+          open={whoOpen}
+          onOpenChange={setWhoOpen}
+          context={shared}
+          initial={edit!.initial}
+          value={contributorId}
+          onChoose={(chosen, from) => {
+            changeSplit({ ...split!, payer: chosen });
+            setAccountId(from);
+          }}
         />
       ) : null}
       {kind === "TRANSFER" || !pickerOpened ? null : (

@@ -601,6 +601,7 @@
       "paid": "{payer} le pagó a {receiver}",
       "payer": "Quién pagó",
       "receiver": "Quién recibió",
+      "contributor": "Quién aportó",
       "unassigned": "Sin asignar",
       "othersPick": "{side, select, out {Sale de} other {Llega a}} · solo {name} elige su cuenta",
       "othersAccount": "{side, select, out {Sale de} other {Llega a}} · solo {name} la cambia"

@@ -52,7 +52,7 @@ const paid = transactionDto({
   version: 4,
 });
 
-const renderForm = (api: Api, tx: TransactionDto = paid, locale: Locale = "es") =>
+const renderForm = (api: Api, tx: TransactionDto = paid, locale: Locale = "es", pick?: "out" | "in") =>
   renderWithIntl(
     <ToastProvider>
       <EditPaymentForm
@@ -62,6 +62,7 @@ const renderForm = (api: Api, tx: TransactionDto = paid, locale: Locale = "es") 
         me={meDto({ timezone: "America/Bogota" })}
         origin={LIST}
         api={api}
+        {...(pick ? { pick } : {})}
       />
     </ToastProvider>,
     { locale },
@@ -160,5 +161,26 @@ describe("edit a payment between members (P344, board 1)", () => {
     expect(screen.getByText("Juan paid Ana")).toBeInTheDocument();
     expect(screen.getByText("Leaves from · only Juan chooses their account")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
+  });
+
+  it("opens without a sheet when no side is asked for", () => {
+    renderForm(fakeApi({}).api);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens the editor's own account picker for the side the detail asked for, and saves the account chosen (S6)", async () => {
+    const { api, requests } = fakeApi({ [PATCH]: () => jsonResponse({ ...paid, version: 5 }) });
+    const mine = { ...paid, payerMemberId: "m-ana", receivingMemberId: "m-juan", destinationAccountId: null };
+    renderForm(api, mine, "es", "out");
+    const sheet = await screen.findByRole("dialog", { name: "Sale de" });
+    await userEvent.click(within(sheet).getByRole("radio", { name: /Nequi/ }));
+    await save();
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(await requests[0]!.json()).toEqual({ sourceAccountId: "a-nequi" });
+  });
+
+  it("never opens a picker for a side that is someone else's", () => {
+    renderForm(fakeApi({}).api, paid, "es", "out");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

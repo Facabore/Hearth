@@ -64,7 +64,10 @@ export const requestOf = (
   numberFormat: NumberFormat,
   shared?: { readonly split: SplitDraft; readonly memberIds: readonly string[] },
   options: {
-    /** P333: someone else paid a personal expense with their own money, so it names no account of the recorder's. */
+    /**
+     * P333: someone else paid a personal expense with their own money, so it names no account of the recorder's;
+     * P344 (S3): a fund contribution's Desde is its payer's to choose, so it may have none.
+     */
     readonly accountless?: boolean;
     /**
      * P342 (board 4): what the paying (or, for an income, the receiving) account moved, in that account's own currency,
@@ -81,7 +84,7 @@ export const requestOf = (
   const minor = decimal === null ? null : minorOf(decimal, currencyOf(currency).exponent);
   if (minor === null) return { ok: false, field: "amount" };
   const sharedExpense = draft.kind === "EXPENSE" && shared !== undefined;
-  const accountless = options.accountless === true && draft.kind === "EXPENSE";
+  const accountless = options.accountless === true;
   if (!sharedExpense && !accountless && !draft.accountId) return { ok: false, field: "account" };
   if (draft.kind === "TRANSFER" && !draft.toAccountId) return { ok: false, field: "toAccount" };
   const body: Record<string, unknown> = {};

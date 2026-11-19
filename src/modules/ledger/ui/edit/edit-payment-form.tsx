@@ -46,6 +46,7 @@ export function EditPaymentForm({
   shared,
   me,
   origin,
+  pick,
   api: injected,
 }: {
   readonly spaceId: string;
@@ -55,6 +56,8 @@ export function EditPaymentForm({
   readonly me: Pick<MeDto, "preferences" | "timezone">;
   /** The list or home it was opened from; the sheet of this payment is shown there afterwards. */
   readonly origin: string;
+  /** P344 (S6): the side whose own-account picker opens at once, when that side is the editor's. */
+  readonly pick?: Side;
   readonly api?: Api;
 }) {
   const t = useTranslations("ledger");
@@ -84,7 +87,7 @@ export function EditPaymentForm({
   // What is being picked: a side's member or its account, or the date.
   const [open, setOpen] = useState<
     { readonly what: "member" | "account"; readonly side: Side } | "when" | null
-  >(null);
+  >(pick && tx[MEMBER_OF[pick]] === meMemberId ? { what: "account", side: pick } : null);
   const [opened, setOpened] = useState(false);
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<Problem | null>(null);

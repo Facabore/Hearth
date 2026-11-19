@@ -231,11 +231,17 @@ const pendingOccurrencesRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/pending-occurrences"), "PendingOccurrencesRoute"),
 });
 
-/** Ruling P191: the edit form, `?returnTo=` the screen its sheet was opened on. */
+/**
+ * Ruling P191: the edit form, `?returnTo=` the screen its sheet was opened on; P344 (S6): `?pick=out|in` opens the
+ * picker of the editor's own account for that side, as the sheet's "Sin cuenta asignada" asks.
+ */
 const editRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "transactions/$transactionId/edit",
-  validateSearch: (search: Record<string, unknown>) => ({ returnTo: textParam(search.returnTo) }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    returnTo: textParam(search.returnTo),
+    pick: search.pick === "out" || search.pick === "in" ? (search.pick as "out" | "in") : undefined,
+  }),
   loader: async ({ context, params, cause }) =>
     (await ledger()).loadEdit({ ...context, cause }, params.spaceId, params.transactionId),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditPending"),

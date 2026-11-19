@@ -40,8 +40,13 @@ export const editBodyOf = (input: {
     body.occurredAt = current.occurredAt;
     body.timeZone = current.timeZone;
   }
+  // P344 (S4): a contribution moved to another member sends that member, and no account unless the editor chose one of
+  // theirs: the API leaves the side with none (S3).
+  const moved = current.payerMemberId !== undefined && current.payerMemberId !== tx.payerMemberId;
+  if (moved) body.payerMemberId = current.payerMemberId;
   for (const key of ["accountId", "sourceAccountId", "destinationAccountId"] as const)
-    if (differs(key) && current[key] !== undefined) body[key] = current[key];
+    if (differs(key) && current[key] !== undefined && !(moved && current[key] === null))
+      body[key] = current[key];
   if (tx.type === "EXPENSE" && current.payments !== undefined && payerOf(baseline) !== payerOf(current))
     body.payments = current.payments;
   if (
