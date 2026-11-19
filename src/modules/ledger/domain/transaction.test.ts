@@ -4,6 +4,7 @@ import type { LocalDate } from "@/shared/kernel";
 import { codeOf, unwrap } from "../../../../tests/support/fakes";
 import {
   balanceParties,
+  canCorrect,
   canModify,
   changedDebits,
   changesBetween,
@@ -271,17 +272,72 @@ describe("editing and deleting (HU-E4-06)", () => {
     ["u-luis", "MEMBER", false],
     ["u-ana", "VIEWER", false],
     ["u-luis", null, false],
-  ] as const)("lets %s with role %s change a transaction created by u-ana: %s", (userId, role, allowed) => {
+  ] as const)("lets %s with role %s change a recurrence created by u-ana: %s", (userId, role, allowed) => {
     expect(canModify(role, "u-ana", userId)).toBe(allowed);
   });
 
-  // HU-E1-05: changing someone else's transaction mirrors the spaces matrix (money.editAny), so the two never drift.
+  // HU-E1-05: changing someone else's recurrence mirrors the spaces matrix (money.editAny), so the two never drift.
   it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", null] as const)(
-    "lets role %s change a transaction created by someone else exactly when the matrix allows money.editAny",
+    "lets role %s change a recurrence created by someone else exactly when the matrix allows money.editAny",
     (role) => {
       expect(canModify(role, "u-ana", "u-luis")).toBe(can(role, "money.editAny"));
     },
   );
+
+  // P344 (S1): correcting any movement mirrors recording one (money.record), whoever recorded it.
+  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", null] as const)(
+    "lets role %s correct any movement exactly when the matrix allows money.record",
+    (role) => {
+      expect(canCorrect(role)).toBe(can(role, "money.record"));
+    },
+  );
+});
+
+describe("settlement and contribution members on edit (P344, S4)", () => {
+  const settlement = unwrap(
+    recordSettlement({
+      ...common,
+      spaceId: "space-household",
+      amount: 100n,
+      payerMemberId: "member-ana",
+      receivingMemberId: "member-juan",
+      sourceAccountId: null,
+      destinationAccountId: null,
+      onBehalfOfMemberId: "member-luis",
+    }),
+  );
+
+  it("keeps the two members distinct and the member paid for out of the parties", () => {
+    expect(codeOf(reviseTransaction(settlement, { payerMemberId: "member-juan" }, later))).toBe(
+      "InvalidSettlementParties",
+    );
+    expect(codeOf(reviseTransaction(settlement, { receivingMemberId: "member-luis" }, later))).toBe(
+      "InvalidOnBehalfOf",
+    );
+    expect(unwrap(reviseTransaction(settlement, { receivingMemberId: "member-sofi" }, later))).toMatchObject({
+      payerMemberId: "member-ana",
+      receivingMemberId: "member-sofi",
+    });
+  });
+
+  it("names no account on a forgiveness, and no members on the other types", () => {
+    const forgiveness = { ...settlement, reason: "FORGIVENESS" as const, onBehalfOfMemberId: null };
+    expect(codeOf(reviseTransaction(forgiveness, { sourceAccountId: "acc-bancolombia" }, later))).toBe(
+      "ForgivenessHasNoAccounts",
+    );
+    const expense = unwrap(personal(100n));
+    expect(codeOf(reviseTransaction(expense, { payerMemberId: "member-juan" }, later))).toBe(
+      "FieldNotEditable",
+    );
+  });
+
+  it("audits a settlement's new members, which a deletion does not list", () => {
+    const moved = unwrap(reviseTransaction(settlement, { receivingMemberId: "member-sofi" }, later));
+    expect(changesBetween(settlement, moved)).toEqual({
+      receivingMemberId: { from: "member-juan", to: "member-sofi" },
+    });
+    expect(Object.keys(deletionChanges(settlement))).not.toContain("payerMemberId");
+  });
 });
 
 describe("fund contributions and settlements (HU-E4-09, HU-E5-02)", () => {

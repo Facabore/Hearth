@@ -226,7 +226,7 @@ describe("settlements (HU-E5-02)", () => {
     ]);
   });
 
-  it("refuses the OWNER changing the amount Juan settled from his own account (D9)", async () => {
+  it("lets the OWNER correct the amount Juan settled from his own account (P344, S3; D9 refused it)", async () => {
     const h = await juanOwesAna();
     const tx = await settled(
       await settle(h.juan, juanToAna(h, 1_200_000, { sourceAccountId: h.juan.account })),
@@ -238,11 +238,12 @@ describe("settlements (HU-E5-02)", () => {
       params,
       body: { amount: cop(1_500_000) },
     });
-    expect(await problemOf(raised)).toEqual([422, "AccountNotOwned"]);
-    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(800_000));
+    expect(raised.status).toBe(200);
+    expect(((await raised.json()) as TransactionDto).sourceAccountId).toBe(h.juan.account);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(500_000));
     expect(await balancesOf(h.ana, h.spaceId)).toEqual([
-      [h.ana.memberId, cop(0)],
-      [h.juan.memberId, cop(0)],
+      [h.ana.memberId, cop(-300_000)],
+      [h.juan.memberId, cop(300_000)],
     ]);
   });
 

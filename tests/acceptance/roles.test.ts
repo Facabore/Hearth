@@ -151,9 +151,10 @@ describe("permissions per role (HU-E1-05)", () => {
     expect(await outcome(expense(t, t.sofi))).toEqual([403, "InsufficientRole"]);
   });
 
-  it("lets Juan (ADMIN) edit an expense created by Ana but not Luis (MEMBER)", async () => {
+  it("lets Juan (ADMIN) and Luis (MEMBER) edit an expense created by Ana, but not Sofi (VIEWER) (P344)", async () => {
     const created = (await (await expense(t, t.ana)).json()) as { id: string };
-    expect(await outcome(edit(t, t.luis, created.id))).toEqual([403, "InsufficientRole"]);
+    expect(await outcome(edit(t, t.sofi, created.id))).toEqual([403, "InsufficientRole"]);
+    expect(await outcome(edit(t, t.luis, created.id))).toEqual([200, null]);
     expect(await outcome(edit(t, t.juan, created.id))).toEqual([200, null]);
   });
 

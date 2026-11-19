@@ -140,10 +140,13 @@ describe("EditTransaction changes accounts and who paid (ruling P186)", () => {
     expect(codeOf(await change(move.id, { sourceAccountId: "acc-missing" }))).toBe("AccountNotFound");
   });
 
-  it("refuses parts a type does not have, and the accounts of settlements and fund contributions (P188)", async () => {
+  it("refuses parts a type does not have, and a contribution's fund (P344 lifts the rest of P188)", async () => {
     const { change, market, move, salary, store } = personal();
     const settlement = aSettlement("2026-10-28", 1_000_000n, { spaceId: "space-ana" });
-    const contribution = aTransfer("2026-10-28", 1_000_000n, { payerMemberId: "member-ana" });
+    const contribution = aTransfer("2026-10-28", 1_000_000n, {
+      payerMemberId: "member-ana",
+      destinationAccountId: ACCOUNTS.householdFund.id,
+    });
     store.rows.push(settlement, contribution);
     const payments = [
       { memberId: "member-ana", accountId: ACCOUNTS.bancolombia.id, amount: money(300_000_000n) },
@@ -158,10 +161,12 @@ describe("EditTransaction changes accounts and who paid (ruling P186)", () => {
       [move.id, { payments }, "payments"],
       [settlement.id, { accountId: ACCOUNTS.nequi.id }, "accountId"],
       [settlement.id, { payments }, "payments"],
-      [settlement.id, { sourceAccountId: ACCOUNTS.bancolombia.id }, "sourceAccountId"],
-      [settlement.id, { destinationAccountId: ACCOUNTS.bancolombia.id }, "destinationAccountId"],
-      [contribution.id, { sourceAccountId: ACCOUNTS.nequi.id }, "sourceAccountId"],
       [contribution.id, { destinationAccountId: ACCOUNTS.bancolombia.id }, "destinationAccountId"],
+      // P344 (S4): only a settlement and a fund contribution have members to change.
+      [market.id, { payerMemberId: "member-ana" }, "payerMemberId"],
+      [salary.id, { receivingMemberId: "member-ana" }, "receivingMemberId"],
+      [move.id, { payerMemberId: "member-ana" }, "payerMemberId"],
+      [contribution.id, { receivingMemberId: "member-ana" }, "receivingMemberId"],
     ] as const) {
       const result = await change(id, changes);
       expect(result.ok ? null : [result.error.code, result.error.details?.field]).toEqual([
@@ -169,6 +174,19 @@ describe("EditTransaction changes accounts and who paid (ruling P186)", () => {
         field,
       ]);
     }
+    // P344 (S2, S3): Ana's own side of a settlement and of her contribution takes her accounts; Juan's side does not.
+    expect(codeOf(await change(settlement.id, { sourceAccountId: ACCOUNTS.bancolombia.id }))).toBe(
+      "AccountNotOwned",
+    );
+    unwrap(await change(settlement.id, { destinationAccountId: ACCOUNTS.bancolombia.id }));
+    unwrap(await change(contribution.id, { sourceAccountId: ACCOUNTS.nequi.id }));
+    expect(store.rows.find((t) => t.id === settlement.id)).toMatchObject({
+      sourceAccountId: null,
+      destinationAccountId: ACCOUNTS.bancolombia.id,
+    });
+    expect((store.rows.find((t) => t.id === contribution.id) as Transfer).sourceAccountId).toBe(
+      ACCOUNTS.nequi.id,
+    );
   });
 
   it("refuses a new amount or date on either half of a gift, which would no longer match the other (P322)", async () => {
@@ -224,11 +242,13 @@ describe("EditTransaction changes accounts and who paid (ruling P186)", () => {
     ).toBe("SharesDoNotMatchAmount");
   });
 
-  it("keeps an OWNER from moving a member's expense to the OWNER's own account (D9)", async () => {
-    const { change, juans } = household();
-    expect(codeOf(await change("u-ana", juans.id, { accountId: ACCOUNTS.bancolombia.id }))).toBe(
-      "AccountNotOwned",
-    );
+  it("lets an OWNER take a member's expense as paid from the OWNER's own account (P344 S2; D9 refused it)", async () => {
+    const { change, juans, store } = household();
+    const edited = unwrap(await change("u-ana", juans.id, { accountId: ACCOUNTS.bancolombia.id })) as Expense;
+    const paid = [{ memberId: "member-ana", accountId: ACCOUNTS.bancolombia.id, amount: 1_000_000n }];
+    expect(edited.payments).toEqual(paid);
+    expect((store.rows.find((t) => t.id === juans.id) as Expense).payments).toEqual(paid);
+    expect(store.netOf(ACCOUNTS.davivienda.id)).toBe(0n);
   });
 
   it("refuses moving another member's income, even to the editor's own account (D9)", async () => {
@@ -516,11 +536,19 @@ describe("EditTransaction changes how an expense is split (ruling P186)", () => 
     expect((store.rows.find((row) => row.id === gone.id) as Expense).version).toBe(1);
   });
 
-  it("lets a MEMBER split only their own expense, an ADMIN any, and a VIEWER none", async () => {
+  it("lets a MEMBER split any expense (P344, S1), an ADMIN any, and a VIEWER none", async () => {
     const { change, shared, store } = household();
     const split = equal("member-ana", "member-juan");
-    expect(codeOf(await change("u-luis", shared.id, { split }))).toBe("InsufficientRole");
     expect(codeOf(await change("u-sofi", shared.id, { split }))).toBe("InsufficientRole");
+    const byLuis = unwrap(
+      await change("u-luis", shared.id, { split: equal("member-ana", "member-juan", "member-luis") }),
+    ) as Expense;
+    expect(byLuis.shares.map((s) => [s.memberId, s.amount])).toEqual([
+      ["member-ana", 1_000_000n],
+      ["member-juan", 1_000_000n],
+      ["member-luis", 1_000_000n],
+    ]);
+    expect((store.rows.find((t) => t.id === shared.id) as Expense).version).toBe(2);
     const lucia = anExpense("2026-10-17", 1_000_000n, {
       spaceId: "space-household",
       createdBy: "u-luis",
@@ -532,6 +560,6 @@ describe("EditTransaction changes how an expense is split (ruling P186)", () => 
       await change("u-luis", lucia.id, { split: equal("member-luis", "member-ana") }),
     ) as Expense;
     expect(own.shares.map((s) => s.amount)).toEqual([500_000n, 500_000n]);
-    expect(unwrap(await change("u-juan", shared.id, { split })).version).toBe(1);
+    expect(unwrap(await change("u-juan", shared.id, { split })).version).toBe(3);
   });
 });

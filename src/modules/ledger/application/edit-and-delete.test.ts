@@ -63,6 +63,8 @@ describe("EditTransaction (HU-E4-06)", () => {
         transactionId: market.id,
         action: "UPDATED",
         actorUserId: "u-ana",
+        // P344 (S7): Ana's name in her personal space.
+        actorName: "Ana",
         at: deps.clock.now(),
         // D8: the sole payment and share followed the amount; the audit keeps both versions.
         changes: {
@@ -100,8 +102,8 @@ describe("EditTransaction (HU-E4-06)", () => {
     expect(codeOf(result)).toBe("SharesDoNotMatchAmount");
   });
 
-  it("forbids members from editing another member's transaction", async () => {
-    const { store, edit } = setup();
+  it("lets a member correct another member's transaction (P344, S1)", async () => {
+    const { audit, store, edit } = setup();
     const anas = anExpense("2026-10-20", 5_000_000n, { spaceId: "space-household" });
     store.rows.push(anas);
     const result = await edit({
@@ -111,7 +113,11 @@ describe("EditTransaction (HU-E4-06)", () => {
       expectedVersion: null,
       changes: { description: "Mine" },
     });
-    expect(codeOf(result)).toBe("InsufficientRole");
+    expect(unwrap(result)).toMatchObject({ description: "Mine", version: 2 });
+    expect(store.rows.find((t) => t.id === anas.id)).toMatchObject({ description: "Mine", version: 2 });
+    expect(audit.entries.map((e) => [e.actorUserId, e.changes])).toEqual([
+      ["u-luis", { description: { from: "", to: "Mine" } }],
+    ]);
   });
 
   it("rejects changes inside a closed period and moves into one", async () => {
@@ -195,7 +201,7 @@ describe("EditTransaction (HU-E4-06)", () => {
   });
 });
 
-describe("EditTransaction keeps personal accounts debited only by their owner (D9)", () => {
+describe("EditTransaction corrects amounts on personal accounts (D9, amended by P344)", () => {
   const juan = membership({ ...household, memberId: "member-juan", userId: "u-juan", role: "MEMBER" });
   const inHousehold = { spaceId: "space-household", createdBy: "u-juan" };
   // Juan's own records from his Davivienda: an expense he paid for Ana, a contribution and a settlement.
@@ -233,14 +239,19 @@ describe("EditTransaction keeps personal accounts debited only by their owner (D
     ["expense payment", juansExpense],
     ["fund contribution source", juansContribution],
     ["settlement source", juansSettlement],
-  ])("refuses the OWNER changing the amount of Juan's %s and changes nothing", async (_, tx) => {
-    const { edit, store, audit } = setupHousehold();
-    const result = await edit(editAs("u-ana", tx.id, { amount: money(9_000_000n) }));
-    expect(codeOf(result)).toBe("AccountNotOwned");
-    expect(store.rows.find((t) => t.id === tx.id)).toEqual(tx);
-    expect(store.netOf(ACCOUNTS.davivienda.id)).toBe(-15_000_000n);
-    expect(audit.entries).toEqual([]);
-  });
+  ])(
+    "lets the OWNER correct the amount of Juan's %s, kept on his account and audited (P344, S3)",
+    async (_, tx) => {
+      const { edit, store, audit } = setupHousehold();
+      const result = await edit(editAs("u-ana", tx.id, { amount: money(9_000_000n) }));
+      expect(unwrap(result)).toMatchObject({ amount: 9_000_000n, version: 2 });
+      expect(store.rows.find((t) => t.id === tx.id)).toMatchObject({ amount: 9_000_000n, version: 2 });
+      expect(store.netOf(ACCOUNTS.davivienda.id)).toBe(-19_000_000n);
+      expect(audit.entries.map((e) => [e.actorUserId, e.changes.amount])).toEqual([
+        ["u-ana", { from: "5000000", to: "9000000" }],
+      ]);
+    },
+  );
 
   it("still lets the OWNER correct the description, category and date of Juan's expense (money.editAny)", async () => {
     const { edit } = setupHousehold();
@@ -290,13 +301,21 @@ describe("DeleteTransaction (HU-E4-06)", () => {
     expect(codeOf(await remove({ ...asAna, transactionId: market.id }))).toBe("TransactionNotFound");
   });
 
-  it("forbids members from deleting another member's transaction", async () => {
-    const { store, remove } = setup();
+  it("lets a member delete another member's transaction, and keeps a viewer out (P344, S1)", async () => {
+    const sofi = membership({ ...household, memberId: "member-sofi", userId: "u-sofi", role: "VIEWER" });
+    const { audit, deps, store } = ledgerFixture({
+      access: fakeSpaceAccess(household, luis, sofi),
+      members: currentHousehold,
+    });
     const anas = anExpense("2026-10-20", 5_000_000n, { spaceId: "space-household" });
     store.rows.push(anas);
-    expect(
-      codeOf(await remove({ spaceId: "space-household", userId: "u-luis", transactionId: anas.id })),
-    ).toBe("InsufficientRole");
+    const remove = createDeleteTransaction(deps);
+    const by = (userId: string) => remove({ spaceId: "space-household", userId, transactionId: anas.id });
+    expect(codeOf(await by("u-sofi"))).toBe("InsufficientRole");
+    expect(store.rows[0]!.deletedAt).toBeNull();
+    unwrap(await by("u-luis"));
+    expect(store.rows[0]!.deletedAt).not.toBeNull();
+    expect(audit.entries.map((e) => [e.action, e.actorUserId])).toEqual([["DELETED", "u-luis"]]);
   });
 });
 

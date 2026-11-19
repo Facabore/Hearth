@@ -143,9 +143,16 @@ export interface TransactionChanges {
   /** Ruling P186: an expense's new payments and shares, replaced whole; they must still add up to the amount. */
   readonly payments?: readonly Payment[];
   readonly shares?: readonly Share[];
-  /** Ruling P186: an income's receiving account, or an own transfer's accounts. */
-  readonly sourceAccountId?: string;
-  readonly destinationAccountId?: string;
+  /**
+   * Ruling P186: an income's receiving account, or an own transfer's accounts. P344: also a settlement's and a fund
+   * contribution's, where null leaves a side with no account (a settlement's either side, a contribution's source).
+   */
+  readonly sourceAccountId?: string | null;
+  readonly destinationAccountId?: string | null;
+  /** P344 (S4): a settlement's or a fund contribution's payer, another member of the space. */
+  readonly payerMemberId?: string;
+  /** P344 (S4): a settlement's receiver, another member of the space. */
+  readonly receivingMemberId?: string;
   /**
    * D29, slice MC3: the original a new amount was entered in, or null when it was entered in the base currency (the
    * original goes); absent keeps the current one.
@@ -630,6 +637,14 @@ const revisedParts = (tx: Transaction, changes: TransactionChanges, now: Date): 
   if ((common.occurredAt === null) !== (common.timeZone === null)) {
     return err(domainError("InvalidTransactionTime"));
   }
+  // P344 (S4): only a settlement's members and a fund contribution's payer change; every other type keeps its own.
+  const contribution = tx.type === "TRANSFER" && tx.payerMemberId !== null;
+  if (changes.payerMemberId !== undefined && tx.type !== "SETTLEMENT" && !contribution) {
+    return err(domainError("FieldNotEditable", { field: "payerMemberId" }));
+  }
+  if (changes.receivingMemberId !== undefined && tx.type !== "SETTLEMENT") {
+    return err(domainError("FieldNotEditable", { field: "receivingMemberId" }));
+  }
   switch (tx.type) {
     case "EXPENSE": {
       const payments =
@@ -650,15 +665,25 @@ const revisedParts = (tx: Transaction, changes: TransactionChanges, now: Date): 
       });
     case "TRANSFER": {
       if (changes.categoryId !== undefined) return err(domainError("TransferHasNoCategory"));
-      const source = changes.sourceAccountId ?? tx.sourceAccountId;
+      const source = changes.sourceAccountId === undefined ? tx.sourceAccountId : changes.sourceAccountId;
       const destination = changes.destinationAccountId ?? tx.destinationAccountId;
+      // Spec 5.2: a transfer always reaches an account, and only a fund contribution may come from none (P344: one
+      // whose payer has no account named).
+      if (changes.destinationAccountId === null || (source === null && !contribution)) {
+        return err(domainError("AccountRequired"));
+      }
       if (source === destination) return err(domainError("SameAccountTransfer"));
-      return ok({ ...tx, ...common, sourceAccountId: source, destinationAccountId: destination });
+      return ok({
+        ...tx,
+        ...common,
+        payerMemberId: changes.payerMemberId ?? tx.payerMemberId,
+        sourceAccountId: source,
+        destinationAccountId: destination,
+      });
     }
     case "SETTLEMENT":
-      return changes.categoryId === undefined
-        ? ok({ ...tx, ...common })
-        : err(domainError("SettlementHasNoCategory"));
+      if (changes.categoryId !== undefined) return err(domainError("SettlementHasNoCategory"));
+      return revisedSettlement({ ...tx, ...common }, changes);
     // Design Q4: an adjustment keeps its one account and its direction; a category never fits it.
     case "ADJUSTMENT":
       if (changes.categoryId !== undefined) return err(domainError("AdjustmentHasNoCategory"));
@@ -667,6 +692,38 @@ const revisedParts = (tx: Transaction, changes: TransactionChanges, now: Date): 
       }
       return ok({ ...tx, ...common });
   }
+};
+
+/**
+ * P344 (S4), HU-E5-02, ruling P322: a settlement with its edited members and accounts, under the rules of recording one:
+ * two different members (InvalidSettlementParties), neither of them the member it pays for (InvalidOnBehalfOf), and no
+ * account on a forgiveness or a gift, which move no money (ForgivenessHasNoAccounts).
+ */
+const revisedSettlement = (tx: Settlement, changes: TransactionChanges): Result<Settlement> => {
+  const revised: Settlement = {
+    ...tx,
+    payerMemberId: changes.payerMemberId ?? tx.payerMemberId,
+    receivingMemberId: changes.receivingMemberId ?? tx.receivingMemberId,
+    sourceAccountId: changes.sourceAccountId === undefined ? tx.sourceAccountId : changes.sourceAccountId,
+    destinationAccountId:
+      changes.destinationAccountId === undefined ? tx.destinationAccountId : changes.destinationAccountId,
+  };
+  if (revised.payerMemberId === revised.receivingMemberId)
+    return err(domainError("InvalidSettlementParties"));
+  const onBehalfOf = revised.onBehalfOfMemberId;
+  if (
+    onBehalfOf !== null &&
+    (onBehalfOf === revised.payerMemberId || onBehalfOf === revised.receivingMemberId)
+  ) {
+    return err(domainError("InvalidOnBehalfOf"));
+  }
+  if (
+    revised.reason !== "PAYMENT" &&
+    (revised.sourceAccountId !== null || revised.destinationAccountId !== null)
+  ) {
+    return err(domainError("ForgivenessHasNoAccounts"));
+  }
+  return ok(revised);
 };
 
 /** What each account a transaction debits loses: expense payments and TRANSFER/SETTLEMENT sources. */
@@ -764,12 +821,30 @@ const auditedValues = (tx: Transaction): ReadonlyMap<string, string | null> => {
 const inCurrency = (minor: bigint | undefined, currency: string | undefined): string | null =>
   minor === undefined ? null : `${minor} ${currency ?? ""}`.trim();
 
+/**
+ * P344 (S4): a settlement's members and a fund contribution's payer, which only an edit changes; a deletion and a
+ * restore keep their audited values as before, so only `changesBetween` compares these.
+ */
+const partiesOf = (tx: Transaction): ReadonlyMap<string, string | null> => {
+  if (tx.type === "SETTLEMENT") {
+    return new Map([
+      ["payerMemberId", tx.payerMemberId],
+      ["receivingMemberId", tx.receivingMemberId],
+    ]);
+  }
+  return new Map(
+    tx.type === "TRANSFER" && tx.payerMemberId !== null ? [["payerMemberId", tx.payerMemberId]] : [],
+  );
+};
+
 export const changesBetween = (before: Transaction, after: Transaction): ChangeSet => {
-  const revised = auditedValues(after);
   const changes: Record<string, { from: string | null; to: string | null }> = {};
-  for (const [key, from] of auditedValues(before)) {
-    const to = revised.get(key) ?? null;
-    if (from !== to) changes[key] = { from, to };
+  for (const valuesOf of [partiesOf, auditedValues]) {
+    const revised = valuesOf(after);
+    for (const [key, from] of valuesOf(before)) {
+      const to = revised.get(key) ?? null;
+      if (from !== to) changes[key] = { from, to };
+    }
   }
   return changes;
 };
@@ -788,6 +863,17 @@ export const restorationChanges = (tx: Transaction): ChangeSet => {
   return changes;
 };
 
-/** HU-E4-06: owners and admins change any transaction, members only their own, viewers none. */
+/**
+ * HU-E4-06: owners and admins change any recurrence, members only their own, viewers none (the matrix's money.editAny).
+ * P344: movements no longer follow it; `canCorrect` decides who edits, deletes, restores or converts one.
+ */
 export const canModify = (role: MemberRole | null, createdBy: string, userId: string): boolean =>
   role === "OWNER" || role === "ADMIN" || (role === "MEMBER" && createdBy === userId);
+
+/**
+ * P344 (S1, amends HU-E4-06): every member who records money (the matrix's money.record: OWNER, ADMIN, MEMBER) corrects
+ * any movement of the space, whoever recorded it and whether or not they are a party to it; the audit keeps who changed
+ * what (D8). A VIEWER only reads.
+ */
+export const canCorrect = (role: MemberRole | null): boolean =>
+  role === "OWNER" || role === "ADMIN" || role === "MEMBER";

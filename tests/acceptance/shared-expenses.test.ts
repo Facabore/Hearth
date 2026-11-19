@@ -306,23 +306,30 @@ describe("shared expense rules (HU-E4-07, Review Focus 2)", () => {
 });
 
 describe("editing a shared expense (HU-E4-06, D9)", () => {
-  it("refuses an ADMIN changing the amount Juan paid from his own account, but lets them fix the description", async () => {
+  it("lets an ADMIN correct the amount Juan paid from his own account, and audits it (P344, S3)", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "ADMIN");
     const tx = await recordedBy(h.juan, paidBy(h, h.juan, 100_000, { split: equal(h.ana.memberId) }));
     const path = `/api/v1/spaces/${h.spaceId}/transactions/${tx.id}`;
     const params = { spaceId: h.spaceId, transactionId: tx.id };
     const asLuis = (body: unknown) => call(editTransaction, "PATCH", path, { user: luis, params, body });
-    expect(await problemOf(await asLuis({ amount: cop(150_000) }))).toEqual([422, "AccountNotOwned"]);
-    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
+    const corrected = await asLuis({ amount: cop(150_000) });
+    expect(corrected.status).toBe(200);
+    expect(((await corrected.json()) as TransactionDto).payments).toEqual([
+      { memberId: h.juan.memberId, accountId: h.juan.account, amount: cop(150_000) },
+    ]);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_850_000));
     const current = (await (
       await call(getTransaction, "GET", path, { user: h.juan, params })
     ).json()) as TransactionDto;
-    expect([current.amount, current.version]).toEqual([cop(100_000), 1]);
-    const renamed = await asLuis({ description: "Market" });
-    expect(renamed.status).toBe(200);
-    expect(((await renamed.json()) as TransactionDto).description).toBe("Market");
-    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
+    expect([current.amount, current.version]).toEqual([cop(150_000), 2]);
+    const audit = await call(transactionAudit, "GET", `${path}/audit`, { user: h.juan, params });
+    const { items } = (await audit.json()) as {
+      items: { actorUserId: string; actorName?: string | null; changes: Record<string, unknown> }[];
+    };
+    expect(items.map((e) => [e.actorUserId, e.actorName, e.changes.amount])).toEqual([
+      [luis.userId, "Luis", { from: "10000000", to: "15000000" }],
+    ]);
   });
 });
 
@@ -348,13 +355,12 @@ describe("change who paid an expense (ruling P186)", () => {
     expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
   });
 
-  it("keeps Ana from paying with Juan's account and an OWNER from moving Juan's expense to their own (D9)", async () => {
+  it("keeps Ana from paying with Juan's account, but lets her take Juan's expense as paid from her own (P344, S2)", async () => {
     const h = await household();
     const juans = await recordedBy(h.juan, paidBy(h, h.juan, 100_000, { split: equal(h.juan.memberId) }));
     const path = `/api/v1/spaces/${h.spaceId}/transactions/${juans.id}`;
     const params = { spaceId: h.spaceId, transactionId: juans.id };
     const asAna = (body: unknown) => call(editTransaction, "PATCH", path, { user: h.ana, params, body });
-    expect(await problemOf(await asAna({ accountId: h.ana.account }))).toEqual([422, "AccountNotOwned"]);
     expect(
       await problemOf(
         await asAna({
@@ -364,6 +370,13 @@ describe("change who paid an expense (ruling P186)", () => {
     ).toEqual([422, "AccountNotOwned"]);
     expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_900_000));
     expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(2_000_000));
+    const taken = await asAna({ accountId: h.ana.account });
+    expect(taken.status).toBe(200);
+    expect(((await taken.json()) as TransactionDto).payments).toEqual([
+      { memberId: h.ana.memberId, accountId: h.ana.account, amount: cop(100_000) },
+    ]);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(2_000_000));
+    expect(await balanceOf(h.ana.personal, h.ana.account)).toEqual(cop(1_900_000));
   });
 
   it("changes the amount and the split together: 400,000 EQUAL gives 200,000 each", async () => {
@@ -559,17 +572,16 @@ describe("change how an expense is split (ruling P186)", () => {
     expect([response.status, (await response.json()).code]).toEqual([409, "FieldNotEditable"]);
   });
 
-  it("lets only the right people split: a MEMBER their own expense only, a VIEWER none", async () => {
+  it("lets only the right people split: a MEMBER any expense (P344), a VIEWER none", async () => {
     const h = await household();
     const luis = await joinHousehold(h, "Luis", "MEMBER");
     const sofi = await joinHousehold(h, "Sofi", "VIEWER");
     const [ana, juan] = [h.ana.memberId, h.juan.memberId];
     const anas = await recordedBy(h.ana, paidBy(h, h.ana, 300_000, { split: equal(ana, juan) }));
-    expect(await problemOf(await editAs(h, luis, anas.id, { split: equal(ana) }))).toEqual([
-      403,
-      "InsufficientRole",
-    ]);
-    expect(await problemOf(await editAs(h, sofi, anas.id, { split: equal(ana) }))).toEqual([
+    const byLuis = await editAs(h, luis, anas.id, { split: equal(ana) });
+    expect(byLuis.status).toBe(200);
+    expect(sharesOf((await byLuis.json()) as TransactionDto)).toEqual([[ana, cop(300_000), "EQUAL"]]);
+    expect(await problemOf(await editAs(h, sofi, anas.id, { split: equal(ana, juan) }))).toEqual([
       403,
       "InsufficientRole",
     ]);

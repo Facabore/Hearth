@@ -947,7 +947,7 @@ export interface paths {
         delete: operations["deleteTransaction"];
         options?: never;
         head?: never;
-        /** Change description, date, time, category, amount, accounts, who paid or how it is split; send If-Match with the current ETag */
+        /** Change description, date, time, category, amount, accounts, who paid, who received or how it is split; any member who records money corrects any movement (P344); send If-Match with the current ETag */
         patch: operations["editTransaction"];
         trace?: never;
     };
@@ -7334,8 +7334,14 @@ export interface operations {
                         accountId?: string | null;
                         amount: components["schemas"]["Money"];
                     }[];
-                    sourceAccountId?: string;
-                    destinationAccountId?: string;
+                    /** @description An own transfer's source account (its creator's), a fund contribution's or a settlement's payer account. P344: on a settlement or a contribution only the requester's own side takes an account, or null for none; another member's side keeps its account while its member stays, and any other account answers AccountNotOwned. */
+                    sourceAccountId?: string | null;
+                    /** @description An own transfer's destination account (its creator's), or a settlement's receiving account. P344: on a settlement only the requester's own side takes an account, or null for none. A fund contribution keeps its fund (FieldNotEditable). */
+                    destinationAccountId?: string | null;
+                    /** @description P344: a settlement's payer or a fund contribution's contributor, any current member (NotASpaceMember otherwise). A side moved to another member has no account unless the requester moves it to themselves and sends `sourceAccountId`. */
+                    payerMemberId?: string;
+                    /** @description P344: a settlement's receiver, any current member other than the payer (InvalidSettlementParties). A side moved to another member has no account unless the requester moves it to themselves and sends `destinationAccountId`. */
+                    receivingMemberId?: string;
                     split?: {
                         /** @constant */
                         method: "EQUAL";
@@ -7386,7 +7392,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description InsufficientRole */
+            /** @description InsufficientRole, ForgivenessNotAllowed */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7422,7 +7428,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
-            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts */
+            /** @description ValidationFailed, InvalidAmount, InvalidDate, InvalidDescription, CurrencyMismatch, UnknownCurrency, AccountNotOwned, AccountNotInSpace, AccountRequired, PaymentsRequired, ParticipantsRequired, InvalidSplit, InvalidFundAccount, NotASpaceMember, InvalidSettlementParties, InvalidOnBehalfOf, ForgivenessHasNoAccounts, DateTimeMismatch, TimeRequired, InvalidTimeZone, ExchangeRateRequired, MultiCurrencyUnsupported, InvalidTransferAmounts */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -7457,6 +7463,8 @@ export interface operations {
                             /** @enum {string} */
                             action: "UPDATED" | "DELETED" | "RESTORED";
                             actorUserId: string;
+                            /** @description P344: the actor's display name in the space, null when they are no current member of it. Additive: existing clients ignore it. */
+                            actorName?: string | null;
                             /** Format: date-time */
                             at: string;
                             changes: {

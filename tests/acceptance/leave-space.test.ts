@@ -13,6 +13,7 @@ import { setContainerForTests, type Container } from "@/composition/container";
 import { call, problemOf, registerUser, startTestApp, type TestUser } from "../support/app";
 import {
   addGuest,
+  balanceOf,
   balancesOf,
   cop,
   household,
@@ -141,7 +142,7 @@ describe("leave a space (HU-E1-08)", () => {
     expect(await problemOf(settlement)).toEqual([422, "NotASpaceMember"]);
   });
 
-  it("still refuses the OWNER changing what Juan settled from his own account after he left (D9)", async () => {
+  it("still refuses the OWNER changing what Juan settled after he left: his zero balance stays (HU-E1-08, P344)", async () => {
     const h = await household();
     await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
     const settlement = await post(recordSettlement, h.juan, "settlements", {
@@ -159,7 +160,9 @@ describe("leave a space (HU-E1-08)", () => {
       params: { spaceId: h.spaceId, transactionId: id },
       body: { amount: cop(60_000) },
     });
-    expect(await problemOf(raised)).toEqual([422, "AccountNotOwned"]);
+    // P344 lets anyone correct the amount on Juan's account; the former member's balance still may not move.
+    expect(await problemOf(raised)).toEqual([422, "NotASpaceMember"]);
+    expect(await balanceOf(h.juan.personal, h.juan.account)).toEqual(cop(1_950_000));
   });
 
   it("answers 404 SpaceNotFound to non-members and malformed ids", async () => {

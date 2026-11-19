@@ -347,16 +347,23 @@ describe("convert a movement's type in a shared space (issue #195, the owner's r
     expect(await balanceOf(h.ana, fund)).toEqual(cop(-100_000));
   });
 
-  it("refuses a MEMBER who did not record it, and an income, which a shared space cannot hold (D9)", async () => {
+  it("records a MEMBER's conversion under the rules of recording (P344), and refuses an income, which a shared space cannot hold (D9)", async () => {
     const h = await household();
     const fund = await newAccount(h.ana, "Household Fund", 0, "SHARED_FUND");
     const salary = await categoryWithKey(h.ana, "salary");
     const shared = await paysEqually(h.ana, 100_000, [h.ana.memberId, h.juan.memberId], h.groceries);
     const before = await balancesOf(h.ana, h.spaceId);
-    const toContribution = { type: "FUND_CONTRIBUTION", amount: cop(100_000), date, fundAccountId: fund };
+    // P344 (S1): Juan may convert what Ana recorded, but the contribution is his, from an account of his own.
+    const toContribution = {
+      type: "FUND_CONTRIBUTION",
+      amount: cop(100_000),
+      date,
+      fundAccountId: fund,
+      sourceAccountId: h.ana.account,
+    };
     expect(await answerOf(await convert(h.juan, shared.id, toContribution))).toEqual([
-      403,
-      "InsufficientRole",
+      422,
+      "AccountNotOwned",
     ]);
     const toIncome = { type: "INCOME", amount: cop(100_000), date, categoryId: salary, accountId: fund };
     expect(await answerOf(await convert(h.ana, shared.id, toIncome))).toEqual([422, "AccountNotOwned"]);
