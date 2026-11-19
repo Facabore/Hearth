@@ -48,18 +48,40 @@ describe("line trend over HTTP (HU-E7-05)", () => {
     expect(trend.periods.map((p) => p.label)).toEqual(["2026-10", "2026-11"]);
     expect(trend.plan).toEqual({ id: r.planId, status: "DRAFT" });
     expect(trend.lines.find((l) => l.name === "Home")?.points).toEqual([
-      { period: "2026-10", spent: cop(1_350_000), change: null, changePercent: null, changeStatus: "NEW" },
+      {
+        period: "2026-10",
+        spent: cop(1_350_000),
+        change: null,
+        changePercent: null,
+        changeStatus: "NEW",
+        spentByCurrency: [cop(1_350_000)],
+      },
       {
         period: "2026-11",
         spent: cop(1_300_000),
         change: cop(-50_000),
         changePercent: "-3.70",
         changeStatus: "DECREASED",
+        spentByCurrency: [cop(1_300_000)],
       },
     ]);
     expect(trend.lines.find((l) => l.name === "Pets")?.points).toEqual([
-      { period: "2026-10", spent: null, change: null, changePercent: null, changeStatus: null },
-      { period: "2026-11", spent: cop(80_000), change: null, changePercent: null, changeStatus: "NEW" },
+      {
+        period: "2026-10",
+        spent: null,
+        change: null,
+        changePercent: null,
+        changeStatus: null,
+        spentByCurrency: [],
+      },
+      {
+        period: "2026-11",
+        spent: cop(80_000),
+        change: null,
+        changePercent: null,
+        changeStatus: "NEW",
+        spentByCurrency: [cop(80_000)],
+      },
     ]);
   });
 

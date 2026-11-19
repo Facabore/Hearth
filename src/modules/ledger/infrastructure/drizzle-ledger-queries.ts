@@ -1029,6 +1029,94 @@ export class DrizzleLedgerQueries
   }
 
   /**
+   * HU-E7-02, ruling P342 (S7, T6): per category, member and movement currency, Σ the member's payments and Σ their
+   * shares of the space's live expenses within [from, to], each in the expense's own currency (what a plan's line
+   * counts), never by an account leg; sorted by category, member and currency; `[]` for malformed ids.
+   */
+  async memberSumsByCategoryByCurrency(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ categoryId: string; memberId: string; currency: string; paid: bigint; consumed: bigint }[]> {
+    if (!isUuid(spaceId)) return [];
+    const { rows } = await this.tm.executor().execute<{
+      category_id: string;
+      member_id: string;
+      currency: string;
+      field: "paid" | "consumed";
+      total: string;
+    }>(sql`
+      SELECT ${transactions.categoryId} AS category_id, ${payments.memberId} AS member_id,
+        ${transactions.currency} AS currency, 'paid' AS field, sum(${payments.amount})::text AS total
+      FROM ${payments} JOIN ${transactions} ON ${transactions.id} = ${payments.transactionId}
+      WHERE ${transactions.spaceId} = ${spaceId} AND ${transactions.type} = 'EXPENSE'
+        AND ${transactions.deletedAt} IS NULL AND ${transactions.date} BETWEEN ${from} AND ${to}
+        AND ${transactions.categoryId} IS NOT NULL AND ${payments.memberId} IS NOT NULL
+      GROUP BY ${transactions.categoryId}, ${payments.memberId}, ${transactions.currency}
+      UNION ALL
+      SELECT ${transactions.categoryId}, ${shares.memberId}, ${transactions.currency}, 'consumed',
+        sum(${shares.amount})::text
+      FROM ${shares} JOIN ${transactions} ON ${transactions.id} = ${shares.transactionId}
+      WHERE ${transactions.spaceId} = ${spaceId} AND ${transactions.type} = 'EXPENSE'
+        AND ${transactions.deletedAt} IS NULL AND ${transactions.date} BETWEEN ${from} AND ${to}
+        AND ${transactions.categoryId} IS NOT NULL
+      GROUP BY ${transactions.categoryId}, ${shares.memberId}, ${transactions.currency}`);
+    const sums = new Map<
+      string,
+      { categoryId: string; memberId: string; currency: string; paid: bigint; consumed: bigint }
+    >();
+    for (const row of rows) {
+      const key = `${row.category_id}/${row.member_id}/${row.currency}`;
+      const entry = sums.get(key) ?? {
+        categoryId: row.category_id,
+        memberId: row.member_id,
+        currency: row.currency,
+        paid: 0n,
+        consumed: 0n,
+      };
+      entry[row.field] += BigInt(row.total);
+      sums.set(key, entry);
+    }
+    return [...sums.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, entry]) => entry);
+  }
+
+  /**
+   * HU-E7-03, ruling P342 (S7, T6): Σ the live fund contributions of the space within [from, to] per member and
+   * movement currency, each in its own currency, never by an account leg; sorted by member, then currency.
+   */
+  async fundContributionsByMemberByCurrency(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<{ memberId: string; currency: string; amount: bigint }[]> {
+    if (!isUuid(spaceId)) return [];
+    const rows = await this.tm
+      .executor()
+      .select({
+        memberId: transactions.payerMemberId,
+        currency: transactions.currency,
+        total: sql<string>`sum(${transactions.amount})::text`,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.spaceId, spaceId),
+          eq(transactions.type, "TRANSFER"),
+          isNotNull(transactions.payerMemberId),
+          isNull(transactions.deletedAt),
+          between(transactions.date, from, to),
+        ),
+      )
+      .groupBy(transactions.payerMemberId, transactions.currency)
+      .orderBy(asc(transactions.payerMemberId), asc(transactions.currency));
+    return rows.flatMap((row) =>
+      row.memberId === null
+        ? []
+        : [{ memberId: row.memberId, currency: row.currency, amount: BigInt(row.total) }],
+    );
+  }
+
+  /**
    * HU-E7-03, spec 5.4: Σ the live fund contributions of the space (transfers with a contributing member, HU-E4-09)
    * dated within [from, to], per member, those from outside the app included; sorted by member; `[]` for malformed ids.
    * Ruling P342 (S7): counted in `currency`, the space's own when absent (`countedIn`).

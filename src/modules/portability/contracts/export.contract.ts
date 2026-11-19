@@ -132,7 +132,15 @@ const ExportedSpaceSchema = z.object({
         z.object({
           id: z.string(),
           name: z.string(),
-          plannedAmount: MoneySchema,
+          plannedAmount: MoneySchema.describe(
+            "The line's budget in the space currency; 0 when it plans none in it (ruling P342, S7).",
+          ),
+          budgets: z
+            .array(MoneySchema)
+            .optional()
+            .describe(
+              "Ruling P342 (S7): every budget of the line, one per currency, in its order; never converted.",
+            ),
           funding: z.string(),
           rolloverMode: z.string(),
           isCatchAll: z.boolean(),

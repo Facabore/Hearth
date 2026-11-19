@@ -165,6 +165,11 @@ describe("per-member sums for the space reports (HU-E7-02, HU-E7-03)", () => {
       sorted(expected, (row) => row.memberId),
     );
     expect(await queries.fundContributionsByMember("not-a-uuid", nov1, nov30)).toEqual([]);
+    // P342 (S7, T6): per movement currency, each contribution in its own; these are all COP.
+    expect(await queries.fundContributionsByMemberByCurrency(w.household.spaceId, nov1, nov30)).toEqual(
+      sorted(expected, (row) => row.memberId).map((row) => ({ ...row, currency: "COP" })),
+    );
+    expect(await queries.fundContributionsByMemberByCurrency("not-a-uuid", nov1, nov30)).toEqual([]);
   });
 });
 

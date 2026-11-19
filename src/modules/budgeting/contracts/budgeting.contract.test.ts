@@ -11,8 +11,11 @@ import { planFigures } from "@/modules/budgeting/domain/plan-figures";
 import type { LocalDate } from "@/shared/kernel";
 import { referenceLines } from "../../../../tests/support/budget-fixtures";
 import {
+  AddLineBodySchema,
   budgetPlanDto,
   CreatePlanBodySchema,
+  lineFromBody,
+  UpdateLineBodySchema,
   planCopied,
   planCreated,
   planSuccess,
@@ -115,7 +118,37 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
       carryOver: cop(0),
       carryOverFrom: null,
       available: cop(570_000),
+      // Ruling P342 (S7): a single-currency line lists its one budget, with exactly the scalar figures.
+      budgets: [
+        {
+          planned: cop(1_470_000),
+          budgeted: true,
+          capacityShare: "36.75",
+          allocation: {
+            members: [
+              { memberId: "member-ana", amount: null, assigned: cop(588_000) },
+              { memberId: "member-juan", amount: null, assigned: cop(882_000) },
+            ],
+            error: null,
+          },
+          spent: cop(900_000),
+          carryOver: cop(0),
+          available: cop(570_000),
+        },
+      ],
     });
+    expect(dto.currencies).toEqual([
+      {
+        capacities: [
+          { memberId: "member-ana", amount: cop(1_600_000), share: "40.00" },
+          { memberId: "member-juan", amount: cop(2_400_000), share: "60.00" },
+        ],
+        totalCapacity: cop(4_000_000),
+        planned: cop(4_000_000),
+        unallocated: cop(0),
+        unbudgeted: null,
+      },
+    ]);
     expect(dto.lines.find((l) => l.name === "Free")!.allocation.members).toEqual([
       { memberId: "member-ana", percent: "42.00", amount: null, assigned: cop(306_600) },
       { memberId: "member-juan", percent: "58.00", amount: null, assigned: cop(423_400) },
@@ -258,6 +291,58 @@ describe("BudgetPlan on the wire (HU-E6-01 … HU-E6-05)", () => {
     for (const copyFrom of ["template", "Previous", "", 1, true, null, ["previous"], { from: "previous" }]) {
       expect(CreatePlanBodySchema.safeParse({ period: "2026-12", copyFrom }).success).toBe(false);
     }
+  });
+});
+
+describe("a plan per currency on the wire (ruling P342, S7)", () => {
+  const usd = (dollars: number) => ({ amount: String(dollars * 100), currency: "USD" });
+
+  it("prints Salidas' COP and USD budgets apart, and the plan's Por repartir per currency", () => {
+    const lines = [
+      ...referenceLines().filter((l) => l.name !== "Free"),
+      {
+        ...referenceLines().find((l) => l.name === "Free")!,
+        budgets: [
+          { currency: "COP", amount: 73_000_000n },
+          { currency: "USD", amount: 10_000n },
+        ],
+      },
+    ];
+    const { figures } = view(lines, [
+      { categoryId: "cat-groceries", currency: "COP", amount: 90_000_000n },
+      { categoryId: "cat-unmapped", currency: "USD", amount: 4_500n },
+    ]);
+    const dto = budgetPlanDto({ plan, currency: "COP", figures });
+    const free = dto.lines.find((l) => l.name === "Free")!;
+    expect(free.plannedAmount).toEqual(cop(730_000));
+    expect(free.budgets!.map((b) => [b.planned, b.spent, b.available, b.allocation.error])).toEqual([
+      [cop(730_000), cop(0), cop(730_000), null],
+      // Nobody contributes USD, so the USD budget cannot be shared by capacity.
+      [usd(100), usd(45), usd(55), "InvalidAllocation"],
+    ]);
+    expect(free.allocation.error).toBe("InvalidAllocation");
+    expect(dto.currencies!.map((c) => [c.totalCapacity, c.planned, c.unallocated])).toEqual([
+      [cop(4_000_000), cop(4_000_000), cop(0)],
+      [usd(0), usd(100), usd(-100)],
+    ]);
+  });
+
+  it("takes a line's budgets or one plannedAmount, never both and never neither", () => {
+    const base = { name: "Salidas" };
+    expect(AddLineBodySchema.safeParse({ ...base, budgets: [cop(300_000), usd(100)] }).success).toBe(true);
+    expect(AddLineBodySchema.safeParse({ ...base, plannedAmount: cop(300_000) }).success).toBe(true);
+    expect(AddLineBodySchema.safeParse(base).success).toBe(false);
+    expect(AddLineBodySchema.safeParse({ ...base, plannedAmount: cop(1), budgets: [cop(1)] }).success).toBe(
+      false,
+    );
+    expect(AddLineBodySchema.safeParse({ ...base, budgets: [] }).success).toBe(false);
+    expect(UpdateLineBodySchema.safeParse({ budgets: [usd(80)] }).success).toBe(true);
+    expect(UpdateLineBodySchema.safeParse({ plannedAmount: cop(1), budgets: [cop(1)] }).success).toBe(false);
+    const parsed = lineFromBody(AddLineBodySchema.parse({ ...base, budgets: [cop(300_000), usd(100)] }));
+    expect(parsed.ok && parsed.value.budgets.map((m) => [m.minor, m.currency.code])).toEqual([
+      [30_000_000n, "COP"],
+      [10_000n, "USD"],
+    ]);
   });
 });
 

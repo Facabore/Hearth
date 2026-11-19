@@ -530,3 +530,64 @@ describe("ResolveDefaultSplit names the line's payers (D26, #316)", () => {
     expect(unwrap(await (await world()).preview("cat-groceries"))).not.toHaveProperty("lineFunding");
   });
 });
+
+describe("the default split of an expense in another currency (ruling P342, S7)", () => {
+  const usd = (n: number) => BigInt(n) * 100n;
+  const homeInBoth = referenceLines().map((l) =>
+    l.name === "Home"
+      ? {
+          ...l,
+          budgets: [
+            { currency: "COP", amount: pesos(1_470_000) },
+            { currency: "USD", amount: usd(100) },
+          ],
+          allocationRule: "FIXED" as const,
+        }
+      : l,
+  );
+  const fixedBoth: LineAllocation[] = [
+    { lineId: "line-home", memberId: "member-ana", currency: "COP", value: pesos(735_000) },
+    { lineId: "line-home", memberId: "member-juan", currency: "COP", value: pesos(735_000) },
+    { lineId: "line-home", memberId: "member-juan", currency: "USD", value: usd(100) },
+  ];
+
+  it("follows the line's budget in the expense's currency: a USD expense goes to Juan, who holds Home's USD", async () => {
+    const { deps, spaces } = await world({ lines: homeInBoth, allocations: fixedBoth });
+    const split = await defaultSplitOf(deps, { ...(await askedBy(spaces)), currency: "USD" });
+    expect([split.method, split.weights]).toEqual([
+      "BY_ALLOCATION",
+      [{ memberId: "member-juan", weight: usd(100) }],
+    ]);
+    const cop = await defaultSplitOf(deps, await askedBy(spaces));
+    expect(cop.weights).toEqual([
+      { memberId: "member-ana", weight: pesos(735_000) },
+      { memberId: "member-juan", weight: pesos(735_000) },
+    ]);
+  });
+
+  it("previews an amount in the currency asked for, and a currency the line does not budget follows its first budget", async () => {
+    const { deps } = await world({ lines: homeInBoth, allocations: fixedBoth });
+    const resolve = createResolveDefaultSplit(deps);
+    const ask = (currency: string) =>
+      resolve({
+        spaceId: HOUSEHOLD,
+        userId: "u-ana",
+        categoryId: "cat-groceries",
+        date: "2026-11-08" as LocalDate,
+        currency,
+        amount: 1_000n,
+      });
+    expect(unwrap(await ask("USD"))).toMatchObject({
+      currency: "USD",
+      shares: [{ memberId: "member-juan", amount: 1_000n }],
+    });
+    // EUR: no budget in it, so the proportions of Home's first budget (COP, 50 / 50), never a converted amount.
+    expect(unwrap(await ask("EUR"))).toMatchObject({
+      currency: "EUR",
+      shares: [
+        { memberId: "member-ana", amount: 500n },
+        { memberId: "member-juan", amount: 500n },
+      ],
+    });
+  });
+});

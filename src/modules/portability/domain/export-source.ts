@@ -132,7 +132,10 @@ export interface ExportPlanSource {
   readonly lines: readonly {
     readonly id: string;
     readonly name: string;
+    /** The line's budget in the space currency; 0 without one (ruling P342, S7). */
     readonly plannedAmount: bigint;
+    /** Ruling P342 (S7): every budget of the line, one per currency, in its order. */
+    readonly budgets: readonly { readonly currency: string; readonly amount: bigint }[];
     readonly funding: string;
     readonly rolloverMode: string;
     readonly isCatchAll: boolean;

@@ -22,14 +22,23 @@ import {
 import type { MemberSumsDeps } from "./member-sums";
 import { reportPlanOf, spaceReport, type ReportPlan, type SpaceReportInput } from "./space-report";
 
+/** Ruling P342 (S7): a line's row in one currency of the line, never converted. */
+export interface MatrixBudget {
+  readonly currency: string;
+  readonly reason: MatrixReason | null;
+  readonly members: readonly MatrixCell[];
+}
+
 export interface MatrixLine {
   readonly lineId: string;
   readonly name: string;
   readonly funding: Funding;
   readonly rule: AllocationRule;
   readonly reason: MatrixReason | null;
-  /** Every current member in join order (ruling P7). */
+  /** Every current member in join order (ruling P7), in the space currency. */
   readonly members: readonly MatrixCell[];
+  /** Ruling P342 (S7): the row in every currency of the line, its budgets first. */
+  readonly budgets: readonly MatrixBudget[];
 }
 
 export interface MemberLineMatrix {
@@ -41,6 +50,8 @@ export interface MemberLineMatrix {
   readonly lines: readonly MatrixLine[];
   /** #213 (ruling P262): every current member's total gap over the lines, in join order; none without a plan. */
   readonly members: readonly MemberTotal[];
+  /** Ruling P342 (S7): every member's total gap per currency, the space currency first; none without a plan. */
+  readonly currencies: readonly { readonly currency: string; readonly members: readonly MemberTotal[] }[];
 }
 
 export type GetMemberLineMatrix = (input: SpaceReportInput) => Promise<Result<MemberLineMatrix>>;
@@ -54,8 +65,7 @@ const savingsByMember = async (
   members: readonly SpaceMember[],
   line: BudgetLine,
   period: Period,
-  currency: string,
-): Promise<Map<string, bigint>> => {
+): Promise<Map<string, Map<string, bigint>>> => {
   const counts = ownedByRegisteredMember(members);
   const owned = await Promise.all(
     line.savingsAccountIds.map(async (accountId) => {
@@ -69,19 +79,21 @@ const savingsByMember = async (
   const transfers =
     counted.length === 0
       ? []
-      : await deps.spending.transfersIntoAccounts(
+      : await deps.spending.transfersIntoAccountsByCurrency(
           counted.map((a) => a.accountId),
           period.start,
           period.end,
-          // Ruling P342 (S7): in the plan's currency.
-          currency,
         );
-  const byMember = new Map<string, bigint>();
+  // Ruling P342 (S7): per currency, each transfer in its own.
+  const byCurrency = new Map<string, Map<string, bigint>>();
   for (const transfer of transfers) {
     const memberId = counted.find((a) => a.accountId === transfer.accountId)?.memberId;
-    if (memberId !== undefined) byMember.set(memberId, (byMember.get(memberId) ?? 0n) + transfer.amount);
+    if (memberId === undefined) continue;
+    const byMember = byCurrency.get(transfer.currency) ?? new Map<string, bigint>();
+    byMember.set(memberId, (byMember.get(memberId) ?? 0n) + transfer.amount);
+    byCurrency.set(transfer.currency, byMember);
   }
-  return byMember;
+  return byCurrency;
 };
 
 /**
@@ -96,7 +108,7 @@ export const createGetMemberLineMatrix =
     if (!report.ok) return report;
     const { space, period, view } = report.value;
     const base = { spaceId: space.spaceId, currency: space.currency, period, plan: reportPlanOf(view) };
-    if (view === null) return ok({ ...base, lines: [], members: [] });
+    if (view === null) return ok({ ...base, lines: [], members: [], currencies: [] });
     // The members, categories, accounts and transfers the view was figured from, read once in the request.
     const { members, categories } = await viewReadsOf(deps, space, cache);
     const reads = await requestReadsOf(deps, space, cache);
@@ -108,45 +120,62 @@ export const createGetMemberLineMatrix =
       ),
     };
     const sums = new Map<string, { paid: bigint; consumed: bigint }>();
-    for (const row of await deps.sums.memberSumsByCategory(
+    // Ruling P342 (S7, T6): each expense in its own currency, as the plan's lines count it.
+    for (const row of await deps.sums.memberSumsByCategoryByCurrency(
       space.spaceId,
       period.start,
       period.end,
-      space.currency,
     )) {
       // HU-E3-04: a subcategory's payments and shares count on the line its category consumes, as its spending does.
       const lineId = lineForCategory(rolledUpCategory(row.categoryId, categories), parts);
       if (lineId === null) continue;
-      const key = `${lineId}/${row.memberId}`;
+      const key = `${lineId}/${row.memberId}/${row.currency}`;
       const sum = sums.get(key) ?? { paid: 0n, consumed: 0n };
       sums.set(key, { paid: sum.paid + row.paid, consumed: sum.consumed + row.consumed });
     }
     const lines = await Promise.all(
-      figures.map(async ({ line, allocation }): Promise<MatrixLine> => {
+      figures.map(async ({ line, allocation, budgets }): Promise<MatrixLine> => {
         const savings =
-          line.funding === "SAVINGS"
-            ? await savingsByMember(reads, members, line, period, space.currency)
-            : null;
-        const row = matrixRow({
+          line.funding === "SAVINGS" ? await savingsByMember(reads, members, line, period) : null;
+        /** The row in `currency`, by the assigned amounts and the allocation flag the plan figured in it. */
+        const rowIn = (
+          currency: string,
+          assignment: { readonly members: typeof allocation.members; readonly invalid: boolean },
+        ) =>
+          matrixRow({
+            funding: line.funding,
+            allocated: allocation.rule !== "NONE",
+            invalid: assignment.invalid,
+            members: members.map((m) => {
+              const sum = sums.get(`${line.id}/${m.id}/${currency}`);
+              return {
+                memberId: m.id,
+                assigned: assignment.members.find((a) => a.memberId === m.id)?.assigned ?? null,
+                contributed: savings === null ? (sum?.paid ?? 0n) : (savings.get(currency)?.get(m.id) ?? 0n),
+                consumed: sum?.consumed ?? 0n,
+              };
+            }),
+          });
+        // The space currency's row reads the line's scalar figures, as before T6.
+        const row = rowIn(space.currency, allocation);
+        return {
+          lineId: line.id,
+          name: line.name,
           funding: line.funding,
-          allocated: allocation.rule !== "NONE",
-          invalid: allocation.invalid,
-          members: members.map((m) => {
-            const sum = sums.get(`${line.id}/${m.id}`);
-            return {
-              memberId: m.id,
-              assigned: allocation.members.find((a) => a.memberId === m.id)?.assigned ?? null,
-              contributed: savings === null ? (sum?.paid ?? 0n) : (savings.get(m.id) ?? 0n),
-              consumed: sum?.consumed ?? 0n,
-            };
-          }),
-        });
-        return { lineId: line.id, name: line.name, funding: line.funding, rule: allocation.rule, ...row };
+          rule: allocation.rule,
+          ...row,
+          budgets: budgets.map((b) => ({ currency: b.currency, ...rowIn(b.currency, b.allocation) })),
+        };
       }),
     );
-    const totals = memberTotals(
-      members.map((m) => m.id),
-      lines,
-    );
-    return ok({ ...base, lines, members: totals });
+    const memberIds = members.map((m) => m.id);
+    const totals = memberTotals(memberIds, lines);
+    const currencies = view.figures.currencies.map((c) => ({
+      currency: c.currency,
+      members: memberTotals(
+        memberIds,
+        lines.flatMap((line) => line.budgets.filter((b) => b.currency === c.currency)),
+      ),
+    }));
+    return ok({ ...base, lines, members: totals, currencies });
   };

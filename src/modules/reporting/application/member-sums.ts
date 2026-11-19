@@ -20,6 +20,29 @@ export interface SpaceMemberSums {
       readonly consumed: bigint;
     }[]
   >;
+  /**
+   * Ruling P342 (S7, T6): per category, member and movement currency, Σ payments and Σ shares, each expense in its own
+   * currency; what a plan's line counts.
+   */
+  memberSumsByCategoryByCurrency(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<
+    readonly {
+      readonly categoryId: string;
+      readonly memberId: string;
+      readonly currency: string;
+      readonly paid: bigint;
+      readonly consumed: bigint;
+    }[]
+  >;
+  /** Ruling P342 (S7, T6): per member and movement currency, Σ their fund contributions, each in its own currency. */
+  fundContributionsByMemberByCurrency(
+    spaceId: string,
+    from: LocalDate,
+    to: LocalDate,
+  ): Promise<readonly { readonly memberId: string; readonly currency: string; readonly amount: bigint }[]>;
   /** Per member: Σ their fund contributions recorded in the space (HU-E4-09). */
   fundContributionsByMember(
     spaceId: string,

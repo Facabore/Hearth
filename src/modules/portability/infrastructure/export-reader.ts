@@ -301,6 +301,7 @@ export const createExportReader = (deps: ExportReaderDeps): ExportReader => ({
           id: line.id,
           name: line.name,
           plannedAmount: planned,
+          budgets: line.budgets.map((b) => ({ currency: b.currency, amount: b.amount })),
           funding: line.funding,
           rolloverMode: line.rolloverMode,
           isCatchAll: line.isCatchAll,

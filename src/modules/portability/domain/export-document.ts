@@ -124,7 +124,10 @@ export interface ExportedSpace {
     readonly lines: readonly {
       readonly id: string;
       readonly name: string;
+      /** The line's budget in the space currency; 0 without one. */
       readonly plannedAmount: MoneyValue;
+      /** Ruling P342 (S7): every budget of the line, one per currency, in its order. */
+      readonly budgets: readonly MoneyValue[];
       readonly funding: string;
       readonly rolloverMode: string;
       readonly isCatchAll: boolean;
@@ -284,6 +287,7 @@ const exportedSpace = (
         id: l.id,
         name: l.name,
         plannedAmount: money(l.plannedAmount, p.currency),
+        budgets: l.budgets.map((b) => money(b.amount, b.currency)),
         funding: l.funding,
         rolloverMode: l.rolloverMode,
         isCatchAll: l.isCatchAll,

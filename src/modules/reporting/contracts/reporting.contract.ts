@@ -76,6 +76,33 @@ const ReportPlanSchema = z
 const reportPlanDto = (plan: ReportPlan | null): z.infer<typeof ReportPlanSchema> =>
   plan === null ? null : { id: plan.id, status: plan.status };
 
+const LINE_STATES = ["OK", "NEAR", "HIGH", "OVER"] as const;
+
+/** Ruling P342 (S7): a dashboard line's figures in one currency, never converted. */
+const DashboardBudgetSchema = z.object({
+  budgeted: z
+    .boolean()
+    .describe(
+      "False for a currency the line does not budget but spent or carried in; its planned is then 0.",
+    ),
+  planned: MoneySchema,
+  spent: MoneySchema,
+  carryOver: MoneySchema,
+  available: MoneySchema,
+  overspent: z.boolean(),
+  state: z.enum(LINE_STATES),
+  overBy: MoneySchema.nullable(),
+});
+
+/** Ruling P342 (S7): the dashboard's sums of one currency. */
+const DashboardTotalsSchema = z.object({
+  planned: MoneySchema,
+  spent: MoneySchema,
+  available: MoneySchema,
+  saved: MoneySchema,
+  withoutSavings: z.object({ planned: MoneySchema, spent: MoneySchema, available: MoneySchema }),
+});
+
 /** HU-E7-01: each line as the plan derives it (spec 5.4, D7). */
 export const LineDashboardSchema = z.object({
   spaceId: z.string(),
@@ -117,6 +144,12 @@ export const LineDashboardSchema = z.object({
       overBy: MoneySchema.nullable().describe(
         "How much an OVER line went past its budget, positive; null otherwise.",
       ),
+      budgets: z
+        .array(DashboardBudgetSchema)
+        .optional()
+        .describe(
+          "Ruling P342 (S7): the line in every currency, its budgets first in the line's order, then any other currency it spent or carried in. A movement counts only against the budget in its own currency; nothing is converted. The line's other amounts are the space currency's.",
+        ),
     }),
   ),
   unbudgeted: z
@@ -159,6 +192,24 @@ export const LineDashboardSchema = z.object({
     .describe(
       "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only.",
     ),
+  currencies: z
+    .array(
+      z.object({
+        unbudgeted: z
+          .object({
+            spent: MoneySchema,
+            available: MoneySchema,
+            overspent: z.boolean(),
+            categoryIds: z.array(z.string()),
+          })
+          .nullable(),
+        totals: DashboardTotalsSchema,
+      }),
+    )
+    .optional()
+    .describe(
+      "Ruling P342 (S7): Unbudgeted and the totals per currency, the space currency first, then every other currency the plan or the period's spending holds, alphabetically (\"Quedan 1.286.000 COP y 55 USD\"). The scalar unbudgeted and totals are the space currency's.",
+    ),
   categoryLines: z
     .array(z.object({ categoryId: z.string(), lineId: z.string().nullable() }))
     .describe(
@@ -175,6 +226,18 @@ const unbudgetedDto = (unbudgeted: UnbudgetedSpending | null, currency: string) 
         overspent: unbudgeted.overspent,
         categoryIds: [...unbudgeted.categoryIds],
       };
+
+const totalsDto = (totals: LineDashboard["totals"], currency: string) => ({
+  planned: moneyOf(totals.planned, currency),
+  spent: moneyOf(totals.spent, currency),
+  available: moneyOf(totals.available, currency),
+  saved: moneyOf(totals.saved, currency),
+  withoutSavings: {
+    planned: moneyOf(totals.withoutSavings.planned, currency),
+    spent: moneyOf(totals.withoutSavings.spent, currency),
+    available: moneyOf(totals.withoutSavings.available, currency),
+  },
+});
 
 export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineDashboardSchema> => ({
   spaceId: dashboard.spaceId,
@@ -200,20 +263,41 @@ export const lineDashboardDto = (dashboard: LineDashboard): z.infer<typeof LineD
     overspent: line.overspent,
     state: line.state,
     overBy: line.overBy === null ? null : moneyOf(line.overBy, dashboard.currency),
+    budgets: line.budgets.map((b) => ({
+      budgeted: b.budgeted,
+      planned: moneyOf(b.planned, b.currency),
+      spent: moneyOf(b.spent, b.currency),
+      carryOver: moneyOf(b.carryOver, b.currency),
+      available: moneyOf(b.available, b.currency),
+      overspent: b.overspent,
+      state: b.state,
+      overBy: b.overBy === null ? null : moneyOf(b.overBy, b.currency),
+    })),
   })),
   unbudgeted: unbudgetedDto(dashboard.unbudgeted, dashboard.currency),
-  totals: {
-    planned: moneyOf(dashboard.totals.planned, dashboard.currency),
-    spent: moneyOf(dashboard.totals.spent, dashboard.currency),
-    available: moneyOf(dashboard.totals.available, dashboard.currency),
-    saved: moneyOf(dashboard.totals.saved, dashboard.currency),
-    withoutSavings: {
-      planned: moneyOf(dashboard.totals.withoutSavings.planned, dashboard.currency),
-      spent: moneyOf(dashboard.totals.withoutSavings.spent, dashboard.currency),
-      available: moneyOf(dashboard.totals.withoutSavings.available, dashboard.currency),
-    },
-  },
+  totals: totalsDto(dashboard.totals, dashboard.currency),
+  currencies: dashboard.currencies.map((c) => ({
+    unbudgeted: unbudgetedDto(c.unbudgeted, c.currency),
+    totals: totalsDto(c.totals, c.currency),
+  })),
   categoryLines: dashboard.categoryLines.map((c) => ({ categoryId: c.categoryId, lineId: c.lineId })),
+});
+
+/** HU-E7-02: one member's figures on one line in one currency. */
+const MatrixCellSchema = z.object({
+  memberId: z.string(),
+  assigned: MoneySchema.nullable(),
+  contributed: MoneySchema.nullable(),
+  consumed: MoneySchema.nullable(),
+  gap: MoneySchema.nullable(),
+  status: z.enum(GAP_STATUSES).nullable(),
+});
+
+/** #213: one member's total gap in one currency. */
+const MemberTotalSchema = z.object({
+  memberId: z.string(),
+  gap: MoneySchema.nullable(),
+  status: z.enum(GAP_STATUSES).nullable(),
 });
 
 /** HU-E7-02: every line of the period's plan with every current member's figures (spec 5.4, ruling P35). */
@@ -252,8 +336,26 @@ export const MemberMatrixSchema = z.object({
           status: z.enum(GAP_STATUSES).nullable().describe("The sign of gap; null when gap is null."),
         }),
       ),
+      budgets: z
+        .array(
+          z.object({
+            currency: z.string(),
+            reason: z.enum(MATRIX_REASONS).nullable(),
+            members: z.array(MatrixCellSchema),
+          }),
+        )
+        .optional()
+        .describe(
+          "Ruling P342 (S7): the line's row in each of its currencies, its budgets first: assigned by the line's rule in that currency, contributed and consumed counting only the movements in it, never converted. members is the space currency's.",
+        ),
     }),
   ),
+  currencies: z
+    .array(z.object({ currency: z.string(), members: z.array(MemberTotalSchema) }))
+    .optional()
+    .describe(
+      "Ruling P342 (S7): every member's total gap per currency, the space currency first; empty without a plan. members is the space currency's.",
+    ),
   members: z
     .array(
       z.object({
@@ -273,6 +375,21 @@ export const MemberMatrixSchema = z.object({
 const moneyOrNull = (minor: bigint | null, currency: string): MoneyDto | null =>
   minor === null ? null : moneyOf(minor, currency);
 
+const cellDto = (cell: MemberLineMatrix["lines"][number]["members"][number], currency: string) => ({
+  memberId: cell.memberId,
+  assigned: moneyOrNull(cell.assigned, currency),
+  contributed: moneyOrNull(cell.contributed, currency),
+  consumed: moneyOrNull(cell.consumed, currency),
+  gap: moneyOrNull(cell.gap, currency),
+  status: cell.status,
+});
+
+const totalDto = (total: MemberLineMatrix["members"][number], currency: string) => ({
+  memberId: total.memberId,
+  gap: moneyOrNull(total.gap, currency),
+  status: total.status,
+});
+
 export const memberMatrixDto = (matrix: MemberLineMatrix): z.infer<typeof MemberMatrixSchema> => ({
   spaceId: matrix.spaceId,
   period: periodDto(matrix.period),
@@ -283,20 +400,18 @@ export const memberMatrixDto = (matrix: MemberLineMatrix): z.infer<typeof Member
     funding: line.funding,
     rule: line.rule,
     reason: line.reason,
-    members: line.members.map((cell) => ({
-      memberId: cell.memberId,
-      assigned: moneyOrNull(cell.assigned, matrix.currency),
-      contributed: moneyOrNull(cell.contributed, matrix.currency),
-      consumed: moneyOrNull(cell.consumed, matrix.currency),
-      gap: moneyOrNull(cell.gap, matrix.currency),
-      status: cell.status,
+    members: line.members.map((cell) => cellDto(cell, matrix.currency)),
+    budgets: line.budgets.map((b) => ({
+      currency: b.currency,
+      reason: b.reason,
+      members: b.members.map((cell) => cellDto(cell, b.currency)),
     })),
   })),
-  members: matrix.members.map((total) => ({
-    memberId: total.memberId,
-    gap: moneyOrNull(total.gap, matrix.currency),
-    status: total.status,
+  currencies: matrix.currencies.map((c) => ({
+    currency: c.currency,
+    members: c.members.map((total) => totalDto(total, c.currency)),
   })),
+  members: matrix.members.map((total) => totalDto(total, matrix.currency)),
 });
 
 /** HU-E7-03: each current member's expected and actual contributions to the shared fund (spec 5.4, ruling P36). */
@@ -326,6 +441,24 @@ export const FundContributionsSchema = z.object({
   totals: z
     .object({ expected: MoneySchema, actual: MoneySchema, difference: MoneySchema })
     .describe("Σ over the listed members of expected, actual and difference."),
+  currencies: z
+    .array(
+      z.object({
+        members: z.array(
+          z.object({
+            memberId: z.string(),
+            expected: MoneySchema,
+            actual: MoneySchema,
+            difference: MoneySchema,
+          }),
+        ),
+        totals: z.object({ expected: MoneySchema, actual: MoneySchema, difference: MoneySchema }),
+      }),
+    )
+    .optional()
+    .describe(
+      "Ruling P342 (S7): expected (the SHARED_FUND lines' assigned amounts in that currency) and actual (the contributions in that currency) per member and currency, the space currency first, never converted. members and totals are the space currency's.",
+    ),
   funds: z
     .array(z.object({ id: z.string(), name: z.string() }))
     .optional()
@@ -361,6 +494,19 @@ export const fundContributionsDto = (
     actual: moneyOf(report.totals.actual, report.currency),
     difference: moneyOf(report.totals.difference, report.currency),
   },
+  currencies: report.currencies.map((c) => ({
+    members: c.members.map((m) => ({
+      memberId: m.memberId,
+      expected: moneyOf(m.expected, c.currency),
+      actual: moneyOf(m.actual, c.currency),
+      difference: moneyOf(m.difference, c.currency),
+    })),
+    totals: {
+      expected: moneyOf(c.totals.expected, c.currency),
+      actual: moneyOf(c.totals.actual, c.currency),
+      difference: moneyOf(c.totals.difference, c.currency),
+    },
+  })),
   funds: report.funds.map((fund) => ({ ...fund })),
 });
 
@@ -663,6 +809,12 @@ export const LineTrendSchema = z.object({
             .enum(CHANGE_STATUSES)
             .nullable()
             .describe("NEW without a previous figure or when it was 0; null where spent is null."),
+          spentByCurrency: z
+            .array(MoneySchema)
+            .optional()
+            .describe(
+              "Ruling P342 (S7): what the line spent in each of its currencies that period, its budgets first, never converted; spent is the space currency's. Empty where spent is null.",
+            ),
         }),
       ),
     }),
@@ -681,6 +833,7 @@ export const lineTrendDto = (trend: LineTrend): z.infer<typeof LineTrendSchema> 
       spent: p.spent === null ? null : moneyOf(p.spent, trend.currency),
       ...changeDto(p.change, trend.currency),
       changeStatus: p.change?.status ?? null,
+      spentByCurrency: p.spentByCurrency.map((s) => moneyOf(s.spent, s.currency)),
     })),
   })),
 });

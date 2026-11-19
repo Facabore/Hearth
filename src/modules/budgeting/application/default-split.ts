@@ -134,7 +134,9 @@ export type ResolveDefaultSplit = (input: {
   userId: string;
   categoryId: string;
   date: LocalDate;
-  /** Minor units of the space currency. */
+  /** Ruling P342 (S7): the expense's currency; the space's unless given. */
+  currency?: string;
+  /** Minor units of `currency`. */
   amount: bigint | null;
 }) => Promise<Result<DefaultSplitView>>;
 
@@ -154,11 +156,12 @@ export const createResolveDefaultSplit =
     const categories = await deps.categories.list(space.spaceId);
     if (!categories.some((c) => c.id === input.categoryId)) return err(domainError("CategoryNotInSpace"));
     const members = await deps.members.listCurrent(space.spaceId);
+    const currency = input.currency ?? space.currency;
     const split = await defaultSplitOf(
       deps,
       {
         spaceId: space.spaceId,
-        currency: space.currency,
+        currency,
         categoryId: input.categoryId,
         date: input.date,
         ...defaultSplitMembers(members),
@@ -167,7 +170,7 @@ export const createResolveDefaultSplit =
     );
     let shares: { memberId: string; amount: bigint }[] | null = null;
     if (input.amount !== null) {
-      const total = Money.ofMinor(input.amount, space.currency);
+      const total = Money.ofMinor(input.amount, currency);
       if (!total.ok) return total;
       // Ruling P285: an amount too small to give everyone a positive share answers the InvalidSplit recording would.
       const parts = flatMap(
@@ -188,7 +191,7 @@ export const createResolveDefaultSplit =
       ...(split.payerMemberIds === undefined
         ? {}
         : { payerMemberIds: split.payerMemberIds, lineFunding: split.lineFunding }),
-      currency: space.currency,
+      currency,
       shares,
     });
   };

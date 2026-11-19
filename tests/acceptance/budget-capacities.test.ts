@@ -139,7 +139,8 @@ describe("member capacities (HU-E6-02)", () => {
     expect(await problemOf(unknown)).toEqual([422, "NotASpaceMember"]);
     const malformed = await putCapacities(h.ana, h.spaceId, "not-a-uuid", [[h.ana.memberId, 1]]);
     expect(await problemOf(malformed)).toEqual([404, "BudgetPlanNotFound"]);
-    const many = Array.from({ length: 101 }, (_, i) => ({ memberId: `member-${i}`, amount: cop(1) }));
+    // P342 (S7): a body holds a contribution per member and currency, at most 1000 of them.
+    const many = Array.from({ length: 1001 }, (_, i) => ({ memberId: `member-${i}`, amount: cop(1) }));
     expect(await problemOf(await putRaw(h.ana, h.spaceId, planId, { capacities: many }))).toEqual([
       422,
       "ValidationFailed",
@@ -160,8 +161,15 @@ describe("member capacities (HU-E6-02)", () => {
     // Ruling P342 (S7, "Juan 2.400.000 COP y 100 USD"): a contribution per currency, never converted.
     const dollars = await putRaw(h.ana, h.spaceId, planId, entry("USD"));
     expect(dollars.status).toBe(200);
-    const plan = (await dollars.json()) as { totalCapacity: { amount: string; currency: string } };
+    const plan = (await dollars.json()) as {
+      totalCapacity: { amount: string; currency: string };
+      currencies: { totalCapacity: { amount: string; currency: string } }[];
+    };
     expect(plan.totalCapacity).toEqual({ amount: "0", currency: "COP" });
+    expect(plan.currencies.map((c) => c.totalCapacity)).toEqual([
+      { amount: "0", currency: "COP" },
+      { amount: "100", currency: "USD" },
+    ]);
   });
 
   it("lets the guest Pedro hold capacity, and Juan the MEMBER set only his own (D15, D17)", async () => {

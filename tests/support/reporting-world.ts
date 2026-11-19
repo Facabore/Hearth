@@ -11,22 +11,37 @@ import { periodByLabel, type LocalDate, type PeriodPolicy } from "@/shared/kerne
 import { budgetingWorld, HOUSEHOLD, NOW, savingsAccounts } from "./budgeting-world";
 import { unwrap } from "./fakes";
 
-/** The ledger's per-member sums of each period, keyed by the first day it is asked for (D7). */
+/**
+ * The ledger's per-member sums of each period, keyed by the first day it is asked for (D7). A row without a currency is
+ * in COP, Household's; P342 (S7): the single-currency sums answer only the COP rows, never converted.
+ */
 export class MemberSumsByPeriod implements SpaceMemberSums {
   readonly byCategory: Record<
     string,
-    { categoryId: string; memberId: string; paid: bigint; consumed: bigint }[]
+    { categoryId: string; memberId: string; paid: bigint; consumed: bigint; currency?: string }[]
   > = {};
-  readonly contributions: Record<string, { memberId: string; amount: bigint }[]> = {};
+  readonly contributions: Record<string, { memberId: string; amount: bigint; currency?: string }[]> = {};
+
+  async memberSumsByCategoryByCurrency(_spaceId: string, from: LocalDate) {
+    return (this.byCategory[from] ?? []).map((row) => ({ ...row, currency: row.currency ?? "COP" }));
+  }
+
+  async fundContributionsByMemberByCurrency(_spaceId: string, from: LocalDate) {
+    return (this.contributions[from] ?? []).map((row) => ({ ...row, currency: row.currency ?? "COP" }));
+  }
   /** D26: the contributions that paid an expense for the fund, by the expense's category. */
   readonly forFund: Record<string, { categoryId: string; memberId: string; amount: bigint }[]> = {};
 
   async memberSumsByCategory(_spaceId: string, from: LocalDate) {
-    return [...(this.byCategory[from] ?? [])];
+    return (this.byCategory[from] ?? [])
+      .filter((row) => (row.currency ?? "COP") === "COP")
+      .map(({ categoryId, memberId, paid, consumed }) => ({ categoryId, memberId, paid, consumed }));
   }
 
   async fundContributionsByMember(_spaceId: string, from: LocalDate) {
-    return [...(this.contributions[from] ?? [])];
+    return (this.contributions[from] ?? [])
+      .filter((row) => (row.currency ?? "COP") === "COP")
+      .map(({ memberId, amount }) => ({ memberId, amount }));
   }
 
   async paidForFundByCategory(_spaceId: string, from: LocalDate) {

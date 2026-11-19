@@ -403,6 +403,8 @@ describe("GET /api/v1/me/export (D28, design §3.6)", () => {
           expect.objectContaining({
             name: "Home",
             plannedAmount: cop(1_470_000),
+            // P342 (S7): every budget of the line, one per currency.
+            budgets: [cop(1_470_000)],
             funding: "DIRECT",
             categoryIds: [h.utilities],
           }),

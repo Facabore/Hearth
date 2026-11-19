@@ -195,6 +195,23 @@ describe("Ruling P342 (S7): sums count another currency by the space-currency ac
     ]);
   });
 
+  it("sums each member's payments and shares per movement currency for the plan's reports (P342 T6, S7)", async () => {
+    const { w, ana } = await fixture();
+    const sums = await queries.memberSumsByCategoryByCurrency(w.household.spaceId, nov1, nov30);
+    const expected = [
+      { categoryId: w.groceries, memberId: ana, currency: "COP", paid: 200_000_00n, consumed: 100_000_00n },
+      { categoryId: w.groceries, memberId: ana, currency: "USD", paid: 130_00n, consumed: 65_00n },
+      { categoryId: w.groceries, memberId: w.pedro, currency: "COP", paid: 0n, consumed: 100_000_00n },
+      { categoryId: w.groceries, memberId: w.pedro, currency: "USD", paid: 0n, consumed: 65_00n },
+    ];
+    expect(sums).toEqual(
+      expected.sort((a, b) => (`${a.memberId}/${a.currency}` < `${b.memberId}/${b.currency}` ? -1 : 1)),
+    );
+    // No transfer of the household names a contributing member, so nobody contributed to its fund.
+    expect(await queries.fundContributionsByMemberByCurrency(w.household.spaceId, nov1, nov30)).toEqual([]);
+    expect(await queries.memberSumsByCategoryByCurrency("not-a-uuid", nov1, nov30)).toEqual([]);
+  });
+
   it("allocates the counted leg over the shares, so each member consumes their part of what the account moved", async () => {
     const { w, ana } = await fixture();
     const sums = await queries.memberSumsByCategory(w.household.spaceId, nov1, nov30, "COP");

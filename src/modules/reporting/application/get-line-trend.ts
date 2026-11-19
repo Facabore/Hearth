@@ -10,6 +10,11 @@ export interface TrendPoint {
   readonly spent: bigint | null;
   /** Versus the previous period of the policy; null where `spent` is null. */
   readonly change: Change | null;
+  /**
+   * Ruling P342 (S7): what the line spent in each currency of that period's line, its budgets first; `spent` is the
+   * space currency's. Empty where `spent` is null.
+   */
+  readonly spentByCurrency: readonly { readonly currency: string; readonly spent: bigint }[];
 }
 
 export interface LineTrendSeries {
@@ -67,12 +72,14 @@ export const createGetLineTrend =
             originLineId: f.line.originLineId,
             name: f.line.name,
             spent: f.spent,
+            byCurrency: f.budgets.map((b) => ({ currency: b.currency, spent: b.spent })),
           })),
     );
     // Ruling of #132: a window never lists two periods under one label.
     const shown = distinctLabels(window.slice(1), stored);
     const lines = (plans.at(-1) ?? []).map((line) => {
-      const spent = tracedLines(plans, line).map((traced) => traced?.spent ?? null);
+      const traced = tracedLines(plans, line);
+      const spent = traced.map((t) => t?.spent ?? null);
       return {
         lineId: line.id,
         name: line.name,
@@ -82,6 +89,7 @@ export const createGetLineTrend =
             period: p,
             spent: current,
             change: current === null ? null : changeFrom(spent[i] ?? null, current),
+            spentByCurrency: [...(traced[i + 1]?.byCurrency ?? [])],
           };
         }),
       };

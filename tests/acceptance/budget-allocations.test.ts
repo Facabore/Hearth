@@ -419,14 +419,15 @@ describe("allocation values (HU-E6-05)", () => {
       percentBody(...strangers(count).map((id): [string, string] => [id, "1"]));
     const fixedFor = (count: number) =>
       fixedBody(...strangers(count).map((id): [string, MoneyDto] => [id, cop(1)]));
-    // 100 members pass the schema and meet the membership check; the 101st never gets that far.
+    // 100 members pass the schema and meet the membership check; the 101st never gets that far. P342 (S7): FIXED
+    // amounts are typed per member and currency, so a body holds up to 1000 of them.
     await refuses(h.ana, at, [422, "NotASpaceMember"], {
       "100 percentages": percentFor(100),
-      "100 amounts": fixedFor(100),
+      "1000 amounts": fixedFor(1000),
     });
     await refuses(h.ana, at, [422, "ValidationFailed"], {
       "101 percentages": percentFor(101),
-      "101 amounts": fixedFor(101),
+      "1001 amounts": fixedFor(1001),
     });
   });
 

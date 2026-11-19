@@ -2075,11 +2075,41 @@ export interface components {
             totalCapacity: components["schemas"]["MoneyOutput"];
             planned: components["schemas"]["MoneyOutput"];
             unallocated: components["schemas"]["MoneyOutput"];
+            currencies?: {
+                capacities: {
+                    memberId: string;
+                    amount: components["schemas"]["MoneyOutput"];
+                    share: string | null;
+                }[];
+                totalCapacity: components["schemas"]["MoneyOutput"];
+                planned: components["schemas"]["MoneyOutput"];
+                unallocated: components["schemas"]["MoneyOutput"];
+                unbudgeted: {
+                    spent: components["schemas"]["MoneyOutput"];
+                    available: components["schemas"]["MoneyOutput"];
+                } | null;
+            }[];
             lines: {
                 id: string;
                 originLineId: string | null;
                 name: string;
                 plannedAmount: components["schemas"]["MoneyOutput"];
+                budgets?: {
+                    planned: components["schemas"]["MoneyOutput"];
+                    budgeted: boolean;
+                    capacityShare: string | null;
+                    allocation: {
+                        members: {
+                            memberId: string;
+                            amount: components["schemas"]["MoneyOutput"] | null;
+                            assigned: components["schemas"]["MoneyOutput"] | null;
+                        }[];
+                        error: "InvalidAllocation" | null;
+                    };
+                    spent: components["schemas"]["MoneyOutput"];
+                    carryOver: components["schemas"]["MoneyOutput"];
+                    available: components["schemas"]["MoneyOutput"];
+                }[];
                 /** @enum {string} */
                 funding: "DIRECT" | "SHARED_FUND" | "SAVINGS";
                 /** @enum {string} */
@@ -2458,7 +2488,10 @@ export interface components {
                     lines: {
                         id: string;
                         name: string;
+                        /** @description The line's budget in the space currency; 0 when it plans none in it (ruling P342, S7). */
                         plannedAmount: components["schemas"]["MoneyOutput"];
+                        /** @description Ruling P342 (S7): every budget of the line, one per currency, in its order; never converted. */
+                        budgets?: components["schemas"]["MoneyOutput"][];
                         funding: string;
                         rolloverMode: string;
                         isCatchAll: boolean;
@@ -9933,7 +9966,8 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    plannedAmount: components["schemas"]["Money"];
+                    plannedAmount?: components["schemas"]["Money"];
+                    budgets?: components["schemas"]["Money"][];
                     /** @enum {string} */
                     funding?: "DIRECT" | "SHARED_FUND" | "SAVINGS";
                     /** @enum {string} */
@@ -10101,6 +10135,7 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     plannedAmount?: components["schemas"]["Money"];
+                    budgets?: components["schemas"]["Money"][];
                     /** @enum {string} */
                     funding?: "DIRECT" | "SHARED_FUND" | "SAVINGS";
                     /** @enum {string} */
@@ -10523,6 +10558,7 @@ export interface operations {
             query: {
                 categoryId: string;
                 date: string;
+                currency?: string;
                 amount?: string;
             };
             header?: never;
@@ -10636,6 +10672,19 @@ export interface operations {
                             state: "OK" | "NEAR" | "HIGH" | "OVER";
                             /** @description How much an OVER line went past its budget, positive; null otherwise. */
                             overBy: components["schemas"]["MoneyOutput"] | null;
+                            /** @description Ruling P342 (S7): the line in every currency, its budgets first in the line's order, then any other currency it spent or carried in. A movement counts only against the budget in its own currency; nothing is converted. The line's other amounts are the space currency's. */
+                            budgets?: {
+                                /** @description False for a currency the line does not budget but spent or carried in; its planned is then 0. */
+                                budgeted: boolean;
+                                planned: components["schemas"]["MoneyOutput"];
+                                spent: components["schemas"]["MoneyOutput"];
+                                carryOver: components["schemas"]["MoneyOutput"];
+                                available: components["schemas"]["MoneyOutput"];
+                                overspent: boolean;
+                                /** @enum {string} */
+                                state: "OK" | "NEAR" | "HIGH" | "OVER";
+                                overBy: components["schemas"]["MoneyOutput"] | null;
+                            }[];
                         }[];
                         /** @description What no line consumes, every expense when the period has no plan; null when the plan has a catch-all line. */
                         unbudgeted: {
@@ -10660,6 +10709,26 @@ export interface operations {
                                 available?: components["schemas"]["MoneyOutput"];
                             };
                         };
+                        /** @description Ruling P342 (S7): Unbudgeted and the totals per currency, the space currency first, then every other currency the plan or the period's spending holds, alphabetically ("Quedan 1.286.000 COP y 55 USD"). The scalar unbudgeted and totals are the space currency's. */
+                        currencies?: {
+                            unbudgeted: {
+                                spent: components["schemas"]["MoneyOutput"];
+                                available: components["schemas"]["MoneyOutput"];
+                                overspent: boolean;
+                                categoryIds: string[];
+                            } | null;
+                            totals: {
+                                planned: components["schemas"]["MoneyOutput"];
+                                spent: components["schemas"]["MoneyOutput"];
+                                available: components["schemas"]["MoneyOutput"];
+                                saved: components["schemas"]["MoneyOutput"];
+                                withoutSavings: {
+                                    planned: components["schemas"]["MoneyOutput"];
+                                    spent: components["schemas"]["MoneyOutput"];
+                                    available: components["schemas"]["MoneyOutput"];
+                                };
+                            };
+                        }[];
                         /** @description Every live category of the space with the line its expenses consume in the plan: its mapped line, its parent's line for a subcategory, else the catch-all line; null for Unbudgeted. Empty without a plan. */
                         categoryLines: {
                             categoryId: string;
@@ -10745,6 +10814,28 @@ export interface operations {
                                 /** @description contributed − assigned; positive means the member over-contributed. Null when reason is not null or assigned is null. */
                                 gap: components["schemas"]["MoneyOutput"] | null;
                                 /** @description The sign of gap; null when gap is null. */
+                                status: ("OVER_CONTRIBUTED" | "UNDER_CONTRIBUTED" | "ON_TARGET") | null;
+                            }[];
+                            /** @description Ruling P342 (S7): the line's row in each of its currencies, its budgets first: assigned by the line's rule in that currency, contributed and consumed counting only the movements in it, never converted. members is the space currency's. */
+                            budgets?: {
+                                currency: string;
+                                reason: ("NOT_ALLOCATED" | "TRACKED_AT_FUND_LEVEL" | "INVALID_ALLOCATION") | null;
+                                members: {
+                                    memberId: string;
+                                    assigned: components["schemas"]["MoneyOutput"] | null;
+                                    contributed: components["schemas"]["MoneyOutput"] | null;
+                                    consumed: components["schemas"]["MoneyOutput"] | null;
+                                    gap: components["schemas"]["MoneyOutput"] | null;
+                                    status: ("OVER_CONTRIBUTED" | "UNDER_CONTRIBUTED" | "ON_TARGET") | null;
+                                }[];
+                            }[];
+                        }[];
+                        /** @description Ruling P342 (S7): every member's total gap per currency, the space currency first; empty without a plan. members is the space currency's. */
+                        currencies?: {
+                            currency: string;
+                            members: {
+                                memberId: string;
+                                gap: components["schemas"]["MoneyOutput"] | null;
                                 status: ("OVER_CONTRIBUTED" | "UNDER_CONTRIBUTED" | "ON_TARGET") | null;
                             }[];
                         }[];
@@ -10833,6 +10924,20 @@ export interface operations {
                             actual: components["schemas"]["MoneyOutput"];
                             difference: components["schemas"]["MoneyOutput"];
                         };
+                        /** @description Ruling P342 (S7): expected (the SHARED_FUND lines' assigned amounts in that currency) and actual (the contributions in that currency) per member and currency, the space currency first, never converted. members and totals are the space currency's. */
+                        currencies?: {
+                            members: {
+                                memberId: string;
+                                expected: components["schemas"]["MoneyOutput"];
+                                actual: components["schemas"]["MoneyOutput"];
+                                difference: components["schemas"]["MoneyOutput"];
+                            }[];
+                            totals: {
+                                expected: components["schemas"]["MoneyOutput"];
+                                actual: components["schemas"]["MoneyOutput"];
+                                difference: components["schemas"]["MoneyOutput"];
+                            };
+                        }[];
                         /** @description The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts. */
                         funds?: {
                             id: string;
@@ -11032,6 +11137,8 @@ export interface operations {
                                 changePercent: string | null;
                                 /** @description NEW without a previous figure or when it was 0; null where spent is null. */
                                 changeStatus: ("NEW" | "INCREASED" | "DECREASED" | "UNCHANGED") | null;
+                                /** @description Ruling P342 (S7): what the line spent in each of its currencies that period, its budgets first, never converted; spent is the space currency's. Empty where spent is null. */
+                                spentByCurrency?: components["schemas"]["MoneyOutput"][];
                             }[];
                         }[];
                     };

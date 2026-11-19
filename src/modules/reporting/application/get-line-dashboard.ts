@@ -1,6 +1,5 @@
 import {
   categoryLinesOf,
-  type BudgetPlanView,
   type CategoryLine,
   type Funding,
   type LineFigure,
@@ -8,12 +7,28 @@ import {
   requestReadsOf,
   unbudgetedCategoriesOf,
   viewReadsOf,
-  type ViewReads,
 } from "@/modules/budgeting/application";
 import { ok, type Period, type Result } from "@/shared/kernel";
 import { lineStateOf, type LineState } from "@/shared/kernel/line-state";
 import type { ReportingDeps } from "./deps";
 import { reportPlanOf, spaceReport, type ReportPlan, type SpaceReportInput } from "./space-report";
+
+/**
+ * Ruling P342 (S7): a line's figures in one currency, never converted ("se pasó 40.000 COP", "quedan 55 USD"). A
+ * currency the line does not budget is listed only when it spent or carried in it (`budgeted` false, planned 0).
+ */
+export interface DashboardBudget {
+  readonly currency: string;
+  readonly budgeted: boolean;
+  readonly planned: bigint;
+  readonly spent: bigint;
+  readonly carryOver: bigint;
+  readonly available: bigint;
+  readonly overspent: boolean;
+  /** Ruling P244 (M6c): of planned + carry-over in this currency; a SAVINGS line is always OK. */
+  readonly state: LineState;
+  readonly overBy: bigint | null;
+}
 
 /** HU-E7-01: one budget line of the period's plan; `overspent` while its available amount is negative. */
 export interface DashboardLine {
@@ -32,6 +47,11 @@ export interface DashboardLine {
   readonly state: LineState;
   /** How much an OVER line went past its budget, positive; null otherwise. */
   readonly overBy: bigint | null;
+  /**
+   * Ruling P342 (S7): every currency of the line, its budgets first in the line's order. The scalar figures above are
+   * the space currency's.
+   */
+  readonly budgets: readonly DashboardBudget[];
 }
 
 /** Spending no line consumes, available = −spent (HU-E6-04); `overspent` once anything was spent there. */
@@ -60,6 +80,16 @@ export interface LineTotals {
   readonly withoutSavings: { readonly planned: bigint; readonly spent: bigint; readonly available: bigint };
 }
 
+/**
+ * Ruling P342 (S7): the dashboard's sums and Unbudgeted in one currency ("Quedan 1.286.000 COP y 55 USD"), never
+ * converted.
+ */
+export interface DashboardCurrency {
+  readonly currency: string;
+  readonly unbudgeted: UnbudgetedSpending | null;
+  readonly totals: LineTotals;
+}
+
 export interface LineDashboard {
   readonly spaceId: string;
   readonly currency: string;
@@ -73,6 +103,11 @@ export interface LineDashboard {
   readonly totals: LineTotals;
   /** Ruling P234 (M6c): the line each live category consumes; [] without a plan. */
   readonly categoryLines: readonly CategoryLine[];
+  /**
+   * Ruling P342 (S7): the space currency first, then every other currency the plan or the period's spending holds,
+   * alphabetically; the scalar `unbudgeted` and `totals` are the space currency's.
+   */
+  readonly currencies: readonly DashboardCurrency[];
 }
 
 export type GetLineDashboard = (input: SpaceReportInput) => Promise<Result<LineDashboard>>;
@@ -84,10 +119,12 @@ const unbudgeted = (spent: bigint, categoryIds: readonly string[]): UnbudgetedSp
   categoryIds,
 });
 
-const sumOf = (lines: readonly DashboardLine[], figure: "planned" | "spent" | "available"): bigint =>
+type Summed = Pick<DashboardLine, "funding" | "planned" | "spent" | "available">;
+
+const sumOf = (lines: readonly Summed[], figure: "planned" | "spent" | "available"): bigint =>
   lines.reduce((sum, line) => sum + line[figure], 0n);
 
-const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | null): LineTotals => {
+const totalsOf = (lines: readonly Summed[], rest: UnbudgetedSpending | null): LineTotals => {
   const spending = lines.filter((line) => line.funding !== "SAVINGS");
   const savings = lines.filter((line) => line.funding === "SAVINGS");
   return {
@@ -103,18 +140,57 @@ const totalsOf = (lines: readonly DashboardLine[], rest: UnbudgetedSpending | nu
   };
 };
 
-/** #240: Unbudgeted's categories within the plan's stored dates, which its figures count; none to name when it is 0. */
-const unbudgetedIn = async (
-  view: BudgetPlanView,
-  categories: ViewReads["categories"],
-  ledger: Pick<ReportingDeps["spending"], "expensesByCategory">,
-): Promise<readonly string[]> => {
-  if (view.figures.unbudgeted?.spent === 0n) return [];
-  const { spaceId, period } = view.plan;
-  // Ruling P342 (S7): counted in the plan's currency, as its figures were.
-  const spending = await ledger.expensesByCategory(spaceId, period.start, period.end, view.currency);
-  return unbudgetedCategoriesOf(view, categories, spending);
-};
+type Spent = readonly { readonly categoryId: string; readonly currency: string; readonly amount: bigint }[];
+
+/** Ruling P342 (S7): the rows in `currency`, as the single-currency figures read them. */
+const spentIn = (spending: Spent, currency: string) =>
+  spending
+    .filter((row) => row.currency === currency)
+    .map(({ categoryId, amount }) => ({ categoryId, amount }));
+
+/** Ruling P342 (S7): the currencies of the rows, alphabetically, past `first`. */
+const currenciesOf = (first: readonly string[], spending: Spent): string[] => [
+  ...first,
+  ...[...new Set(spending.map((row) => row.currency))].filter((c) => !first.includes(c)).sort(),
+];
+
+/**
+ * HU-E7-01, ruling P342 (S7): a line's figures in one currency, as the plan derives them; a SAVINGS line reaching its
+ * plan is the goal, so it is never measured (P244).
+ */
+const budgetOf = (
+  funding: Funding,
+  b:
+    | LineFigure["budgets"][number]
+    | {
+        currency: string;
+        budgeted: boolean;
+        planned: bigint;
+        spent: bigint;
+        carryOver: bigint;
+        available: bigint;
+      },
+): DashboardBudget => ({
+  currency: b.currency,
+  budgeted: b.budgeted,
+  planned: b.planned,
+  spent: b.spent,
+  carryOver: b.carryOver,
+  available: b.available,
+  overspent: b.available < 0n,
+  state: funding === "SAVINGS" ? "OK" : lineStateOf(b.planned + b.carryOver, b.available),
+  overBy: funding !== "SAVINGS" && b.available < 0n ? -b.available : null,
+});
+
+/** A currency a line holds nothing in. */
+const nothingIn = (currency: string) => ({
+  currency,
+  budgeted: false,
+  planned: 0n,
+  spent: 0n,
+  carryOver: 0n,
+  available: 0n,
+});
 
 /**
  * HU-E7-01: planned, spent, carry-over and available per line of the period's plan, exactly as the plan reports
@@ -131,21 +207,33 @@ export const createGetLineDashboard =
     // The categories and the spending the view was figured from, read once in the request.
     if (view === null) {
       const categories = await deps.categories.list(space.spaceId);
-      const spending = await deps.spending.expensesByCategory(
+      // Ruling P342 (S7): every expense in its own currency, each currency apart.
+      const spending = await deps.spending.expensesByCategoryByCurrency(
         space.spaceId,
         period.start,
         period.end,
-        space.currency,
       );
-      const rest = unbudgeted(
-        spending.reduce((sum, c) => sum + c.amount, 0n),
-        unbudgetedCategoriesOf(null, categories, spending),
-      );
-      return ok({ ...base, lines: [], unbudgeted: rest, totals: totalsOf([], rest), categoryLines: [] });
+      const currencies = currenciesOf([space.currency], spending).map((currency): DashboardCurrency => {
+        const rows = spentIn(spending, currency);
+        const rest = unbudgeted(
+          rows.reduce((sum, c) => sum + c.amount, 0n),
+          unbudgetedCategoriesOf(null, categories, rows),
+        );
+        return { currency, unbudgeted: rest, totals: totalsOf([], rest) };
+      });
+      const own = currencies[0]!;
+      return ok({
+        ...base,
+        lines: [],
+        unbudgeted: own.unbudgeted,
+        totals: own.totals,
+        categoryLines: [],
+        currencies,
+      });
     }
     const { categories } = await viewReadsOf(deps, space, cache);
     const { figures } = view;
-    const lines = figures.lines.map((f) => ({
+    const lines = figures.lines.map((f): DashboardLine => ({
       lineId: f.line.id,
       name: f.line.name,
       funding: f.line.funding,
@@ -159,14 +247,39 @@ export const createGetLineDashboard =
       // Ruling P244 (M6c): a savings line reaching its plan is the goal, so it is never measured.
       state: f.line.funding === "SAVINGS" ? "OK" : lineStateOf(f.planned + f.carryOver, f.available),
       overBy: f.line.funding !== "SAVINGS" && f.available < 0n ? -f.available : null,
+      budgets: f.budgets.map((b) => budgetOf(f.line.funding, b)),
     }));
-    const rest =
-      figures.unbudgeted === null
-        ? null
-        : unbudgeted(
-            figures.unbudgeted.spent,
-            await unbudgetedIn(view, categories, (await requestReadsOf(deps, space, cache)).spending),
-          );
+    // #240: Unbudgeted's categories within the plan's stored dates, each currency's own (P342, S7).
+    const anyUnbudgeted = figures.currencies.some((c) => (c.unbudgeted?.spent ?? 0n) !== 0n);
+    const spending: Spent = anyUnbudgeted
+      ? await (
+          await requestReadsOf(deps, space, cache)
+        ).spending.expensesByCategoryByCurrency(space.spaceId, view.plan.period.start, view.plan.period.end)
+      : [];
+    const currencies = figures.currencies.map((c): DashboardCurrency => {
+      const rest =
+        c.unbudgeted === null
+          ? null
+          : unbudgeted(
+              c.unbudgeted.spent,
+              c.unbudgeted.spent === 0n
+                ? []
+                : unbudgetedCategoriesOf(view, categories, spentIn(spending, c.currency)),
+            );
+      const inCurrency = lines.map((line) => ({
+        funding: line.funding,
+        ...(line.budgets.find((b) => b.currency === c.currency) ?? nothingIn(c.currency)),
+      }));
+      return { currency: c.currency, unbudgeted: rest, totals: totalsOf(inCurrency, rest) };
+    });
+    const own = currencies[0]!;
     const categoryLines = categoryLinesOf(view, categories);
-    return ok({ ...base, lines, unbudgeted: rest, totals: totalsOf(lines, rest), categoryLines });
+    return ok({
+      ...base,
+      lines,
+      unbudgeted: own.unbudgeted,
+      totals: own.totals,
+      categoryLines,
+      currencies,
+    });
   };

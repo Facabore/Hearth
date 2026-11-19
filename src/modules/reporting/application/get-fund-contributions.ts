@@ -45,6 +45,15 @@ export interface FundContributionReport {
    */
   readonly members: readonly (FundContribution & { readonly paidDirectly: readonly PaidDirectly[] })[];
   readonly totals: FundTotals;
+  /**
+   * Ruling P342 (S7): every member's expected (their assigned amounts on the SHARED_FUND lines' budgets in that
+   * currency) and actual contribution per currency, the space currency first, never converted.
+   */
+  readonly currencies: readonly {
+    readonly currency: string;
+    readonly members: readonly FundContribution[];
+    readonly totals: FundTotals;
+  }[];
   /** #240 (board E9-10 04): the space's live fund accounts by name, so a screen says whose fund it tracks. */
   readonly funds: readonly { readonly id: string; readonly name: string }[];
 }
@@ -102,19 +111,43 @@ export const createGetFundContributions =
       view === null
         ? await deps.members.listCurrent(space.spaceId)
         : (await viewReadsOf(deps, space, cache)).members;
-    const fundLines = (view?.figures.lines ?? [])
-      .filter((f) => f.line.funding === "SHARED_FUND")
-      .map((f) => ({ members: f.allocation.members }));
-    const actual = await deps.sums.fundContributionsByMember(
+    const shared = (view?.figures.lines ?? []).filter((f) => f.line.funding === "SHARED_FUND");
+    // Ruling P342 (S7, T6): each contribution in its own currency, never by an account leg.
+    const actual = await deps.sums.fundContributionsByMemberByCurrency(
       space.spaceId,
       period.start,
       period.end,
-      space.currency,
     );
+    const memberIds = members.map((m) => m.id);
+    const inCurrency = (currency: string) =>
+      fundContributions(
+        memberIds,
+        shared.map((f) => ({
+          members: f.budgets.find((b) => b.currency === currency)?.allocation.members ?? [],
+        })),
+        actual.filter((a) => a.currency === currency),
+      );
+    const currencyList = [
+      ...new Set([
+        space.currency,
+        ...(view?.figures.currencies.map((c) => c.currency) ?? []),
+        ...[...new Set(actual.map((a) => a.currency))].sort(),
+      ]),
+    ];
+    const totalsOf = (rows: readonly FundContribution[]): FundTotals => ({
+      expected: rows.reduce((total, row) => total + row.expected, 0n),
+      actual: rows.reduce((total, row) => total + row.actual, 0n),
+      difference: rows.reduce((total, row) => total + row.difference, 0n),
+    });
+    const currencies = currencyList.map((currency) => {
+      const inIt = inCurrency(currency);
+      return { currency, members: inIt, totals: totalsOf(inIt) };
+    });
+    // The space currency's, as before T6: expected follows the lines' own figures in it.
     const rows = fundContributions(
-      members.map((m) => m.id),
-      fundLines,
-      actual,
+      memberIds,
+      shared.map((f) => ({ members: f.allocation.members })),
+      actual.filter((a) => a.currency === space.currency),
     );
     const direct = await paidDirectlyByMember(deps, space, period, view?.figures.lines ?? [], cache);
     const funds = [...(await deps.funds.fundsOf(space.spaceId))]
@@ -133,6 +166,7 @@ export const createGetFundContributions =
         actual: sum((r) => r.actual),
         difference: sum((r) => r.difference),
       },
+      currencies,
       funds,
     });
   };

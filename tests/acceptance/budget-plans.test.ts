@@ -68,6 +68,19 @@ describe("create a plan for a period (HU-E6-01)", () => {
       totalCapacity: cop(0),
       planned: cop(0),
       unallocated: cop(0),
+      // Ruling P342 (S7): the plan per currency; a new plan holds only the space's.
+      currencies: [
+        {
+          capacities: [
+            { memberId: h.ana.memberId, amount: cop(0), share: null },
+            { memberId: h.juan.memberId, amount: cop(0), share: null },
+          ],
+          totalCapacity: cop(0),
+          planned: cop(0),
+          unallocated: cop(0),
+          unbudgeted: { spent: cop(0), available: cop(0) },
+        },
+      ],
       lines: [],
       unbudgeted: { spent: cop(0), available: cop(0) },
     });

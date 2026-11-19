@@ -13615,7 +13615,7 @@
                 "properties": {
                   "capacities": {
                     "minItems": 1,
-                    "maxItems": 100,
+                    "maxItems": 1000,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -13855,6 +13855,14 @@
                   "plannedAmount": {
                     "$ref": "#/components/schemas/Money"
                   },
+                  "budgets": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Money"
+                    }
+                  },
                   "funding": {
                     "type": "string",
                     "enum": [
@@ -13901,8 +13909,7 @@
                   }
                 },
                 "required": [
-                  "name",
-                  "plannedAmount"
+                  "name"
                 ]
               }
             }
@@ -14040,6 +14047,14 @@
                   },
                   "plannedAmount": {
                     "$ref": "#/components/schemas/Money"
+                  },
+                  "budgets": {
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Money"
+                    }
                   },
                   "funding": {
                     "type": "string",
@@ -14530,7 +14545,7 @@
                         "const": "FIXED"
                       },
                       "members": {
-                        "maxItems": 100,
+                        "maxItems": 1000,
                         "type": "array",
                         "items": {
                           "type": "object",
@@ -14891,6 +14906,14 @@
           },
           {
             "in": "query",
+            "name": "currency",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            }
+          },
+          {
+            "in": "query",
             "name": "amount",
             "schema": {
               "type": "string",
@@ -15179,6 +15202,64 @@
                               }
                             ],
                             "description": "How much an OVER line went past its budget, positive; null otherwise."
+                          },
+                          "budgets": {
+                            "description": "Ruling P342 (S7): the line in every currency, its budgets first in the line's order, then any other currency it spent or carried in. A movement counts only against the budget in its own currency; nothing is converted. The line's other amounts are the space currency's.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "budgeted": {
+                                  "type": "boolean",
+                                  "description": "False for a currency the line does not budget but spent or carried in; its planned is then 0."
+                                },
+                                "planned": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "spent": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "carryOver": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "available": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "overspent": {
+                                  "type": "boolean"
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "OK",
+                                    "NEAR",
+                                    "HIGH",
+                                    "OVER"
+                                  ]
+                                },
+                                "overBy": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "budgeted",
+                                "planned",
+                                "spent",
+                                "carryOver",
+                                "available",
+                                "overspent",
+                                "state",
+                                "overBy"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -15278,6 +15359,99 @@
                       ],
                       "additionalProperties": false,
                       "description": "Σ of the lines' figures plus Unbudgeted's spent and available; planned counts the lines only."
+                    },
+                    "currencies": {
+                      "description": "Ruling P342 (S7): Unbudgeted and the totals per currency, the space currency first, then every other currency the plan or the period's spending holds, alphabetically (\"Quedan 1.286.000 COP y 55 USD\"). The scalar unbudgeted and totals are the space currency's.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "unbudgeted": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "spent": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  "available": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  "overspent": {
+                                    "type": "boolean"
+                                  },
+                                  "categoryIds": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "spent",
+                                  "available",
+                                  "overspent",
+                                  "categoryIds"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "totals": {
+                            "type": "object",
+                            "properties": {
+                              "planned": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "spent": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "available": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "saved": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "withoutSavings": {
+                                "type": "object",
+                                "properties": {
+                                  "planned": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  "spent": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  },
+                                  "available": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  }
+                                },
+                                "required": [
+                                  "planned",
+                                  "spent",
+                                  "available"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "planned",
+                              "spent",
+                              "available",
+                              "saved",
+                              "withoutSavings"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "unbudgeted",
+                          "totals"
+                        ],
+                        "additionalProperties": false
+                      }
                     },
                     "categoryLines": {
                       "type": "array",
@@ -15549,6 +15723,114 @@
                               ],
                               "additionalProperties": false
                             }
+                          },
+                          "budgets": {
+                            "description": "Ruling P342 (S7): the line's row in each of its currencies, its budgets first: assigned by the line's rule in that currency, contributed and consumed counting only the movements in it, never converted. members is the space currency's.",
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "currency": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "NOT_ALLOCATED",
+                                        "TRACKED_AT_FUND_LEVEL",
+                                        "INVALID_ALLOCATION"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "members": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "memberId": {
+                                        "type": "string"
+                                      },
+                                      "assigned": {
+                                        "anyOf": [
+                                          {
+                                            "$ref": "#/components/schemas/MoneyOutput"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "contributed": {
+                                        "anyOf": [
+                                          {
+                                            "$ref": "#/components/schemas/MoneyOutput"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "consumed": {
+                                        "anyOf": [
+                                          {
+                                            "$ref": "#/components/schemas/MoneyOutput"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "gap": {
+                                        "anyOf": [
+                                          {
+                                            "$ref": "#/components/schemas/MoneyOutput"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "status": {
+                                        "anyOf": [
+                                          {
+                                            "type": "string",
+                                            "enum": [
+                                              "OVER_CONTRIBUTED",
+                                              "UNDER_CONTRIBUTED",
+                                              "ON_TARGET"
+                                            ]
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "memberId",
+                                      "assigned",
+                                      "contributed",
+                                      "consumed",
+                                      "gap",
+                                      "status"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "currency",
+                                "reason",
+                                "members"
+                              ],
+                              "additionalProperties": false
+                            }
                           }
                         },
                         "required": [
@@ -15557,6 +15839,65 @@
                           "funding",
                           "rule",
                           "reason",
+                          "members"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "currencies": {
+                      "description": "Ruling P342 (S7): every member's total gap per currency, the space currency first; empty without a plan. members is the space currency's.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "currency": {
+                            "type": "string"
+                          },
+                          "members": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string"
+                                },
+                                "gap": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "status": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "OVER_CONTRIBUTED",
+                                        "UNDER_CONTRIBUTED",
+                                        "ON_TARGET"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "gap",
+                                "status"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "currency",
                           "members"
                         ],
                         "additionalProperties": false
@@ -15798,6 +16139,67 @@
                       ],
                       "additionalProperties": false,
                       "description": "Σ over the listed members of expected, actual and difference."
+                    },
+                    "currencies": {
+                      "description": "Ruling P342 (S7): expected (the SHARED_FUND lines' assigned amounts in that currency) and actual (the contributions in that currency) per member and currency, the space currency first, never converted. members and totals are the space currency's.",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "members": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string"
+                                },
+                                "expected": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "actual": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                },
+                                "difference": {
+                                  "$ref": "#/components/schemas/MoneyOutput"
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "expected",
+                                "actual",
+                                "difference"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "totals": {
+                            "type": "object",
+                            "properties": {
+                              "expected": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "actual": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              },
+                              "difference": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              }
+                            },
+                            "required": [
+                              "expected",
+                              "actual",
+                              "difference"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "members",
+                          "totals"
+                        ],
+                        "additionalProperties": false
+                      }
                     },
                     "funds": {
                       "description": "The space's live fund accounts (SHARED_FUND) by name, as every member reads them in the space's accounts.",
@@ -16428,6 +16830,13 @@
                                     }
                                   ],
                                   "description": "NEW without a previous figure or when it was 0; null where spent is null."
+                                },
+                                "spentByCurrency": {
+                                  "description": "Ruling P342 (S7): what the line spent in each of its currencies that period, its budgets first, never converted; spent is the space currency's. Empty where spent is null.",
+                                  "type": "array",
+                                  "items": {
+                                    "$ref": "#/components/schemas/MoneyOutput"
+                                  }
                                 }
                               },
                               "required": [
@@ -19499,6 +19908,80 @@
           "unallocated": {
             "$ref": "#/components/schemas/MoneyOutput"
           },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "capacities": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "memberId": {
+                        "type": "string"
+                      },
+                      "amount": {
+                        "$ref": "#/components/schemas/MoneyOutput"
+                      },
+                      "share": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "memberId",
+                      "amount",
+                      "share"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "totalCapacity": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "planned": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "unallocated": {
+                  "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "unbudgeted": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "spent": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        },
+                        "available": {
+                          "$ref": "#/components/schemas/MoneyOutput"
+                        }
+                      },
+                      "required": [
+                        "spent",
+                        "available"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "capacities",
+                "totalCapacity",
+                "planned",
+                "unallocated",
+                "unbudgeted"
+              ],
+              "additionalProperties": false
+            }
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -19518,6 +20001,105 @@
                 },
                 "plannedAmount": {
                   "$ref": "#/components/schemas/MoneyOutput"
+                },
+                "budgets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "planned": {
+                        "$ref": "#/components/schemas/MoneyOutput"
+                      },
+                      "budgeted": {
+                        "type": "boolean"
+                      },
+                      "capacityShare": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "allocation": {
+                        "type": "object",
+                        "properties": {
+                          "members": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "memberId": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "assigned": {
+                                  "anyOf": [
+                                    {
+                                      "$ref": "#/components/schemas/MoneyOutput"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "memberId",
+                                "amount",
+                                "assigned"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "error": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "InvalidAllocation"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "members",
+                          "error"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "spent": {
+                        "$ref": "#/components/schemas/MoneyOutput"
+                      },
+                      "carryOver": {
+                        "$ref": "#/components/schemas/MoneyOutput"
+                      },
+                      "available": {
+                        "$ref": "#/components/schemas/MoneyOutput"
+                      }
+                    },
+                    "required": [
+                      "planned",
+                      "budgeted",
+                      "capacityShare",
+                      "allocation",
+                      "spent",
+                      "carryOver",
+                      "available"
+                    ],
+                    "additionalProperties": false
+                  }
                 },
                 "funding": {
                   "type": "string",
@@ -21545,7 +22127,15 @@
                               "type": "string"
                             },
                             "plannedAmount": {
+                              "description": "The line's budget in the space currency; 0 when it plans none in it (ruling P342, S7).",
                               "$ref": "#/components/schemas/MoneyOutput"
+                            },
+                            "budgets": {
+                              "description": "Ruling P342 (S7): every budget of the line, one per currency, in its order; never converted.",
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/MoneyOutput"
+                              }
                             },
                             "funding": {
                               "type": "string"

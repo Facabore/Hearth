@@ -36,12 +36,66 @@ import {
 const percentOrNull = (basisPoints: number | null): string | null =>
   basisPoints === null ? null : percentOf(basisPoints);
 
+/** Ruling P342 (S7): one member's part of one budget of a line. */
+const BudgetAllocationMemberSchema = z.object({
+  memberId: z.string(),
+  /** FIXED lines: the member's fixed amount in this currency. */
+  amount: MoneySchema.nullable(),
+  /** Derived on read; null while the allocation of this currency is invalid. */
+  assigned: MoneySchema.nullable(),
+});
+
+/**
+ * Ruling P342 (S7, owner: "Líneas por moneda"): a line's figures in one currency, never converted. A currency the line
+ * budgets has its planned amount; one it does not budget is listed only when something was spent or carried in it
+ * (`budgeted` false, planned 0).
+ */
+export const LineBudgetSchema = z.object({
+  planned: MoneySchema,
+  budgeted: z.boolean(),
+  /** The planned amount as a percentage of the capacity in this currency, two decimals; null without capacity in it. */
+  capacityShare: z.string().nullable(),
+  /** The line's rule in this currency ("Misma regla, por moneda"); empty members on a NONE line. */
+  allocation: z.object({
+    members: z.array(BudgetAllocationMemberSchema),
+    error: z.enum(["InvalidAllocation"]).nullable(),
+  }),
+  /** Only the movements in this currency count (P342: a movement counts only against the budget in its currency). */
+  spent: MoneySchema,
+  /** The line's rollover mode applied to this currency's available in the plan it was copied from. */
+  carryOver: MoneySchema,
+  /** planned + carry-over − spent, in this currency. */
+  available: MoneySchema,
+});
+
+/** Ruling P342 (S7): a plan's totals in one currency ("Por repartir 0 COP · 0 USD"). */
+export const PlanCurrencySchema = z.object({
+  /** Every current member in join order with their contribution in this currency. */
+  capacities: z.array(z.object({ memberId: z.string(), amount: MoneySchema, share: z.string().nullable() })),
+  totalCapacity: MoneySchema,
+  planned: MoneySchema,
+  /** "Por repartir": total capacity − Σ planned in this currency; negative once capacities fell below the lines. */
+  unallocated: MoneySchema,
+  /** HU-E6-04: unmapped spending in this currency; null when the plan has a catch-all line. */
+  unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema }).nullable(),
+});
+
 export const BudgetLineSchema = z.object({
   id: z.string(),
   /** HU-E6-06, HU-E6-09: the line of the previous period's plan this one was copied from; null for new lines. */
   originLineId: z.string().nullable(),
   name: z.string(),
+  /**
+   * The line's budget in the space currency. Ruling P342 (S7): a line may plan several currencies (`budgets`); one
+   * without a budget in the space currency reports 0 here.
+   */
   plannedAmount: MoneySchema,
+  /**
+   * Ruling P342 (S7): every currency of the line, its budgets first in the line's order, then any other currency it
+   * spent or carried in. The scalar amounts of the line (plannedAmount, spent, carryOver, available, capacityShare and
+   * the allocation's amounts) stay the space currency's.
+   */
+  budgets: z.array(LineBudgetSchema).optional(),
   funding: z.enum(FUNDINGS),
   rolloverMode: z.enum(ROLLOVER_MODES),
   isCatchAll: z.boolean(),
@@ -112,6 +166,12 @@ export const BudgetPlanSchema = z.object({
   planned: MoneySchema,
   /** Total capacity − Σ planned; negative once capacities were reduced below the lines (HU-E6-02). */
   unallocated: MoneySchema,
+  /**
+   * Ruling P342 (S7): the plan per currency, the space currency first, then every currency a current member
+   * contributes, a line budgets or was spent in, alphabetically. The scalar capacities, totalCapacity, planned,
+   * unallocated and unbudgeted stay the space currency's.
+   */
+  currencies: z.array(PlanCurrencySchema).optional(),
   lines: z.array(BudgetLineSchema),
   /** HU-E6-04: unmapped spending when the plan has no catch-all line; null when it has one. */
   unbudgeted: z.object({ spent: MoneySchema, available: MoneySchema }).nullable(),
@@ -142,12 +202,18 @@ const Id = z.string().min(1).max(64);
 /** Members per request: bounds the payload; membership is checked by the domain. */
 const MAX_MEMBERS = 100;
 
-/** HU-E6-02: the listed members' capacities; members not listed keep theirs. */
+/** Ruling P342 (S7): contributions per member and currency; bounds the payload. */
+const MAX_CONTRIBUTIONS = MAX_MEMBERS * 10;
+
+/**
+ * HU-E6-02: the listed members' capacities; members not listed keep theirs. Ruling P342 (S7): in any currency, one per
+ * member and currency ("Juan 2.400.000 COP y 100 USD"); a member and currency not listed keep theirs, 0 clears one.
+ */
 export const SetCapacitiesBodySchema = z.object({
   capacities: z
     .array(z.object({ memberId: Id, amount: MoneySchema }))
     .min(1)
-    .max(MAX_MEMBERS),
+    .max(MAX_CONTRIBUTIONS),
 });
 
 /** HU-E6-02: the capacities as the use case takes them; fails only for currencies the kernel does not know. */
@@ -168,7 +234,11 @@ export const CapacitySuggestionSchema = z.object({
   memberId: z.string(),
   /** The period whose income is suggested: the one before the plan's (spec 5.3). */
   period: PeriodSchema,
-  /** Null when the caller's personal space keeps another currency (no conversion, D6). */
+  /**
+   * The income in the personal space's own currency, never converted; null without a personal space. Ruling P342
+   * (S7): a capacity may be in any currency, so since T6 an income in another currency than the plan space's is
+   * suggested in it instead of null.
+   */
   suggested: MoneySchema.nullable(),
 });
 
@@ -183,25 +253,53 @@ const MAX_ACCOUNTS = 20;
 /** D26: payers per line; the use case checks that each is a current member who is not a VIEWER. */
 const MAX_PAYERS = 50;
 
-/** HU-E6-03: a new line; DIRECT and RESET unless given, and not the catch-all unless asked (HU-E6-04). */
-export const AddLineBodySchema = z.object({
-  name: z.string().max(200),
-  plannedAmount: MoneySchema,
-  funding: z.enum(FUNDINGS).optional(),
-  rolloverMode: z.enum(ROLLOVER_MODES).optional(),
-  savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
-  isCatchAll: z.boolean().optional(),
-  /** D26: who usually pays the line; nobody unless given. */
-  payerMemberIds: z.array(Id).max(MAX_PAYERS).optional(),
-  /** D26: EVERY_PERIOD unless given; only with payers. */
-  payersScope: z.enum(PAYERS_SCOPES).optional(),
-});
+/** Ruling P342 (S7): budgets per line; bounds the payload. */
+const MAX_BUDGETS = 20;
+
+/** Ruling P342 (S7): `plannedAmount` (one budget) or `budgets` (several), never both. */
+const oneWayToPlan = (body: { plannedAmount?: unknown; budgets?: unknown }) =>
+  body.plannedAmount === undefined || body.budgets === undefined;
+
+/**
+ * HU-E6-03: a new line; DIRECT and RESET unless given, and not the catch-all unless asked (HU-E6-04). Ruling P342
+ * (S7): `plannedAmount` plans one currency, `budgets` one budget per currency, in any currency, each positive; one of
+ * the two is required.
+ */
+export const AddLineBodySchema = z
+  .object({
+    name: z.string().max(200),
+    plannedAmount: MoneySchema.optional(),
+    budgets: z.array(MoneySchema).min(1).max(MAX_BUDGETS).optional(),
+    funding: z.enum(FUNDINGS).optional(),
+    rolloverMode: z.enum(ROLLOVER_MODES).optional(),
+    savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
+    isCatchAll: z.boolean().optional(),
+    /** D26: who usually pays the line; nobody unless given. */
+    payerMemberIds: z.array(Id).max(MAX_PAYERS).optional(),
+    /** D26: EVERY_PERIOD unless given; only with payers. */
+    payersScope: z.enum(PAYERS_SCOPES).optional(),
+  })
+  .refine((body) => body.plannedAmount !== undefined || body.budgets !== undefined, {
+    error: "Provide plannedAmount or budgets",
+  })
+  .refine(oneWayToPlan, { error: "Provide plannedAmount or budgets, not both" });
+
+/** The amounts a body names, as Money; fails only for currencies the kernel does not know. */
+const moniesFromDto = (dtos: readonly z.infer<typeof MoneySchema>[]): Result<Money[]> => {
+  const monies: Money[] = [];
+  for (const dto of dtos) {
+    const money = moneyFromDto(dto);
+    if (!money.ok) return money;
+    monies.push(money.value);
+  }
+  return ok(monies);
+};
 
 /** HU-E6-03: the body as AddBudgetLine takes it; fails only for currencies the kernel does not know. */
 export const lineFromBody = (body: z.infer<typeof AddLineBodySchema>): Result<LineInput> => {
-  const { plannedAmount: planned, ...fields } = body;
-  const plannedAmount = moneyFromDto(planned);
-  return plannedAmount.ok ? ok({ ...fields, budgets: [plannedAmount.value] }) : plannedAmount;
+  const { plannedAmount, budgets, ...fields } = body;
+  const monies = moniesFromDto(budgets ?? (plannedAmount === undefined ? [] : [plannedAmount]));
+  return monies.ok ? ok({ ...fields, budgets: monies.value }) : monies;
 };
 
 /**
@@ -211,7 +309,10 @@ export const lineFromBody = (body: z.infer<typeof AddLineBodySchema>): Result<Li
 export const UpdateLineBodySchema = z
   .object({
     name: z.string().max(200).optional(),
+    /** Ruling P342 (S7): the line's budget in this amount's currency, added when it has none; the others stay. */
     plannedAmount: MoneySchema.optional(),
+    /** Ruling P342 (S7): the line's whole set of budgets, one per currency; a currency left out is dropped. */
+    budgets: z.array(MoneySchema).min(1).max(MAX_BUDGETS).optional(),
     funding: z.enum(FUNDINGS).optional(),
     rolloverMode: z.enum(ROLLOVER_MODES).optional(),
     savingsAccountIds: z.array(Id).max(MAX_ACCOUNTS).optional(),
@@ -222,13 +323,17 @@ export const UpdateLineBodySchema = z
   })
   .refine((body) => Object.values(body).some((value) => value !== undefined), {
     error: "Provide at least one field to change",
-  });
+  })
+  .refine(oneWayToPlan, { error: "Provide plannedAmount or budgets, not both" });
 
 /** The body as UpdateBudgetLine takes it; fails only for currencies the kernel does not know. */
 export const lineChangesFromBody = (body: z.infer<typeof UpdateLineBodySchema>): Result<LineChanges> => {
-  if (body.plannedAmount === undefined) return ok({ ...body, plannedAmount: undefined });
-  const plannedAmount = moneyFromDto(body.plannedAmount);
-  return plannedAmount.ok ? ok({ ...body, plannedAmount: plannedAmount.value }) : plannedAmount;
+  const { plannedAmount, budgets, ...fields } = body;
+  const planned = plannedAmount === undefined ? ok(undefined) : moneyFromDto(plannedAmount);
+  if (!planned.ok) return planned;
+  const monies = budgets === undefined ? ok(undefined) : moniesFromDto(budgets);
+  if (!monies.ok) return monies;
+  return ok({ ...fields, plannedAmount: planned.value, budgets: monies.value });
 };
 
 /** Categories per line: bounds the payload; the use case checks that each is a category of the space. */
@@ -245,9 +350,13 @@ export const AllocationBodySchema = z.discriminatedUnion("rule", [
     rule: z.literal("PERCENT"),
     members: z.array(z.object({ memberId: Id, percent: PercentSchema })).max(MAX_MEMBERS),
   }),
+  /**
+   * Ruling P342 (S7, "Misma regla, por moneda"): a FIXED amount per member and budget currency; each currency's add up
+   * to the line's budget in it. A PERCENT share serves every currency of the line.
+   */
   z.object({
     rule: z.literal("FIXED"),
-    members: z.array(z.object({ memberId: Id, amount: MoneySchema })).max(MAX_MEMBERS),
+    members: z.array(z.object({ memberId: Id, amount: MoneySchema })).max(MAX_CONTRIBUTIONS),
   }),
 ]);
 
@@ -275,10 +384,17 @@ export const allocationFromBody = (body: z.infer<typeof AllocationBodySchema>): 
   }
 };
 
-/** HU-E6-08: the expense whose default split is previewed; `amount` in minor units of the space currency. */
+/**
+ * HU-E6-08: the expense whose default split is previewed; `amount` in minor units of `currency`. Ruling P342 (S7): the
+ * expense's currency, the space's unless given; the split follows the line's budget in it.
+ */
 export const DefaultSplitQuerySchema = z.object({
   categoryId: Id,
   date: z.iso.date(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, { error: "Currency must be an ISO 4217 code" })
+    .optional(),
   // At most 18 digits (below 10^18 minor units, under the ledger's int64 bound), so any value it accepts fits and
   // BigInt() only ever sees what matched; a preview needs no amount beyond that.
   amount: z
@@ -317,6 +433,26 @@ export const defaultSplitDto = (view: DefaultSplitView): z.infer<typeof DefaultS
       : view.shares.map((s) => ({ memberId: s.memberId, amount: moneyOf(s.amount, view.currency) })),
 });
 
+const lineBudgetDto = (
+  rule: LineFigure["allocation"]["rule"],
+  b: LineFigure["budgets"][number],
+): z.infer<typeof LineBudgetSchema> => ({
+  planned: moneyOf(b.planned, b.currency),
+  budgeted: b.budgeted,
+  capacityShare: percentOrNull(b.capacityShareBasisPoints),
+  allocation: {
+    members: b.allocation.members.map((m) => ({
+      memberId: m.memberId,
+      amount: rule === "FIXED" && m.value !== null ? moneyOf(m.value, b.currency) : null,
+      assigned: m.assigned === null ? null : moneyOf(m.assigned, b.currency),
+    })),
+    error: b.allocation.invalid ? "InvalidAllocation" : null,
+  },
+  spent: moneyOf(b.spent, b.currency),
+  carryOver: moneyOf(b.carryOver, b.currency),
+  available: moneyOf(b.available, b.currency),
+});
+
 const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLineSchema> => {
   const { line, allocation } = figure;
   return {
@@ -324,6 +460,7 @@ const lineDto = (figure: LineFigure, currency: string): z.infer<typeof BudgetLin
     originLineId: line.originLineId,
     name: line.name,
     plannedAmount: moneyOf(figure.planned, currency),
+    budgets: figure.budgets.map((b) => lineBudgetDto(line.allocationRule, b)),
     funding: line.funding,
     rolloverMode: line.rolloverMode,
     isCatchAll: line.isCatchAll,
@@ -377,6 +514,23 @@ export const budgetPlanDto = ({
   totalCapacity: moneyOf(figures.totalCapacity, currency),
   planned: moneyOf(figures.planned, currency),
   unallocated: moneyOf(figures.unallocated, currency),
+  currencies: figures.currencies.map((c) => ({
+    capacities: c.capacities.map((m) => ({
+      memberId: m.memberId,
+      amount: moneyOf(m.amount, c.currency),
+      share: percentOrNull(m.shareBasisPoints),
+    })),
+    totalCapacity: moneyOf(c.totalCapacity, c.currency),
+    planned: moneyOf(c.planned, c.currency),
+    unallocated: moneyOf(c.unallocated, c.currency),
+    unbudgeted:
+      c.unbudgeted === null
+        ? null
+        : {
+            spent: moneyOf(c.unbudgeted.spent, c.currency),
+            available: moneyOf(c.unbudgeted.available, c.currency),
+          },
+  })),
   lines: figures.lines.map((figure) => lineDto(figure, currency)),
   unbudgeted:
     figures.unbudgeted === null

@@ -16,6 +16,7 @@ export const GET = defineRoute({
       userId: user!.id,
       categoryId: query.categoryId,
       date: date.value,
+      ...(query.currency === undefined ? {} : { currency: query.currency }),
       amount: query.amount === undefined ? null : BigInt(query.amount),
     });
     return result.ok ? ok({ status: 200, body: defaultSplitDto(result.value) }) : result;
