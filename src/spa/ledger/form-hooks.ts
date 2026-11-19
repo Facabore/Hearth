@@ -1,33 +1,19 @@
-import { queryOptions, useQueries, useQuery, useSuspenseQueries } from "@tanstack/react-query";
+import { useSuspenseQueries } from "@tanstack/react-query";
 import { notFound } from "@tanstack/react-router";
-import { lineWatchOf, peopleOf, sharedContextOf, type SharedExpenseContext } from "@/modules/ledger/ui";
+import { sharedContextOf, type SharedExpenseContext } from "@/modules/ledger/ui";
 import { personalSpaceOf } from "@/modules/spaces/ui";
-import type { Api } from "@/shared/ui/api/client";
-import type { AccountUsageDto, MemberDto, TransactionDto } from "@/shared/ui/api/dto";
-import { nowIn } from "@/shared/ui/time/when";
+import type { TransactionDto } from "@/shared/ui/api/dto";
 import { useApis } from "../api";
-import { accountsQuery, categoriesQuery, lineReportQuery, membersQuery, periodQuery } from "../reads";
+import { accountsQuery, categoriesQuery, membersQuery } from "../reads";
 import { sharedSpace, type Viewer } from "../load";
-import { read } from "../read";
-import { myFriendsQuery } from "../shell";
-import { ledgerKeys, transactionQuery } from "./queries";
+import { transactionQuery } from "./queries";
 
 /**
- * The record and edit forms' query hooks (P127 in the SPA, ADR 0006): each reads what its loader put in the cache and
- * hands the form its props. A module apart from the home's and the lists' hooks (`hooks.ts`), so the forms' routes
- * load only what the forms read.
+ * The edit form's query hooks and the shared space's payers, which the record and recurrence forms read too (P127 in
+ * the SPA, ADR 0006): each reads what its loader put in the cache and hands the form its props. A module apart from
+ * the home's and the lists' hooks (`hooks.ts`), and from the record form's own (`record-hooks.ts`), so each form's
+ * route loads only what its form reads (ADR 0004).
  */
-
-/**
- * Ruling P337 (#334): how much the person used each account lately, which orders "Desde" and learns its default. Only
- * the record form reads it, never a loader, so the screens that share the ledger's queries do not carry it (ADR 0004):
- * the form opens without it and orders its accounts once it arrives.
- */
-export const accountUsageQuery = (api: Api) =>
-  queryOptions<AccountUsageDto>({
-    queryKey: ledgerKeys.accountUsage(),
-    queryFn: () => read(api.GET("/api/v1/me/account-usage")),
-  });
 
 /** Queries a screen reads only sometimes, as a plain list: hooks are called the same way on every render. */
 const when = <T>(yes: boolean, queries: T[]): T[] => (yes ? queries : []);
@@ -59,43 +45,6 @@ export const useShared = (
   if (!context) throw notFound();
   // Ruling P309 (S6): the split sheet offers to add guests when the viewer's role in this space allows it.
   return { shared: { ...context, space: viewer.space } };
-};
-
-export const useRecord = (viewer: Viewer) => {
-  const { api } = useApis();
-  const spaceId = viewer.space.id;
-  const [accounts, groups] = useSuspenseQueries({
-    queries: [accountsQuery(api, spaceId, "active"), categoriesQuery(api, spaceId, "active")],
-  });
-  const { shared } = useShared(viewer, "active");
-  const others = sharedSpace(viewer.space) ? [] : viewer.spaces.filter(sharedSpace);
-  // #338: the direct spaces' people come from Amigos' one read, so the form's reads never grow with the person's
-  // friends; only the groups, which do not, read their members. The loader reads both (`loadRecord`); neither holds
-  // the form up.
-  const friends = useQuery({ ...myFriendsQuery(api), enabled: others.some((s) => s.kind === "DIRECT") });
-  const sharedGroups = others.filter((space) => space.kind === "SHARED");
-  const memberReads = useQueries({ queries: sharedGroups.map((space) => membersQuery(api, space.id)) });
-  const today = nowIn(new Date(), viewer.me.timezone).date;
-  const period = useQuery(periodQuery(api, spaceId, today));
-  const label = period.data?.label;
-  const report = useQuery({ ...lineReportQuery(api, spaceId, label ?? ""), enabled: label !== undefined });
-  // Ruling P337: never holds the form up; without it Desde lists by name and starts on the last account used.
-  const usage = useQuery(accountUsageQuery(api));
-  const membersBySpace: Record<string, readonly MemberDto[]> = {};
-  sharedGroups.forEach((space, i) => {
-    const members = memberReads[i]?.data;
-    if (members) membersBySpace[space.id] = members;
-  });
-  return {
-    accounts: accounts.data,
-    groups: groups.data,
-    shared,
-    people: shared
-      ? undefined
-      : peopleOf({ meUserId: viewer.me.id, spaces: others, friends: friends.data ?? [], membersBySpace }),
-    lineWatch: report.data ? lineWatchOf(report.data) : null,
-    accountUsage: usage.data ?? null,
-  };
 };
 
 const accountsOf = (tx: TransactionDto): ReadonlySet<string> =>

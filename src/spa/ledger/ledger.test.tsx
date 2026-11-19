@@ -541,6 +541,44 @@ describe("the ledger flow in the SPA (slice 2 of #199, ADR 0006)", () => {
     expect(document.title).toBe(`${es.ledger.edit.title} · Hearth`);
   });
 
+  describe("`?pick=` opens the editor's own account picker (P344, S6)", () => {
+    const payment = transactionDto({
+      id: "t-pay",
+      type: "SETTLEMENT",
+      description: "",
+      amount: cop(947_000),
+      payerMemberId: "m-ana",
+      receivingMemberId: "m-juan",
+      sourceAccountId: null,
+      destinationAccountId: null,
+    });
+    const household = () =>
+      ledgerApi({
+        "GET /api/v1/spaces/{spaceId}/transactions/{transactionId}": () => jsonResponse(payment),
+        "GET /api/v1/spaces/{spaceId}/members": () =>
+          jsonResponse({
+            items: [
+              memberDto(),
+              memberDto({ id: "m-juan", userId: "u-juan", displayName: "Juan", role: "MEMBER" }),
+            ],
+          }),
+      });
+
+    it("opens Sale de on a payment the editor made with no account", async () => {
+      renderSpa("/spaces/sp-household/transactions/t-pay/edit?pick=out", household().routes);
+      const sheet = await screen.findByRole("dialog", { name: "Sale de" }, { timeout: 10_000 });
+      expect(within(sheet).getAllByRole("radio", { name: /Bancolombia/ }).length).toBeGreaterThan(0);
+    });
+
+    it("opens the payment's edit as before without it, and ignores a side it does not know", async () => {
+      renderSpa("/spaces/sp-household/transactions/t-pay/edit?pick=sideways", household().routes);
+      expect(
+        await screen.findByRole("heading", { name: es.ledger.edit.paymentTitle }, { timeout: 10_000 }),
+      ).toBeVisible();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("answers an edit of a transaction that is gone with the not-found screen", async () => {
     const { routes } = ledgerApi();
     renderSpa("/spaces/sp-personal/transactions/t-gone/edit", routes);

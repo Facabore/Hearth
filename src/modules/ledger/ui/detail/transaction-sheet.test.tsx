@@ -631,12 +631,18 @@ describe("a side that is the viewer's with no account (P344, S6, board 2)", () =
     destinationAccountId: "a-ana",
   });
   const EDIT = `/spaces/s-1/transactions/t-pay/edit?returnTo=${encodeURIComponent(ORIGIN)}`;
+  // P344 (S6): the row opens the edit with the side's own-account picker already open.
+  const PICK = (side: "out" | "in") =>
+    `/spaces/s-1/transactions/t-pay/edit?pick=${side}&returnTo=${encodeURIComponent(ORIGIN)}`;
 
-  it("tells the payer it has no account and takes them to choose the one it left from", async () => {
+  it("tells the payer it has no account and opens the picker of the one it left from", async () => {
     open(detailOf(payment, [anaMember, juan, sofia], juanViews));
     const assign = screen.getByRole("link", { name: /Sin cuenta asignada/ });
     expect(norm(assign.textContent)).toBe("Sin cuenta asignada Sale de · elige de qué cuenta salió");
-    expect(assign).toHaveAttribute("href", EDIT);
+    expect(assign).toHaveAttribute("href", PICK("out"));
+    // The sheet's own actions are as before: Editar opens the edit as it is, and Eliminar is there.
+    expect(screen.getByRole("link", { name: "Editar" })).toHaveAttribute("href", EDIT);
+    expect(screen.getByRole("button", { name: "Eliminar" })).toBeEnabled();
     expect(definition("Llega a")).toBe("Cuenta de Ana");
     expect(await axeViolations(document.body)).toEqual([]);
   });
@@ -648,9 +654,9 @@ describe("a side that is the viewer's with no account (P344, S6, board 2)", () =
         memberId: "m-ana",
       }),
     );
-    expect(norm(screen.getByRole("link", { name: /Sin cuenta asignada/ }).textContent)).toBe(
-      "Sin cuenta asignada Llega a · elige a qué cuenta llegó",
-    );
+    const assign = screen.getByRole("link", { name: /Sin cuenta asignada/ });
+    expect(norm(assign.textContent)).toBe("Sin cuenta asignada Llega a · elige a qué cuenta llegó");
+    expect(assign).toHaveAttribute("href", PICK("in"));
     expect(definition("Sale de")).toBe("Cuenta de Juan");
   });
 
@@ -663,7 +669,7 @@ describe("a side that is the viewer's with no account (P344, S6, board 2)", () =
       shares: [{ memberId: "m-juan", amount: cop(60_000), splitMethod: "EQUAL" }],
     });
     open(detailOf(dinner, [anaMember, juan], juanViews));
-    expect(screen.getByRole("link", { name: /Sin cuenta asignada/ })).toHaveAttribute("href", EDIT);
+    expect(screen.getByRole("link", { name: /Sin cuenta asignada/ })).toHaveAttribute("href", PICK("out"));
   });
 
   it("says it in English too", () => {

@@ -67,7 +67,7 @@ export const ledgerKeys = {
    * feed, P306), so a movement in any of the person's spaces reads them again.
    */
   mine: (personalSpaceId: string) => ["reports", personalSpaceId, "my-transactions"] as const,
-  /** Ruling P337: the person's account usage across their spaces (`form-hooks.ts`), which every movement changes. */
+  /** Ruling P337: the person's account usage across their spaces (`record-hooks.ts`), which every movement changes. */
   accountUsage: () => ["ledger", "account-usage"] as const,
 };
 

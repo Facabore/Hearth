@@ -14,8 +14,8 @@ export { useViewer } from "../viewer";
 /**
  * The ledger's screens as query hooks (P127 in the SPA, ADR 0006): each reads what its loader put in the cache and
  * hands the existing components their props. They load with each screen's own chunk, never with the app shell. The
- * record and edit forms' hooks are in `form-hooks.ts`, so the forms' routes never load the lists' code, and
- * Movimientos' list in `list-hooks.ts`, so Inicio never loads its filters' reads.
+ * record and edit forms' hooks are in `record-hooks.ts` and `form-hooks.ts`, so the forms' routes never load the
+ * lists' code, and Movimientos' list in `list-hooks.ts`, so Inicio never loads its filters' reads.
  */
 
 /**

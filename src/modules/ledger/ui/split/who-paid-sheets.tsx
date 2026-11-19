@@ -3,10 +3,12 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { controlsFor, LazyAddGuestsSheet, memberLabel } from "@/modules/spaces/ui";
+import { ChoiceGroup, Sheet } from "@/shared/ui";
 import type { Api } from "@/shared/ui/api/client";
 import type { AccountDto, MemberDto } from "@/shared/ui/api/dto";
 import { formatDate, type Formats } from "@/shared/ui/format/formatters";
 import type { Person } from "../direct/counterparts";
+import type { RecordInitial } from "../edit/edit-initial";
 import type { PersonalForWhom } from "../direct/personal-split";
 import { preferredAccountId, readLastAccount } from "../record/last-account";
 import type { SharedExpenseContext } from "./shared-context";
@@ -300,5 +302,56 @@ export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
           : undefined
       }
     />
+  );
+}
+
+/**
+ * P344 (S4): a fund contribution's "Quién aportó", among the space's current members who have Hearth: a guest has no
+ * account to pay a fund from (issue #195). Moved back to its payer, it keeps their account; moved to anyone else, it
+ * has none until they choose one (S3). It loads with the who-paid sheets, only when its row is opened.
+ */
+export function ContributorSheet({
+  open,
+  onOpenChange,
+  context,
+  initial,
+  value,
+  onChoose,
+}: {
+  readonly open: boolean;
+  readonly onOpenChange: (open: boolean) => void;
+  readonly context: SharedExpenseContext;
+  /** The contribution as the edit opened it: its payer, and the account it came from. */
+  readonly initial: Pick<RecordInitial, "split" | "accountId">;
+  readonly value: string;
+  /** The new payer, and the Desde that goes with them. */
+  readonly onChoose: (payer: Payer, accountId: string | null) => void;
+}) {
+  const title = useTranslations("ledger.edit")("contributor");
+  const names = useTranslations("members");
+  const { members, meMemberId } = context;
+  const meUserId = members.find((m) => m.id === meMemberId)?.userId ?? "";
+  const choose = (id: string) => {
+    const was = initial.split?.payer;
+    if (was && "memberId" in was && was.memberId === id) onChoose(was, initial.accountId);
+    else
+      onChoose(
+        id === meMemberId ? { kind: "ME", memberId: id, accountId: null } : { kind: "MEMBER", memberId: id },
+        null,
+      );
+    onOpenChange(false);
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title={title}>
+      <ChoiceGroup
+        label={title}
+        layout="list"
+        value={value}
+        onValueChange={choose}
+        options={members
+          .filter((m) => m.userId !== null)
+          .map((m) => ({ value: m.id, label: memberLabel(m, meUserId, names) }))}
+      />
+    </Sheet>
   );
 }

@@ -387,6 +387,8 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
     expect(await axeViolations(document.body)).toEqual([]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     expect(whoRow()).toHaveTextContent("Pagó Juan · le debes 60.000 COP");
+    // AGENTS: the amount is never cut; the line wraps between words instead.
+    expect(within(whoRow()).getByText(/le debes/)).toHaveClass("break-words");
     await save();
     const body = await posted(requests);
     expect(body).toMatchObject({

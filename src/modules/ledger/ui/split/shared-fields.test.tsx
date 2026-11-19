@@ -287,3 +287,21 @@ describe("adding guests from the split sheet (P309, S6)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("the who-paid row never cuts an amount (AGENTS: amounts never break or get cut)", () => {
+  it("wraps 'Pagó Juan · le debes 60.000 COP' between words, keeping the amount whole and the row a 44 px target", async () => {
+    const { api } = fakeApi({
+      "GET /api/v1/spaces/{spaceId}/default-split": () =>
+        jsonResponse({ method: "EQUAL", availableMethods: ["EQUAL"], lineId: null, shares: null }),
+    });
+    const juanPaid: SplitDraft = { ...START, payer: { kind: "MEMBER", memberId: "m-juan" }, chosen: true };
+    renderWithIntl(<Harness api={api} amount="12000000" seen={() => undefined} initial={juanPaid} />);
+    const row = screen.getByRole("button", { name: /Quién pagó y para quién/ });
+    expect(row).toHaveClass("min-h-11");
+    const amount = within(row).getByText(/le debes/);
+    expect(amount.textContent).toBe("Pagó Juan · le debes 60.000 COP");
+    for (let node: HTMLElement | null = amount; node && node !== row; node = node.parentElement)
+      expect(node.className).not.toMatch(/\b(truncate|text-ellipsis|whitespace-nowrap)\b/);
+    expect(amount).toHaveClass("break-words");
+  });
+});

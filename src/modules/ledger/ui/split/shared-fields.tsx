@@ -46,6 +46,8 @@ export interface SharedFieldsProps {
   readonly forFund?: boolean;
   /** Ruling P337: why "Desde" holds the account it does ("Bancolombia: con la que sueles pagar Gas."), or null. */
   readonly fromHint?: string | null;
+  /** P344 (S6): the sheet is open from the start, so the recorder who paid picks the account it left from. */
+  readonly openOnLoad?: boolean;
 }
 
 /**
@@ -70,11 +72,12 @@ export function SharedFields({
   defaultSplit: offerPlan = true,
   forFund = false,
   fromHint = null,
+  openOnLoad = false,
 }: SharedFieldsProps) {
   const t = useTranslations("ledger.split");
   const names = useTranslations("members");
-  const [opened, setOpened] = useState(false);
-  const [open, setOpen] = useState(false);
+  const [opened, setOpened] = useState(openOnLoad);
+  const [open, setOpen] = useState(openOnLoad);
   const whoPaidLine = useWhoPaidLine();
   const defaultSplit = useDefaultSplit({ api, spaceId, categoryId, date, amount, enabled: offerPlan });
   const memberIds = context.members.map((member) => member.id);
@@ -168,6 +171,7 @@ export function SharedFields({
       <SummaryRow
         value={value}
         meta={t("title")}
+        wrap
         onClick={() => {
           setOpened(true);
           setOpen(true);

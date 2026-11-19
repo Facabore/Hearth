@@ -7,7 +7,7 @@ import { RecordForm, RecordNotAllowed } from "@/modules/ledger/ui";
 import { controlsFor } from "@/modules/spaces/ui";
 import { safeReturnTo } from "@/shared/ui/navigation/auth-redirect";
 import { useApis } from "../api";
-import { useRecord } from "../ledger/form-hooks";
+import { useRecord } from "../ledger/record-hooks";
 import { ledgerKeys } from "../ledger/queries";
 import { categoriesQuery } from "../reads";
 import { useViewer } from "../viewer";

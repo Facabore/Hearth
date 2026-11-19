@@ -31,7 +31,7 @@ function ShowSheet({ href }: { readonly href: string }) {
 export function EditTransactionScreen() {
   useTitle(useTranslations("ledger.edit")("title"));
   const { spaceId, transactionId } = route.useParams();
-  const { returnTo } = route.useSearch();
+  const { returnTo, pick } = route.useSearch();
   const { api } = useApis();
   const viewer = useViewer(spaceId);
   const edit = useEdit(viewer, transactionId);
@@ -57,6 +57,7 @@ export function EditTransactionScreen() {
           me={viewer.me}
           origin={origin}
           api={api}
+          {...(pick ? { pick } : {})}
         />
       </div>
     );
@@ -73,6 +74,7 @@ export function EditTransactionScreen() {
         profileZone={viewer.me.timezone}
         origin={origin}
         {...(edit.shared ? { shared: edit.shared } : {})}
+        {...(pick ? { pick } : {})}
         api={api}
       />
     </div>
