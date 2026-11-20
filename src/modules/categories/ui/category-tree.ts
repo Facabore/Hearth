@@ -1,4 +1,10 @@
-import type { CategoryDto, CategoryGroupDto } from "@/shared/ui/api/dto";
+import type { CategoryDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
+
+/**
+ * HU-E1-05, HU-E9-04: only an OWNER or an ADMIN manages the tree (a personal space's owner is its OWNER), as the API's
+ * `authorizeManager` enforces. The Categories screen and the record form's pencil (P346) both ask it.
+ */
+export const managesCategories = (role: SpaceDto["role"]): boolean => role === "OWNER" || role === "ADMIN";
 
 /** HU-E9-03: what a picker offers: archived groups, categories and subcategories are never shown. */
 export const activeTree = (groups: readonly CategoryGroupDto[]): CategoryGroupDto[] =>

@@ -210,9 +210,10 @@ export function AreaMessages({ children }: { readonly children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `loaded` is named by `loadedKey` and `locale`.
     [core, locale, loadedKey],
   );
-  if (!messages) return children;
+  // Always the same provider, with only the core when no area is on show: switching between a bare tree and a provider
+  // would remount every screen below, losing their state (a toast, after leaving the record form for a list, P346).
   return (
-    <IntlProvider locale={locale} messages={messages} timeZone={timeZone}>
+    <IntlProvider locale={locale} messages={messages ?? core} timeZone={timeZone}>
       {children}
     </IntlProvider>
   );

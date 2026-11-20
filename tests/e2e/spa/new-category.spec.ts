@@ -93,3 +93,34 @@ test.describe("a new category from Registrar (ruling P308, #272)", () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe("the pencil on Registrar's chosen category (ruling P346, #349)", () => {
+  test("Ana, who manages her space's categories, renames the chosen one from the pencil and the chip follows", async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const ip = `10.${randomInt(256)}.${randomInt(256)}.${randomInt(1, 255)}`;
+    const spaceId = await signUp(page, "spa-pencil-ana", ip);
+    const { items: groups } = (await get(page, `/api/v1/spaces/${spaceId}/categories`)) as {
+      items: { categories: { key: string | null; name: string }[] }[];
+    };
+    const groceries = groups.flatMap((g) => g.categories).find((c) => c.key === "groceries")!;
+
+    await page.goto(`/spaces/${spaceId}/new`);
+    const chips = page.getByRole("group", { name: es.ledger.form.category });
+    const chip = (name: string) => chips.getByRole("button", { name, exact: true });
+    await chip(groceries.name).click();
+    await expect(chip(groceries.name)).toHaveAttribute("aria-pressed", "true");
+    // The sheet's words come from the categories area, which the record route loads (P276).
+    await chips.getByRole("button", { name: es.categories.edit.replace("{name}", groceries.name) }).click();
+    const sheet = page.getByRole("dialog", { name: es.categories.sheet.editTitle });
+    await expect(sheet.getByLabel(es.categories.sheet.name)).toHaveValue(groceries.name);
+    await scan(page, "edit category from Registrar");
+    await sheet.getByLabel(es.categories.sheet.name).fill("Supermercado");
+    await sheet.getByRole("button", { name: es.categories.sheet.save }).click();
+    await expect(sheet).toBeHidden();
+    await expect(chip("Supermercado")).toHaveAttribute("aria-pressed", "true");
+    expect(errors).toEqual([]);
+  });
+});

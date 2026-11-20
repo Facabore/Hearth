@@ -17,6 +17,7 @@ import {
   categoryPath,
   findCategory,
   groupsForKind,
+  managesCategories,
   withCategory,
   withGroup,
   withoutCategory,
@@ -32,9 +33,6 @@ type Kind = "EXPENSE" | "INCOME";
 const KINDS = ["EXPENSE", "INCOME"] as const satisfies readonly Kind[];
 type Open =
   { readonly mode: "create"; readonly groupId: string } | { readonly mode: "edit"; readonly id: string };
-
-/** HU-E1-05, HU-E9-04: only an OWNER or an ADMIN manages the tree (a personal space's owner is its OWNER). */
-export const managesCategories = (role: SpaceDto["role"]): boolean => role === "OWNER" || role === "ADMIN";
 
 /**
  * P296: the tree in the order a move answered; a group the answer leaves out keeps its place after the others. Kept
