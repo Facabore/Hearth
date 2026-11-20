@@ -2387,7 +2387,7 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
       await page.getByRole("link", { name: MARKET }).click();
       await expect(sheet(page)).toBeVisible();
       if (how === "Escape") await page.keyboard.press("Escape");
-      else await page.getByRole("button", { name: es.common.close }).click();
+      else await page.getByRole("button", { name: es.common.close, exact: true }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(page).toHaveURL(new RegExp(`${list}$`));
 
@@ -2402,7 +2402,7 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     await expect(sheet(page)).toBeVisible();
     await page.reload();
     await expect(sheet(page)).toBeVisible();
-    await page.getByRole("button", { name: es.common.close }).click();
+    await page.getByRole("button", { name: es.common.close, exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`${list}$`));
     await page.goBack();
@@ -2420,7 +2420,7 @@ test.describe("the transaction detail sheet is addressed by the URL (ruling P189
     await expect(sheet(page)).toBeVisible();
     const entries = await page.evaluate(() => window.history.length);
 
-    await page.getByRole("button", { name: es.common.close }).click();
+    await page.getByRole("button", { name: es.common.close, exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`${list}$`));
     expect(await page.evaluate(() => window.history.length), "closing replaces the entry").toBe(entries);

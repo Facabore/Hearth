@@ -230,6 +230,17 @@ describe("a new category from the picker (ruling P308)", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
+  it("goes back to the picker from the new category's form on the drag handle, as Escape does", async () => {
+    const { sheet, onOpenChange } = creating();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Nueva categoría" }));
+    const form = screen.getByRole("dialog", { name: "Nueva categoría" });
+    await userEvent.click(within(form).getByRole("button", { name: "Cerrar panel" }));
+    expect(screen.getByRole("dialog", { name: "Categoría" })).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cerrar panel" }));
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
   it("tells the person that a personal space's category is theirs alone", async () => {
     const { sheet } = creating(undefined, true);
     await userEvent.click(within(sheet).getByRole("button", { name: "Nueva categoría" }));

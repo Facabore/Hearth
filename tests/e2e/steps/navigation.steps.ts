@@ -271,7 +271,7 @@ When("she closes the contributions sheet", async ({ page, world }) => {
   await page.getByRole("link", { name: world.t("budgeting.planner.editCapacities") }).click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: world.t("common.close") })
+    .getByRole("button", { name: world.t("common.close"), exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
