@@ -21,6 +21,8 @@ import {
   categoryPath,
   findCategory,
   groupsForKind,
+  LazyCategoryEditor,
+  managesCategories,
   type CategoryChoice,
 } from "@/modules/categories/ui";
 import { Button, ChoiceGroup, Icon, ProblemNotice, ScreenHeader } from "@/shared/ui";
@@ -262,7 +264,7 @@ export interface RecordFormProps {
 export function RecordForm({
   space,
   accounts: givenAccounts,
-  groups,
+  groups: givenGroups,
   formats,
   initialKind,
   initialNow,
@@ -320,6 +322,15 @@ export function RecordForm({
     });
   const messageOf = useProblemMessage();
   const api = useMemo(() => injected ?? browserApi(), [injected]);
+  // P346 (S6): the tree with what the pencil's sheet answered; a fresh read from the route replaces it.
+  const [groups, setGroups] = useState(givenGroups);
+  const [read, setRead] = useState(givenGroups);
+  if (givenGroups !== read) {
+    setRead(givenGroups);
+    setGroups(givenGroups);
+  }
+  // P346 (S6): the category the pencil edits, for who manages the tree (the API's `authorizeManager`).
+  const [editing, setEditing] = useState<string | null>(null);
   const live = useMemo(() => activeTree(groups), [groups]);
   const serverZone = timeZone ?? profileZone;
   const [client, setClient] = useState<{ zone: string; now: When } | null>(null);
@@ -1057,6 +1068,7 @@ export function RecordForm({
                 setPickerOpened(true);
                 setSheet("category");
               }}
+              onEdit={managesCategories(space.role) ? setEditing : undefined}
               error={errorOf("category")}
             />
           )}
@@ -1278,6 +1290,26 @@ export function RecordForm({
             changeSplit({ ...split!, payer: chosen });
             setAccountId(from);
           }}
+        />
+      ) : null}
+      {editing ? (
+        <LazyCategoryEditor
+          spaceId={space.id}
+          groups={groups}
+          categoryId={editing}
+          api={api}
+          onClose={() => setEditing(null)}
+          onChange={setGroups}
+          onRemoved={(id) =>
+            // P346 (S6): a category archived or deleted from the sheet is no longer the form's choice.
+            setCategory((current) =>
+              current?.categoryId === id
+                ? null
+                : current?.subcategoryId === id
+                  ? { categoryId: current.categoryId, subcategoryId: null }
+                  : current,
+            )
+          }
         />
       ) : null}
       {kind === "TRANSFER" || !pickerOpened ? null : (

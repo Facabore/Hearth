@@ -200,17 +200,20 @@ const transactionsRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/transactions"), "TransactionsScreen"),
 });
 
-/** HU-E9-03: the record form, `?type=` and `?returnTo=` (#172); a sheet over a stacked shell (P291). */
+/**
+ * HU-E9-03: the record form, `?type=` and `?returnTo=` (#172); a sheet over a stacked shell (P291). P346: its pencil
+ * opens «Editar categoría», whose words are the categories area's.
+ */
 const recordRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "new",
-  staticData: stackedScreen,
+  staticData: { ...stackedScreen, areas: ["categories"] },
   validateSearch: (search: Record<string, unknown>) => ({
     type: textParam(search.type),
     returnTo: textParam(search.returnTo),
   }),
-  loader: async ({ context, params, cause }) =>
-    (await ledger()).loadRecord({ ...context, cause }, params.spaceId),
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(loadAreas(context, route), (await ledger()).loadRecord({ ...context, cause }, params.spaceId)),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "RecordPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/record"), "RecordScreen"),
@@ -233,17 +236,22 @@ const pendingOccurrencesRoute = createRoute({
 
 /**
  * Ruling P191: the edit form, `?returnTo=` the screen its sheet was opened on; P344 (S6): `?pick=out|in` opens the
- * picker of the editor's own account for that side, as the sheet's "Sin cuenta asignada" asks.
+ * picker of the editor's own account for that side, as the sheet's "Sin cuenta asignada" asks. P346: the categories
+ * area, for its pencil's «Editar categoría».
  */
 const editRoute = createRoute({
   getParentRoute: () => spaceRoute,
   path: "transactions/$transactionId/edit",
+  staticData: { areas: ["categories"] },
   validateSearch: (search: Record<string, unknown>) => ({
     returnTo: textParam(search.returnTo),
     pick: search.pick === "out" || search.pick === "in" ? (search.pick as "out" | "in") : undefined,
   }),
-  loader: async ({ context, params, cause }) =>
-    (await ledger()).loadEdit({ ...context, cause }, params.spaceId, params.transactionId),
+  loader: async ({ context, params, cause, route }) =>
+    withAreas(
+      loadAreas(context, route),
+      (await ledger()).loadEdit({ ...context, cause }, params.spaceId, params.transactionId),
+    ),
   pendingComponent: lazyRouteComponent(() => import("./routes/pending"), "EditPending"),
   errorComponent: ScreenError,
   component: lazyRouteComponent(() => import("./routes/edit-transaction"), "EditTransactionScreen"),
