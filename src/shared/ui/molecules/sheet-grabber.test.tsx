@@ -45,11 +45,16 @@ describe("the sheet's drag handle closes it", () => {
     expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 
-  it("closes on a drag down past the closing distance", () => {
+  it("carries the sheet with the finger while it drags", () => {
     const { grabber, sheet, onOpenChange } = open();
     fireEvent.pointerDown(grabber, { pointerId: 1, button: 0, clientY: 100 });
     fireEvent.pointerMove(grabber, { pointerId: 1, clientY: 160 });
     expect(sheet.style.transform).toBe("translateY(60px)");
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it("closes on a drag down past the closing distance", () => {
+    const { grabber, onOpenChange } = open();
     drag(grabber, 140, 1000);
     expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
   });
@@ -65,5 +70,27 @@ describe("the sheet's drag handle closes it", () => {
     drag(grabber, 40, 1000);
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(sheet.style.transform).toBe("");
+  });
+
+  it("still closes on a tap after a drag that sprang back with no click, as a screen reader's activation sends", async () => {
+    const { grabber, onOpenChange } = open();
+    vi.useFakeTimers({ toFake: ["performance"] });
+    fireEvent.pointerDown(grabber, { pointerId: 1, button: 0, clientY: 100 });
+    vi.advanceTimersByTime(1000);
+    fireEvent.pointerMove(grabber, { pointerId: 1, clientY: 140 });
+    fireEvent.pointerUp(grabber, { pointerId: 1, clientY: 140 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.click(grabber);
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
+  it("springs back when the browser cancels the drag, and a later tap still closes", () => {
+    const { grabber, sheet, onOpenChange } = open();
+    fireEvent.pointerDown(grabber, { pointerId: 1, button: 0, clientY: 100 });
+    fireEvent.pointerMove(grabber, { pointerId: 1, clientY: 150 });
+    fireEvent.pointerCancel(grabber, { pointerId: 1 });
+    expect(sheet.style.transform).toBe("");
+    fireEvent.click(grabber);
+    expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
   });
 });

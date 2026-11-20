@@ -89,7 +89,9 @@ export function CategorySheet({ open, onOpenChange, space, creation, ...body }: 
           }}
           className="fixed inset-x-0 bottom-0 z-50 flex max-h-[95dvh] flex-col rounded-t-[20px] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:inset-auto lg:top-1/2 lg:left-1/2 lg:w-full lg:max-w-[480px] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[20px]"
         >
-          <SheetGrabber onClose={() => change(false)} />
+          {/* #347: the handle closes the picker; in the new category's form it goes back to the picker, as Escape
+              does. Its 12 px under the handle put the header 8 px lower than the old 4 px gap. */}
+          <SheetGrabber onClose={() => (draft ? setDraft(null) : change(false))} />
           <div className="flex items-center gap-1">
             {draft ? null : (
               <Dialog.Close asChild>
