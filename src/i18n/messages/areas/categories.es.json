@@ -7,6 +7,7 @@
     "moveUp": "Subir {group}",
     "moveDown": "Bajar {group}",
     "edit": "Editar {name}",
+    "editGroup": "Editar grupo {name}",
     "emptyGroup": "Aún no hay categorías",
     "readOnly": "Puedes ver las categorías de {space}; solo sus propietarios y administradores las cambian.",
     "kind": {
@@ -41,7 +42,15 @@
       "add": "Agregar"
     },
     "groupSheet": {
-      "create": "Crear grupo"
+      "create": "Crear grupo",
+      "editTitle": "Editar grupo",
+      "categories": "{n, plural, =0 {Sin categorías} one {{count} categoría: {names}} other {{count} categorías: {names}}}",
+      "and": "{list} y {last}",
+      "delete": "Eliminar grupo",
+      "confirmTitle": "¿Eliminar {name}?",
+      "confirmCategories": "{n, plural, one {Su categoría, {names}, también se elimina y deja de ofrecerse al registrar.} other {Sus {count} categorías, {names}, también se eliminan y dejan de ofrecerse al registrar.}}",
+      "confirmHistory": "{n, plural, one {Los movimientos que ya la usan conservan su categoría en el historial y en los reportes. No se puede deshacer.} other {Los movimientos que ya las usan conservan su categoría en el historial y en los reportes. No se puede deshacer.}}",
+      "confirmEmpty": "No tiene categorías. No se puede deshacer."
     },
     "icons": {
       "label": "Ícono",

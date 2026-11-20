@@ -27,6 +27,10 @@ const CategorySheet = dynamic(() => import("./category-sheet").then((module) => 
   ssr: false,
 });
 const GroupSheet = dynamic(() => import("./group-sheet").then((module) => module.GroupSheet), { ssr: false });
+// P347: «Editar grupo» and its confirmation load on the first tap of a group's pencil.
+const GroupEditSheet = dynamic(() => import("./group-edit-sheet").then((module) => module.GroupEditSheet), {
+  ssr: false,
+});
 
 type Kind = "EXPENSE" | "INCOME";
 const KINDS = ["EXPENSE", "INCOME"] as const satisfies readonly Kind[];
@@ -89,6 +93,8 @@ export function CategoryTree({
   const [kind, setKind] = useState<Kind>("EXPENSE");
   const [open, setOpen] = useState<Open | null>(null);
   const [addingGroup, setAddingGroup] = useState(false);
+  // P347: the group whose «Editar grupo» is open.
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   // The categories whose restore is in flight: each button waits, so a double tap sends one request.
   const [restoring, setRestoring] = useState<ReadonlySet<string>>(new Set());
@@ -99,8 +105,12 @@ export function CategoryTree({
   const live = activeTree(tree);
   const shown = groupsForKind(live, kind);
   const archived = archivedOf(groupsForKind(tree, kind).filter((group) => group.archivedAt === null));
-  // P337: a whole group archived (by the person, or by an import's "Archivar las de Hearth que no uses").
-  const archivedGroups = groupsForKind(tree, kind).filter((group) => group.archivedAt !== null);
+  // P337: a whole group archived (by the person, or by an import's "Archivar las de Hearth que no uses"). P347: a
+  // deleted group is archived too, for history to name its categories, but it is gone for the person.
+  const archivedGroups = groupsForKind(tree, kind).filter(
+    (group) => group.archivedAt !== null && !group.deletedAt,
+  );
+  const groupToEdit = editingGroup === null ? undefined : live.find((group) => group.id === editingGroup);
 
   const target = ((): CategorySheetTarget | null => {
     if (!open) return null;
@@ -247,6 +257,12 @@ export function CategoryTree({
                   label={t("addCategory", { group: group.name })}
                   onClick={() => setOpen({ mode: "create", groupId: group.id })}
                 />
+                {/* P347, board "Categorías · lápiz por grupo": the group's own sheet, to rename or delete it. */}
+                <IconAction
+                  icon="pencil"
+                  label={t("editGroup", { name: group.name })}
+                  onClick={() => setEditingGroup(group.id)}
+                />
               </div>
             ) : null}
           </div>
@@ -337,6 +353,20 @@ export function CategoryTree({
           onEditSubcategory={(id) => setOpen({ mode: "edit", id })}
         />
       ) : null}
+      {groupToEdit ? (
+        <GroupEditSheet
+          key={groupToEdit.id}
+          spaceId={space.id}
+          group={groupToEdit}
+          formats={formats}
+          api={api}
+          onClose={() => setEditingGroup(null)}
+          onSaved={(saved) =>
+            setTree((current) => current.map((g) => (g.id === saved.id ? { ...g, ...saved } : g)))
+          }
+          onDeleted={(groupId) => setTree((current) => current.filter((g) => g.id !== groupId))}
+        />
+      ) : null}
       {addingGroup ? (
         <GroupSheet
           spaceId={space.id}
@@ -352,14 +382,16 @@ export function CategoryTree({
   );
 }
 
-/** A plain icon of the board (P292): the "+" and, P296, the move arrows; 44 px, named by what it does. */
+/**
+ * A plain icon of the board (P292): the "+", P296's move arrows and P347's pencil; 44 px, named by what it does.
+ */
 function IconAction({
   icon,
   label,
   onClick,
   disabled,
 }: {
-  readonly icon: "plus" | "arrowUp" | "arrowDown";
+  readonly icon: "plus" | "arrowUp" | "arrowDown" | "pencil";
   readonly label: string;
   readonly onClick: () => void;
   readonly disabled?: boolean;

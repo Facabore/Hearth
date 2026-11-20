@@ -121,7 +121,7 @@ const renderTree = (
 const group = (name: string) => screen.getByRole("region", { name });
 const namesIn = (region: HTMLElement) =>
   within(region)
-    .getAllByRole("button", { name: /^Editar / })
+    .getAllByRole("button", { name: /^Editar (?!grupo )/ })
     .map((button) => button.getAttribute("aria-label")!.replace("Editar ", ""));
 const glyphOf = (button: HTMLElement) =>
   button.closest("li")!.querySelector<HTMLElement>("[aria-hidden='true']")!;
@@ -766,5 +766,135 @@ describe("categories screen (HU-E9-04)", () => {
     });
     expect(within(group("Archivadas")).getByText("Groceries")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Restaurar/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("editing and deleting a group (P347)", () => {
+  const GROUP = "/api/v1/spaces/{spaceId}/category-groups/{groupId}";
+  const openSheet = async (name: string) => {
+    await userEvent.click(screen.getByRole("button", { name: `Editar grupo ${name}` }));
+    return screen.findByRole("dialog", { name: "Editar grupo" });
+  };
+  const confirmFrom = async (sheet: HTMLElement, name: string) => {
+    await userEvent.click(within(sheet).getByRole("button", { name: "Eliminar grupo" }));
+    return screen.findByRole("dialog", { name: `¿Eliminar ${name}?` });
+  };
+
+  it("shows a 44 px pencil on each group's header only to who manages the tree", () => {
+    const owner = renderTree(household());
+    const pencil = within(group("Food")).getByRole("button", { name: "Editar grupo Food" });
+    expect(pencil).toHaveClass("size-11");
+    owner.unmount();
+    for (const role of ["MEMBER", "VIEWER"] as const) {
+      const { unmount } = renderTree(household(), { space: householdSpace({ role }) });
+      expect(screen.queryAllByRole("button", { name: /^Editar grupo / })).toEqual([]);
+      unmount();
+    }
+  });
+
+  it("renames the group from «Editar grupo», which names its live categories", async () => {
+    const { requests } = renderTree(household(), {
+      routes: {
+        [`PATCH ${GROUP}`]: async (request) =>
+          jsonResponse(groupDto({ id: "g-food", name: (await request.clone().json()).name })),
+      },
+    });
+    const sheet = await openSheet("Food");
+    expect(within(sheet).getByText("2 categorías: Groceries y Restaurants")).toBeInTheDocument();
+    expect(within(sheet).getByRole("button", { name: "Eliminar grupo" })).toBeInTheDocument();
+    const save = within(sheet).getByRole("button", { name: "Guardar cambios" });
+    expect(save).toBeDisabled();
+    const field = within(sheet).getByLabelText("Nombre");
+    await userEvent.clear(field);
+    await userEvent.type(field, "Comida");
+    await userEvent.click(save);
+
+    expect(await screen.findByRole("region", { name: "Comida" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Editar grupo" })).toBeNull();
+    const patch = requests.find((r) => r.method === "PATCH")!;
+    expect(patch.url).toMatch(/category-groups\/g-food$/);
+    expect(await bodyOf(patch)).toEqual({ name: "Comida" });
+  });
+
+  it("deletes the group after its confirmation, which says what goes and what history keeps", async () => {
+    const { requests } = renderTree(household(), {
+      routes: { [`DELETE ${GROUP}`]: () => new Response(null, { status: 204 }) },
+    });
+    let confirm = await confirmFrom(await openSheet("Food"), "Food");
+    expect(
+      within(confirm).getByText(
+        "Sus 2 categorías, Groceries y Restaurants, también se eliminan y dejan de ofrecerse al registrar.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(confirm).getByText(
+        "Los movimientos que ya las usan conservan su categoría en el historial y en los reportes. No se puede deshacer.",
+      ),
+    ).toBeInTheDocument();
+    // Cancelar goes back to «Editar grupo» and deletes nothing.
+    await userEvent.click(within(confirm).getByRole("button", { name: "Cancelar" }));
+    const sheet = await screen.findByRole("dialog", { name: "Editar grupo" });
+    expect(requests).toEqual([]);
+
+    confirm = await confirmFrom(sheet, "Food");
+    await userEvent.click(within(confirm).getByRole("button", { name: "Eliminar grupo" }));
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Food" })).toBeNull());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(requests.map((r) => [r.method, r.url])).toEqual([
+      ["DELETE", expect.stringMatching(/category-groups\/g-food$/)],
+    ]);
+  });
+
+  it("says a group without categories has none, without the categories sentence", async () => {
+    renderTree([groupDto({ id: "g-pets", name: "Mascotas", key: null })]);
+    const sheet = await openSheet("Mascotas");
+    expect(within(sheet).getByText("Sin categorías")).toBeInTheDocument();
+    const confirm = await confirmFrom(sheet, "Mascotas");
+    expect(within(confirm).getByText("No tiene categorías. No se puede deshacer.")).toBeInTheDocument();
+    expect(within(confirm).queryByText(/también se elimin/)).toBeNull();
+  });
+
+  it("keeps the confirmation open with the API's refusal", async () => {
+    renderTree(household(), {
+      routes: { [`DELETE ${GROUP}`]: () => problemResponse(404, "CategoryGroupNotFound") },
+    });
+    const confirm = await confirmFrom(await openSheet("Food"), "Food");
+    await userEvent.click(within(confirm).getByRole("button", { name: "Eliminar grupo" }));
+    expect(await within(confirm).findByRole("alert")).toBeInTheDocument();
+    // The tree under the sheet (hidden from assistive technology while it is open) keeps the group.
+    expect(screen.getByRole("region", { name: "Food", hidden: true })).toBeInTheDocument();
+  });
+
+  it("says it in English too", async () => {
+    const { api } = fakeApi({});
+    renderWithIntl(
+      <CategoryTree space={householdSpace()} groups={household()} formats={BUILT_IN_FORMATS} api={api} />,
+      { locale: "en" },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Edit group Food" }));
+    const sheet = await screen.findByRole("dialog", { name: "Edit group" });
+    expect(within(sheet).getByText("2 categories: Groceries and Restaurants")).toBeInTheDocument();
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete group" }));
+    const confirm = await screen.findByRole("dialog", { name: "Delete Food?" });
+    expect(
+      within(confirm).getByText(
+        "Its 2 categories, Groceries and Restaurants, are deleted too and are no longer offered when you record.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(confirm).getByText(
+        "Movements that already use them keep their category in the history and in the reports. This cannot be undone.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves a deleted group out of the tree and of «Archivadas»", () => {
+    const at = "2026-11-20T15:00:00.000Z";
+    const [food, income] = household({ archivedAt: at, deletedAt: at });
+    renderTree([income!, { ...food!, archivedAt: at, deletedAt: at }]);
+    expect(screen.queryByRole("region", { name: "Food" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Archivadas" })).toBeNull();
+    expect(screen.queryByText("Food")).toBeNull();
   });
 });
