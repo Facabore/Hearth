@@ -178,7 +178,10 @@ export interface CategoryMappingRepository {
   isCategoryMapped(categoryId: string): Promise<boolean>;
 }
 
-/** The live categories of a space (deleted ones never appear, D8), archived ones flagged; bound to categories. */
+/**
+ * The categories of a space, archived ones flagged; bound to categories. A category deleted on its own never appears
+ * (D8); one deleted with its group (P347) appears archived, so plan figures keep rolling it up and no new mapping takes it.
+ */
 export interface BudgetCategories {
   /**
    * Issue #245: taken by a write that is about to map the space's categories, before it lists them. It waits for a

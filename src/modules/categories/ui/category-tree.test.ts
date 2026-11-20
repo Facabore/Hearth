@@ -57,6 +57,25 @@ describe("category tree (HU-E9-03)", () => {
     expect(categoryPath(groups, "c-missing")).toBeNull();
   });
 
+  it("names a category of a deleted group for the history, and never offers it (P347)", () => {
+    const at = "2026-11-20T15:00:00.000Z";
+    const deleted = groupDto({
+      id: "g-pets",
+      name: "Pets",
+      key: null,
+      archivedAt: at,
+      deletedAt: at,
+      categories: [
+        categoryDto({ id: "c-vet", name: "Vet", groupId: "g-pets", archivedAt: at, deletedAt: at }),
+      ],
+    });
+    expect(categoryPath([...groups, deleted], "c-vet")).toBe("Vet");
+    expect(activeTree([...groups, deleted]).map((g) => g.id)).not.toContain("g-pets");
+    expect(groupsForKind(activeTree([...groups, deleted]), "EXPENSE").map((g) => g.id)).not.toContain(
+      "g-pets",
+    );
+  });
+
   it("searches ignoring case and accents", () => {
     expect(matches("Alimentación", "alimentacion")).toBe(true);
     expect(matches("Mercado", "MERC")).toBe(true);

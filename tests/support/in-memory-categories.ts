@@ -27,22 +27,57 @@ export class InMemoryCategories implements CategoryRepository {
     this.categories.push(...categories);
   }
   async listGroups(spaceId: string) {
-    return this.groups.filter((g) => g.spaceId === spaceId).sort((a, b) => a.position - b.position);
+    return this.groups
+      .filter((g) => g.spaceId === spaceId && !g.deletedAt)
+      .sort((a, b) => a.position - b.position);
   }
-  /** Like DrizzleCategoryRepository: refuses a move that would leave two groups of a space in one place. */
+  async listDeletedGroups(spaceId: string) {
+    return this.groups
+      .filter((g) => g.spaceId === spaceId && g.deletedAt)
+      .sort((a, b) => a.position - b.position);
+  }
+  /**
+   * Like DrizzleCategoryRepository: refuses a move that would leave two live groups of a space in one place (P347: a
+   * deleted group's place is free).
+   */
   async saveGroupPositions(spaceId: string, moved: readonly CategoryGroup[]) {
     const next = this.groups.map((g) =>
       g.spaceId === spaceId ? (moved.find((m) => m.id === g.id) ?? g) : g,
     );
-    const places = next.filter((g) => g.spaceId === spaceId).map((g) => g.position);
+    const places = next.filter((g) => g.spaceId === spaceId && !g.deletedAt).map((g) => g.position);
     if (new Set(places).size !== places.length) throw new Error("category_groups_space_position_uq");
     this.groups = next;
   }
   async listCategories(spaceId: string) {
     return this.categories.filter((c) => c.spaceId === spaceId && !this.deleted.has(c.id));
   }
+  /** P347: the live ones, and those deleted together with their group, with their deletion. */
+  async listCategoriesForHistory(spaceId: string) {
+    return this.categories.flatMap((c) => {
+      if (c.spaceId !== spaceId) return [];
+      const deletedAt = this.deleted.get(c.id);
+      if (deletedAt === undefined) return [c];
+      const group = this.groups.find((g) => g.id === c.groupId);
+      return group?.deletedAt?.getTime() === deletedAt.getTime() ? [{ ...c, deletedAt }] : [];
+    });
+  }
   async saveGroup(group: CategoryGroup) {
     this.groups = this.groups.map((g) => (g.id === group.id ? group : g));
+  }
+  /** Like DrizzleCategoryRepository: only rows not deleted yet take the deletion. */
+  async deleteGroup(group: CategoryGroup, deleted: readonly Category[]) {
+    this.groups = this.groups.map((g) =>
+      g.id === group.id && !g.deletedAt
+        ? { ...g, archivedAt: group.archivedAt, deletedAt: group.deletedAt ?? null }
+        : g,
+    );
+    for (const category of deleted) {
+      if (this.deleted.has(category.id) || !category.deletedAt) continue;
+      this.categories = this.categories.map((c) =>
+        c.id === category.id ? { ...c, archivedAt: category.archivedAt } : c,
+      );
+      this.deleted.set(category.id, category.deletedAt);
+    }
   }
   /** Like DrizzleCategoryRepository: a deleted category is never written again. */
   async saveCategories(changed: readonly Category[]) {

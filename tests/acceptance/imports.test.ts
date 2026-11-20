@@ -724,6 +724,39 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
     expect(again.plan.movements).toBe(EVERY_ROW.length);
   });
 
+  it("undoes an import after the person deleted one of its groups, which stays deleted and is not counted (P347)", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const guitarra = (await treeOf(ana)).find((g) => g.name === "Guitarra")!;
+    expect((await app.categories.deleteCategoryGroup({ ...ana, groupId: guitarra.id })).ok).toBe(true);
+    const stored = async () =>
+      (
+        await app.pool.query(
+          "SELECT id, archived_at, deleted_at FROM categories WHERE group_id = $1 UNION ALL " +
+            "SELECT id, archived_at, deleted_at FROM category_groups WHERE id = $1 ORDER BY id",
+          [guitarra.id],
+        )
+      ).rows;
+    const deleted = await stored();
+
+    const response = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+
+    expect(response.status).toBe(200);
+    // Food, Supermercado and Salary are archived, and the group Food; Guitarra, deleted, is neither archived nor
+    // restored, nor counted.
+    expect(await response.json()).toMatchObject({
+      status: "UNDONE",
+      movementsDeleted: 7,
+      categoriesArchived: 3,
+      categoryGroupsArchived: 1,
+    });
+    expect(await stored()).toEqual(deleted);
+    expect(await liveMovements(ana.spaceId)).toBe(0);
+  });
+
   it("counts only the movements it deleted, never one the person had deleted already", async () => {
     const ana = await registerUser("Ana");
     const { preview } = await imported(ana);
@@ -964,6 +997,29 @@ describe("your categories as you had them (P337, #333)", () => {
     expect(salaries.map((c) => [c.archivedAt, c.subcategories.map((sub) => sub.archivedAt)])).toEqual([
       [null, [null]],
     ]);
+  });
+
+  it("never lands on a deleted Ingresos: the income category keeps a group of its own, as without one (P347)", async () => {
+    const ana = await registerUser("Ana");
+    const ingresos = (await treeOf(ana)).find((g) => g.key === "income")!;
+    expect((await app.categories.deleteCategoryGroup({ ...ana, groupId: ingresos.id })).ok).toBe(true);
+
+    await imported(ana);
+
+    const tree = await treeOf(ana);
+    const live = tree.filter((g) => g.archivedAt === null);
+    // P337's way without an Ingresos group: Salary is a group of its own, after the expense ones.
+    expect(
+      live.map((g) => [g.name, g.categories.filter((c) => c.archivedAt === null).map((c) => c.name)]),
+    ).toEqual([
+      ["Food", ["Food", "Supermercado"]],
+      ["Guitarra", ["Guitarra"]],
+      ["Salary", ["Salary"]],
+    ]);
+    // The deleted Ingresos stays deleted, with none of the import in it.
+    const deleted = tree.find((g) => g.id === ingresos.id) as TreeGroup & { deletedAt?: string };
+    expect(deleted.deletedAt).toEqual(expect.any(String));
+    expect(deleted.categories.map((c) => c.name)).not.toContain("Salary");
   });
 
   it("archives nothing of Hearth's when the person turns the switch off", async () => {

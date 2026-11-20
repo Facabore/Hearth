@@ -7,6 +7,7 @@
     "moveUp": "Move {group} up",
     "moveDown": "Move {group} down",
     "edit": "Edit {name}",
+    "editGroup": "Edit group {name}",
     "emptyGroup": "No categories yet",
     "readOnly": "You can see the categories of {space}; only its owners and admins change them.",
     "kind": {
@@ -41,7 +42,15 @@
       "add": "Add"
     },
     "groupSheet": {
-      "create": "Create group"
+      "create": "Create group",
+      "editTitle": "Edit group",
+      "categories": "{n, plural, =0 {No categories} one {{count} category: {names}} other {{count} categories: {names}}}",
+      "and": "{list} and {last}",
+      "delete": "Delete group",
+      "confirmTitle": "Delete {name}?",
+      "confirmCategories": "{n, plural, one {Its category, {names}, is deleted too and is no longer offered when you record.} other {Its {count} categories, {names}, are deleted too and are no longer offered when you record.}}",
+      "confirmHistory": "{n, plural, one {Movements that already use it keep their category in the history and in the reports. This cannot be undone.} other {Movements that already use them keep their category in the history and in the reports. This cannot be undone.}}",
+      "confirmEmpty": "It has no categories. This cannot be undone."
     },
     "icons": {
       "label": "Icon",

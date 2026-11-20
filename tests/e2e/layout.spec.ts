@@ -610,6 +610,21 @@ const sheets: {
       page.getByRole("button", { name: es.categories.edit.replace("{name}", "Arriendo") }).click(),
   },
   {
+    // P347: a group's pencil opens «Editar grupo», whose «Eliminar grupo» asks in a sheet of its own.
+    name: "group edit sheet",
+    path: "categories",
+    open: (page) =>
+      page.getByRole("button", { name: es.categories.editGroup.replace("{name}", "Vivienda") }).click(),
+  },
+  {
+    name: "group delete confirmation",
+    path: "categories",
+    open: async (page) => {
+      await page.getByRole("button", { name: es.categories.editGroup.replace("{name}", "Vivienda") }).click();
+      await page.getByRole("button", { name: es.categories.groupSheet.delete }).click();
+    },
+  },
+  {
     name: "icon library",
     path: "categories",
     open: async (page) => {

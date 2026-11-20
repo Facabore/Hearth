@@ -222,8 +222,13 @@ describe(`${TAG} back-fill (ruling P330)`, () => {
 
     // Nothing existing is renamed, moved or restyled.
     const ids = new Set([...stored.groups, ...stored.categories].map((row) => row.id as string));
+    // A column a later migration adds to every group (P347's deleted_at, null on each) is none of 0032's doing.
+    const asBefore = ({ deleted_at: deleted, ...row }: Record<string, unknown>) => {
+      expect(deleted).toBeNull();
+      return row;
+    };
     expect({
-      groups: after.groups.filter((row) => ids.has(row.id as string)),
+      groups: after.groups.filter((row) => ids.has(row.id as string)).map(asBefore),
       categories: after.categories.filter((row) => ids.has(row.id as string)),
     }).toEqual(stored);
 

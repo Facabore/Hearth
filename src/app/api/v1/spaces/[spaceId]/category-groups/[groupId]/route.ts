@@ -23,3 +23,16 @@ export const PATCH = defineRoute({
     return result.ok ? ok({ status: 200, body: categoryGroupDto(result.value) }) : result;
   },
 });
+
+/** P347: deletes the group with its categories, logically (D8); 204 without a body. */
+export const DELETE = defineRoute({
+  auth: "required",
+  handler: async ({ user, params }) => {
+    const result = await getContainer().categories.deleteCategoryGroup({
+      spaceId: params.spaceId!,
+      userId: user!.id,
+      groupId: params.groupId!,
+    });
+    return result.ok ? ok({ status: 204 }) : result;
+  },
+});

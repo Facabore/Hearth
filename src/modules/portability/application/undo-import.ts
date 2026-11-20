@@ -63,11 +63,13 @@ export const createUndoImport =
         ...targets.value.accounts.filter((a) => a.archived).map((a) => a.id),
         ...targets.value.categories.filter((c) => c.archived).map((c) => c.id),
       ]);
+      // P347: the targets hold no deleted category; one the person deleted (with its group) stays as it is, uncounted.
+      const liveCategories = new Set(targets.value.categories.map((c) => c.id));
       let categoriesArchived = 0;
       // Subcategories were created after their parents: the reverse order archives them first.
       for (const categoryId of [...created.categories].reverse()) {
-        if (archivedNow.has(categoryId) || (await deps.writer.categoryInUse(who.spaceId, categoryId)))
-          continue;
+        if (!liveCategories.has(categoryId) || archivedNow.has(categoryId)) continue;
+        if (await deps.writer.categoryInUse(who.spaceId, categoryId)) continue;
         const archived = await deps.writer.archiveCategory({ ...who, categoryId });
         if (!archived.ok) return archived;
         categoriesArchived += 1;

@@ -14,6 +14,7 @@ import { createArchiveCategoryGroup } from "./archive-category-group";
 import { createCreateCategory } from "./create-category";
 import { createCreateCategoryGroup } from "./create-category-group";
 import { createDeleteCategory } from "./delete-category";
+import { createDeleteCategoryGroup } from "./delete-category-group";
 import type { CategoriesDeps } from "./deps";
 import { createListCategories } from "./list-categories";
 import { createRenameCategoryGroup } from "./rename-category-group";
@@ -57,6 +58,7 @@ const world = async (archived: boolean) => {
     archive: createArchiveCategory(deps),
     restore: createRestoreCategory(deps),
     archiveGroup: createArchiveCategoryGroup(deps),
+    removeGroup: createDeleteCategoryGroup(deps),
     list: createListCategories({ ...deps, counts: noUsage }),
   };
 };
@@ -85,6 +87,7 @@ const WRITES: readonly (readonly [string, (w: World) => Promise<Result<unknown>>
   ["ArchiveCategory", (w) => w.archive({ ...asAna, categoryId: w.named("Groceries").id })],
   ["RestoreCategory", (w) => w.restore({ ...asAna, categoryId: w.named("Restaurants").id })],
   ["ArchiveCategoryGroup", (w) => w.archiveGroup({ ...asAna, groupId: w.leisure.id })],
+  ["DeleteCategoryGroup", (w) => w.removeGroup({ ...asAna, groupId: w.leisure.id })],
 ];
 
 describe("archived spaces only read: categories (HU-E1-09, Review Focus 4)", () => {

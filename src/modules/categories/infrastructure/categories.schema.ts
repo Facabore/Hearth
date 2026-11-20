@@ -36,14 +36,23 @@ export const categoryGroups = pgTable(
     // Ruling P296: the group's place in its space's list, from 0, dense over every group (archived ones included).
     position: integer("position").notNull(),
     archivedAt: tz("archived_at"),
+    // P347, D8: deleting a group is logical; the row stays for the movements its categories still name.
+    deletedAt: tz("deleted_at"),
     createdAt: tz("created_at").notNull(),
   },
   (t) => [
-    uniqueIndex("category_groups_space_name_uq").on(t.spaceId, sql`lower(${t.name})`),
-    // HU-E3-05: at most one group per catalog key and space; NULL keys (groups users create) never collide.
+    // P347: a deleted group's name is free again; archived groups keep theirs taken (HU-E3-02).
+    uniqueIndex("category_groups_space_name_uq")
+      .on(t.spaceId, sql`lower(${t.name})`)
+      .where(sql`${t.deletedAt} IS NULL`),
+    // HU-E3-05: at most one group per catalog key and space; NULL keys (groups users create) never collide. A deleted
+    // seeded group keeps its key: nothing adds a keyed group after seeding, which runs once (`hasAny`).
     uniqueIndex("category_groups_space_key_uq").on(t.spaceId, t.key),
-    // Ruling P296: one group per place. Not deferrable (drizzle-kit cannot say so): a move parks its rows first.
-    unique("category_groups_space_position_uq").on(t.spaceId, t.position),
+    // Ruling P296: one live group per place (P347: a deleted group leaves the order). Not deferrable (drizzle-kit cannot
+    // say so): a move parks its rows first.
+    uniqueIndex("category_groups_space_position_uq")
+      .on(t.spaceId, t.position)
+      .where(sql`${t.deletedAt} IS NULL`),
     check("category_groups_position_non_negative", sql`${t.position} >= 0`),
   ],
 );

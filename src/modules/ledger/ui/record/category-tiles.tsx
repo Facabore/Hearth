@@ -94,8 +94,10 @@ export function CategoryTiles({
                 {/* #309 (S5): one line, never broken mid-word ("Restaurante/s" at 390 px); a long name ends in "…". */}
                 <span className="truncate">{found.category.name}</span>
               </button>
-              {chosen && onEdit ? (
+              {chosen && onEdit && live ? (
                 // P346 (S6, S8): a white 44 px circle with a line border, its own target, named for screen readers.
+                // Only for a live category: an edited movement may hold an archived or deleted one, which no editor
+                // opens (P347).
                 <button
                   type="button"
                   aria-label={catalog("edit", { name: found.category.name })}

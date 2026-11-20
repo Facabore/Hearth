@@ -16,16 +16,32 @@ export interface CategoryRepository {
   hasAny(spaceId: string): Promise<boolean>;
   addGroups(groups: readonly CategoryGroup[]): Promise<void>;
   addCategories(categories: readonly Category[]): Promise<void>;
-  /** Every group of the space, archived ones included, by position (ruling P296). */
+  /** Every group of the space that is not deleted (P347), archived ones included, by position (ruling P296). */
   listGroups(spaceId: string): Promise<CategoryGroup[]>;
+  /**
+   * P347: the space's deleted groups, by position, each with its `deletedAt` and archived. Only the reads that name
+   * history take them; every write and every other read leaves them out, as `listGroups` does.
+   */
+  listDeletedGroups(spaceId: string): Promise<CategoryGroup[]>;
   /** Ruling P296: the new positions of `groups`, all of the space; together they keep the positions dense and unique. */
   saveGroupPositions(spaceId: string, groups: readonly CategoryGroup[]): Promise<void>;
   /** Every category of the space that is not deleted (D8), archived ones included. */
   listCategories(spaceId: string): Promise<Category[]>;
+  /**
+   * P347: `listCategories`, and the categories and subcategories deleted together with their group (archived, with
+   * their `deletedAt`), so movements that name them keep their names. One deleted on its own never comes back: nothing
+   * referenced it (HU-E3-03).
+   */
+  listCategoriesForHistory(spaceId: string): Promise<Category[]>;
   /** Persists name, style and archive state. */
   saveGroup(group: CategoryGroup): Promise<void>;
   /** Persists name, group, parent, style and archive state of each category. */
   saveCategories(categories: readonly Category[]): Promise<void>;
   /** D8: logical; the row and every reference to it stay, and `listCategories` skips it. */
   deleteCategory(spaceId: string, categoryId: string, deletedAt: Date): Promise<void>;
+  /**
+   * P347, D8: persists what `deleteGroup` decided: the group's and each category's deletion and archive, on rows not
+   * deleted yet. The rows and every reference to them stay.
+   */
+  deleteGroup(group: CategoryGroup, categories: readonly Category[]): Promise<void>;
 }

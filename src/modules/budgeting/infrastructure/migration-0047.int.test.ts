@@ -10,6 +10,8 @@ const TAG = "0047_p342_plan_currencies";
 const admin = new pg.Client({ connectionString: inject("adminDatabaseUrl") });
 /** A copy of drizzle/ whose journal stops before 0047: plans with one planned amount, capacity and value per line. */
 const before = mkdtempSync(join(tmpdir(), "hearth-before-0047-"));
+/** A copy of drizzle/ whose journal stops at 0047, so its rollback and a later apply act on 0047 whatever follows it. */
+const through = mkdtempSync(join(tmpdir(), "hearth-through-0047-"));
 /** Every database a test opened, registered before it is migrated so `afterAll` always drops it. */
 const databases: { name: string; client?: pg.Client }[] = [];
 const rollbackSql = () => readFileSync(join("drizzle", "rollback", "0047_down.sql"), "utf8");
@@ -22,6 +24,11 @@ beforeAll(async () => {
   const cut = journal.entries.findIndex((entry) => entry.tag === TAG);
   expect(cut).toBeGreaterThan(0);
   writeFileSync(journalFile, JSON.stringify({ ...journal, entries: journal.entries.slice(0, cut) }));
+  cpSync("drizzle", through, { recursive: true });
+  writeFileSync(
+    join(through, "meta", "_journal.json"),
+    JSON.stringify({ ...journal, entries: journal.entries.slice(0, cut + 1) }),
+  );
 });
 
 afterAll(async () => {
@@ -39,6 +46,7 @@ afterAll(async () => {
   }
   await attempt(() => admin.end());
   await attempt(() => rmSync(before, { recursive: true, force: true }));
+  await attempt(() => rmSync(through, { recursive: true, force: true }));
   if (failures.length > 0) throw new AggregateError(failures, "Cleaning up the 0047 test databases failed");
 });
 
@@ -161,7 +169,7 @@ describe(`${TAG} (P342 S7, #341)`, () => {
     const w = await seedPlans(db.client);
     const planned = await plannedAmounts(db.client);
     const values0 = await values(db.client, false);
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
 
     const byLine = (lineId: string, currency: string, amount: string) =>
       expect.objectContaining({ line_id: lineId, currency, amount, position: 0, removed_at: null });
@@ -204,7 +212,7 @@ describe(`${TAG} (P342 S7, #341)`, () => {
     const planned = await plannedAmounts(db.client);
     const capacities0 = await capacities(db.client, false);
     const values0 = await values(db.client, false);
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
     // After 0047 Home becomes 1.500.000 COP: the rollback gives the old column the current budget.
     await db.client.query(`UPDATE budget_line_budgets SET planned_amount = 150000000 WHERE line_id = $1`, [
       w.home,
@@ -230,7 +238,7 @@ describe(`${TAG} (P342 S7, #341)`, () => {
 
     // A later deploy applies 0047 again, from the restored column.
     await db.client.query(`ALTER TABLE p342_s7_line_budgets_backup RENAME TO p342_s7_line_budgets_first`);
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
     expect(await budgets(db.client)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ line_id: w.home, currency: "COP", amount: "150000000" }),
@@ -241,7 +249,7 @@ describe(`${TAG} (P342 S7, #341)`, () => {
   it("refuses to roll back, changing nothing, once a plan holds an amount in another currency than its space's", async () => {
     const db = await openDatabase(before);
     const w = await seedPlans(db.client);
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
     await db.client.query(
       `INSERT INTO budget_line_budgets (plan_id, line_id, currency, planned_amount, position, created_at, updated_at)
        VALUES ($1, $2, 'USD', 10000, 1, now(), now())`,
@@ -327,7 +335,7 @@ describe(`${TAG} (P342 S7, #341)`, () => {
   it.each(afterT6)("refuses to roll back, changing nothing, after %s", async (_case, change, refusal) => {
     const db = await openDatabase(before);
     const w = await seedPlans(db.client);
-    await runMigrations(db.url, "drizzle");
+    await runMigrations(db.url, through);
     await change(db.client, w);
     const state = async () => [
       await budgets(db.client),
