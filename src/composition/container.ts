@@ -647,11 +647,21 @@ export const ledgerCategoriesOf = (categories: CategoryRepository): LedgerDeps["
     const category = (await categories.listCategories(spaceId)).find((c) => c.id === categoryId);
     return category ? { id: category.id, archived: category.archivedAt !== null } : null;
   },
-  // HU-E3-04: the filter's subcategories; listCategories skips deleted rows and keeps archived ones.
+  // HU-E3-04: the filter's subcategories, archived ones included; P347: a filter applied to a category deleted with its
+  // group still matches the movements of its subcategories, which history names too.
   subcategoriesOf: async (spaceId, categoryIds) =>
-    (await categories.listCategories(spaceId))
+    (await categories.listCategoriesForHistory(spaceId))
       .filter((c) => c.parentCategoryId !== null && categoryIds.includes(c.parentCategoryId))
       .map((c) => c.id),
+});
+
+/**
+ * P347: the categories a space's history is named from: the live ones, archived ones included, and those deleted
+ * together with their group (archived too), so a movement, the activity or a report that names one keeps its name. Every
+ * write and every picker reads `listCategories` instead, which leaves deleted ones out (D8).
+ */
+export const historyCategoriesOf = (categories: CategoryRepository) => ({
+  listCategories: (spaceId: string) => categories.listCategoriesForHistory(spaceId),
 });
 
 /** HU-E6-04: plans map the space's live categories; deleted ones never appear (D8). */
@@ -1099,7 +1109,7 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
     trees: categoryRepository,
     // HU-E7-04: the caller's own member rows (spaces), category keys (catalog) and savings accounts (accounts).
     places: spaceRepository,
-    catalog: categoriesDeps.categories,
+    catalog: historyCategoriesOf(categoryRepository),
     savingsAccountsOf,
     // HU-E7-02, HU-E7-03: the ledger sums payments, shares and fund contributions per member in SQL (D7).
     sums: ledgerQueries,
@@ -1437,7 +1447,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         places: spaceRepository,
         members: spaceRepository,
         recent: ledgerQueries,
-        categories: categoryRepository,
+        // P347: the activity names a category deleted with its group, as it names an archived one.
+        categories: historyCategoriesOf(categoryRepository),
         settlements: settlementContexts,
       }),
       getAccountUsage: createGetAccountUsage({
@@ -1449,7 +1460,8 @@ export const buildContainer = (env: Env, options: ContainerOptions = {}): Contai
         spaces: spaceRepository,
         places: spaceRepository,
         members: spaceRepository,
-        categories: categoryRepository,
+        // P347: each movement names a category deleted with its group, as it names an archived one.
+        categories: historyCategoriesOf(categoryRepository),
         categoryTree: ledgerDeps.categories,
         access,
         storedPeriods,

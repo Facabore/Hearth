@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GET as myActivity } from "@/app/api/v1/me/activity/route";
+import { GET as myCategories } from "@/app/api/v1/me/categories/route";
 import { GET as listCategories } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { POST as createCategory } from "@/app/api/v1/spaces/[spaceId]/categories/route";
 import { POST as restoreCategory } from "@/app/api/v1/spaces/[spaceId]/categories/[categoryId]/restore/route";
@@ -9,6 +11,9 @@ import {
 } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/route";
 import { POST as archiveGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/archive/route";
 import { POST as restoreGroup } from "@/app/api/v1/spaces/[spaceId]/category-groups/[groupId]/restore/route";
+import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/route";
+import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
+import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
 import {
   call,
@@ -18,7 +23,9 @@ import {
   type RouteHandler,
   type TestUser,
 } from "../support/app";
-import { household, joinHousehold, paysEqually } from "../support/ledger";
+import { cop, household, joinHousehold, paysEqually, post } from "../support/ledger";
+import { getSpendingByGroup, type SpendingByGroupDto } from "../support/reporting";
+import { actingIn } from "../support/spaces";
 
 let app: Container;
 beforeAll(() => {
@@ -164,5 +171,87 @@ describe("DELETE /api/v1/spaces/{spaceId}/category-groups/{groupId} (P347)", () 
       body: { groupId: food.id, name: "Panadería" },
     });
     expect(await problemOf(inDeleted)).toEqual([404, "CategoryGroupNotFound"]);
+  });
+});
+
+describe("history keeps the names of a deleted group's categories (P347, S7)", () => {
+  it("still names a past movement's category and group, while a new movement cannot use it", async () => {
+    const h = await household();
+    const food = await groupWithKey(h.ana, "food");
+    const groceries = await paysEqually(h.juan, 180_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    expect((await onGroup(deleteGroup, "DELETE", h.ana, food.id)).status).toBe(204);
+
+    // The movement keeps its category, and the whole tree (what the SPA names it from) still holds it.
+    const detail = await call(
+      getTransaction,
+      "GET",
+      `/api/v1/spaces/${h.spaceId}/transactions/${groceries.id}`,
+      { user: h.ana, params: { spaceId: h.spaceId, transactionId: groceries.id } },
+    );
+    expect(((await detail.json()) as { categoryId: string }).categoryId).toBe(h.groceries);
+    const named = (await treeOf(h.ana, "?archived=true")).find((g) => g.id === food.id)!;
+    expect(named.categories.map((c) => c.id)).toContain(h.groceries);
+    // The person's trees across spaces (the personal Movimientos' filters) hold it too.
+    const mine = await call(myCategories, "GET", "/api/v1/me/categories?archived=true", { user: h.ana });
+    const spaces = ((await mine.json()) as { items: { spaceId: string; groups: GroupDto[] }[] }).items;
+    expect(spaces.find((s) => s.spaceId === h.spaceId)!.groups.map((g) => g.id)).toContain(food.id);
+
+    // Ana's activity names it on the server, as before the delete.
+    const activity = await call(myActivity, "GET", "/api/v1/me/activity?from=2026-10-01", { user: h.ana });
+    const items = (
+      (await activity.json()) as { items: { category: { name: string; path: string } | null }[] }
+    ).items;
+    expect(items[0]!.category).toMatchObject({ name: "Mercado", path: "Mercado" });
+
+    const blocked = await post(recordExpense, h.ana, "expenses", {
+      description: "Pan",
+      date: "2026-10-06",
+      categoryId: h.groceries,
+      amount: cop(10_000),
+      accountId: h.ana.account,
+    });
+    expect(await problemOf(blocked)).toEqual([404, "CategoryNotFound"]);
+  });
+
+  it("keeps a filter on a deleted category matching the movements of its subcategories", async () => {
+    const h = await household();
+    const food = await groupWithKey(h.ana, "food");
+    const created = await post(createCategory, h.ana, "categories", {
+      parentCategoryId: h.groceries,
+      name: "Verduras",
+    });
+    const vegetables = ((await created.json()) as { id: string }).id;
+    const inVegetables = await paysEqually(h.ana, 40_000, [h.ana.memberId, h.juan.memberId], vegetables);
+    expect((await onGroup(deleteGroup, "DELETE", h.ana, food.id)).status).toBe(204);
+
+    const listed = await call(
+      listTransactions,
+      "GET",
+      `/api/v1/spaces/${h.spaceId}/transactions?period=2026-10&categoryIds=${h.groceries}`,
+      { user: h.ana, params: { spaceId: h.spaceId } },
+    );
+    expect(listed.status).toBe(200);
+    const items = ((await listed.json()) as { items: { id: string }[] }).items;
+    expect(items.map((t) => t.id)).toEqual([inVegetables.id]);
+  });
+
+  it("still names the deleted group and its category in the space's spending by group, archived", async () => {
+    const h = await household();
+    const food = await groupWithKey(h.ana, "food");
+    await paysEqually(h.juan, 180_000, [h.ana.memberId, h.juan.memberId], h.groceries);
+    expect((await onGroup(deleteGroup, "DELETE", h.ana, food.id)).status).toBe(204);
+
+    const response = await getSpendingByGroup(actingIn(h.ana, h.spaceId), h.spaceId, { period: "2026-10" });
+    const report = (await response.json()) as SpendingByGroupDto;
+    expect(report.total).toEqual(cop(180_000));
+    expect(report.groups).toEqual([
+      expect.objectContaining({
+        id: food.id,
+        name: food.name,
+        archived: true,
+        total: cop(180_000),
+        categories: [expect.objectContaining({ id: h.groceries, name: "Mercado", archived: true })],
+      }),
+    ]);
   });
 });
