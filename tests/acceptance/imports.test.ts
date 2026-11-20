@@ -903,10 +903,12 @@ describe("your categories as you had them (P337, #333)", () => {
       entered: "500000.0",
       inAccount: 500000,
     };
-    const response = await upload(
-      ana,
-      moneyManagerBackup([bonus], [], [{ uid: "c-bonus", name: "Bono", type: 0, parent: "c-salary" }]),
+    const backupWithBonus = moneyManagerBackup(
+      [bonus],
+      [],
+      [{ uid: "c-bonus", name: "Bono", type: 0, parent: "c-salary" }],
     );
+    const response = await upload(ana, backupWithBonus);
     expect(response.status).toBe(201);
     const preview = (await response.json()) as Preview;
     await confirmed(ana, preview.id);
@@ -950,6 +952,18 @@ describe("your categories as you had them (P337, #333)", () => {
     expect(salaryAfter.archivedAt).not.toBeNull();
     expect(salaryAfter.subcategories.map((sub) => sub.archivedAt)).toEqual([expect.any(String)]);
     expect(await liveMovements(ana.spaceId)).toBe(0);
+
+    // Importing again follows the links into Ingresos: the same category and subcategory come back, none doubled.
+    const again = await upload(ana, backupWithBonus);
+    expect(again.status).toBe(201);
+    const second = await confirmed(ana, ((await again.json()) as Preview).id);
+    // Supermercado, Guitarra, Salary and Bono: all restored through their links, none created again.
+    expect(second.counts).toMatchObject({ categoriesCreated: 0, categoriesRestored: 4 });
+    const back = (await treeOf(ana)) as unknown as typeof after;
+    const salaries = back.find((g) => g.key === "income")!.categories.filter((c) => c.name === "Salary");
+    expect(salaries.map((c) => [c.archivedAt, c.subcategories.map((sub) => sub.archivedAt)])).toEqual([
+      [null, [null]],
+    ]);
   });
 
   it("archives nothing of Hearth's when the person turns the switch off", async () => {
