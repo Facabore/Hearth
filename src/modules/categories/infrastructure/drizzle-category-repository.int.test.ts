@@ -4,7 +4,13 @@ import { DrizzleTransactionManager } from "@/shared/infrastructure/db/drizzle-tr
 import { UuidV7IdGenerator } from "@/shared/infrastructure/uuid-v7-id-generator";
 import { testDatabase } from "../../../../tests/support/database";
 import { personalSpaceFixture } from "../../../../tests/support/fixtures";
-import type { Category, CategoryGroupId, CategoryId } from "../domain/category";
+import {
+  deleteGroup,
+  newGroup,
+  type Category,
+  type CategoryGroupId,
+  type CategoryId,
+} from "../domain/category";
 import { CUSTOM_GROUP_STYLE, type CategoryStyle } from "../domain/category-style";
 import { seedTree } from "../domain/default-catalog";
 import { DrizzleCategoryRepository } from "./drizzle-category-repository";
@@ -255,5 +261,106 @@ describe("category styles (HU-E3-05)", () => {
     ]);
     // Another space seeds the same keys.
     await seeded();
+  });
+});
+
+describe("deleting a group (P347, D8)", () => {
+  const at = new Date("2026-11-20T15:00:00Z");
+  const later = new Date("2026-11-21T15:00:00Z");
+
+  it("keeps the group and its categories stored, out of every list but history's, and the first deletion's time", async () => {
+    const { space, tree } = await seeded();
+    const spaceId = space.spaceId;
+    const groups = await repo.listGroups(spaceId);
+    const food = groups.find((g) => g.key === "food")!;
+    const inFood = tree.categories.filter((c) => c.groupId === food.id);
+    // One of Food's categories was deleted on its own the day before: it stays out of history too.
+    const [alone, ...rest] = inFood;
+    await repo.deleteCategory(spaceId, alone!.id, new Date("2026-11-19T15:00:00Z"));
+
+    const deleted = deleteGroup(food, groups, await repo.listCategories(spaceId), at);
+    await repo.deleteGroup(deleted.group, deleted.categories);
+    await repo.saveGroupPositions(spaceId, deleted.positions);
+
+    const live = await repo.listGroups(spaceId);
+    expect(live.map((g) => g.id)).not.toContain(food.id);
+    expect(live.map((g) => g.position)).toEqual(live.map((_, i) => i));
+    expect(await repo.listDeletedGroups(spaceId)).toEqual([
+      { ...food, archivedAt: at, deletedAt: at, position: food.position },
+    ]);
+    const liveIds = (await repo.listCategories(spaceId)).map((c) => c.id);
+    expect(liveIds.some((id) => inFood.some((c) => c.id === id))).toBe(false);
+    const history = await repo.listCategoriesForHistory(spaceId);
+    expect(history.filter((c) => c.groupId === food.id)).toEqual(
+      expect.arrayContaining(rest.map((c) => ({ ...c, archivedAt: at, deletedAt: at }))),
+    );
+    expect(history.map((c) => c.id)).not.toContain(alone!.id);
+    expect(history.filter((c) => c.groupId !== food.id).every((c) => c.deletedAt === undefined)).toBe(true);
+
+    // Deleting again changes nothing: the first deletion's time stays on every row.
+    const again = deleteGroup({ ...food, archivedAt: later }, [], rest, later);
+    await repo.deleteGroup(again.group, again.categories);
+    const { rows } = await pool.query<{ deleted_at: Date }>(
+      "SELECT deleted_at FROM categories WHERE group_id = $1 UNION ALL SELECT deleted_at FROM category_groups WHERE id = $1",
+      [food.id],
+    );
+    expect(rows.filter((r) => r.deleted_at.getTime() === later.getTime())).toEqual([]);
+  });
+
+  it("frees the deleted group's name and place for a new group", async () => {
+    const { space } = await seeded();
+    const spaceId = space.spaceId;
+    const groups = await repo.listGroups(spaceId);
+    const last = groups.at(-1)!;
+    const deleted = deleteGroup(last, groups, await repo.listCategories(spaceId), at);
+    await repo.deleteGroup(deleted.group, deleted.categories);
+
+    const live = await repo.listGroups(spaceId);
+    const again = newGroup({
+      id: ids.next<"CategoryGroup">(),
+      spaceId,
+      name: last.name.toUpperCase(),
+      now: at,
+      groups: live,
+    });
+    if (!again.ok) throw new Error(again.error.code);
+    // The last group's place and name, both free once it is deleted.
+    expect(again.value.position).toBe(last.position);
+    await repo.addGroups([again.value]);
+    expect((await repo.listGroups(spaceId)).at(-1)).toMatchObject({
+      id: again.value.id,
+      position: last.position,
+    });
+    // A live group still holds its name and its place.
+    await expect(
+      repo.addGroups([{ ...again.value, id: ids.next<"CategoryGroup">(), position: 99 }]),
+    ).rejects.toThrow();
+    await expect(
+      repo.addGroups([{ ...again.value, id: ids.next<"CategoryGroup">(), name: "Otro", position: 0 }]),
+    ).rejects.toThrow();
+  });
+
+  it("lets a report name what was spent in a deleted group's categories, archived, and never one deleted alone", async () => {
+    const { space, tree } = await seeded();
+    const spaceId = space.spaceId;
+    const groups = await repo.listGroups(spaceId);
+    const food = groups.find((g) => g.key === "food")!;
+    const [alone, kept] = tree.categories.filter((c) => c.groupId === food.id);
+    await repo.deleteCategory(spaceId, alone!.id, new Date("2026-11-19T15:00:00Z"));
+    const deleted = deleteGroup(food, groups, await repo.listCategories(spaceId), at);
+    await repo.deleteGroup(deleted.group, deleted.categories);
+
+    const nodes = await repo.treesOf([spaceId]);
+    expect(nodes.find((n) => n.categoryId === kept!.id)).toMatchObject({
+      groupId: food.id,
+      groupName: food.name,
+      groupArchived: true,
+      categoryName: kept!.name,
+      categoryArchived: true,
+    });
+    expect(nodes.map((n) => n.categoryId)).not.toContain(alone!.id);
+    expect(await repo.groupsOf([spaceId])).toContainEqual(
+      expect.objectContaining({ groupId: food.id, groupArchived: true }),
+    );
   });
 });

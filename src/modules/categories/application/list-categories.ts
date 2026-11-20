@@ -46,8 +46,15 @@ export const createListCategories =
     const { spaceId } = membership.value;
     const visible = <T extends { archivedAt: Date | null }>(rows: readonly T[]): T[] =>
       input.includeArchived ? [...rows] : rows.filter((row) => row.archivedAt === null);
-    const groups = await deps.categories.listGroups(spaceId);
-    const categories = await deps.categories.listCategories(spaceId);
+    // P347: with the archived ones come the deleted groups, last, archived and with their `deletedAt`, so a client names
+    // the movements their categories still hold; a deleted group is never offered, listed or restored.
+    const live = (await deps.categories.listGroups(spaceId)).sort((a, b) => a.position - b.position);
+    const groups = input.includeArchived
+      ? [...live, ...(await deps.categories.listDeletedGroups(spaceId))]
+      : live;
+    const categories = input.includeArchived
+      ? await deps.categories.listCategoriesForHistory(spaceId)
+      : await deps.categories.listCategories(spaceId);
     const counts = await deps.counts.usageCountsOf(spaceId);
     // P297: a subcategory's movements count toward the subcategory itself, never toward its parent.
     const counted = (category: (typeof categories)[number]): CountedCategoryView => ({
@@ -55,19 +62,17 @@ export const createListCategories =
       usageCount: counts.get(category.id) ?? 0,
     });
     return ok(
-      visible(groups)
-        .sort((a, b) => a.position - b.position)
-        .map((group) => ({
-          ...group,
-          categories: visible(categories.filter((c) => c.groupId === group.id && c.parentCategoryId === null))
-            .sort(byName)
-            .map((category) => ({
-              ...counted(category),
-              // HU-E3-05: derived on every read, so a subcategory follows its parent's style.
-              subcategories: visible(categories.filter((c) => c.parentCategoryId === category.id))
-                .sort(byName)
-                .map(counted),
-            })),
-        })),
+      visible(groups).map((group) => ({
+        ...group,
+        categories: visible(categories.filter((c) => c.groupId === group.id && c.parentCategoryId === null))
+          .sort(byName)
+          .map((category) => ({
+            ...counted(category),
+            // HU-E3-05: derived on every read, so a subcategory follows its parent's style.
+            subcategories: visible(categories.filter((c) => c.parentCategoryId === category.id))
+              .sort(byName)
+              .map(counted),
+          })),
+      })),
     );
   };

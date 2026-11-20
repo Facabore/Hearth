@@ -966,6 +966,29 @@ describe("your categories as you had them (P337, #333)", () => {
     ]);
   });
 
+  it("never lands on a deleted Ingresos: the income category keeps a group of its own, as without one (P347)", async () => {
+    const ana = await registerUser("Ana");
+    const ingresos = (await treeOf(ana)).find((g) => g.key === "income")!;
+    expect((await app.categories.deleteCategoryGroup({ ...ana, groupId: ingresos.id })).ok).toBe(true);
+
+    await imported(ana);
+
+    const tree = await treeOf(ana);
+    const live = tree.filter((g) => g.archivedAt === null);
+    // P337's way without an Ingresos group: Salary is a group of its own, after the expense ones.
+    expect(
+      live.map((g) => [g.name, g.categories.filter((c) => c.archivedAt === null).map((c) => c.name)]),
+    ).toEqual([
+      ["Food", ["Food", "Supermercado"]],
+      ["Guitarra", ["Guitarra"]],
+      ["Salary", ["Salary"]],
+    ]);
+    // The deleted Ingresos stays deleted, with none of the import in it.
+    const deleted = tree.find((g) => g.id === ingresos.id) as TreeGroup & { deletedAt?: string };
+    expect(deleted.deletedAt).toEqual(expect.any(String));
+    expect(deleted.categories.map((c) => c.name)).not.toContain("Salary");
+  });
+
   it("archives nothing of Hearth's when the person turns the switch off", async () => {
     const ana = await registerUser("Ana");
     const preview = await uploaded(ana);

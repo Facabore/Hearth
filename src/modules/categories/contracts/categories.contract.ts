@@ -36,6 +36,11 @@ export const CategorySchema = z.object({
    * toward the subcategory itself. Computed on read, never stored (D7). Added after M6, so optional.
    */
   usageCount: z.number().int().optional(),
+  /**
+   * P347: only on a category deleted together with its group, which `archived=true` lists so a client still names the
+   * movements that use it; it is archived too, and never offered, listed among the archived or restored.
+   */
+  deletedAt: z.iso.datetime().optional(),
 });
 export const CategoryGroupSummarySchema = z.object({
   id: z.string(),
@@ -51,6 +56,11 @@ export const CategoryGroupSummarySchema = z.object({
    * come in this order. Read-only: `POST …/move` changes it. Added after M6, so optional.
    */
   position: z.number().int().optional(),
+  /**
+   * P347: only on a deleted group, which `archived=true` lists last so a client still names the movements of its
+   * categories; it is archived too, and never offered, listed among the archived or restored.
+   */
+  deletedAt: z.iso.datetime().optional(),
 });
 export const CategoryGroupSchema = CategoryGroupSummarySchema.extend({
   /** HU-E3-04: the group's categories, each with its subcategories. */
@@ -104,6 +114,9 @@ export const UpdateCategoryBodySchema = z
   });
 
 const isoOrNull = (date: Date | null) => date?.toISOString() ?? null;
+/** P347: `deletedAt` only on a deleted node, so a live one answers exactly as before. */
+const deletion = (node: { readonly deletedAt?: Date | null }) =>
+  node.deletedAt ? { deletedAt: node.deletedAt.toISOString() } : {};
 
 export const categoryDto = (c: CategoryView): z.infer<typeof CategorySchema> => ({
   id: c.id,
@@ -114,6 +127,7 @@ export const categoryDto = (c: CategoryView): z.infer<typeof CategorySchema> => 
   archivedAt: isoOrNull(c.archivedAt),
   icon: c.shown.icon,
   color: c.shown.color,
+  ...deletion(c),
 });
 
 export const categoryGroupDto = (g: CategoryGroup): z.infer<typeof CategoryGroupSummarySchema> => ({
@@ -124,6 +138,7 @@ export const categoryGroupDto = (g: CategoryGroup): z.infer<typeof CategoryGroup
   icon: g.style.icon,
   color: g.style.color,
   position: g.position,
+  ...deletion(g),
 });
 
 /** Ruling P296: the body's anchor as the use case takes it (the schema leaves exactly one). */
@@ -179,7 +194,7 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
     get: {
       operationId: "listCategories",
       summary:
-        "Category tree of a space, with nested subcategories; archived groups, categories and subcategories only with archived=true",
+        "Category tree of a space, with nested subcategories; archived groups, categories and subcategories only with archived=true, which also lists deleted groups last, with their categories, each with deletedAt (P347)",
       ...securedByUser,
       requestParams: { path: SpacePath, query: ListCategoriesQuerySchema },
       responses: {
@@ -276,6 +291,19 @@ export const categoriesPaths: ZodOpenApiPathsObject = {
           "409": "CategoryGroupNameTaken, SpaceArchived",
           "422": "ValidationFailed, InvalidCategoryName, InvalidCategoryIcon",
         }),
+      },
+    },
+    delete: {
+      operationId: "deleteCategoryGroup",
+      summary:
+        "Delete a category group with its categories and subcategories, even when movements, budget lines or recurrences use them (P347)",
+      description:
+        "Logical (D8): the rows stay, archived and deleted, so past movements and reports keep naming them; they are never offered, listed among the archived or restored again, and the group's name is free. A deleted group answers 404 CategoryGroupNotFound.",
+      ...securedByUser,
+      requestParams: { path: GroupPath },
+      responses: {
+        "204": { description: "Deleted" },
+        ...problems({ ...managed, "404": "SpaceNotFound, CategoryGroupNotFound", "409": "SpaceArchived" }),
       },
     },
   },

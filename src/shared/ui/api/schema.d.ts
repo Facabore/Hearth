@@ -480,7 +480,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Category tree of a space, with nested subcategories; archived groups, categories and subcategories only with archived=true */
+        /** Category tree of a space, with nested subcategories; archived groups, categories and subcategories only with archived=true, which also lists deleted groups last, with their categories, each with deletedAt (P347) */
         get: operations["listCategories"];
         put?: never;
         /** Create a category in a group, or a subcategory under a category */
@@ -536,7 +536,11 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete a category group with its categories and subcategories, even when movements, budget lines or recurrences use them (P347)
+         * @description Logical (D8): the rows stay, archived and deleted, so past movements and reports keep naming them; they are never offered, listed among the archived or restored again, and the group's name is free. A deleted group answers 404 CategoryGroupNotFound.
+         */
+        delete: operations["deleteCategoryGroup"];
         options?: never;
         head?: never;
         /** Rename a category group and/or change its icon and color */
@@ -2184,6 +2188,8 @@ export interface components {
             /** @enum {string} */
             color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
             position?: number;
+            /** Format: date-time */
+            deletedAt?: string;
             categories: {
                 id: string;
                 groupId: string;
@@ -2203,6 +2209,8 @@ export interface components {
                 /** @enum {string} */
                 color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
                 usageCount?: number;
+                /** Format: date-time */
+                deletedAt?: string;
                 subcategories: components["schemas"]["CategoryOutput"][];
             }[];
         };
@@ -2223,6 +2231,8 @@ export interface components {
             /** @enum {string} */
             color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
             position?: number;
+            /** Format: date-time */
+            deletedAt?: string;
         };
         CategoryOutput: {
             id: string;
@@ -2243,6 +2253,8 @@ export interface components {
             /** @enum {string} */
             color: "PINE" | "SAGE" | "OLIVE" | "SAND" | "MUSTARD" | "AMBER" | "EMBER" | "CORAL" | "ROSE" | "PLUM" | "LAVENDER" | "INDIGO" | "SKY" | "TEAL" | "STEEL" | "GRAPHITE";
             usageCount?: number;
+            /** Format: date-time */
+            deletedAt?: string;
         };
         ClaimPreview: {
             spaceName: string;
@@ -5198,6 +5210,63 @@ export interface operations {
             };
             /** @description ValidationFailed, InvalidCategoryName, InvalidCategoryIcon */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    deleteCategoryGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                spaceId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description InsufficientRole */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceNotFound, CategoryGroupNotFound */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description SpaceArchived */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

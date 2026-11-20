@@ -21,10 +21,16 @@ export interface CategoryGroup {
   /**
    * Ruling P296: where the group sits in its space's list, from 0. Over every group of the space, archived ones
    * included, the positions are dense and unique (`category_groups_space_position_uq`); only `placeGroup` and a new
-   * group, which goes last, set one.
+   * group, which goes last, set one. P347: a deleted group keeps its stored place and leaves the order; the live ones
+   * close the gap (`deleteGroup`).
    */
   readonly position: number;
   readonly archivedAt: Date | null;
+  /**
+   * P347, D8: when the group was deleted. A deleted group is also archived, so whatever hides archived groups hides it;
+   * only the reads that name history carry one (`CategoryRepository.listDeletedGroups`). Absent on a live group.
+   */
+  readonly deletedAt?: Date | null;
   readonly createdAt: Date;
 }
 
@@ -40,6 +46,11 @@ export interface Category {
   /** HU-E3-05: its own icon and color; null for a subcategory, which shows its parent's (`shownStyle`). */
   readonly style: CategoryStyle | null;
   readonly archivedAt: Date | null;
+  /**
+   * P347, D8: set on a category deleted together with its group, which is archived too; only the reads that name
+   * history carry one (`CategoryRepository.listCategoriesForHistory`). Absent on a live category.
+   */
+  readonly deletedAt?: Date | null;
   readonly createdAt: Date;
 }
 
@@ -312,4 +323,26 @@ export const archiveGroup = (
 ): { group: CategoryGroup; categories: Category[] } => ({
   group: group.archivedAt === null ? { ...group, archivedAt: now } : group,
   categories: categories.filter((c) => c.groupId === group.id).map((c) => archiveCategory(c, now)),
+});
+
+/**
+ * P347 (owner: "Sí, eliminar igual"): deleting a group, logically (D8), whatever its categories are used by. The group
+ * and each of its categories and subcategories not deleted yet take `now` as their deletion and stay archived (those
+ * archived before keep their own time), so whatever hides archived ones hides them while history still names them.
+ * `positions` are the live groups whose place changes: the rest close the gap, dense from 0 again (ruling P296).
+ */
+export const deleteGroup = (
+  group: CategoryGroup,
+  groups: readonly CategoryGroup[],
+  categories: readonly Category[],
+  now: Date,
+): { group: CategoryGroup; categories: Category[]; positions: CategoryGroup[] } => ({
+  group: { ...group, archivedAt: group.archivedAt ?? now, deletedAt: now },
+  categories: categories
+    .filter((c) => c.groupId === group.id)
+    .map((c) => ({ ...c, archivedAt: c.archivedAt ?? now, deletedAt: now })),
+  positions: [...groups]
+    .filter((g) => g.id !== group.id)
+    .sort((a, b) => a.position - b.position)
+    .flatMap((g, position) => (g.position === position ? [] : [{ ...g, position }])),
 });
