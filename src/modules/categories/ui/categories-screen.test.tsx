@@ -651,6 +651,19 @@ describe("categories screen (HU-E9-04)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("never breaks a group's name mid-word beside its four controls, as Alimenta/ción was at 320 px (P347)", () => {
+    renderTree(household());
+    const name = screen.getByRole("heading", { level: 2, name: "Food" });
+    // One line, an ellipsis only past its room: no rule left that splits a word, and the name never widens the row.
+    expect(name).toHaveClass("truncate", "min-w-28", "flex-1");
+    expect(name.className).not.toContain("overflow-wrap");
+    // Where the name would get less than 7rem, the four controls go under it together, at the right.
+    expect(name.parentElement).toHaveClass("flex-wrap");
+    const controls = screen.getByRole("button", { name: "Editar grupo Food" }).parentElement!;
+    expect(controls).toHaveClass("ml-auto", "shrink-0");
+    expect(within(controls).getAllByRole("button")).toHaveLength(4);
+  });
+
   it("shows a VIEWER the tree read-only: no create, edit, move, archive, restore or delete control", async () => {
     const { container } = renderTree(
       household({
