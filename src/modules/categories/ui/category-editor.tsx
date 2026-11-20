@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Api } from "@/shared/ui/api/client";
 import type { CategoryGroupDto } from "@/shared/ui/api/dto";
 import { CategorySheet } from "./category-sheet";
@@ -43,6 +43,12 @@ export function CategoryEditor({
   const [open, setOpen] = useState(categoryId);
   const live = activeTree(groups);
   const found = findCategory(live, open);
+  // A node that left the live tree (archived or deleted here, or gone from a fresh read) closes the editor, so the
+  // caller's next open starts it again instead of finding it mounted with nothing to draw.
+  const gone = found === null;
+  useEffect(() => {
+    if (gone) onClose();
+  }, [gone, onClose]);
   if (!found) return null;
   const node = found.group.categories.find((category) => category.id === open);
   // The group choice offers the groups the category's own kind lists (the income group only to an income one).

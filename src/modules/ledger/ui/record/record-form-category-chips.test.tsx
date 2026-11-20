@@ -240,4 +240,95 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
     expect(within(chips()).queryByRole("button", { pressed: true })).toBeNull();
     expect(pencil()).toBeNull();
   });
+
+  it("opens again from the pencil after a subcategory reached in the sheet is archived", async () => {
+    form({
+      "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/archive": () =>
+        jsonResponse({ ...fruit, archivedAt: "2026-11-01T04:30:00Z" }),
+    });
+    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await userEvent.click(pencil()!);
+    const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Editar Fruit" }));
+    const sub = await screen.findByRole("dialog", { name: "Editar categoría" });
+    expect(within(sub).getByLabelText("Nombre")).toHaveValue("Fruit");
+    await userEvent.click(within(sub).getByRole("button", { name: "Archivar" }));
+    await userEvent.click(within(sub).getByRole("button", { name: "Archivar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(within(subs()).queryByRole("button", { name: "Fruit" })).toBeNull();
+
+    await userEvent.click(pencil()!);
+    const again = await screen.findByRole("dialog", { name: "Editar categoría" });
+    expect(within(again).getByLabelText("Nombre")).toHaveValue("Groceries");
+  });
+
+  it("opens again from the pencil after a fresh read drops the subcategory the sheet was on", async () => {
+    const props = {
+      space: spaceDto(),
+      accounts,
+      formats: BUILT_IN_FORMATS,
+      initialKind: "EXPENSE" as const,
+      initialNow: "2026-11-01T04:30:00.000Z",
+      timeZone: "America/Bogota",
+      api: fakeApi({}).api,
+    };
+    const { rerender } = renderWithIntl(<RecordForm {...props} groups={groups} />);
+    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await userEvent.click(pencil()!);
+    const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Editar Fruit" }));
+    expect(
+      within(await screen.findByRole("dialog", { name: "Editar categoría" })).getByLabelText("Nombre"),
+    ).toHaveValue("Fruit");
+
+    // Another device archived Fruit: the route's next read no longer holds it, so its sheet has nothing to edit.
+    rerender(
+      <RecordForm
+        {...props}
+        groups={[
+          groupDto({
+            id: "g-food",
+            name: "Food",
+            categories: [{ ...groceries, subcategories: [veg] }, dining],
+          }),
+        ]}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await userEvent.click(pencil()!);
+    const again = await screen.findByRole("dialog", { name: "Editar categoría" });
+    expect(within(again).getByLabelText("Nombre")).toHaveValue("Groceries");
+  });
+
+  it("leaves the category without a subcategory when the chosen one is deleted from the sheet", async () => {
+    const { requests } = form({
+      "DELETE /api/v1/spaces/{spaceId}/categories/{categoryId}": () => new Response(null, { status: 204 }),
+    });
+    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await userEvent.click(within(subs()).getByRole("button", { name: "Fruit" }));
+    await userEvent.click(pencil()!);
+    const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
+    await userEvent.click(within(sheet).getByRole("button", { name: "Editar Fruit" }));
+    const sub = await screen.findByRole("dialog", { name: "Editar categoría" });
+    expect(within(sub).getByLabelText("Nombre")).toHaveValue("Fruit");
+    await userEvent.click(within(sub).getByRole("button", { name: "Eliminar" }));
+    await userEvent.click(within(sub).getByRole("button", { name: "Eliminar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(new URL(requests.find((r) => r.method === "DELETE")!.url).pathname).toBe(
+      `/api/v1/spaces/${spaceDto().id}/categories/c-fruit`,
+    );
+    expect(within(chips()).getByRole("button", { name: "Groceries" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(subs()).queryByRole("button", { name: "Fruit" })).toBeNull();
+    expect(within(subs()).getByRole("button", { name: "Sin subcategoría" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const body = await save(requests);
+    expect(body).toMatchObject({ categoryId: "c-groceries" });
+    expect(body).not.toHaveProperty("subcategoryId");
+  });
 });
