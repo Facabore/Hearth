@@ -53,10 +53,13 @@ describe("the sheet's drag handle closes it", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("closes on a drag down past the closing distance", () => {
-    const { grabber, onOpenChange } = open();
+  it("closes on a drag down past the closing distance, and springs back when the sheet stays open", async () => {
+    const { grabber, sheet, onOpenChange } = open();
     drag(grabber, 140, 1000);
     expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
+    // This sheet's owner keeps it open (as the record form's new category goes back to the picker instead).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sheet.style.transform).toBe("");
   });
 
   it("closes on a quick flick, however short", () => {
