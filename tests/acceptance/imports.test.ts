@@ -928,6 +928,28 @@ describe("your categories as you had them (P337, #333)", () => {
       [ana.spaceId],
     );
     expect(rows).toEqual([{ category_id: salary.subcategories[0]!.id }]);
+
+    // An undo archives the subcategory and the category it created, and keeps the seeded Ingresos.
+    const undone = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+    expect(undone.status).toBe(200);
+    const after = (await treeOf(ana)) as unknown as {
+      key: string | null;
+      archivedAt: string | null;
+      categories: {
+        name: string;
+        archivedAt: string | null;
+        subcategories: { archivedAt: string | null }[];
+      }[];
+    }[];
+    const ingresosAfter = after.find((g) => g.key === "income")!;
+    expect(ingresosAfter.archivedAt).toBeNull();
+    const salaryAfter = ingresosAfter.categories.find((c) => c.name === "Salary")!;
+    expect(salaryAfter.archivedAt).not.toBeNull();
+    expect(salaryAfter.subcategories.map((sub) => sub.archivedAt)).toEqual([expect.any(String)]);
+    expect(await liveMovements(ana.spaceId)).toBe(0);
   });
 
   it("archives nothing of Hearth's when the person turns the switch off", async () => {

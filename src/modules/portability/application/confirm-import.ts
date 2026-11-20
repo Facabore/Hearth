@@ -309,6 +309,10 @@ const resolveCategoryGroups = async (
         // a subcategory takes no icon (HU-E3-05).
         const parentCategoryId =
           category.parentSourceId === null ? undefined : resolved.categories.get(category.parentSourceId);
+        // The plan puts a parent before its subcategories, so a missing parent is a broken plan, never a top-level one.
+        if (category.parentSourceId !== null && parentCategoryId === undefined) {
+          throw new Error(`Import plan names ${category.parentSourceId} before planning it`);
+        }
         const created = await deps.writer.createCategory({
           ...input,
           ...(parentCategoryId === undefined ? { groupId } : { parentCategoryId }),

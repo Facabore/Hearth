@@ -211,6 +211,33 @@ describe("income categories land in the catalog's Ingresos group (#350)", () => 
     );
   });
 
+  it("leaves an earlier import's link outside Ingresos, so an undo and a new import move the income there", () => {
+    const plan = planCategoryGroups(
+      snapshot,
+      {
+        groups: [ingresos, group({ id: "g-old-salary", name: "Salary", archived: true })],
+        categories: [
+          hearthCategory({ id: "h-old-salary", name: "Salary", groupId: "g-old-salary", archived: true }),
+          hearthCategory({ id: "h-old-bonus", name: "Bonus", groupId: "g-old-salary", archived: true }),
+        ],
+      },
+      {
+        groups: new Map([["c-salary", "g-old-salary"]]),
+        categories: new Map([
+          ["c-salary", "h-old-salary"],
+          ["c-bonus", "h-old-bonus"],
+        ]),
+      },
+    );
+    const income = plan.find((g) => g.sourceIds.includes("c-salary"))!;
+    expect(income.target).toMatchObject({ kind: "existing", groupId: "g-income" });
+    expect(income.categories.slice(0, 2).map((c) => c.target)).toEqual([
+      { kind: "new", name: "Salary" },
+      { kind: "new", name: "Bonus" },
+    ]);
+    expect(plan.some((g) => g.target.kind === "existing" && g.target.groupId === "g-old-salary")).toBe(false);
+  });
+
   it("keeps each income category a group of its own where the space has no Ingresos group", () => {
     const plan = planCategoryGroups(snapshot, EMPTY, NO_LINKS);
     expect(plan.find((g) => g.sourceIds.includes("c-salary"))!.name).toBe("Salary");

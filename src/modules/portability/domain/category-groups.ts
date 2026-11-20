@@ -92,13 +92,20 @@ export const planCategoryGroups = (
       ? { kind: "new", name: name.trim() }
       : { kind: "existing", groupId: found.id, archived: found.archived };
   };
-  /** Its link, else a category of its name in `groupId` under `parentId` (null: a category of the group). */
+  /**
+   * Its link, else a category of its name in `groupId` under `parentId` (null: a category of the group). `within`
+   * keeps only a link to that same place: an earlier import put an income category in a group of its own (P337), and
+   * its link outlives an undo, so a new import still brings it to Ingresos (#350).
+   */
   const categoryTargetOf = (
     source: SourceCategory,
     groupId: string | null,
     parentId: string | null,
+    within = false,
   ): CategoryTarget => {
-    const linked = hearth.categories.find((c) => c.id === links.categories.get(source.sourceId));
+    const link = hearth.categories.find((c) => c.id === links.categories.get(source.sourceId));
+    const linked =
+      within && (link?.groupId !== groupId || link?.parentCategoryId !== parentId) ? undefined : link;
     const found =
       linked ??
       (groupId === null
@@ -173,7 +180,7 @@ export const planCategoryGroups = (
     }));
     for (const top of incomeTops) {
       (group.sourceIds as string[]).push(top.sourceId);
-      const own = categoryTargetOf(top, income.id, null);
+      const own = categoryTargetOf(top, income.id, null, true);
       const target = twinOf(group.categories, own)?.target ?? own;
       add(group, {
         sourceId: top.sourceId,
@@ -190,7 +197,7 @@ export const planCategoryGroups = (
           parentSourceId: top.sourceId,
           name: child.name.trim(),
           icon: child.icon ?? top.icon,
-          target: categoryTargetOf(child, parentId === null ? null : income.id, parentId),
+          target: categoryTargetOf(child, parentId === null ? null : income.id, parentId, true),
           deleted: child.deleted,
         });
       }
