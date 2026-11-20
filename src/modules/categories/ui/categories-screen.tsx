@@ -227,17 +227,19 @@ export function CategoryTree({
             Board Categorías 01 (P292): a bold heading with its own "+" for a new category. P296: before it, arrows
             that move the group one place on this tab, off at its ends; no drag.
           */}
-          <div className="flex items-center gap-2">
+          {/* P347: with the pencil there are four controls; where the name would get less than 7rem (320 px), they go
+              under it together, at the right, so a name is never broken mid-word (Alimenta/ción) and stays whole. */}
+          <div className="flex flex-wrap items-center gap-x-2">
             <CategoryIcon icon={group.icon} color={group.color} size={28} />
             <h2
               id={`group-${group.id}`}
-              className="min-w-0 flex-1 text-base font-semibold [overflow-wrap:anywhere] text-ink"
+              className="min-w-28 flex-1 truncate text-base font-semibold text-ink"
             >
               {group.name}
             </h2>
             {manage ? (
-              // Side by side with no gap (each target is already 44 px), so a name keeps its room at 320 px.
-              <div className="flex shrink-0">
+              // Side by side with no gap (each target is already 44 px), so a name keeps its room.
+              <div className="ml-auto flex shrink-0">
                 <IconAction
                   icon="arrowUp"
                   label={t("moveUp", { group: group.name })}
