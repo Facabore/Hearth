@@ -15,6 +15,7 @@ import { POST as recordExpense } from "@/app/api/v1/spaces/[spaceId]/expenses/ro
 import { GET as getTransaction } from "@/app/api/v1/spaces/[spaceId]/transactions/[transactionId]/route";
 import { GET as listTransactions } from "@/app/api/v1/spaces/[spaceId]/transactions/route";
 import { setContainerForTests, type Container } from "@/composition/container";
+import { activatePlan, lineNamed, planOf, putCategories, referencePlan } from "../support/budgeting";
 import {
   call,
   problemOf,
@@ -24,7 +25,12 @@ import {
   type TestUser,
 } from "../support/app";
 import { cop, household, joinHousehold, paysEqually, post } from "../support/ledger";
-import { getSpendingByGroup, type SpendingByGroupDto } from "../support/reporting";
+import {
+  getLineDashboard,
+  getSpendingByGroup,
+  type LineDashboardDto,
+  type SpendingByGroupDto,
+} from "../support/reporting";
 import { actingIn } from "../support/spaces";
 
 let app: Container;
@@ -253,5 +259,55 @@ describe("history keeps the names of a deleted group's categories (P347, S7)", (
         categories: [expect.objectContaining({ id: h.groceries, name: "Mercado", archived: true })],
       }),
     ]);
+  });
+});
+
+describe("a plan's figures keep a deleted group's spending where it was (P347, D7)", () => {
+  it("keeps what a line spent through a deleted category and its subcategory, as archiving does, and maps it no more", async () => {
+    const { h, planId, lineId } = await referencePlan();
+    const created = await post(createCategory, h.ana, "categories", {
+      parentCategoryId: h.groceries,
+      name: "Vegetables",
+    });
+    const vegetables = ((await created.json()) as { id: string }).id;
+    expect((await putCategories(h.ana, h.spaceId, planId, lineId("Home"), [h.groceries])).status).toBe(200);
+    expect((await activatePlan(h.ana, h.spaceId, planId)).status).toBe(200);
+    for (const [categoryId, pesos] of [
+      [vegetables, 40_000],
+      [h.groceries, 10_000],
+    ] as const) {
+      const recorded = await post(recordExpense, h.ana, "expenses", {
+        date: "2026-11-10",
+        categoryId,
+        amount: cop(pesos),
+        accountId: h.ana.account,
+      });
+      expect(recorded.status).toBe(201);
+    }
+    const figures = async () => {
+      const plan = await planOf(h.ana, h.spaceId, planId);
+      const response = await getLineDashboard(h.ana, h.spaceId, { period: "2026-11" });
+      const dashboard = (await response.json()) as LineDashboardDto;
+      return {
+        home: lineNamed(plan, "Home").spent,
+        homeCategories: lineNamed(plan, "Home").categoryIds,
+        unbudgeted: plan.unbudgeted,
+        dashboardHome: dashboard.lines.find((l) => l.lineId === lineId("Home"))?.spent,
+        dashboardUnbudgeted: dashboard.unbudgeted,
+      };
+    };
+    const before = await figures();
+    expect(before.home).toEqual(cop(50_000));
+
+    const food = (await treeOf(h.ana)).find((g) => g.key === "food")!;
+    expect((await onGroup(deleteGroup, "DELETE", h.ana, food.id)).status).toBe(204);
+
+    // Computed on read (D7): the same figures, and the line still holds its mapping, as with an archived category.
+    expect(await figures()).toEqual(before);
+    // A new mapping never takes a deleted category: it is archived, as it stays for history.
+    const restaurants = food.categories.find((c) => c.id !== h.groceries)!;
+    expect(
+      await problemOf(await putCategories(h.ana, h.spaceId, planId, lineId("Free"), [restaurants.id])),
+    ).toEqual([409, "CategoryArchived"]);
   });
 });

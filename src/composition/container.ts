@@ -664,12 +664,17 @@ export const historyCategoriesOf = (categories: CategoryRepository) => ({
   listCategories: (spaceId: string) => categories.listCategoriesForHistory(spaceId),
 });
 
-/** HU-E6-04: plans map the space's live categories; deleted ones never appear (D8). */
+/**
+ * HU-E6-04: the space's categories as plans read them, archived ones flagged. P347: those deleted together with their
+ * group come too, archived (so a new mapping refuses them with `CategoryArchived`), because a plan's figures are computed
+ * on read (D7) and a subcategory's spending must still roll up into its deleted parent's line, exactly as it did
+ * before the delete. A category deleted on its own never comes: nothing referenced it (HU-E3-03).
+ */
 export const budgetCategoriesOf = (categories: CategoryRepository): BudgetCategories => ({
   // Issue #245: the tree lock's shared side, as the ledger's lookup takes it; a delete holds the exclusive one.
   lockForReference: (spaceId) => categories.lockTreeForReference(spaceId),
   list: async (spaceId) =>
-    (await categories.listCategories(spaceId)).map((c) => ({
+    (await categories.listCategoriesForHistory(spaceId)).map((c) => ({
       id: c.id,
       archived: c.archivedAt !== null,
       parentCategoryId: c.parentCategoryId,

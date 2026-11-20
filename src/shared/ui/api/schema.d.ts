@@ -461,7 +461,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * The category tree of each of the signed-in person's active spaces, personal included; archived groups, categories and subcategories only with archived=true
+         * The category tree of each of the signed-in person's active spaces, personal included; archived groups, categories and subcategories only with archived=true, which also lists deleted groups last, with their categories, each with deletedAt (P347)
          * @description One entry per space whose own list would answer her, each with the tree as that list answers it.
          */
         get: operations["listMyCategories"];
