@@ -238,7 +238,7 @@ export const ImportPreviewSchema = z
           ),
       })
       .describe(
-        "P337: each top-level Money Manager category as a group, in the file's order, with its subcategories as its categories (or one category of its own name).",
+        "P337: each top-level Money Manager expense category as a group, in the file's order, with its subcategories as its categories (or one category of its own name). P345 (#350): the income ones last, as categories of the seeded Ingresos group, each followed by its subcategories.",
       ),
     duplicates: z
       .array(z.string())
