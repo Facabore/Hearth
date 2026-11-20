@@ -12,6 +12,7 @@ import {
   type CategoryChoice,
 } from "@/modules/categories/ui";
 import { ChoiceGroup, Icon } from "@/shared/ui";
+import { SheetGrabber } from "@/shared/ui/molecules/sheet-grabber";
 import type { Api } from "@/shared/ui/api/client";
 import type { CategoryDto, CategoryGroupDto, SpaceDto } from "@/shared/ui/api/dto";
 import type { RecentCategory } from "./recent-categories";
@@ -88,7 +89,7 @@ export function CategorySheet({ open, onOpenChange, space, creation, ...body }: 
           }}
           className="fixed inset-x-0 bottom-0 z-50 flex max-h-[95dvh] flex-col rounded-t-[20px] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:inset-auto lg:top-1/2 lg:left-1/2 lg:w-full lg:max-w-[480px] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[20px]"
         >
-          <div aria-hidden="true" className="mx-auto mb-1 h-[5px] w-10 rounded-full bg-track lg:hidden" />
+          <SheetGrabber onClose={() => change(false)} />
           <div className="flex items-center gap-1">
             {draft ? null : (
               <Dialog.Close asChild>

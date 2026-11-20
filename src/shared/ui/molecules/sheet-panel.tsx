@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { closeSheetEntry, openSheetEntry, sheetDepth } from "../navigation/sheet-history";
 import { Button } from "../atoms/button";
 import { Icon } from "../atoms/icon";
+import { SheetGrabber } from "./sheet-grabber";
 import { VisuallyHidden } from "../atoms/visually-hidden";
 
 export interface SheetProps {
@@ -81,7 +82,7 @@ export function SheetPanel({
           data-sheet=""
           className="motion-sheet fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] flex-col rounded-t-[20px] bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:inset-auto lg:top-1/2 lg:left-1/2 lg:w-full lg:max-w-[480px] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[20px]"
         >
-          <div aria-hidden="true" className="mx-auto mb-3 h-[5px] w-10 rounded-full bg-track lg:hidden" />
+          <SheetGrabber onClose={() => onOpenChange(false)} />
           <div className="flex items-center justify-between gap-2">
             {leading ? <div className="shrink-0">{leading}</div> : null}
             <Dialog.Title className="min-w-0 flex-1 text-lg font-semibold [overflow-wrap:anywhere] text-ink">
