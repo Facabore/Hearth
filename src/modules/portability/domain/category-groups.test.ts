@@ -147,6 +147,76 @@ describe("planCategoryGroups (P337)", () => {
   });
 });
 
+describe("income categories land in the catalog's Ingresos group (#350)", () => {
+  const snapshot = {
+    categories: [
+      category({ sourceId: "c-food", name: "Food", order: 0 }),
+      category({ sourceId: "c-other-out", name: "Other", order: 1 }),
+      category({ sourceId: "c-salary", name: "Salary", kind: "INCOME", order: 0, icon: "💰" }),
+      category({ sourceId: "c-bonus", name: "Bonus", kind: "INCOME", parentSourceId: "c-salary", order: 0 }),
+      category({ sourceId: "c-other-in", name: "other", kind: "INCOME", order: 1 }),
+    ],
+    movements: [spentOn("c-salary")],
+  };
+  const ingresos = group({ id: "g-income", name: "Ingresos", key: "income" });
+  const hearth = {
+    groups: [group({ id: "g-home", name: "Vivienda", key: "home" }), ingresos],
+    categories: [hearthCategory({ id: "h-salary", name: "salary", groupId: "g-income", key: "salary" })],
+  };
+  const parents = (plan: ReturnType<typeof planCategoryGroups>) =>
+    plan.flatMap((g) => g.categories.map((c) => [c.name, c.parentSourceId]));
+
+  it("makes each income category a category of Ingresos and its subcategories its subcategories, after the expense groups", () => {
+    const plan = planCategoryGroups(snapshot, hearth, NO_LINKS);
+    expect(shape(plan)).toEqual([
+      { group: "new:Food", categories: ["new:Food"] },
+      { group: "new:Other", categories: ["new:Other"] },
+      { group: "existing:Ingresos", categories: ["existing:Salary", "new:Bonus", "new:other"] },
+    ]);
+    expect(plan[2]!.target).toEqual({ kind: "existing", groupId: "g-income", archived: false });
+    expect(plan[2]!.sourceIds).toEqual(["c-salary", "c-other-in"]);
+    expect(parents(plan)).toEqual([
+      ["Food", null],
+      ["Other", null],
+      ["Salary", null],
+      ["Bonus", "c-salary"],
+      ["other", null],
+    ]);
+  });
+
+  it("restores an archived Ingresos group and reuses a subcategory of the same name under its category", () => {
+    const plan = planCategoryGroups(
+      snapshot,
+      {
+        groups: [{ ...ingresos, archived: true }],
+        categories: [
+          hearthCategory({ id: "h-salary", name: "Salary", groupId: "g-income" }),
+          hearthCategory({ id: "h-bonus", name: "BONUS", groupId: "g-income", parentCategoryId: "h-salary" }),
+        ],
+      },
+      NO_LINKS,
+    );
+    const income = plan.find((g) => g.sourceIds.includes("c-salary"))!;
+    expect(income.target).toEqual({ kind: "existing", groupId: "g-income", archived: true });
+    expect(income.categories[1]!.target).toEqual({
+      kind: "existing",
+      categoryId: "h-bonus",
+      archived: false,
+    });
+  });
+
+  it("names Ingresos among what the plan lands on, so Archivar never takes it", () => {
+    expect(existingTargetsOf(planCategoryGroups(snapshot, hearth, NO_LINKS)).groups).toEqual(
+      new Set(["g-income"]),
+    );
+  });
+
+  it("keeps each income category a group of its own where the space has no Ingresos group", () => {
+    const plan = planCategoryGroups(snapshot, EMPTY, NO_LINKS);
+    expect(plan.find((g) => g.sourceIds.includes("c-salary"))!.name).toBe("Salary");
+  });
+});
+
 describe("unusedSeeded (P337, Archivar las de Hearth que no uses)", () => {
   const hearth = {
     groups: [

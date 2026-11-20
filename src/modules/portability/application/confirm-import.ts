@@ -305,11 +305,15 @@ const resolveCategoryGroups = async (
           brought.categories.restored.push(categoryId);
         }
       } else if (categoryId === undefined && target.kind === "new") {
+        // #350: an income category's subcategory goes under the category its parent landed on, planned just before;
+        // a subcategory takes no icon (HU-E3-05).
+        const parentCategoryId =
+          category.parentSourceId === null ? undefined : resolved.categories.get(category.parentSourceId);
         const created = await deps.writer.createCategory({
           ...input,
-          groupId,
+          ...(parentCategoryId === undefined ? { groupId } : { parentCategoryId }),
           name: target.name,
-          emoji: category.icon,
+          emoji: parentCategoryId === undefined ? category.icon : null,
         });
         if (!created.ok) return about(category.sourceId, created.error);
         categoryId = created.value;

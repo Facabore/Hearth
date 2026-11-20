@@ -142,15 +142,28 @@ export interface BackupAccount {
   readonly hidden?: boolean;
 }
 
+/** One more ZCATEGORY row (#350): a category beside the default ones, such as an income subcategory. */
+export interface BackupCategory {
+  readonly uid: string;
+  readonly name: string;
+  /** Money Manager's TYPE: 0 income, 1 expense. */
+  readonly type: 0 | 1;
+  /** The parent category's uid, for a subcategory. */
+  readonly parent?: string;
+  readonly order?: number;
+}
+
 /**
  * A tiny synthetic Money Manager SQLite backup, built in memory and returned as bytes; nothing touches the disk.
  * Accounts: "Efectivo" (cash, COP, the name of a starter account), "Banco Uno" (bank, COP), "US savings" (bank, USD)
  * and "Visa" (card, COP, cut-off 15, payment 5). Categories: "🍔 Food" with its subcategory "Supermercado",
- * "💰 Salary" (income) and "🎸 Guitarra". `accounts` adds more (P337), and the Loan group when one is in it.
+ * "💰 Salary" (income) and "🎸 Guitarra". `accounts` adds more (P337), and the Loan group when one is in it;
+ * `categories` adds more categories (#350).
  */
 export const moneyManagerBackup = (
   movements: readonly BackupMovement[] = DEFAULT_MOVEMENTS,
   accounts: readonly BackupAccount[] = [],
+  categories: readonly BackupCategory[] = [],
 ): Uint8Array => {
   const db = new DatabaseSync(":memory:");
   db.exec(`
@@ -186,6 +199,9 @@ export const moneyManagerBackup = (
   category.run("c-food-sub", "Supermercado", 1, "c-food", 2, 0, 0);
   category.run("c-salary", "💰 Salary", 0, "", 0, 0, 1);
   category.run("c-guitar", "🎸 Guitarra", 1, "", 0, 0, 2);
+  for (const c of categories) {
+    category.run(c.uid, c.name, c.type, c.parent ?? "", c.parent === undefined ? 0 : 2, 0, c.order ?? 0);
+  }
   const movement = db.prepare("INSERT INTO INOUTCOME VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
   for (const m of movements) {
     movement.run(
