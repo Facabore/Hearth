@@ -172,12 +172,13 @@ describe("recent categories as tiles (issue #173, ruling P291)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api);
     await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
-    // The tile brings back the subcategory used with it last.
-    expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
+    // P346 (S3): the tile chooses the category alone, never the subcategory used with it last.
+    expect(screen.getByRole("button", { name: "Sin subcategoría", pressed: true })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(JSON.parse(localStorage.getItem(key)!)).toEqual([
+      { categoryId: "c-groceries", subcategoryId: null },
       { categoryId: "c-groceries", subcategoryId: "c-veg" },
     ]);
   });
