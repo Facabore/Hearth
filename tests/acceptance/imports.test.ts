@@ -724,6 +724,39 @@ describe("POST /api/v1/spaces/{spaceId}/imports/{importId}/undo (D28, design §3
     expect(again.plan.movements).toBe(EVERY_ROW.length);
   });
 
+  it("undoes an import after the person deleted one of its groups, which stays deleted and is not counted (P347)", async () => {
+    const ana = await registerUser("Ana");
+    const { preview } = await imported(ana);
+    const guitarra = (await treeOf(ana)).find((g) => g.name === "Guitarra")!;
+    expect((await app.categories.deleteCategoryGroup({ ...ana, groupId: guitarra.id })).ok).toBe(true);
+    const stored = async () =>
+      (
+        await app.pool.query(
+          "SELECT id, archived_at, deleted_at FROM categories WHERE group_id = $1 UNION ALL " +
+            "SELECT id, archived_at, deleted_at FROM category_groups WHERE id = $1 ORDER BY id",
+          [guitarra.id],
+        )
+      ).rows;
+    const deleted = await stored();
+
+    const response = await call(undoImport, "POST", importPath(ana, preview.id, "/undo"), {
+      user: ana,
+      params: { spaceId: ana.spaceId, importId: preview.id },
+    });
+
+    expect(response.status).toBe(200);
+    // Food, Supermercado and Salary are archived, and the group Food; Guitarra, deleted, is neither archived nor
+    // restored, nor counted.
+    expect(await response.json()).toMatchObject({
+      status: "UNDONE",
+      movementsDeleted: 7,
+      categoriesArchived: 3,
+      categoryGroupsArchived: 1,
+    });
+    expect(await stored()).toEqual(deleted);
+    expect(await liveMovements(ana.spaceId)).toBe(0);
+  });
+
   it("counts only the movements it deleted, never one the person had deleted already", async () => {
     const ana = await registerUser("Ana");
     const { preview } = await imported(ana);
