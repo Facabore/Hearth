@@ -86,8 +86,18 @@ export interface WhoPaidSheetProps {
   readonly lockedReason?: ((id: string) => string | null) | undefined;
   /** A line under the list (P331: where each debt is kept). */
   readonly hint?: string | undefined;
-  /** Under "Desde": a link to create an account that comes back to the form (N7), and what to say when there is none. */
-  readonly newAccount?: { readonly href: string; readonly label: string; readonly empty: string } | undefined;
+  /**
+   * Under "Desde": a link to create an account that comes back to the form (N7), and what to say when there is none.
+   * P348: `onNew` hands the form's draft over before it goes, so the link replaces the form instead of asking to leave it.
+   */
+  readonly newAccount?:
+    | {
+        readonly href: string;
+        readonly label: string;
+        readonly empty: string;
+        readonly onNew?: (() => void) | undefined;
+      }
+    | undefined;
   /** P340: with more than `CROWD` other people, show the recent ones and a search instead of everyone. */
   readonly findable?: boolean | undefined;
 }
@@ -461,7 +471,11 @@ export function WhoPaidSheet(props: WhoPaidSheetProps) {
               ) : null}
               <Link
                 href={props.newAccount.href}
-                onClick={() => props.onOpenChange(false)}
+                replace={props.newAccount.onNew !== undefined}
+                onClick={() => {
+                  props.newAccount?.onNew?.();
+                  props.onOpenChange(false);
+                }}
                 className="flex min-h-11 items-center gap-2 self-start text-base font-semibold text-accent"
               >
                 <Icon name="plus" size={18} />

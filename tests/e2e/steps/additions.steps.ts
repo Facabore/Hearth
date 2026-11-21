@@ -108,7 +108,8 @@ When(
     await page.goto(`/spaces/${spaceId}/new`);
     await expect(page.locator("[data-ready='true']")).toBeAttached();
     await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
-    await chooseCategory(page, name);
+    // P348: only the personal space's expense asks for its account once the category is chosen.
+    await chooseCategory(page, name, spaceId === world.user!.spaceId ? {} : { account: null });
     typedOf.set(world, minor(pesos));
     if (!tap) return;
     expect(tap).toBe(world.t("ledger.form.save.EXPENSE"));

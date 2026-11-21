@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 import { test, todayInBogota } from "../support/clock";
 import { es } from "../../../src/i18n/messages/full";
+import { chooseAskedAccount } from "../support/record";
 import { get, post, signUp } from "../support/seed";
 import { sheetsSettled } from "../support/sheets";
 
@@ -146,6 +147,8 @@ test.describe("back navigation (ruling P307)", () => {
     await nav(page).getByRole("link", { name: es.shell.nav.record }).click();
     for (const digit of ["3", "000"]) await page.getByRole("button", { name: digit, exact: true }).click();
     await page.getByRole("button", { name: "Mercado", exact: true }).click();
+    // P348: the category asks for the account, in a sheet whose entry closing gives back.
+    await chooseAskedAccount(page);
     await page.getByRole("button", { name: es.ledger.form.save.EXPENSE }).click();
     await expect(page).toHaveURL(home);
     await page.goBack();
@@ -194,5 +197,50 @@ test.describe("back navigation (ruling P307)", () => {
     await expect(page).toHaveURL(/\/new/);
     await question.getByRole("button", { name: es.ledger.form.discard.confirm }).click();
     await expect(page).toHaveURL(home);
+  });
+  test("a drag down on the record form's handle closes it, back to where it was opened (P348, #356)", async ({
+    page,
+  }) => {
+    const spaceId = await signUp(page, "spa-back-swipe", ip());
+    const home = `/spaces/${spaceId}`;
+    await page.goto(home);
+    await nav(page).getByRole("link", { name: es.shell.nav.record }).click();
+    await expect(page).toHaveURL(/\/new/);
+    const form = page.getByRole("region", { name: es.ledger.form.title });
+    const box = (await page.getByRole("link", { name: es.common.back, exact: true }).boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+
+    // A short, slow drag springs back and leaves the form open.
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 30, { steps: 10 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await expect(page).toHaveURL(/\/new/);
+    await expect(form).toBeVisible();
+
+    // With an amount typed, the drag asks first; kept, the form takes back its place.
+    for (const digit of ["2", "000"]) await page.getByRole("button", { name: digit, exact: true }).click();
+    // The sheet sits on the bottom edge and grows with what is typed, so its top is read once the amount is in.
+    const top = (await form.boundingBox())!.y;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 200, { steps: 10 });
+    await page.mouse.up();
+    const question = dialog(page, es.ledger.form.discard.title.EXPENSE);
+    await question.getByRole("button", { name: es.ledger.form.discard.keep }).click();
+    await expect(page).toHaveURL(/\/new/);
+    await expect.poll(async () => (await form.boundingBox())!.y).toBe(top);
+    await expect(form).not.toHaveAttribute("data-state");
+
+    // A drag past the closing distance closes it; asked, the person discards what was typed.
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 200, { steps: 10 });
+    await page.mouse.up();
+    await question.getByRole("button", { name: es.ledger.form.discard.confirm }).click();
+    await expect(page).toHaveURL(home);
+    await expect(form).toBeHidden();
   });
 });

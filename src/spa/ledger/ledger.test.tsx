@@ -99,6 +99,18 @@ const calls = (requests: Request[], method: string, pattern: RegExp) =>
 
 const nav = () => screen.getByRole("navigation", { name: es.shell.nav.main });
 
+/** P348: a new expense starts on no account, so the person chooses Desde in ¿Quién pagó y para quién? before saving. */
+const payFrom = async (account: string) => {
+  await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+  const sheet = await screen.findByRole("dialog", { name: es.ledger.who.title });
+  await userEvent.click(
+    within(within(sheet).getByRole("radiogroup", { name: es.ledger.who.from })).getByRole("radio", {
+      name: account,
+    }),
+  );
+  await userEvent.click(within(sheet).getByRole("button", { name: es.ledger.split.done }));
+};
+
 /** No read in flight and the router idle: whatever a loader started without awaiting has run. */
 const settled = (spa: ReturnType<typeof renderSpa>) =>
   waitFor(() => {
@@ -1108,6 +1120,7 @@ describe("the record form asks before discarding what was typed (#215, F9)", () 
     const spa = renderSpa(FORM, routes);
     await openForm(spa);
     await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+    await payFrom("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: es.ledger.form.save.EXPENSE }));
     await waitFor(() => expect(spa.location()).toBe(`${HOME}/transactions`));
     expect(screen.queryByRole("dialog", { name: discard.title.EXPENSE })).not.toBeInTheDocument();
@@ -1215,6 +1228,7 @@ describe("the record sheet draws the screen it was opened from behind it, from t
     await record();
     await openForm(spa);
     await userEvent.type(screen.getByLabelText(es.ledger.form.amount), "55000");
+    await payFrom("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: es.ledger.form.save.EXPENSE }));
     expect(await within(region()).findByText(es.ledger.saved.title)).toBeInTheDocument();
     await waitFor(() => expect(spa.location()).toBe(HOME));

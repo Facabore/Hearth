@@ -67,7 +67,8 @@ const openForm = async (page: Page, world: World) => {
 const pick = async (page: Page, world: World, pesos: string, category: string) => {
   await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
   await page.getByLabel(world.t("ledger.form.description")).fill(category);
-  await chooseCategory(page, category);
+  // P348: a shared space's expense asks for no account once its category is chosen.
+  await chooseCategory(page, category, { account: null });
 };
 const shareOf = async (page: Page, world: World, name: string) =>
   norm(

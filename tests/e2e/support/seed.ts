@@ -93,8 +93,9 @@ export const seedLedger = async (page: Page, spaceId: string): Promise<void> => 
 };
 
 /**
- * Records an income of 1,200,000 COP from the form, into the account it opens on, under the first category the
- * picker offers, and waits for the list it lands on: the save every toast test starts from (P195).
+ * Records an income of 1,200,000 COP from the form, under the first category the picker offers and into the first
+ * account the form then asks for (P348), and waits for the list it lands on: the save every toast test starts from
+ * (P195).
  */
 export const saveIncomeFromForm = async (page: Page, spaceId: string): Promise<void> => {
   await page.goto(`/spaces/${spaceId}/new?type=income`);

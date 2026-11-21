@@ -147,28 +147,28 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByText("Caja")).toBeInTheDocument();
   });
 
-  it("returns from the record form's Nueva cuenta to the form with the new account chosen", async () => {
-    const { routes, state } = server();
-    state.accounts = [];
+  it("comes back from the record form's Nueva cuenta with the new account chosen, and what was typed and chosen (P348)", async () => {
+    const { routes } = server();
     const form = "/spaces/sp-personal/new";
     const spa = renderSpa(form, routes);
-    expect(
-      await screen.findByRole(
-        "button",
-        { name: /Quién pagó y para quién\s*Pagaste tú$/ },
-        { timeout: 5_000 },
-      ),
-    ).toBeVisible();
+    const whoRow = (paid: RegExp) => screen.findByRole("button", { name: paid }, { timeout: 5_000 });
+    await userEvent.type(await screen.findByLabelText("Monto", {}, { timeout: 5_000 }), "50000");
+    // The category opens «¿Quién pagó y para quién?» by itself, with no account chosen yet.
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Restaurants" }));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(within(sheet).getByRole("link", { name: "Nueva cuenta" }));
 
-    await spa.router.navigate({ href: `${ACCOUNTS}/new?returnTo=${encodeURIComponent(form)}` });
+    await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/new?returnTo=${encodeURIComponent(form)}`));
     await userEvent.click(await screen.findByRole("radio", { name: "Efectivo" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Wallet");
     await userEvent.type(screen.getByLabelText("Saldo inicial"), "0");
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
 
     await waitFor(() => expect(spa.location()).toBe(form));
-    // The form picks its account when it opens, as it did on a fresh Next.js page: the new one is there already.
-    expect(await screen.findByRole("button", { name: /Pagaste tú con Wallet/ })).toBeVisible();
+    expect(await whoRow(/Pagaste tú con Wallet/)).toBeVisible();
+    expect(screen.getByLabelText("Monto")).toHaveValue("50.000");
+    expect(screen.getByRole("button", { name: "Restaurants", pressed: true })).toBeInTheDocument();
   });
 
   it("hides an account from a confirmation on its own screen, through the app's own client (P292)", async () => {

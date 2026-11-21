@@ -260,6 +260,14 @@ describe("the ledger's writes in the SPA (slice 2 of #199, ADR 0006)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
     await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
     await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
+    // P348: the category opens ¿Quién pagó y para quién?, where the person chooses the account the expense is paid from.
+    const who = await screen.findByRole("dialog", { name: es.ledger.who.title });
+    await userEvent.click(
+      within(within(who).getByRole("radiogroup", { name: es.ledger.who.from })).getByRole("radio", {
+        name: "Bancolombia",
+      }),
+    );
+    await userEvent.click(within(who).getByRole("button", { name: es.ledger.split.done }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
 
     await waitFor(() => expect(spa.location()).toBe(LIST), SAVE_LANDS);

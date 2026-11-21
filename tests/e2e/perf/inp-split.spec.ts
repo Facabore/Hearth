@@ -68,7 +68,7 @@ test("INP stays within budget while editing a split on a 4× slower CPU (rulings
   await page.goto(`/spaces/${shared.id}/new`);
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.locator("#record-amount").pressSequentially("300000");
-  await chooseCategory(page, /./);
+  await chooseCategory(page, /./, { account: null });
   await page.getByRole("button", { name: /Quién pagó y para quién/ }).click();
   await page.getByRole("radio", { name: "Porcentaje" }).click();
   await page.getByLabel(/^Valor de Tú/).pressSequentially("40");

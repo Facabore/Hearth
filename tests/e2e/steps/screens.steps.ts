@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { Given, Then, When } from "../support/fixtures";
-import { openWhoPaid } from "../support/record";
+import { openWhoPaid, payFromChoices } from "../support/record";
 import type { World } from "../support/world";
 
 const escaped = (path: string) => path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -118,6 +118,13 @@ When(
 Then("the new expense form is shown with the account {string}", async ({ page, world }, account: string) => {
   await expect(page).toHaveURL(new RegExp(`${escaped(homePath(world))}/new$`));
   await expect(page.locator("[data-ready='true']")).toBeAttached();
+  // P348: a new expense starts on no account, so the new one is chosen in "Desde", where the form offers it.
+  const sheet = await openWhoPaid(page);
+  await payFromChoices(sheet)
+    .getByRole("radio", { name: new RegExp(account) })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
   // P333: the one row reads "Pagaste tú con <account>" over "Quién pagó y para quién".
   const paid = world.t("ledger.who.youPaid", { account });
   await expect(
