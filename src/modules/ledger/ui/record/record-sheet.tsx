@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
-import { springBack, useSheetDrag } from "@/shared/ui/molecules/sheet-grabber";
+import { springBack, useSheetDrag } from "@/shared/ui/molecules/sheet-drag";
 import { goBack } from "@/shared/ui/navigation/history";
 
 /** How long a closing form waits for the screen under it before it takes back its place (#356). */
