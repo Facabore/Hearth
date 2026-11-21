@@ -63,6 +63,23 @@ const chooseGroceries = async () => {
   await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
 };
+/** P348: a new expense starts on no account; its sheet opens once the category is chosen, to pick Desde there. */
+const whoSheetFrom = async (account: string) => {
+  const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+  const desde = within(sheet).getByRole("radiogroup", { name: "Desde" });
+  await userEvent.click(within(desde).getByRole("radio", { name: account }));
+  return sheet;
+};
+const payFrom = async (account: string) => {
+  const sheet = await whoSheetFrom(account);
+  await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+};
+/** P348: a new income starts on no account either. */
+const receiveIn = async (account: string) => {
+  await userEvent.click(screen.getByRole("button", { name: /Cuenta que recibe/ }));
+  const picker = await screen.findByRole("dialog", { name: "Cuenta que recibe" });
+  await userEvent.click(within(picker).getByRole("radio", { name: account }));
+};
 const saved = (text: string) => waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
 
 describe("record form save feedback (ruling P196)", () => {
@@ -73,6 +90,7 @@ describe("record form save feedback (ruling P196)", () => {
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.type(screen.getByLabelText("Descripción"), "Market");
     await chooseGroceries();
+    await payFrom("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await saved("Gasto guardado");
     expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`, { scroll: false });
@@ -82,6 +100,7 @@ describe("record form save feedback (ruling P196)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/incomes": recorded });
     form(api, "INCOME");
     await userEvent.type(screen.getByLabelText("Monto"), "1.200.000");
+    await receiveIn("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar ingreso" }));
     await saved("Ingreso guardado");
     expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`, { scroll: false });
@@ -116,9 +135,8 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { people });
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
-    // P333: Juan is ticked in "¿Quién pagó y para quién?".
-    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
-    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    // P333: Juan is ticked in "¿Quién pagó y para quién?", which opens once the category is chosen (P348).
+    const sheet = await whoSheetFrom("Bancolombia");
     await userEvent.click(within(sheet).getByRole("checkbox", { name: /^Juan/ }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
@@ -135,6 +153,7 @@ describe("record form save feedback (ruling P196)", () => {
     );
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await chooseGroceries();
+    await payFrom("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await saved("Gasto guardado");
     expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}?period=2026-10`, { scroll: false });
@@ -146,6 +165,7 @@ describe("record form save feedback (ruling P196)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/incomes": recorded });
     form(api, "INCOME", { returnTo: "//evil.example" });
     await userEvent.type(screen.getByLabelText("Monto"), "1.200.000");
+    await receiveIn("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar ingreso" }));
     await saved("Ingreso guardado");
     expect(router.replace).toHaveBeenCalledWith(`/spaces/${PERSONAL.id}/transactions`, { scroll: false });
@@ -169,9 +189,8 @@ describe("record form save feedback (ruling P196)", () => {
     form(api, "EXPENSE", { people, returnTo: `/spaces/${PERSONAL.id}` });
     await userEvent.type(screen.getByLabelText("Monto"), "120000");
     await chooseGroceries();
-    // P333: Juan is ticked in "¿Quién pagó y para quién?".
-    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
-    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    // P333: Juan is ticked in "¿Quién pagó y para quién?", which opens once the category is chosen (P348).
+    const sheet = await whoSheetFrom("Bancolombia");
     await userEvent.click(within(sheet).getByRole("checkbox", { name: /^Juan/ }));
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
@@ -188,6 +207,7 @@ describe("record form save feedback (ruling P196)", () => {
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await chooseGroceries();
+    await payFrom("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await screen.findByText("La descripción puede tener hasta 200 caracteres.");
     expect(router.replace).not.toHaveBeenCalled();

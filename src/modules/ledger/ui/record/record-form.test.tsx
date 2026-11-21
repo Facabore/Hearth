@@ -56,11 +56,23 @@ const recorded = () => jsonResponse(transactionDto({ id: "t-new" }), 201);
 // P333: a personal expense's account is chosen in "¿Quién pagó y para quién?", opened from its one row.
 const whoRow = () => screen.getByRole("button", { name: /Quién pagó y para quién/ });
 const whoSheet = () => screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
-const enterMarket = async () => {
+const desde = (sheet: HTMLElement) => within(sheet).getByRole("radiogroup", { name: "Desde" });
+// P348: a new expense starts on no account. The person picks it in "¿Quién pagó y para quién?", which a category opens
+// on its own; `open` opens it from its row instead.
+const chooseAccount = async (name: string | RegExp, { open = false } = {}) => {
+  if (open) await userEvent.click(whoRow());
+  const sheet = await whoSheet();
+  await userEvent.click(within(desde(sheet)).getByRole("radio", { name }));
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+};
+const enterMarket = async (subcategory = "Sin subcategoría", account: string | RegExp = "Bancolombia") => {
   await userEvent.type(screen.getByLabelText("Monto"), "85000");
   await userEvent.type(screen.getByLabelText("Descripción"), "Market");
   await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
   await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
+  await userEvent.click(screen.getByRole("radio", { name: subcategory }));
+  await chooseAccount(account);
 };
 
 describe("the account picker can create an account and come back (N7)", () => {
@@ -150,6 +162,9 @@ describe("the category sheet offers only the movement's own categories (issue #1
   it("drops a category the new kind does not offer when the kind changes", async () => {
     const dialog = await sheet("INCOME");
     await userEvent.click(within(dialog).getByRole("radio", { name: "Salario" }));
+    // P348: the category opens the receiving account's picker while no account is chosen.
+    const picker = await screen.findByRole("dialog", { name: "Cuenta que recibe" });
+    await userEvent.click(within(picker).getByRole("radio", { name: "Bancolombia" }));
     expect(screen.getByRole("button", { name: "Salario", pressed: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
     expect(screen.queryByRole("button", { name: "Salario" })).not.toBeInTheDocument();
@@ -172,6 +187,7 @@ describe("recent categories as tiles (issue #173, ruling P291)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api);
     await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    await chooseAccount("Bancolombia");
     // P346 (S3): the tile chooses the category alone, never the subcategory used with it last.
     expect(screen.getByRole("button", { name: "Sin subcategoría", pressed: true })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
@@ -194,6 +210,7 @@ describe("recent categories as tiles (issue #173, ruling P291)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
       await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
       await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
+      await chooseAccount("Bancolombia");
       await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
       await waitFor(() => expect(router.replace).toHaveBeenCalled());
       expect(requests).toHaveLength(1);
@@ -216,55 +233,62 @@ describe("recent categories as tiles (issue #173, ruling P291)", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Recientes" })).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole("button", { name: "Groceries › Vegetables" }));
+    // The picker closes on the recent; P348 then asks for the account.
+    await chooseAccount("Bancolombia");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
   });
 });
 
-describe("the account a new movement starts on (issue #208)", () => {
+describe("the account a new movement starts on (issue #208, amended by P348)", () => {
   afterEach(() => localStorage.clear());
   const savings = accountDto({ id: "a-savings", name: "Ahorros", type: "SAVINGS" });
-  const formOn = (api: Api, on: typeof accounts) =>
+  const formOn = (api: Api, on: typeof accounts, kind: RecordKind = "TRANSFER") =>
     renderWithIntl(
       <RecordForm
         space={spaceDto()}
         accounts={on}
         groups={groups}
         formats={BUILT_IN_FORMATS}
-        initialKind="EXPENSE"
+        initialKind={kind}
         initialNow="2026-11-01T04:30:00.000Z"
         timeZone="America/Bogota"
         api={api}
       />,
     );
+  // P348: only a transfer still starts on an account the person did not choose: its Desde.
+  const transferFrom = () => screen.getByRole("button", { name: /Desde/ });
 
   it("is the account the last expense was paid from, and a save remembers the one used", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
-    const first = formOn(api, accounts);
-    await enterMarket();
-    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
-    await userEvent.click(whoRow());
-    const sheet = await whoSheet();
-    await userEvent.click(within(sheet).getByRole("radio", { name: /Visa/ }));
-    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+    const first = formOn(api, accounts, "EXPENSE");
+    await enterMarket("Sin subcategoría", /Visa/);
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(await requests[0]!.json()).toMatchObject({ accountId: "a-visa" });
+    expect(localStorage.getItem("hearth.lastAccount")).toBe("a-visa");
 
     first.unmount();
     formOn(fakeApi({}).api, accounts);
-    expect(whoRow()).toHaveTextContent("Visa");
+    expect(transferFrom()).toHaveTextContent("Visa");
   });
 
   it("is never a savings account while another one exists, when nothing was paid yet", () => {
     formOn(fakeApi({}).api, [savings, ...accounts]);
-    expect(whoRow()).toHaveTextContent("Bancolombia");
+    expect(transferFrom()).toHaveTextContent("Bancolombia");
   });
 
   it("leaves a remembered account the form no longer offers for the first one", () => {
     localStorage.setItem("hearth.lastAccount", "a-archived");
     formOn(fakeApi({}).api, accounts);
-    expect(whoRow()).toHaveTextContent("Bancolombia");
+    expect(transferFrom()).toHaveTextContent("Bancolombia");
+  });
+
+  it("is no account at all for a new expense, even with one paid from last (P348)", () => {
+    localStorage.setItem("hearth.lastAccount", "a-visa");
+    formOn(fakeApi({}).api, accounts, "EXPENSE");
+    expect(whoRow()).not.toHaveTextContent("Visa");
+    expect(whoRow()).not.toHaveTextContent("Bancolombia");
   });
 });
 
@@ -290,7 +314,6 @@ describe("record form (HU-E9-03)", () => {
     const { container } = form(api);
     expect(screen.getByTestId("when-chip")).toHaveTextContent("Hoy · 23:30");
     await enterMarket();
-    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     const [request] = requests;
     expect(request!.headers.get("idempotency-key")).toMatch(/^[0-9a-f-]{36}$/);
@@ -310,8 +333,7 @@ describe("record form (HU-E9-03)", () => {
   it("records the chosen subcategory and shows it as Groceries › Vegetables", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api);
-    await enterMarket();
-    await userEvent.click(screen.getByRole("radio", { name: "Vegetables" }));
+    await enterMarket("Vegetables");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Groceries", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vegetables", pressed: true })).toBeInTheDocument();
@@ -325,6 +347,7 @@ describe("record form (HU-E9-03)", () => {
     });
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "0");
+    await chooseAccount("Bancolombia", { open: true });
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("El monto debe ser mayor que cero."),
@@ -345,7 +368,6 @@ describe("record form (HU-E9-03)", () => {
     });
     form(api);
     await enterMarket();
-    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     const save = screen.getByRole("button", { name: "Guardar gasto" });
     await userEvent.dblClick(save);
     await screen.findByRole("alert");
@@ -359,6 +381,7 @@ describe("record form (HU-E9-03)", () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "ochenta");
+    await chooseAccount("Bancolombia", { open: true });
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("Escribe un monto como 85.000.");
     expect(requests).toHaveLength(0);
@@ -394,7 +417,13 @@ describe("record form (HU-E9-03)", () => {
     const { api, requests } = fakeApi({ "POST /api/v1/spaces/{spaceId}/incomes": recorded });
     form(api, "INCOME");
     await userEvent.type(screen.getByLabelText("Monto"), "1.200.000");
-    expect(screen.getByRole("button", { name: /Cuenta que recibe/ })).toHaveTextContent("Bancolombia");
+    // P348: a new income starts on no account, so the person chooses where the money arrives.
+    const receives = () => screen.getByRole("button", { name: /Cuenta que recibe/ });
+    expect(receives()).toHaveTextContent("Elegir cuenta");
+    await userEvent.click(receives());
+    const picker = await screen.findByRole("dialog", { name: "Cuenta que recibe" });
+    await userEvent.click(within(picker).getByRole("radio", { name: "Bancolombia" }));
+    expect(receives()).toHaveTextContent("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar ingreso" }));
     expect(await requests[0]!.json()).toEqual({
       date: "2026-10-31",
@@ -417,7 +446,6 @@ describe("record form (HU-E9-03)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, code) });
     form(api);
     await enterMarket();
-    await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(screen.getByRole(role, { name: field })).toHaveAccessibleDescription(message));
     expect(screen.getByLabelText("Monto")).toHaveValue("85.000");
@@ -431,6 +459,7 @@ describe("record form (HU-E9-03)", () => {
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.type(screen.getByLabelText("Descripción"), "x");
+    await chooseAccount("Bancolombia", { open: true });
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() =>
       expect(screen.getByLabelText("Descripción")).toHaveAccessibleDescription(
@@ -444,6 +473,7 @@ describe("record form (HU-E9-03)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": () => problemResponse(422, code) });
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await chooseAccount("Bancolombia", { open: true });
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() =>
       expect(screen.getByTestId("when-chip")).toHaveAccessibleDescription(
@@ -463,6 +493,7 @@ describe("record form (HU-E9-03)", () => {
     });
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "0");
+    await chooseAccount("Bancolombia", { open: true });
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Guardar gasto" })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
@@ -480,6 +511,7 @@ describe("record form (HU-E9-03)", () => {
     const { api } = fakeApi({ "POST /api/v1/spaces/{spaceId}/expenses": recorded });
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await chooseAccount("Bancolombia", { open: true });
     const uuid = vi.spyOn(crypto, "randomUUID");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
@@ -542,6 +574,7 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     const { api } = failing("CategoryRequired");
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await chooseAccount("Bancolombia", { open: true });
     await save();
     const category = await screen.findByRole("group", { name: "Categoría" });
     await waitFor(() => expect(category).toHaveAccessibleDescription("Elige una categoría."));
@@ -556,6 +589,7 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     const { api } = failing("InvalidAmount");
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "0");
+    await chooseAccount("Bancolombia", { open: true });
     await save();
     await waitFor(() =>
       expect(screen.getByLabelText("Monto")).toHaveAccessibleDescription("El monto debe ser mayor que cero."),
@@ -581,6 +615,7 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
     await userEvent.type(screen.getByLabelText("Descripción"), "x");
+    await chooseAccount("Bancolombia", { open: true });
     await save();
     await waitFor(() =>
       expect(screen.getByLabelText("Descripción")).toHaveAccessibleDescription(
@@ -595,6 +630,7 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     const { api } = failing("AccountArchived");
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await chooseAccount("Bancolombia", { open: true });
     await save();
     const message = "Esta cuenta está oculta. Muéstrala de nuevo para registrar movimientos en ella.";
     await waitFor(() => expect(whoRow()).toHaveAccessibleDescription(message));
@@ -607,6 +643,7 @@ describe("record form: an error clears as soon as its field changes (390 px revi
     const { api } = failing("DateTimeMismatch");
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await chooseAccount("Bancolombia", { open: true });
     await save();
     const message = "La fecha no coincide con la hora elegida. Revisa la fecha y la hora.";
     await waitFor(() => expect(screen.getByTestId("when-chip")).toHaveAccessibleDescription(message));

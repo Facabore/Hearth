@@ -193,7 +193,13 @@ describe("Para quién fue with many friends: recent people and a search (P340)",
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
     await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
     await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
-    const sheet = await openWho();
+    // P348: the category opens the sheet on its own, and the person picks the account they paid from.
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(
+      within(within(sheet).getByRole("radiogroup", { name: "Desde" })).getByRole("radio", {
+        name: "Bancolombia",
+      }),
+    );
     await userEvent.click(within(sheet).getByRole("checkbox", { name: /^Tú/ }));
     await userEvent.type(search(sheet), "Marta");
     expect(within(forWhom(sheet)).queryAllByRole("checkbox")).toEqual([]);

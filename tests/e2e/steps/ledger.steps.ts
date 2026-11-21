@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 import { BUILT_IN_FORMATS, formatDate } from "../../../src/shared/ui/format/formatters";
 import { Given, Then, When } from "../support/fixtures";
 import { minor, shown } from "../support/money";
-import { chooseCategory, openWhoPaid, payFrom, payFromChoices } from "../support/record";
+import { chooseCategory, openWhoPaid, payFromChoices } from "../support/record";
 import type { World } from "../support/world";
 
 const DAY_KEYS: Record<string, string> = {
@@ -80,9 +80,8 @@ When(
   ) => {
     await page.getByLabel(world.t("ledger.form.amount")).fill(pesos.replaceAll(",", ""));
     await page.getByLabel(world.t("ledger.form.description")).fill(description);
-    await chooseCategory(page, category);
-    // P333: the account is chosen in "¿Quién pagó y para quién?", opened from the form's one row.
-    await payFrom(page, account);
+    // P333, P348: the category opens "¿Quién pagó y para quién?", where the account is chosen in "Desde".
+    await chooseCategory(page, category, { account });
     await page.getByRole("button", { name: world.t("ledger.form.save.EXPENSE") }).click();
     await expect(page).toHaveURL(/\/transactions/);
   },

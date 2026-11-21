@@ -190,7 +190,7 @@ const seedAdditions = async (page: Page, spaceId: string, testId: string) => {
 const askBeforeSaving = async (page: Page) => {
   await expect(page.locator("[data-ready='true']")).toBeAttached();
   await page.getByLabel(es.ledger.form.amount).fill("212300");
-  await chooseCategory(page, /^Mercado|^Groceries/);
+  await chooseCategory(page, /^Mercado|^Groceries/, { account: null });
   await page.getByRole("button", { name: es.ledger.form.save.EXPENSE, exact: true }).click();
   await expect(page.getByRole("heading", { name: es.ledger.lineWarning.confirmTitle })).toBeFocused();
 };

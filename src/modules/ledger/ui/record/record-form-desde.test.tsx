@@ -130,71 +130,102 @@ describe("Desde lists only the person's money accounts, the most used first (rul
   });
 });
 
-describe("Desde preselects the account last used with the category (ruling P337)", () => {
-  it("starts on the account the category was last paid from, says why, and records from it", async () => {
-    const { requests } = form();
-    // Before a category: where the money is (#285), Efectivo.
-    expect(whoRow()).toHaveTextContent("Pagaste tú con Efectivo");
+describe("a new expense or income waits for the person to choose its account (P348)", () => {
+  const save = () => screen.getByRole("button", { name: "Guardar gasto" });
+  const whoSheet = () => screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
 
+  it("starts an expense on no account, whatever was paid last or where the money is", () => {
+    localStorage.setItem("hearth.lastAccount", "a-amex");
+    form();
+
+    expect(whoRow()).toHaveTextContent("Pagaste tú");
+    expect(whoRow()).not.toHaveTextContent("Pagaste tú con");
+  });
+
+  it("opens ¿Quién pagó y para quién? once the category is chosen, with no account ticked", async () => {
+    const { requests } = form();
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
     await choose("Bills Home", "Gas");
 
-    expect(whoRow()).toHaveTextContent("Pagaste tú con Bancolombia");
-    const sheet = await openWho();
-    expect(within(desde(sheet)).getByRole("radio", { name: "Bancolombia" })).toBeChecked();
+    const sheet = await whoSheet();
+    expect(within(desde(sheet)).queryByRole("radio", { checked: true })).not.toBeInTheDocument();
+    await userEvent.click(within(desde(sheet)).getByRole("radio", { name: "Bancolombia" }));
+    // Ruling P337's hint still says why, once the person picks the account they usually pay the category from.
     expect(within(sheet).getByText("Bancolombia: con la que sueles pagar Gas.")).toBeInTheDocument();
     expect(await axeViolations(document.body)).toEqual([]);
     await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
-    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+    await userEvent.click(save());
 
     expect(await requests[0]!.json()).toMatchObject({ categoryId: "c-gas", accountId: "a-bancolombia" });
   });
 
-  it("drops the hint once the person picks another account", async () => {
-    form();
-    await choose("Bills Home", "Gas");
-    const sheet = await openWho();
-    await userEvent.click(within(desde(sheet)).getByRole("radio", { name: "Nequi" }));
-
-    expect(within(sheet).queryByText(/con la que sueles pagar/)).not.toBeInTheDocument();
-  });
-
-  it("follows a later category until the person picks an account themselves", async () => {
-    form();
-    await choose("Bills Home", "Gas");
+  it("asks for the account when the expense is saved without one", async () => {
+    const { requests } = form();
+    await userEvent.type(screen.getByLabelText("Monto"), "50000");
     await choose("Mercado");
-    expect(whoRow()).toHaveTextContent("Pagaste tú con Nequi");
-
-    const sheet = await openWho();
-    await userEvent.click(within(desde(sheet)).getByRole("radio", { name: "AMEX Bancolombia" }));
+    await whoSheet();
     await userEvent.keyboard("{Escape}");
+    await userEvent.click(save());
+
+    expect(await screen.findByText("Elige una cuenta.")).toBeInTheDocument();
+    expect(requests).toHaveLength(0);
+  });
+
+  it("opens nothing for a later category once the account is chosen, and keeps it", async () => {
+    form();
+    await userEvent.type(screen.getByLabelText("Monto"), "50000");
+    await choose("Mercado");
+    const sheet = await whoSheet();
+    await userEvent.click(within(desde(sheet)).getByRole("radio", { name: "Nequi" }));
+    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
     await choose("Bills Home", "Gas");
 
-    expect(whoRow()).toHaveTextContent("Pagaste tú con AMEX Bancolombia");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(whoRow()).toHaveTextContent("Pagaste tú con Nequi");
   });
 
-  it("keeps the current rule for a category never paid in the window: the account paid from last", async () => {
-    localStorage.setItem("hearth.lastAccount", "a-amex");
-    form({ accountUsage: { ...USAGE, categories: [] } });
-    await choose("Mercado");
-
-    expect(whoRow()).toHaveTextContent("Pagaste tú con AMEX Bancolombia");
-    const sheet = await openWho();
-    expect(within(sheet).queryByText(/con la que sueles pagar/)).not.toBeInTheDocument();
-  });
-
-  it("starts on the account whose screen the form was opened from, whatever the category", async () => {
+  it("starts on the account whose screen the form was opened from, and opens nothing after the category", async () => {
     form({ returnTo: "/spaces/sp-personal/accounts/a-nequi" });
     expect(whoRow()).toHaveTextContent("Pagaste tú con Nequi");
 
     await choose("Bills Home", "Gas");
 
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(whoRow()).toHaveTextContent("Pagaste tú con Nequi");
   });
 
   it("ignores an account screen of another space or of an account Desde does not offer", () => {
     form({ returnTo: "/spaces/sp-other/accounts/a-nequi" });
-    expect(whoRow()).toHaveTextContent("Pagaste tú con Efectivo");
+    expect(whoRow()).not.toHaveTextContent("Pagaste tú con");
+  });
+
+  it("leaves a transfer's starting account behind when the kind turns into an expense", async () => {
+    form({ initialKind: "TRANSFER" });
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Efectivo");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Gasto" }));
+    expect(whoRow()).not.toHaveTextContent("Pagaste tú con");
+    await userEvent.click(screen.getByRole("tab", { name: "Transferencia" }));
+
+    expect(screen.getByRole("button", { name: /Desde/ })).toHaveTextContent("Efectivo");
+  });
+
+  it("starts an income on no account and opens Cuenta que recibe once the category is chosen", async () => {
+    const income = groupDto({
+      id: "g-income",
+      key: "income",
+      name: "Ingresos",
+      categories: [categoryDto({ id: "c-salary", groupId: "g-income", name: "Salario" })],
+    });
+    form({ initialKind: "INCOME", groups: [...groups, income] });
+    expect(screen.getByRole("button", { name: /Cuenta que recibe/ })).toHaveTextContent("Elegir cuenta");
+
+    await choose("Salario");
+    const picker = await screen.findByRole("dialog", { name: "Cuenta que recibe" });
+    expect(within(picker).queryByRole("radio", { checked: true })).not.toBeInTheDocument();
+    await userEvent.click(within(picker).getByRole("radio", { name: "Nequi" }));
+
+    expect(screen.getByRole("button", { name: /Cuenta que recibe/ })).toHaveTextContent("Nequi");
   });
 });
 

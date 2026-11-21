@@ -149,7 +149,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         await page.goto(`${hh}/new`);
         await expect(page.locator("[data-ready='true']")).toBeAttached();
         await page.getByLabel(es.ledger.form.amount).fill("1350000"); // 82 % of 1,640,000 COP: the neutral note
-        await chooseCategory(page, /^Mercado|^Groceries/);
+        await chooseCategory(page, /^Mercado|^Groceries/, { account: null });
         // NEAR only with October's carry: without it 1,350,000 COP is 91,84 % of 1,470,000 COP, a HIGH note.
         await expect(page.locator("[data-level='NEAR']")).toBeVisible();
         await scan("record form with the line note");

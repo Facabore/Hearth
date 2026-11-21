@@ -77,14 +77,41 @@ const lineOf = (sheet: HTMLElement, name: string) =>
   person(sheet, name).getAttribute("aria-describedby")
     ? (document.getElementById(person(sheet, name).getAttribute("aria-describedby")!)?.textContent ?? "")
     : "";
-const tick = async (...names: string[]) => {
-  const sheet = await openWho();
+const whoSheet = () => screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+const payFrom = async (sheet: HTMLElement, account = "Bancolombia") =>
+  userEvent.click(
+    within(within(sheet).getByRole("radiogroup", { name: "Desde" })).getByRole("radio", { name: account }),
+  );
+const tickIn = async (sheet: HTMLElement, ...names: string[]) => {
   for (const name of names) await userEvent.click(person(sheet, name));
   await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
 };
-const dinner = async (pesos = "120000") => {
+const tick = async (...names: string[]) => tickIn(await openWho(), ...names);
+/** P348: a new expense starts on no account; the person picks Bancolombia in Desde, then ticks the people. */
+const payAndTick = async (...names: string[]) => {
+  const sheet = await openWho();
+  await payFrom(sheet);
+  await tickIn(sheet, ...names);
+};
+/** P348: once the category is chosen, "¿Quién pagó y para quién?" opens by itself, with no account ticked yet. */
+const asked = async (pesos = "120000") => {
   await userEvent.type(screen.getByLabelText("Monto"), pesos);
   await chooseGroceries();
+  return whoSheet();
+};
+/** The sheet that opened after the category, with Tú paying from Bancolombia. */
+const dinner = async (pesos = "120000") => {
+  const sheet = await asked(pesos);
+  await payFrom(sheet);
+  return sheet;
+};
+/** P348: a category of the person's own opens the sheet too; Tú pays from Bancolombia there. */
+const chooseMine = async () => {
+  await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+  await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
+  const sheet = await whoSheet();
+  await payFrom(sheet);
+  return sheet;
 };
 const save = () => userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
 const posted = async (requests: Request[]) => (await requests[0]!.json()) as Record<string, unknown>;
@@ -97,7 +124,12 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
     const tiles = screen.getByRole("group", { name: "Categoría" });
     expect(tiles.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(row).toHaveClass("border-b", "min-h-11");
-    expect(row).toHaveTextContent("Pagaste tú con Bancolombia");
+    // P348: a new expense starts on no account, so the person picks Bancolombia first.
+    await userEvent.type(screen.getByLabelText("Monto"), "120000");
+    const first = await openWho();
+    await payFrom(first);
+    await userEvent.click(within(first).getByRole("button", { name: "Listo" }));
+    expect(whoRow()).toHaveTextContent("Pagaste tú con Bancolombia");
     expect(screen.queryByRole("button", { name: /^Cuenta/ })).not.toBeInTheDocument();
     expect(await axeViolations(container)).toEqual([]);
     const sheet = await openWho();
@@ -122,8 +154,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api);
     await userEvent.type(screen.getByLabelText("Descripción"), "Cena");
-    await dinner();
-    await tick("Juan");
+    await tickIn(await dinner(), "Juan");
     expect(whoRow()).toHaveTextContent("Pagaste tú con Bancolombia · para ti y Juan");
     await userEvent.dblClick(screen.getByRole("button", { name: "Guardar gasto" }));
     expect(requests).toHaveLength(1);
@@ -144,8 +175,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
   it("records it all for Juan when Tú is not ticked: he owes the whole amount", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api);
-    await dinner();
-    const sheet = await openWho();
+    const sheet = await dinner();
     await userEvent.click(person(sheet, "Tú"));
     await userEvent.click(person(sheet, "Juan"));
     expect(lineOf(sheet, "Tú")).toBe("No te toca nada");
@@ -163,8 +193,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
   it("splits for Juan and Luis without Tú, each part with its person", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api);
-    await dinner("150000");
-    await tick("Tú", "Juan", "Luis");
+    await tickIn(await dinner("150000"), "Tú", "Juan", "Luis");
     expect(whoRow()).toHaveTextContent("Pagaste tú con Bancolombia · para Juan y Luis");
     await save();
     expect(await posted(requests)).toMatchObject({
@@ -180,8 +209,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
   it("sends the typed Montos, Tú 50,000 and the guest Carlos 70,000", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-carlos") });
     form(api);
-    await dinner();
-    const sheet = await openWho();
+    const sheet = await dinner();
     await userEvent.click(person(sheet, "Carlos"));
     await userEvent.click(within(sheet).getByRole("radio", { name: "Montos" }));
     await userEvent.type(within(sheet).getByLabelText("Valor de Tú"), "50000");
@@ -202,8 +230,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
   it("sends Porcentaje parts that add up to the amount exactly among Tú, Juan and Luis", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api);
-    await dinner("100000");
-    const sheet = await openWho();
+    const sheet = await dinner("100000");
     await userEvent.click(person(sheet, "Juan"));
     await userEvent.click(person(sheet, "Luis"));
     await userEvent.click(within(sheet).getByRole("radio", { name: "Porcentaje" }));
@@ -224,8 +251,7 @@ describe("one row says who paid and whom it was for (P333, P331)", () => {
   it("adds someone without Hearth by name, ticked, who is sent as a new guest", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-new", true) });
     form(api);
-    await dinner("50000");
-    const sheet = await openWho();
+    const sheet = await dinner("50000");
     await userEvent.click(within(sheet).getByRole("button", { name: "Agregar a alguien" }));
     expect(within(sheet).getByRole("button", { name: "Agregar" })).toBeDisabled();
     await userEvent.type(within(sheet).getByLabelText("Nombre de quien no usa Hearth"), "Marta");
@@ -244,9 +270,7 @@ describe("a personal expense for someone else needs a catalog category (P172)", 
   it("names the personal space by its own name, renamed or not (#170)", async () => {
     form(fakeApi({}).api, { space: spaceDto({ name: "Mis finanzas" }) });
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
-    await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
-    await tick("Luis");
+    await tickIn(await chooseMine(), "Luis");
     await save();
     expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Esta categoría es solo de tu espacio Mis finanzas. Elige una categoría predeterminada para dividir el gasto.",
@@ -257,9 +281,7 @@ describe("a personal expense for someone else needs a catalog category (P172)", 
     const { api, requests } = fakeApi({});
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
-    await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
-    await tick("Luis");
+    await tickIn(await chooseMine(), "Luis");
     await save();
     expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Esta categoría es solo de tu espacio Personal. Elige una categoría predeterminada para dividir el gasto.",
@@ -273,7 +295,7 @@ describe("a personal expense for someone else needs a catalog category (P172)", 
     const { api, requests } = fakeApi({});
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await tick("Luis");
+    await payAndTick("Luis");
     await save();
     expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Elige una categoría.",
@@ -284,7 +306,7 @@ describe("a personal expense for someone else needs a catalog category (P172)", 
   it("clears the category message as soon as a default category is chosen (S3)", async () => {
     form(fakeApi({}).api);
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await tick("Luis");
+    await payAndTick("Luis");
     await save();
     expect(screen.getByRole("group", { name: "Categoría" })).toHaveAccessibleDescription(
       "Elige una categoría.",
@@ -296,7 +318,7 @@ describe("a personal expense for someone else needs a catalog category (P172)", 
   it("does not blame a category of the person's own before the next save (S3)", async () => {
     form(fakeApi({}).api);
     await userEvent.type(screen.getByLabelText("Monto"), "50000");
-    await tick("Luis");
+    await payAndTick("Luis");
     await save();
     await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
     await userEvent.click(await screen.findByRole("radio", { name: "Mine" }));
@@ -314,8 +336,7 @@ describe("saving a personal expense for someone else (P172)", () => {
         calls++ === 0 ? problemResponse(422, "InvalidDirectCounterpart") : created("sp-ana-juan"),
     });
     form(api);
-    await dinner("50000");
-    await tick("Luis");
+    await tickIn(await dinner("50000"), "Luis");
     await save();
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     await save();
@@ -328,8 +349,7 @@ describe("saving a personal expense for someone else (P172)", () => {
       "POST /api/v1/direct-splits": () => problemResponse(500, "InternalError"),
     });
     form(api);
-    await dinner("50000");
-    await tick("Juan");
+    await tickIn(await dinner("50000"), "Juan");
     await save();
     await screen.findByRole("alert");
     await tick("Juan", "Luis");
@@ -366,8 +386,7 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
   it("offers the people as who paid; Juan paying hides Desde and leaves only Tú and Juan to tick", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api);
-    await dinner();
-    const sheet = await openWho();
+    const sheet = await asked();
     expect(
       within(within(sheet).getByRole("radiogroup", { name: "Pagó" }))
         .getAllByRole("radio")
@@ -402,8 +421,7 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
   it("sends Tú's whole part when Juan paid it all for Tú", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api);
-    await dinner();
-    const sheet = await openWho();
+    const sheet = await asked();
     await userEvent.click(payer(sheet, "Juan"));
     await userEvent.click(person(sheet, "Juan"));
     expect(lineOf(sheet, "Juan")).toBe("No le toca nada");
@@ -419,8 +437,7 @@ describe("someone else paid, from the personal space (P333, board panel 3)", () 
   it("adds someone without Hearth who paid, from the + of Pagó", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-new", true) });
     form(api);
-    await dinner("50000");
-    const sheet = await openWho();
+    const sheet = await asked("50000");
     await userEvent.click(within(sheet).getByRole("button", { name: "Agregar a alguien que pagó" }));
     await userEvent.type(within(sheet).getByLabelText("Nombre de quien no usa Hearth"), "Marta");
     await userEvent.click(within(sheet).getByRole("button", { name: "Agregar" }));
@@ -439,8 +456,7 @@ describe("someone else paid needs no account of the recorder's (P333)", () => {
   it("saves Juan's payment for a recorder who has no active account", async () => {
     const { api, requests } = fakeApi({ "POST /api/v1/direct-splits": () => created("sp-ana-juan") });
     form(api, { accounts: [] });
-    await dinner();
-    const sheet = await openWho();
+    const sheet = await asked();
     await userEvent.click(
       within(within(sheet).getByRole("radiogroup", { name: "Pagó" })).getByRole("radio", { name: "Juan" }),
     );

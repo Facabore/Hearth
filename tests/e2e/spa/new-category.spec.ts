@@ -111,6 +111,11 @@ test.describe("the pencil on Registrar's chosen category (ruling P346, #349)", (
     const chips = page.getByRole("group", { name: es.ledger.form.category });
     const chip = (name: string) => chips.getByRole("button", { name, exact: true });
     await chip(groceries.name).click();
+    // P348: the category asks for the account first; the person leaves it for later.
+    const who = page.getByRole("dialog", { name: es.ledger.who.title });
+    await expect(who).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(who).toBeHidden();
     await expect(chip(groceries.name)).toHaveAttribute("aria-pressed", "true");
     // The sheet's words come from the categories area, which the record route loads (P276).
     await chips.getByRole("button", { name: es.categories.edit.replace("{name}", groceries.name) }).click();

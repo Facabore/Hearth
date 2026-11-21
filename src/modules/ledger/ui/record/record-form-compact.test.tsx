@@ -88,6 +88,17 @@ const household = (api: Api, options: { edit?: RecordEdit } = {}) =>
 const amount = () => screen.getByLabelText("Monto");
 // P333: who paid and whom it was for are one row, in a personal and a shared space alike.
 const whoRow = () => screen.getByRole("button", { name: /Quién pagó y para quién/ });
+const whoSheet = () => screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+// P348: a new personal expense starts on no account; the person picks it in "¿Quién pagó y para quién?", which a
+// category opens on its own.
+const chooseAccount = async (name: string) => {
+  const sheet = await whoSheet();
+  await userEvent.click(
+    within(within(sheet).getByRole("radiogroup", { name: "Desde" })).getByRole("radio", { name }),
+  );
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+};
 
 /** Whether `a` comes before `b` in the document. */
 const before = (a: Element, b: Element) =>
@@ -106,6 +117,7 @@ describe("the amount takes the form's keypad (ruling P291, board B1 · 01)", () 
     await userEvent.type(amount(), "0");
     expect(amount()).toHaveValue("450.000");
     await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    await chooseAccount("Bancolombia");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(await requests[0]!.json()).toMatchObject({ amount: { amount: "45000000", currency: "COP" } });
@@ -197,8 +209,9 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
   it("names the account and the date and time in summary rows, the space first (P308); the account and date open", async () => {
     personal(fakeApi({}).api);
     const chips = screen.getByRole("group", { name: "Detalles del movimiento" });
-    expect(within(chips).getByRole("button", { name: /Quién pagó y para quién/ })).toHaveTextContent(
-      "Pagaste tú con Bancolombia",
+    // P348: a new expense starts on no account, and the row names the one the person picks.
+    expect(within(chips).getByRole("button", { name: /Quién pagó y para quién/ })).not.toHaveTextContent(
+      "Pagaste tú con",
     );
     expect(within(chips).getByTestId("when-chip")).toHaveTextContent("Hoy · 23:30");
     expect(within(chips).queryByText(spaceDto().name)).toBeNull();
@@ -211,7 +224,11 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
     expect(within(chips).getAllByRole("button")).toHaveLength(2);
     for (const chip of within(chips).getAllByRole("button")) expect(chip).toHaveClass("min-h-11");
     await userEvent.click(within(chips).getByRole("button", { name: /Quién pagó y para quién/ }));
-    expect(await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" })).toBeInTheDocument();
+    expect(await whoSheet()).toBeInTheDocument();
+    await chooseAccount("Bancolombia");
+    expect(within(chips).getByRole("button", { name: /Quién pagó y para quién/ })).toHaveTextContent(
+      "Pagaste tú con Bancolombia",
+    );
   });
 
   it("chooses a category from its tile, and a subcategory from its chip, a second tap clearing it", async () => {
@@ -248,6 +265,7 @@ describe("the board's order (ruling P291, board B1 · 01; ruling P324, board Reg
     );
     expect(screen.queryByRole("group", { name: "Subcategorías de Groceries" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Groceries" }));
+    await chooseAccount("Bancolombia");
     expect(screen.getByRole("button", { name: "Groceries" })).toHaveAttribute("aria-pressed", "true");
     const subs = screen.getByRole("group", { name: "Subcategorías de Groceries" });
     await userEvent.click(within(subs).getByRole("button", { name: "Vegetables" }));
@@ -354,6 +372,9 @@ describe("a category created from the picker (ruling P308)", () => {
     expect(within(sheet).getByText("En Viaje · la verán todos en el espacio")).toBeInTheDocument();
     await userEvent.type(await within(sheet).findByLabelText("Nombre"), "Bebidas en el hotel");
     await userEvent.click(within(sheet).getByRole("button", { name: "Crear y usar en el gasto" }));
+    // P348: the new category, once chosen, asks for the expense's account, since a new one starts on none.
+    const accountPicker = await screen.findByRole("dialog", { name: "Cuenta" });
+    await userEvent.click(within(accountPicker).getByRole("radio", { name: "Bancolombia" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(onCategoryCreated).toHaveBeenCalledWith(
       expect.objectContaining({ id: "c-hotel", groupId: "g-food" }),

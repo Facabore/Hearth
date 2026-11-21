@@ -73,6 +73,7 @@ import { CurrencyChip } from "./currency-chip";
 import { CategoryTiles } from "./category-tiles";
 import { useLeaveQuestion } from "@/shared/ui/navigation/hold-navigation";
 import { leaveSheet } from "@/shared/ui/navigation/leave-sheet";
+import { afterSheets } from "@/shared/ui/navigation/sheet-gate";
 import { DiscardConfirm, type HoldNavigation } from "./discard-confirm";
 import { FormChip, SummaryRow, OthersAccountRow } from "./form-chip";
 import { DescriptionField, MoneyField, RowError } from "./form-rows";
@@ -373,6 +374,9 @@ export function RecordForm({
       // Ruling P321: a space's only fund is the one a contribution goes to.
       if (!shared.funds.some((a) => a.id === toAccountId))
         setToAccountId(shared.funds.length === 1 ? shared.funds[0]!.id : null);
+    } else if (!edit && !accountPicked && givenAccount === null) {
+      // P348: only a transfer starts on an account the person did not choose.
+      setAccountId(nextKind === "TRANSFER" ? preferredAccountId(accounts, readLastAccount()) : null);
     }
     // Issue #173: a category the new kind's sheet does not offer goes, so it is never saved unseen.
     const offered =
@@ -405,12 +409,15 @@ export function RecordForm({
           (id) => id && [...fromAccounts, ...(shared?.myAccounts ?? [])].some((a) => a.id === id),
         ) ?? null),
   );
+  // P348 (owner, 2026-11-20): a new expense or income starts on no account, so the person always chooses it; a transfer
+  // keeps starting where the money is (#208, #285).
   const [accountId, setAccountId] = useState<string | null>(() => {
     if (edit) return edit.initial.accountId;
     if (givenAccount && fromAccounts.some((a) => a.id === givenAccount)) return givenAccount;
-    return preferredAccountId(fromAccounts, readLastAccount());
+    return kind === "TRANSFER" ? preferredAccountId(fromAccounts, readLastAccount()) : null;
   });
-  // Ruling P337: once the person picks the account, a category no longer proposes one.
+  // P348: whether the person chose the account themselves, so a change of kind never leaves a transfer's default on an
+  // expense or an income.
   const [accountPicked, setAccountPicked] = useState(false);
   const [toAccountId, setToAccountId] = useState<string | null>(
     () =>
@@ -723,15 +730,26 @@ export function RecordForm({
     },
     [clear],
   );
-  // Ruling P337: an expense's category preselects the account the person last paid it from, in Desde or as the account
-  // they pay from in a shared space, until they pick one themselves or the form was given one.
+  // P348 (owner, 2026-11-20): once a new expense or income has its category, the account is asked for at once: the
+  // personal expense's "¿Quién pagó y para quién?", else the account picker. Only while no account is chosen.
+  const askAccount = () => {
+    if (personalWho) {
+      if (forWhom.payer !== ME) return;
+      afterSheets(() => {
+        setWhoOpened(true);
+        setWhoOpen(true);
+      });
+    } else if (!sharedExpense) afterSheets(() => setSheet("account"));
+  };
+  // Ruling P337, amended by P348: in a shared space an expense's category preselects the account the recorder last
+  // paid it from, until they pick one themselves or the form was given one.
   const chooseCategory = (choice: CategoryChoice) => {
     setCategory(choice);
     clear("category");
-    if (edit || kind !== "EXPENSE" || givenAccount !== null || !choice) return;
+    if (edit || kind === "TRANSFER" || givenAccount !== null || !choice) return;
+    if (accountId === null) askAccount();
+    if (kind !== "EXPENSE") return;
     const leaf = choice.subcategoryId ?? choice.categoryId;
-    const learned = learnedAccount(accountUsage, leaf, fromAccounts);
-    if (learned && !accountPicked) setAccountId(learned);
     const mine = shared ? learnedAccount(accountUsage, leaf, shared.myAccounts) : null;
     if (mine && split && !split.payerChosen && (split.payer.kind === "ME" || split.payer.kind === "FOR_FUND"))
       setSplit({ ...split, payer: { ...split.payer, accountId: mine } });
@@ -1315,7 +1333,10 @@ export function RecordForm({
       {kind === "TRANSFER" || !pickerOpened ? null : (
         <CategorySheet
           open={sheet === "category"}
-          onOpenChange={(open) => setSheet(open ? "category" : null)}
+          // P348: closing on a choice leaves the account sheet the choice may have opened.
+          onOpenChange={(open) =>
+            setSheet((current) => (open ? "category" : current === "category" ? null : current))
+          }
           groups={offeredGroups}
           value={category}
           recent={offered}

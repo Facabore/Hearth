@@ -82,6 +82,20 @@ const chooseCurrency = async (name: RegExp) => {
   const sheet = await screen.findByRole("dialog", { name: /Moneda del/ });
   await userEvent.click(within(sheet).getByRole("button", { name }));
 };
+/** P348: a new expense starts on no account, so the person picks Desde in "¿Quién pagó y para quién?". */
+const payFrom = async (account: string) => {
+  await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién/ }));
+  const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+  const desde = within(sheet).getByRole("radiogroup", { name: "Desde" });
+  await userEvent.click(within(desde).getByRole("radio", { name: account }));
+  await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
+};
+/** P348: a new income starts on no account either. */
+const receiveIn = async (account: string) => {
+  await userEvent.click(screen.getByRole("button", { name: /Cuenta que recibe/ }));
+  const picker = await screen.findByRole("dialog", { name: "Cuenta que recibe" });
+  await userEvent.click(within(picker).getByRole("radio", { name: account }));
+};
 const save = (kind = "gasto") => userEvent.click(screen.getByRole("button", { name: `Guardar ${kind}` }));
 
 describe("the movement's currency (P342, board 7)", () => {
@@ -93,8 +107,13 @@ describe("the movement's currency (P342, board 7)", () => {
     form(api, "EXPENSE", [CHASE]);
     expect(currencyChip()).toHaveAccessibleName(/\(COP\)/);
     await userEvent.type(screen.getByLabelText("Monto"), "200000");
+    await payFrom("Chase");
+    expect(currencyChip()).toHaveAccessibleName(/\(COP\)/);
     await save();
-    expect((await posted(requests)).amount).toEqual({ amount: "20000000", currency: "COP" });
+    expect(await posted(requests)).toMatchObject({
+      amount: { amount: "20000000", currency: "COP" },
+      accountId: "a-chase",
+    });
   });
 
   it("lists the space's currency first, then the favorites, and a chosen one writes every figure", async () => {
@@ -124,6 +143,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     form(api);
     await chooseCurrency(/^Dólar estadounidense/);
     await userEvent.type(screen.getByLabelText("Monto"), "50");
+    await payFrom("Bancolombia");
     const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
     await waitFor(() => expect(within(card).getByText("205.000 COP")).toBeInTheDocument());
     expect(card).toHaveTextContent("Sugerido con 4.100 COP por dólar estadounidense (30 oct).");
@@ -146,6 +166,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     form(api);
     await chooseCurrency(/^Dólar estadounidense/);
     await userEvent.type(screen.getByLabelText("Monto"), "50");
+    await payFrom("Bancolombia");
     const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
     await waitFor(() => expect(within(card).getByText("204.999,99 COP")).toBeInTheDocument());
     expect(card).toHaveTextContent("Sugerido con 4.100 COP por dólar estadounidense (30 oct).");
@@ -162,6 +183,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     form(api);
     await chooseCurrency(/^Dólar estadounidense/);
     await userEvent.type(screen.getByLabelText("Monto"), "50");
+    await payFrom("Bancolombia");
     const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
     await waitFor(() => expect(amountsAsked(requests)).toEqual(["5000"]));
     expect(card).toHaveTextContent("Sugerido con 4.100 COP por dólar estadounidense (30 oct).");
@@ -178,6 +200,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     form(api);
     await chooseCurrency(/^Dólar estadounidense/);
     await userEvent.type(screen.getByLabelText("Monto"), "50");
+    await payFrom("Bancolombia");
     const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
     await userEvent.click(within(card).getByRole("button", { name: "¿Cobró otro valor? Escríbelo" }));
     await userEvent.type(within(card).getByLabelText("¿Cuánto pagó tu Bancolombia?"), "210000");
@@ -194,6 +217,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     form(api);
     await chooseCurrency(/^Dólar estadounidense/);
     await userEvent.type(screen.getByLabelText("Monto"), "50");
+    await payFrom("Bancolombia");
     const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP pagó" });
     const field = await within(card).findByLabelText("¿Cuánto pagó tu Bancolombia?");
     expect(card).toHaveTextContent("No hay tasa para ese día");
@@ -212,6 +236,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     form(api, "INCOME");
     await chooseCurrency(/^Dólar estadounidense/);
     await userEvent.type(screen.getByLabelText("Monto"), "50");
+    await receiveIn("Bancolombia");
     const card = await screen.findByRole("group", { name: "Tu Bancolombia en COP recibió" });
     await waitFor(() => expect(within(card).getByText("205.000 COP")).toBeInTheDocument());
     await save("ingreso");
@@ -228,6 +253,7 @@ describe("paying from an account in another currency (P342, board 4)", () => {
     });
     form(api);
     await userEvent.type(screen.getByLabelText("Monto"), "85000");
+    await payFrom("Bancolombia");
     expect(screen.queryByRole("group", { name: /^Tu Bancolombia/ })).toBeNull();
     await save();
     expect(Object.keys(await posted(requests)).sort()).toEqual(

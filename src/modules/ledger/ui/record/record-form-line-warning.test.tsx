@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axeViolations } from "../../../../../tests/support/ui/axe";
@@ -75,6 +75,11 @@ const typeExpense = async (amount: string) => {
   await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
   await userEvent.click(await screen.findByRole("radio", { name: "Groceries" }));
   await userEvent.click(screen.getByRole("radio", { name: "Sin subcategoría" }));
+  // P348: a new expense starts on no account, and its sheet opens once the category is chosen.
+  const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+  const desde = within(sheet).getByRole("radiogroup", { name: "Desde" });
+  await userEvent.click(within(desde).getByRole("radio", { name: "Bancolombia" }));
+  await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
 };
 const expenses = (requests: Request[]) => requests.filter((r) => r.url.endsWith("/expenses"));
 

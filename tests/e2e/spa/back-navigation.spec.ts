@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import { expect, type Page } from "@playwright/test";
 import { test, todayInBogota } from "../support/clock";
 import { es } from "../../../src/i18n/messages/full";
+import { chooseAskedAccount } from "../support/record";
 import { get, post, signUp } from "../support/seed";
 import { sheetsSettled } from "../support/sheets";
 
@@ -146,6 +147,8 @@ test.describe("back navigation (ruling P307)", () => {
     await nav(page).getByRole("link", { name: es.shell.nav.record }).click();
     for (const digit of ["3", "000"]) await page.getByRole("button", { name: digit, exact: true }).click();
     await page.getByRole("button", { name: "Mercado", exact: true }).click();
+    // P348: the category asks for the account, in a sheet whose entry closing gives back.
+    await chooseAskedAccount(page);
     await page.getByRole("button", { name: es.ledger.form.save.EXPENSE }).click();
     await expect(page).toHaveURL(home);
     await page.goBack();

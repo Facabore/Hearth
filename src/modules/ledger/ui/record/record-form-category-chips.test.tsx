@@ -54,6 +54,19 @@ const form = (routes: Record<string, FakeHandler> = {}, space: SpaceDto = spaceD
 };
 
 const chips = () => screen.getByRole("group", { name: "Categoría" });
+// P348: a new expense starts on no account, so its first category opens "¿Quién pagó y para quién?" for the person to
+// pick the account they paid from.
+const chooseFirst = async (name: string) => {
+  await userEvent.click(within(chips()).getByRole("button", { name }));
+  const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+  await userEvent.click(
+    within(within(sheet).getByRole("radiogroup", { name: "Desde" })).getByRole("radio", {
+      name: "Bancolombia",
+    }),
+  );
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+};
 const subs = (name = "Groceries") => screen.getByRole("group", { name: `Subcategorías de ${name}` });
 const save = async (requests: Request[]) => {
   await userEvent.type(screen.getByLabelText("Monto"), "85000");
@@ -69,7 +82,7 @@ describe("a category chip chooses the category alone (P346, S3)", () => {
       JSON.stringify([{ categoryId: "c-groceries", subcategoryId: "c-veg" }]),
     );
     const { requests } = form();
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     expect(within(chips()).getByRole("button", { name: "Groceries" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -89,7 +102,7 @@ describe("a category chip chooses the category alone (P346, S3)", () => {
 describe("the subcategory row starts with «Sin subcategoría» (P346, S4)", () => {
   it("checks it while none is chosen, chooses a subcategory on a tap, and clears it from «Sin subcategoría»", async () => {
     const { requests } = form();
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     const row = within(subs()).getAllByRole("button");
     expect(row.map((chip) => chip.textContent)).toEqual(["Sin subcategoría", "Vegetables", "Fruit"]);
     const none = row[0]!;
@@ -127,7 +140,7 @@ describe("the subcategory row starts with «Sin subcategoría» (P346, S4)", () 
 describe("another tap on the chosen chip still opens «Categoría» (P346, S5)", () => {
   it("opens the picker, with no double tap anywhere (S7)", async () => {
     form();
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     expect(screen.queryByRole("dialog")).toBeNull();
     await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
     expect(await screen.findByRole("dialog", { name: "Categoría" })).toBeInTheDocument();
@@ -140,7 +153,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
   it("sits right after the chosen chip, a 44 px target, only once a category is chosen", async () => {
     form();
     expect(pencil()).toBeNull();
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     const button = pencil()!;
     expect(within(chips()).getByRole("button", { name: "Groceries" }).nextElementSibling).toBe(button);
     expect(button).toHaveClass("size-11", "rounded-full", "border", "border-line", "bg-surface");
@@ -151,7 +164,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
 
   it("shows no pencil to someone who only records in the space", async () => {
     form({}, spaceDto({ role: "MEMBER" }));
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     expect(within(chips()).getByRole("button", { name: "Groceries" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -171,7 +184,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
         );
       },
     });
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     await userEvent.click(within(subs()).getByRole("button", { name: "Fruit" }));
     await userEvent.click(pencil()!);
     const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
@@ -214,7 +227,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
       "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/archive": () =>
         jsonResponse({ ...groceries, archivedAt: "2026-11-01T04:30:00Z", subcategories: undefined }),
     });
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     await userEvent.click(pencil()!);
     const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Archivar" }));
@@ -230,7 +243,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
     form({
       "DELETE /api/v1/spaces/{spaceId}/categories/{categoryId}": () => new Response(null, { status: 204 }),
     });
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     await userEvent.click(pencil()!);
     const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Eliminar" }));
@@ -246,7 +259,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
       "POST /api/v1/spaces/{spaceId}/categories/{categoryId}/archive": () =>
         jsonResponse({ ...fruit, archivedAt: "2026-11-01T04:30:00Z" }),
     });
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     await userEvent.click(pencil()!);
     const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Editar Fruit" }));
@@ -273,7 +286,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
       api: fakeApi({}).api,
     };
     const { rerender } = renderWithIntl(<RecordForm {...props} groups={groups} />);
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     await userEvent.click(pencil()!);
     const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Editar Fruit" }));
@@ -305,7 +318,7 @@ describe("the pencil edits the chosen category (P346, S6)", () => {
     const { requests } = form({
       "DELETE /api/v1/spaces/{spaceId}/categories/{categoryId}": () => new Response(null, { status: 204 }),
     });
-    await userEvent.click(within(chips()).getByRole("button", { name: "Groceries" }));
+    await chooseFirst("Groceries");
     await userEvent.click(within(subs()).getByRole("button", { name: "Fruit" }));
     await userEvent.click(pencil()!);
     const sheet = await screen.findByRole("dialog", { name: "Editar categoría" });
