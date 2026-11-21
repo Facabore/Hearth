@@ -221,8 +221,9 @@ test.describe("back navigation (ruling P307)", () => {
     await expect(form).toBeVisible();
 
     // With an amount typed, the drag asks first; kept, the form takes back its place.
-    const top = (await form.boundingBox())!.y;
     for (const digit of ["2", "000"]) await page.getByRole("button", { name: digit, exact: true }).click();
+    // The sheet sits on the bottom edge and grows with what is typed, so its top is read once the amount is in.
+    const top = (await form.boundingBox())!.y;
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x, y + 200, { steps: 10 });
