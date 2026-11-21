@@ -147,13 +147,15 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByText("Caja")).toBeInTheDocument();
   });
 
-  it("comes back from the record form's Nueva cuenta with the new account chosen and what was typed (P348)", async () => {
+  it("comes back from the record form's Nueva cuenta with the new account chosen, and what was typed and chosen (P348)", async () => {
     const { routes } = server();
     const form = "/spaces/sp-personal/new";
     const spa = renderSpa(form, routes);
     const whoRow = (paid: RegExp) => screen.findByRole("button", { name: paid }, { timeout: 5_000 });
     await userEvent.type(await screen.findByLabelText("Monto", {}, { timeout: 5_000 }), "50000");
-    await userEvent.click(await whoRow(/Quién pagó y para quién\s*Pagaste tú$/));
+    // The category opens «¿Quién pagó y para quién?» by itself, with no account chosen yet.
+    await userEvent.click(screen.getByRole("button", { name: "Elegir categoría" }));
+    await userEvent.click(await screen.findByRole("radio", { name: "Restaurants" }));
     const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
     await userEvent.click(within(sheet).getByRole("link", { name: "Nueva cuenta" }));
 
@@ -166,6 +168,7 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     await waitFor(() => expect(spa.location()).toBe(form));
     expect(await whoRow(/Pagaste tú con Wallet/)).toBeVisible();
     expect(screen.getByLabelText("Monto")).toHaveValue("50.000");
+    expect(screen.getByRole("button", { name: "Restaurants", pressed: true })).toBeInTheDocument();
   });
 
   it("hides an account from a confirmation on its own screen, through the app's own client (P292)", async () => {

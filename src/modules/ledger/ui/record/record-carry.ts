@@ -17,6 +17,8 @@ export interface RecordCarry {
    * offers that is not among them is the one just created, and it is chosen.
    */
   readonly offeredAccountIds?: readonly string[];
+  /** P348: the category chosen before Nueva cuenta; the form comes back to the same space, where it still applies. */
+  readonly category?: { readonly categoryId: string; readonly subcategoryId: string | null };
 }
 
 /**

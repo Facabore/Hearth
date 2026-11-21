@@ -365,7 +365,9 @@ export function RecordForm({
   const recent = useMemo(() => parseRecent(recentText), [recentText]);
   const [amount, setAmount] = useState(edit?.initial.amount ?? carried?.amount ?? "");
   const [description, setDescription] = useState(edit?.initial.description ?? carried?.description ?? "");
-  const [category, setCategory] = useState<CategoryChoice>(edit?.initial.category ?? null);
+  const [category, setCategory] = useState<CategoryChoice>(
+    edit?.initial.category ?? carried?.category ?? null,
+  );
   const changeKind = (nextKind: RecordKind) => {
     setKind(nextKind);
     if (shared && nextKind === "TRANSFER") {
@@ -672,6 +674,7 @@ export function RecordForm({
       description,
       when: chosenWhen,
       ...(accountId ? { accountId } : {}),
+      ...(category ? { category } : {}),
       offeredAccountIds: fromAccounts.map((a) => a.id),
     });
   const newAccountHref = shared
