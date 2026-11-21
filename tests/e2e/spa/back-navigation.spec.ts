@@ -198,4 +198,34 @@ test.describe("back navigation (ruling P307)", () => {
     await question.getByRole("button", { name: es.ledger.form.discard.confirm }).click();
     await expect(page).toHaveURL(home);
   });
+  test("a drag down on the record form's handle closes it, back to where it was opened (P348, #356)", async ({
+    page,
+  }) => {
+    const spaceId = await signUp(page, "spa-back-swipe", ip());
+    const home = `/spaces/${spaceId}`;
+    await page.goto(home);
+    await nav(page).getByRole("link", { name: es.shell.nav.record }).click();
+    await expect(page).toHaveURL(/\/new/);
+    const form = page.getByRole("region", { name: es.ledger.form.title });
+    const box = (await page.getByRole("link", { name: es.common.back, exact: true }).boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+
+    // A short, slow drag springs back and leaves the form open.
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 30, { steps: 10 });
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    await expect(page).toHaveURL(/\/new/);
+    await expect(form).toBeVisible();
+
+    // A drag past the closing distance closes it.
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 200, { steps: 10 });
+    await page.mouse.up();
+    await expect(page).toHaveURL(home);
+    await expect(form).toBeHidden();
+  });
 });
