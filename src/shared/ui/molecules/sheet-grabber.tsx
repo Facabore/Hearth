@@ -26,6 +26,9 @@ const place = (sheet: HTMLElement | null, dy: number, settle: boolean) => {
   sheet.style.transform = dy > 0 ? `translateY(${dy}px)` : "";
 };
 
+/** Puts a sheet a drag moved back in place, animated. */
+export const springBack = (sheet: HTMLElement | null): void => place(sheet, 0, true);
+
 /**
  * A bottom sheet's drag down to close (P348: shared by `SheetGrabber` and the record form's handle). `handlers` go on
  * the handle; `dragged()` says, in its click handler, that the click ended a drag rather than a tap, so the drag already

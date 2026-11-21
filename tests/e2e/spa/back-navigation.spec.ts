@@ -220,11 +220,25 @@ test.describe("back navigation (ruling P307)", () => {
     await expect(page).toHaveURL(/\/new/);
     await expect(form).toBeVisible();
 
-    // A drag past the closing distance closes it.
+    // With an amount typed, the drag asks first; kept, the form takes back its place.
+    const top = (await form.boundingBox())!.y;
+    for (const digit of ["2", "000"]) await page.getByRole("button", { name: digit, exact: true }).click();
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.move(x, y + 200, { steps: 10 });
     await page.mouse.up();
+    const question = dialog(page, es.ledger.form.discard.title.EXPENSE);
+    await question.getByRole("button", { name: es.ledger.form.discard.keep }).click();
+    await expect(page).toHaveURL(/\/new/);
+    await expect.poll(async () => (await form.boundingBox())!.y).toBe(top);
+    await expect(form).not.toHaveAttribute("data-state");
+
+    // A drag past the closing distance closes it; asked, the person discards what was typed.
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 200, { steps: 10 });
+    await page.mouse.up();
+    await question.getByRole("button", { name: es.ledger.form.discard.confirm }).click();
     await expect(page).toHaveURL(home);
     await expect(form).toBeHidden();
   });

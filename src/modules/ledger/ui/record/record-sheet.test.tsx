@@ -23,7 +23,7 @@ const open = () => {
 
 /** A drag on the handle, `distance` px down in `duration` ms, ending with the click a mouse sends. */
 const drag = (handle: HTMLElement, distance: number, duration: number) => {
-  vi.useFakeTimers({ toFake: ["performance"] });
+  if (!vi.isFakeTimers()) vi.useFakeTimers({ toFake: ["performance"] });
   fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientY: 100 });
   fireEvent.pointerMove(handle, { pointerId: 1, clientY: 100 + distance / 2 });
   vi.advanceTimersByTime(duration);
@@ -47,6 +47,17 @@ describe("Registrar's handle closes it with a drag down, as every sheet's does (
     drag(handle, 140, 1000);
 
     expect(router.push).toHaveBeenCalledExactlyOnceWith(BACK);
+  });
+
+  it("springs back when it is still on screen after the drag closed it, as when leaving asks first", () => {
+    vi.useFakeTimers({ toFake: ["performance", "setTimeout"] });
+    const { sheet, handle } = open();
+    drag(handle, 140, 1000);
+    // The router is held here (the mock), as a typed form's question holds it: the form stays and the person keeps it.
+    vi.advanceTimersByTime(1000);
+
+    expect(sheet.style.transform).toBe("");
+    expect(sheet).not.toHaveAttribute("data-state");
   });
 
   it("closes on a quick flick, however short", () => {

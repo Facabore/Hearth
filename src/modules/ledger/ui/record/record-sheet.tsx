@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
-import { useSheetDrag } from "@/shared/ui/molecules/sheet-grabber";
+import { springBack, useSheetDrag } from "@/shared/ui/molecules/sheet-grabber";
 import { goBack } from "@/shared/ui/navigation/history";
+
+/** How long a closing form waits for the screen under it before it takes back its place (#356). */
+const STILL_HERE_MS = 400;
 
 /**
  * Ruling P291 (board B1 · 01): the record form as a bottom sheet over a scrim, with a drag handle and no shell header
@@ -28,8 +31,17 @@ export function RecordSheet({
   const sheet = useRef<HTMLElement>(null);
   // As the handle does: back to where the person was, or to `backHref` when this tab has no such step.
   const close = useCallback(() => {
-    // Leaving: a drag that closed it leaves the form where the finger let go instead of springing it back.
-    if (sheet.current) sheet.current.dataset["state"] = "closed";
+    // Leaving: a drag that closed it leaves the form where the finger let go instead of springing it back, unless the
+    // form is still here a moment later (a typed form asks first, and the person may keep it).
+    const form = sheet.current;
+    if (form) {
+      form.dataset["state"] = "closed";
+      setTimeout(() => {
+        if (!form.isConnected) return;
+        delete form.dataset["state"];
+        springBack(form);
+      }, STILL_HERE_MS);
+    }
     let returned = false;
     goBack({
       button: 0,
