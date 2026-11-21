@@ -147,35 +147,25 @@ describe("accounts, categories and settings in the SPA (slice 3 of #199, ADR 000
     expect(await screen.findByText("Caja")).toBeInTheDocument();
   });
 
-  it("returns from the record form's Nueva cuenta to the form, which offers the new account to choose (P348)", async () => {
-    const { routes, state } = server();
-    state.accounts = [];
+  it("comes back from the record form's Nueva cuenta with the new account chosen and what was typed (P348)", async () => {
+    const { routes } = server();
     const form = "/spaces/sp-personal/new";
     const spa = renderSpa(form, routes);
-    expect(
-      await screen.findByRole(
-        "button",
-        { name: /Quién pagó y para quién\s*Pagaste tú$/ },
-        { timeout: 5_000 },
-      ),
-    ).toBeVisible();
+    const whoRow = (paid: RegExp) => screen.findByRole("button", { name: paid }, { timeout: 5_000 });
+    await userEvent.type(await screen.findByLabelText("Monto", {}, { timeout: 5_000 }), "50000");
+    await userEvent.click(await whoRow(/Quién pagó y para quién\s*Pagaste tú$/));
+    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
+    await userEvent.click(within(sheet).getByRole("link", { name: "Nueva cuenta" }));
 
-    await spa.router.navigate({ href: `${ACCOUNTS}/new?returnTo=${encodeURIComponent(form)}` });
+    await waitFor(() => expect(spa.location()).toBe(`${ACCOUNTS}/new?returnTo=${encodeURIComponent(form)}`));
     await userEvent.click(await screen.findByRole("radio", { name: "Efectivo" }));
     await userEvent.type(screen.getByLabelText("Nombre"), "Wallet");
     await userEvent.type(screen.getByLabelText("Saldo inicial"), "0");
     await userEvent.click(screen.getByRole("button", { name: "Crear cuenta" }));
 
     await waitFor(() => expect(spa.location()).toBe(form));
-    // P348: a new expense starts on no account, so the person chooses the new one in Desde, already offered there.
-    await userEvent.type(await screen.findByLabelText("Monto", {}, { timeout: 5_000 }), "50000");
-    await userEvent.click(screen.getByRole("button", { name: /Quién pagó y para quién\s*Pagaste tú$/ }));
-    const sheet = await screen.findByRole("dialog", { name: "¿Quién pagó y para quién?" });
-    await userEvent.click(
-      within(within(sheet).getByRole("radiogroup", { name: "Desde" })).getByRole("radio", { name: "Wallet" }),
-    );
-    await userEvent.click(within(sheet).getByRole("button", { name: "Listo" }));
-    expect(await screen.findByRole("button", { name: /Pagaste tú con Wallet/ })).toBeVisible();
+    expect(await whoRow(/Pagaste tú con Wallet/)).toBeVisible();
+    expect(screen.getByLabelText("Monto")).toHaveValue("50.000");
   });
 
   it("hides an account from a confirmation on its own screen, through the app's own client (P292)", async () => {

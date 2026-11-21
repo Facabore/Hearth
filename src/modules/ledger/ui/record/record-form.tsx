@@ -95,7 +95,7 @@ import {
   type RecordField,
   type RecordKind,
 } from "./record-request";
-import { handOver, heldFor, release } from "./record-carry";
+import { handOver, heldFor, newAccountOf, release } from "./record-carry";
 import { useExchangeRate } from "./use-exchange-rate";
 import { useIdempotencyKey } from "./use-idempotency-key";
 import { usePairDebt } from "./use-pair-debt";
@@ -405,7 +405,7 @@ export function RecordForm({
   const [givenAccount] = useState(() =>
     edit
       ? null
-      : ([carried?.accountId, accountOfScreen(returnTo, space.id)].find(
+      : ([newAccountOf(carried, fromAccounts), carried?.accountId, accountOfScreen(returnTo, space.id)].find(
           (id) => id && [...fromAccounts, ...(shared?.myAccounts ?? [])].some((a) => a.id === id),
         ) ?? null),
   );
@@ -664,6 +664,16 @@ export function RecordForm({
     .join(" · ");
   // N7: a personal form can create an account and come back to itself, on the type being recorded. A shared
   // space's payer comes from the members' personal accounts, so it offers none.
+  // P348: "Nueva cuenta" hands over what was typed and the accounts offered, so the form comes back on the new account.
+  const leaveForNewAccount = () =>
+    handOver(space.id, {
+      kind,
+      amount,
+      description,
+      when: chosenWhen,
+      ...(accountId ? { accountId } : {}),
+      offeredAccountIds: fromAccounts.map((a) => a.id),
+    });
   const newAccountHref = shared
     ? undefined
     : withReturnTo(
@@ -1287,6 +1297,7 @@ export function RecordForm({
           }}
           people={known}
           newAccountHref={newAccountHref}
+          onNewAccount={leaveForNewAccount}
           fromHint={fromHint}
           forWhom={forWhom}
           onForWhom={setForWhom}
@@ -1361,6 +1372,7 @@ export function RecordForm({
         onOpenChange={(open) => setSheet(open ? "account" : null)}
         accounts={fromAccounts}
         newAccountHref={newAccountHref}
+        {...(newAccountHref ? { onNew: leaveForNewAccount } : {})}
         value={accountId}
         onChoose={(id) => {
           setAccountId(id);

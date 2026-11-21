@@ -206,6 +206,8 @@ export interface PersonalWhoPaidSheetProps {
   readonly formats: Formats;
   /** N7: where "Nueva cuenta" goes, with a way back to this form. */
   readonly newAccountHref?: string | undefined;
+  /** P348: hands the form's draft over as "Nueva cuenta" is followed, so the new account comes back chosen. */
+  readonly onNewAccount?: (() => void) | undefined;
   /** Ruling P337: why "Desde" holds the account it does, or null. */
   readonly fromHint?: string | null;
 }
@@ -298,7 +300,12 @@ export function PersonalWhoPaidSheet(props: PersonalWhoPaidSheetProps) {
       findable
       newAccount={
         props.newAccountHref && !paying
-          ? { href: props.newAccountHref, label: tAccounts("new"), empty: tAccounts("picker.empty") }
+          ? {
+              href: props.newAccountHref,
+              label: tAccounts("new"),
+              empty: tAccounts("picker.empty"),
+              onNew: props.onNewAccount,
+            }
           : undefined
       }
     />

@@ -12,6 +12,11 @@ export interface RecordCarry {
    * fondo). The form restores it only while it is still one it offers, so another space's account never is.
    */
   readonly accountId?: string;
+  /**
+   * P348: the accounts the form offered when the person left it for Nueva cuenta. Back on the form, the one account it
+   * offers that is not among them is the one just created, and it is chosen.
+   */
+  readonly offeredAccountIds?: readonly string[];
 }
 
 /**
@@ -34,4 +39,15 @@ export const heldFor = (spaceId: string): RecordCarry | null =>
  */
 export const release = (): void => {
   held = null;
+};
+
+/** P348: the one account `offered` now that the form did not offer when it left for Nueva cuenta, or null. */
+export const newAccountOf = (
+  carry: RecordCarry | null | undefined,
+  offered: readonly { readonly id: string }[],
+): string | null => {
+  const before = carry?.offeredAccountIds;
+  if (!before) return null;
+  const added = offered.filter((a) => !before.includes(a.id));
+  return added.length === 1 ? added[0]!.id : null;
 };
